@@ -19,38 +19,53 @@ public sealed class SyncRootConnector(
 {
     private readonly string _rootDirectory = contextAccessor.Context.RootDirectory;
 
-    // Trying to prevent garbage collection of these callbacks
-    private static CF_CALLBACK_REGISTRATION[] CallbackRegistrations;
+    // 实例字段，防止回调被垃圾回收
+    private CF_CALLBACK_REGISTRATION[] _callbackRegistrations;
 
     public CF_CONNECTION_KEY Connect()
     {
         logger.LogDebug("正在将同步提供程序连接到 {syncRootPath}", _rootDirectory);
-        CallbackRegistrations = CloudFilter.ConnectSyncRoot(
-            _rootDirectory,
-            new SyncRootEvents
-            {
-                FetchPlaceholders = FetchPlaceholders,
-                FetchData = (in callbackInfo, in callbackParameters) =>
-                    FetchData(callbackInfo, callbackParameters),
-                OnCloseCompletion = OnCloseCompletion,
-                OnRenameCompletion = (in callbackInfo, in callbackParameters) =>
+        try
+        {
+            _callbackRegistrations = CloudFilter.ConnectSyncRoot(
+                _rootDirectory,
+                new SyncRootEvents
                 {
-                    var volumeDosName = callbackInfo.VolumeDosName;
-                    var oldPath = callbackParameters.RenameCompletion.SourcePath;
-                    var newPath = callbackInfo.NormalizedPath;
-                    taskWriter.TryWrite(() => OnRenameCompletion(volumeDosName, oldPath, newPath));
+                    FetchPlaceholders = FetchPlaceholders,
+                    FetchData = (in callbackInfo, in callbackParameters) =>
+                        FetchData(callbackInfo, callbackParameters),
+                    OnCloseCompletion = OnCloseCompletion,
+                    OnRenameCompletion = (in callbackInfo, in callbackParameters) =>
+                    {
+                        var volumeDosName = callbackInfo.VolumeDosName;
+                        var oldPath = callbackParameters.RenameCompletion.SourcePath;
+                        var newPath = callbackInfo.NormalizedPath;
+                        taskWriter.TryWrite(() => OnRenameCompletion(volumeDosName, oldPath, newPath));
+                    },
+                    OnDeleteCompletion = (in callbackInfo, in callbackParameters) =>
+                    {
+                        var volumeDosName = callbackInfo.VolumeDosName;
+                        var path = callbackInfo.NormalizedPath;
+                        taskWriter.TryWrite(() => OnDeleteCompletion(volumeDosName, path));
+                    },
                 },
-                OnDeleteCompletion = (in callbackInfo, in callbackParameters) =>
-                {
-                    var volumeDosName = callbackInfo.VolumeDosName;
-                    var path = callbackInfo.NormalizedPath;
-                    taskWriter.TryWrite(() => OnDeleteCompletion(volumeDosName, path));
-                },
-            },
-            out var connectionKey
-        );
+                out var connectionKey
+            );
 
-        return connectionKey;
+            return connectionKey;
+        }
+        catch (ExecutionEngineException ex)
+        {
+            logger.LogCritical(ex, "同步提供程序连接时发生执行引擎异常：{syncRootPath}", _rootDirectory);
+            // 重新抛出异常，让上层处理
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "同步提供程序连接失败：{syncRootPath}", _rootDirectory);
+            // 重新抛出异常，让上层处理
+            throw;
+        }
     }
 
     public void Disconnect(CF_CONNECTION_KEY connectionKey)

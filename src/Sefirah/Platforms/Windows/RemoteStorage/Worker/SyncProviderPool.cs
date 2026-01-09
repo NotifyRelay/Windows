@@ -87,20 +87,48 @@ public class SyncProviderPool(
 
     private async Task Run(StorageProviderSyncRootInfo syncRootInfo, CancellationToken cancellation)
     {
-        using var scope = scopeFactory.CreateScope();
-        var contextAccessor = scope.ServiceProvider.GetRequiredService<SyncProviderContextAccessor>();
-        contextAccessor.Context = new SyncProviderContext
+        try
         {
-            Id = syncRootInfo.Id,
-            RootDirectory = syncRootInfo.Path.Path,
-            PopulationPolicy = (PopulationPolicy)syncRootInfo.PopulationPolicy,
-        };
-        var remoteContextSetter = scope.ServiceProvider.GetServices<IRemoteContextSetter>()
-            .Single((setter) => setter.RemoteKind == contextAccessor.Context.RemoteKind);
-        remoteContextSetter.SetRemoteContext(syncRootInfo.Context.ToArray());
+            logger.LogDebug("正在加载应用");
+            logger.LogDebug("正在将同步提供程序连接到 {rootDirectory}", syncRootInfo.Path.Path);
+            
+            using var scope = scopeFactory.CreateScope();
+            var contextAccessor = scope.ServiceProvider.GetRequiredService<SyncProviderContextAccessor>();
+            contextAccessor.Context = new SyncProviderContext
+            {
+                Id = syncRootInfo.Id,
+                RootDirectory = syncRootInfo.Path.Path,
+                PopulationPolicy = (PopulationPolicy)syncRootInfo.PopulationPolicy,
+            };
+            
+            // 验证远程上下文设置器
+            var remoteContextSetters = scope.ServiceProvider.GetServices<IRemoteContextSetter>().ToList();
+            logger.LogDebug("找到 {count} 个远程上下文设置器", remoteContextSetters.Count);
+            
+            var remoteContextSetter = remoteContextSetters
+                .SingleOrDefault((setter) => setter.RemoteKind == contextAccessor.Context.RemoteKind);
+            
+            if (remoteContextSetter == null)
+            {
+                logger.LogError("未找到匹配的远程上下文设置器：{remoteKind}", contextAccessor.Context.RemoteKind);
+                return;
+            }
+            
+            remoteContextSetter.SetRemoteContext(syncRootInfo.Context.ToArray());
 
-        var syncProvider = scope.ServiceProvider.GetRequiredService<SyncProvider>();
-        await syncProvider.Run(cancellation);
+            var syncProvider = scope.ServiceProvider.GetRequiredService<SyncProvider>();
+            await syncProvider.Run(cancellation);
+        }
+        catch (ExecutionEngineException ex)
+        {
+            logger.LogCritical(ex, "同步提供程序运行时发生执行引擎异常：{id}", syncRootInfo.Id);
+            // 记录异常但不重新抛出，避免整个应用崩溃
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "同步提供程序运行失败：{id}", syncRootInfo.Id);
+            // 记录异常但不重新抛出，避免整个应用崩溃
+        }
     }
 
     private sealed class CancellableThread : IDisposable
