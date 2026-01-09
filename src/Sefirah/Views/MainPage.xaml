@@ -546,43 +546,28 @@
                                                     Orientation="Horizontal"
                                                     Spacing="5">
                                                         <Button
-                                                            x:Name="MoreButton"
-                                                            Width="20"
-                                                            Height="20"
+                                                            x:Name="PinButton"
+                                                            Width="24"
+                                                            Height="24"
                                                             Margin="0,0,0,0"
-                                                            Padding="0"
+                                                            Padding="4"
                                                             Background="Transparent"
                                                             BorderBrush="Transparent"
+                                                            Click="ToggleNotificationPinClick"
+                                                            DataContext="{x:Bind}"
                                                             IsHitTestVisible="False"
                                                             Opacity="0">
-                                                            <SymbolIcon Symbol="More" />
-                                                            <Button.Flyout>
-                                                                <MenuFlyout Closed="MoreButtonFlyoutClosed" Placement="BottomEdgeAlignedLeft">
-                                                                    <MenuFlyoutItem
-                                                                        Click="UpdateNotificationFilterClick"
-                                                                        Tag="{x:Bind AppPackage}"
-                                                                        Text="{x:Bind FlyoutFilterString}">
-                                                                        <MenuFlyoutItem.Icon>
-                                                                            <FontIcon Glyph="&#xECE4;" />
-                                                                        </MenuFlyoutItem.Icon>
-                                                                    </MenuFlyoutItem>
-                                                                    <MenuFlyoutItem
-                                                                        Click="ToggleNotificationPinClick"
-                                                                        DataContext="{x:Bind}"
-                                                                        Text="{x:Bind Pinned, Converter={StaticResource BoolToPinTextConverter}}">
-                                                                        <MenuFlyoutItem.Icon>
-                                                                            <FontIcon Glyph="{x:Bind Pinned, Converter={StaticResource BoolToPinGlyphConverter}}" />
-                                                                        </MenuFlyoutItem.Icon>
-                                                                    </MenuFlyoutItem>
-                                                                </MenuFlyout>
-                                                            </Button.Flyout>
+                                                            <FontIcon Glyph="{x:Bind Pinned, Converter={StaticResource BoolToPinGlyphConverter}}" FontSize="14" />
+                                                            <ToolTipService.ToolTip>
+                                                                <ToolTip Content="{x:Bind Pinned, Converter={StaticResource BoolToPinTextConverter}}" />
+                                                            </ToolTipService.ToolTip>
                                                         </Button>
                                                         <Button
                                                             x:Name="CloseButton"
-                                                            Width="20"
-                                                            Height="20"
+                                                            Width="24"
+                                                            Height="24"
                                                             Margin="0,0,0,0"
-                                                            Padding="0"
+                                                            Padding="4"
                                                             Command="{Binding ViewModel.RemoveNotificationCommand, ElementName=PageRoot}"
                                                             CommandParameter="{x:Bind}"
                                                             IsHitTestVisible="False"

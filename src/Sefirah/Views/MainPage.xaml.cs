@@ -55,7 +55,7 @@ public sealed partial class MainPage : Page
         if (sender is Border border &&
             border.FindName("PinIcon") is SymbolIcon pinIcon &&
             border.FindName("CloseButton") is Button closeButton &&
-            border.FindName("MoreButton") is Button moreButton &&
+            border.FindName("PinButton") is Button pinButton &&
             border.FindName("TimeStampTextBlock") is TextBlock timeStamp)
         {
             timeStamp.Visibility = Visibility.Collapsed;
@@ -69,23 +69,19 @@ public sealed partial class MainPage : Page
             pinIcon.IsHitTestVisible = true;
             closeButton.Opacity = 1;
             closeButton.IsHitTestVisible = true;
-            moreButton.Opacity = 1;
-            moreButton.IsHitTestVisible = true;
+            pinButton.Opacity = 1;
+            pinButton.IsHitTestVisible = true;
         }
     }
 
     private void OnPointerExited(object sender, PointerRoutedEventArgs e)
     {
-        // Check if MoreButton or its Flyout is open
         if (sender is Border border &&
             border.FindName("PinIcon") is SymbolIcon pinIcon &&
             border.FindName("CloseButton") is Button closeButton &&
-            border.FindName("MoreButton") is Button moreButton &&
+            border.FindName("PinButton") is Button pinButton &&
             border.FindName("TimeStampTextBlock") is TextBlock timeStamp)
         {
-            // If the flyout is open, don't hide the buttons
-            if (moreButton.Flyout is MenuFlyout flyout && flyout.IsOpen) return;
-
             timeStamp.Visibility = Visibility.Visible;
 
             if (pinIcon.Tag is bool isPinned && isPinned)
@@ -96,35 +92,13 @@ public sealed partial class MainPage : Page
             pinIcon.IsHitTestVisible = false;
             closeButton.Opacity = 0;
             closeButton.IsHitTestVisible = false;
-            moreButton.Opacity = 0;
-            moreButton.IsHitTestVisible = false;
-        }
-    }
-
-    private void MoreButtonFlyoutClosed(object sender, object e)
-    {
-        // The sender is the Flyout itself, so first get its parent button
-        if (sender is MenuFlyout flyout && flyout.Target is Button moreButton && 
-                VisualTreeHelper.GetParent(moreButton) is FrameworkElement parent &&
-                parent.FindName("PinIcon") is SymbolIcon pinIcon &&
-                parent.FindName("CloseButton") is Button closeButton &&
-                parent.FindName("TimeStampTextBlock") is TextBlock timeStamp)
-        {
-            if (pinIcon.Tag is bool isPinned && isPinned)
-            {
-                pinIcon.Visibility = Visibility.Visible;
-            }
-
-            closeButton.Opacity = 0;
-            closeButton.IsHitTestVisible = false;
-            moreButton.Opacity = 0;
-            moreButton.IsHitTestVisible = false;
-            timeStamp.Visibility = Visibility.Visible;
+            pinButton.Opacity = 0;
+            pinButton.IsHitTestVisible = false;
         }
     }
 
     private async void OpenAppClick(object sender, RoutedEventArgs e)
-    {   
+    {
         Debug.WriteLine($"[调试] OpenAppClick 被触发，sender 类型={sender?.GetType().Name}");
 
         Notification? notification = null;
@@ -206,7 +180,18 @@ public sealed partial class MainPage : Page
 
     private void ToggleNotificationPinClick(object sender, RoutedEventArgs e)
     {
-        if (sender is MenuFlyoutItem menuItem && menuItem.DataContext is Notification notification)
+        Notification? notification = null;
+        
+        if (sender is MenuFlyoutItem menuItem)
+        {
+            notification = menuItem.DataContext as Notification;
+        }
+        else if (sender is Button button)
+        {
+            notification = button.DataContext as Notification;
+        }
+        
+        if (notification != null)
         {
             ViewModel.ToggleNotificationPin(notification);
         }

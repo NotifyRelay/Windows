@@ -100,7 +100,7 @@ public partial class Notification : ObservableObject
         }
     }
 
-    public string FlyoutFilterString => string.Format("NotificationFilterButton".GetLocalizedResource(), AppName);
+
 
     #region Helpers
     public static async Task<Notification> FromMessage(NotificationMessage message)

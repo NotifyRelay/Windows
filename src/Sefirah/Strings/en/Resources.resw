@@ -329,9 +329,7 @@ mobile (Make sure the pin matches)</value>
   <data name="FileTransferNotificationAction.OpenFolder" xml:space="preserve">
     <value>Open folder</value>
   </data>
-  <data name="NotificationFilterButton" xml:space="preserve">
-    <value>Turn off notifications from {0}</value>
-  </data>
+  
   <data name="SubmitBugReport" xml:space="preserve">
     <value>Report a bug</value>
   </data>
