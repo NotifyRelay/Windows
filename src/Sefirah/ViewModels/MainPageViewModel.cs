@@ -24,6 +24,40 @@ public sealed partial class MainPageViewModel : BaseViewModel
     #region Properties
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ReadOnlyObservableCollection<Notification> Notifications => NotificationService.NotificationHistory;
+    public ReadOnlyObservableCollection<GroupedNotification> GroupedNotifications => NotificationService.GroupedNotificationHistory;
+    
+    // 混合集合，包含所有通知（分组和单个）
+    public ObservableCollection<object> MixedNotifications
+    {
+        get
+        {
+            var mixed = new ObservableCollection<object>();
+            
+            // 获取所有分组通知
+            var grouped = GroupedNotifications.ToList();
+            
+            // 获取所有分组使用的应用包名
+            var groupedPackageNames = new HashSet<string>(grouped.Select(g => g.AppPackage ?? "UnknownApp"));
+            
+            // 添加所有分组通知
+            foreach (var group in grouped)
+            {
+                mixed.Add(group);
+            }
+            
+            // 添加未分组的单个通知
+            foreach (var notification in Notifications)
+            {
+                string packageName = notification.AppPackage ?? "UnknownApp";
+                if (!groupedPackageNames.Contains(packageName))
+                {
+                    mixed.Add(notification);
+                }
+            }
+            
+            return mixed;
+        }
+    }
     public PairedDevice? Device => DeviceManager.ActiveDevice;
     
     /// <summary>

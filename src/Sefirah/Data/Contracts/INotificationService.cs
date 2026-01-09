@@ -8,6 +8,11 @@ public interface INotificationService
     /// Gets notifications for the currently active device session
     /// </summary>
     ReadOnlyObservableCollection<Notification> NotificationHistory { get; }
+    
+    /// <summary>
+    /// Gets grouped notifications for the currently active device session
+    /// </summary>
+    ReadOnlyObservableCollection<GroupedNotification> GroupedNotificationHistory { get; }
 
     /// <summary>
     /// Initializes the notification service

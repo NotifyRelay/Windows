@@ -25,6 +25,7 @@ public class NotificationService(
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
     
     private readonly ObservableCollection<Notification> activeNotifications = [];
+    private readonly ObservableCollection<GroupedNotification> groupedNotifications = [];
     private readonly HashSet<string> loadedDeviceIds = [];
     
     // 音乐媒体块相关（支持多个设备同时显示）
@@ -46,6 +47,11 @@ public class NotificationService(
     /// Gets all notifications from all devices
     /// </summary>
     public ReadOnlyObservableCollection<Notification> NotificationHistory => new(activeNotifications);
+    
+    /// <summary>
+    /// Gets grouped notifications from all devices
+    /// </summary>
+    public ReadOnlyObservableCollection<GroupedNotification> GroupedNotificationHistory => new(groupedNotifications);
     
     /// <summary>
     /// 当前显示的音乐媒体块列表（只读）
@@ -585,6 +591,7 @@ public class NotificationService(
         dispatcher.EnqueueAsync(() =>
         {
             activeNotifications.Clear();
+            groupedNotifications.Clear();
 
             // 聚合所有设备的通知，相同内容的通知只保留一个，添加多个设备来源
             Dictionary<string, Notification> aggregatedNotifications = [];
@@ -679,7 +686,48 @@ public class NotificationService(
             var sortedNotifications = activeNotifications.OrderByDescending(n => n.TimeStamp).ToList();
             activeNotifications.Clear();
             activeNotifications.AddRange(sortedNotifications);
+
+            // Group notifications by app package
+            Dictionary<string, GroupedNotification> groupedNotificationsDict = [];
+            
+            foreach (var notification in activeNotifications)
+            {
+                string groupKey = notification.AppPackage ?? "UnknownApp";
+                
+                if (!groupedNotificationsDict.TryGetValue(groupKey, out var group))
+                {
+                    group = new GroupedNotification
+                    {
+                        Id = groupKey,
+                        AppName = notification.AppName,
+                        AppPackage = notification.AppPackage,
+                        IconPath = notification.IconPath,
+                        Icon = notification.Icon,
+                        EarliestTime = ParseNotificationTime(notification)
+                    };
+                    groupedNotificationsDict[groupKey] = group;
+                }
+                
+                group.AddNotification(notification);
+            }
+            
+            // 保留所有分组，包括单条通知的分组
+            var groupsToKeep = groupedNotificationsDict.Values.ToList();
+            
+            // Sort groups by the earliest notification time (newest first)
+            var sortedGroups = groupsToKeep.OrderByDescending(g => g.EarliestTime).ToList();
+            groupedNotifications.Clear();
+            groupedNotifications.AddRange(sortedGroups);
         });
+    }
+    
+    private DateTime ParseNotificationTime(Notification notification)
+    {
+        if (notification.TimeStamp != null && long.TryParse(notification.TimeStamp, out var timestamp))
+        {
+            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime;
+        }
+        return DateTime.Now;
     }
 
     private async Task EnsureNotificationsLoadedAsync(PairedDevice device)

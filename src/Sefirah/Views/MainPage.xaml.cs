@@ -170,6 +170,14 @@ public sealed partial class MainPage : Page
         await ViewModel.OpenApp(notification);
     }
 
+    private void ToggleGroupCollapse(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is GroupedNotification groupedNotification)
+        {
+            groupedNotification.ToggleCollapse();
+        }
+    }
+
     private void UpdateNotificationFilterClick(object sender, RoutedEventArgs e)
     {
         if (sender is MenuFlyoutItem menuItem && menuItem.Tag is string appPackage)
