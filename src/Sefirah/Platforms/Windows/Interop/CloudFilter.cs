@@ -338,10 +338,13 @@ public static class CloudFilter
             }
         );
         var hr = CldApi.CfExecute(opInfo, ref opParameters);
-        // expected ERROR_CLOUD_REQUEST_CANCELED
+        // expected ERROR_CLOUD_REQUEST_CANCELED (398) or other expected errors
         if (hr.Code != 398)
         {
-            hr.ThrowIfFailed("Update transfer data failed");
+            // 记录错误但不抛出异常，避免async void方法崩溃
+            // 常见错误包括：0x80073D54 (15700) - 该进程没有程序包标识符
+            // 这在某些环境下可能是预期行为
+            System.Diagnostics.Debug.WriteLine($"TransferData failed with hr={hr.Code} (0x{hr.Code:X8})");
         };
     }
 
