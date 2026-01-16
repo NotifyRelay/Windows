@@ -274,36 +274,29 @@ public class NetworkService(
         if (message.Contains("APP_LIST_REQUEST", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_APP_LIST_REQUEST";
-            logger.LogDebug("识别到 APP_LIST_REQUEST 消息类型");
         }
         else if (message.Contains("ICON_REQUEST", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_ICON_REQUEST";
-            logger.LogDebug("识别到 ICON_REQUEST 消息类型");
         }
         else if (message.Contains("AUDIO_RESPONSE", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_AUDIO_RESPONSE";
-            logger.LogDebug("识别到 AUDIO_RESPONSE 消息类型");
         }
         else if (message.Contains("MEDIA_CONTROL", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_MEDIA_CONTROL";
-            logger.LogDebug("识别到 MEDIA_CONTROL 消息类型");
         }
         else if (message.Contains("DATA_SFTP", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_SFTP";
-            logger.LogDebug("识别到 DATA_SFTP 消息类型");
         }
         else if (message.Contains("SftpServerInfo", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_SFTP";
-            logger.LogDebug("识别到 SFTP_SERVER_INFO 消息类型");
         }
         else
         {
-            logger.LogDebug("使用默认 DATA_JSON 消息类型");
         }
 
         // 调用通用发送方法
@@ -993,14 +986,20 @@ public class NetworkService(
                 // 更新设备IP地址
                 if (!string.IsNullOrEmpty(connectedSessionIpAddress))
                 {
-                    // 如果IP地址已存在且不同，或者IP地址列表为空，更新IP地址
-                    if (device.IpAddresses == null || device.IpAddresses.Count == 0 || !device.IpAddresses.Contains(connectedSessionIpAddress))
+                    // 确保IP地址列表存在
+                    if (device.IpAddresses == null)
                     {
-                        logger.LogInformation("更新设备 {deviceName} 的IP地址为 {newIp}", device.Name, connectedSessionIpAddress);
+                        device.IpAddresses = new List<string>();
+                    }
+                    
+                    // 如果IP地址不存在，添加到列表中
+                    if (!device.IpAddresses.Contains(connectedSessionIpAddress))
+                    {
+                        logger.LogInformation("添加设备 {deviceName} 的IP地址：{newIp}", device.Name, connectedSessionIpAddress);
                         logger.LogInformation("会话远程IP地址：{ipAddress}", connectedSessionIpAddress);
                         
-                        // 清空旧的IP地址列表，只保留新的IP地址
-                        device.IpAddresses = [connectedSessionIpAddress];
+                        // 添加新的IP地址到列表中，保留旧的IP地址
+                        device.IpAddresses.Add(connectedSessionIpAddress);
                     }
                 }
             });

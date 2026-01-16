@@ -17,7 +17,7 @@ namespace Sefirah.Services;
 public static class ProtocolSender
 {
     private const string TAG = "ProtocolSender";
-    private const int DEFAULT_TIMEOUT = 10000;
+    private const int DEFAULT_TIMEOUT = 80000;
     private const int DEFAULT_CONNECT_TIMEOUT = 5000;
     
     /// <summary>
@@ -56,15 +56,7 @@ public static class ProtocolSender
                 return;
             }
 
-            // 使用第一个IP地址
-            string ipAddress = device.IpAddresses[0];
             const int notifyRelayPort = 23333;
-
-            logger.LogInformation("发送到设备：{deviceName} ({ipAddress})，deviceId={deviceId}", device.Name, ipAddress, device.Id);
-
-            // 限制日志长度，特别是base64图片数据
-            string loggableJson = plaintext.Length > 100 ? plaintext.Substring(0, 100) + "..." : plaintext;
-            logger.LogInformation("请求内容：{loggableJson}", loggableJson);
 
             // 加密消息
             string encryptedPayload = NotifyCryptoHelper.Encrypt(plaintext, device.SharedSecret);
@@ -75,31 +67,84 @@ public static class ProtocolSender
             
             logger.LogDebug("消息字节长度：{length}", messageBytes.Length);
 
-            // 创建TCP客户端并发送消息
-            using var tcpClient = new TcpClient();
-            tcpClient.ReceiveTimeout = (int)timeoutMs;
-            tcpClient.SendTimeout = (int)timeoutMs;
+            // 创建IP地址列表的副本，避免在遍历过程中修改原集合导致InvalidOperationException
+            var ipAddressesCopy = device.IpAddresses.ToList();
             
-            // 连接设备
-            var connectTask = tcpClient.ConnectAsync(ipAddress, notifyRelayPort);
-            var connectResult = await Task.WhenAny(connectTask, Task.Delay(DEFAULT_CONNECT_TIMEOUT));
-            
-            if (connectResult != connectTask || !connectTask.IsCompletedSuccessfully)
+            // 遍历设备的所有IP地址，尝试连接
+            foreach (string ipAddress in ipAddressesCopy)
             {
-                logger.LogWarning("连接设备超时：{ipAddress}:{port}，跳过发送", ipAddress, notifyRelayPort);
-                return;
+                logger.LogInformation("发送到设备：{deviceName} ({ipAddress})", device.Name, ipAddress);
+
+                // 创建TCP客户端并发送消息
+                using var tcpClient = new TcpClient();
+                tcpClient.ReceiveTimeout = (int)timeoutMs;
+                tcpClient.SendTimeout = (int)timeoutMs;
+                
+                try
+                {
+                    // 连接设备
+                    var connectTask = tcpClient.ConnectAsync(ipAddress, notifyRelayPort);
+                    var delayTask = Task.Delay(DEFAULT_CONNECT_TIMEOUT);
+                    var connectResult = await Task.WhenAny(connectTask, delayTask);
+                    
+                    // 确保所有任务都完成，避免未处理异常
+                    if (connectResult == delayTask)
+                    {
+                        // 超时，取消连接任务
+                        tcpClient.Close();
+                        logger.LogWarning("连接设备超时：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
+                        continue;
+                    }
+                    
+                    // 检查连接任务是否成功
+                    if (!connectTask.IsCompletedSuccessfully)
+                    {
+                        logger.LogWarning("连接设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
+                        continue;
+                    }
+                    
+                    using var networkStream = tcpClient.GetStream();
+                    networkStream.ReadTimeout = (int)timeoutMs;
+                    networkStream.WriteTimeout = (int)timeoutMs;
+                    
+                    // 发送消息
+                    await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length);
+                    // 确保数据完全发送
+                    await networkStream.FlushAsync();
+                    
+                    logger.LogInformation("成功发送请求：{header}，deviceId={deviceId}", header, device.Id);
+                    
+                    // 将成功的IP地址移到列表首位，下次优先尝试
+                    if (device.IpAddresses.Count > 1)
+                    {
+                        // 检查当前IP是否已经是首位，避免不必要的操作和日志
+                        if (device.IpAddresses[0] != ipAddress)
+                        {
+                            // 使用lock确保线程安全，避免并发修改异常
+                            lock (device)
+                            {
+                                // 再次检查，防止并发修改
+                                if (device.IpAddresses[0] != ipAddress)
+                                {
+                                    device.IpAddresses.Remove(ipAddress);
+                                    device.IpAddresses.Insert(0, ipAddress);
+                                    logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
+                                }
+                            }
+                        }
+                    }
+                    
+                    return; // 发送成功，退出循环
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex, "连接或发送到设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
+                    // 继续尝试下一个IP地址
+                }
             }
-            
-            using var networkStream = tcpClient.GetStream();
-            networkStream.ReadTimeout = (int)timeoutMs;
-            networkStream.WriteTimeout = (int)timeoutMs;
-            
-            // 发送消息
-            await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length);
-            // 确保数据完全发送
-            await networkStream.FlushAsync();
-            
-            logger.LogInformation("成功发送请求：{header}，deviceId={deviceId}", header, device.Id);
+
+            // 所有IP地址都尝试失败
+            logger.LogWarning("所有IP地址都连接失败，跳过发送");
         }
         catch (ObjectDisposedException ex)
         {
