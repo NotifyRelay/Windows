@@ -36,7 +36,12 @@ public interface INotificationService
     /// <summary>
     /// Clears all notifications for all devices
     /// </summary>
-    void ClearAllNotifications();
+    void ClearAllNotificationall();
+    
+    /// <summary>
+    /// Clears all notifications for a specific app package across all devices
+    /// </summary>
+    void ClearAllNotifications(string appPackage);
     
     void ClearHistory(PairedDevice device);
     void HandleIconResponse(string deviceId, string packageName);

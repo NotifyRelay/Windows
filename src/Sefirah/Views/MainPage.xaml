@@ -385,7 +385,7 @@
                             VerticalAlignment="Center"
                             Background="Transparent"
                             BorderBrush="Transparent"
-                            Command="{x:Bind ViewModel.ClearAllNotificationsCommand}"
+                            Command="{x:Bind ViewModel.ClearAllNotificationallCommand}"
                             Content="{helpers:ResourceString Name=NotificationsClearButton}"
                             FontSize="14" />
                     </Grid>
@@ -531,12 +531,13 @@
                                                         <ColumnDefinition Width="Auto" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <!-- 折叠/展开图标 -->
-                            <FontIcon
-                                Grid.Column="0"
-                                Glyph="{x:Bind IsCollapsed, Converter={StaticResource BoolToCollapseGlyphConverter}, Mode=OneWay}"
-                                VerticalAlignment="Center" />
+                                                    <FontIcon
+                                                        Grid.Column="0"
+                                                        Glyph="{x:Bind IsCollapsed, Converter={StaticResource BoolToCollapseGlyphConverter}, Mode=OneWay}"
+                                                        VerticalAlignment="Center" />
                                                     <!-- 应用图标 -->
                                                     <Image
                                                         Grid.Column="1"
@@ -565,6 +566,20 @@
                                                         Foreground="Gray"
                                                         HorizontalAlignment="Right"
                                                         Text="{x:Bind FormattedEarliestTime, Mode=OneWay}" />
+                                                    <!-- 清除该应用所有通知按钮 -->
+                                                    <Button
+                                                        Grid.Column="4"
+                                                        Width="24"
+                                                        Height="24"
+                                                        Padding="0"
+                                                        Background="Transparent"
+                                                        BorderBrush="Transparent"
+                                                        BorderThickness="0"
+                                                        Command="{Binding ViewModel.ClearAllNotificationsCommand, ElementName=PageRoot}"
+                                                        CommandParameter="{x:Bind AppPackage}"
+                                                        ToolTipService.ToolTip="清除该应用所有通知">
+                                                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                                                    </Button>
                                                 </Grid>
                                             </Button>
                                             <!-- 分隔线 -->

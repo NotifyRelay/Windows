@@ -400,9 +400,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    public void ClearAllNotifications()
+    public void ClearAllNotificationall()
     {
-        NotificationService.ClearAllNotifications();
+        NotificationService.ClearAllNotificationall();
     }
 
     [RelayCommand]
@@ -415,6 +415,12 @@ public sealed partial class MainPageViewModel : BaseViewModel
     public void RemoveNotification(Notification notification)
     {
         NotificationService.RemoveNotification(Device!, notification);
+    }
+    
+    [RelayCommand]
+    public void ClearAllNotifications(string appPackage)
+    {
+        NotificationService.ClearAllNotifications(appPackage);
     }
 
     [RelayCommand]

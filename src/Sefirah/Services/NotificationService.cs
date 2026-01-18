@@ -420,21 +420,33 @@ public class NotificationService(
     {
         try
         {
-            if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
-                
             if (!notification.Pinned)
             {
-                _ = dispatcher.EnqueueAsync(() => notifications.Remove(notification));
-                logger.LogDebug("已从设备 {DeviceId} 移除通知：{NotificationKey}", device.Id, notification);
+                _ = dispatcher.EnqueueAsync(() => 
+                {
+                    // 从所有设备的通知列表中移除匹配的通知
+                    foreach (var (deviceId, notifications) in deviceNotifications)
+                    {
+                        var notificationToRemove = notifications.FirstOrDefault(n => 
+                            n.Key == notification.Key ||
+                            (n.AppPackage == notification.AppPackage && 
+                             n.Title == notification.Title && 
+                             n.Text == notification.Text));
+                        
+                        if (notificationToRemove != null)
+                        {
+                            notifications.Remove(notificationToRemove);
+                            logger.LogDebug("已从设备 {DeviceId} 移除通知：{NotificationKey}", deviceId, notification.Key);
 
-                notificationRepository.DeleteNotification(device.Id, notification.Key);
+                            notificationRepository.DeleteNotification(deviceId, notificationToRemove.Key);
+                        }
+                    }
 
-                platformNotificationHandler.RemoveNotificationsByTagAndGroup(notification.Tag, notification.GroupKey);
+                    platformNotificationHandler.RemoveNotificationsByTagAndGroup(notification.Tag, notification.GroupKey);
 
-                // Always update the aggregated notifications after a removal
-                UpdateActiveNotifications();
-
-                // 不再向设备发送单条通知删除消息；本地已删除并持久化
+                    // Always update the aggregated notifications after a removal
+                    UpdateActiveNotifications();
+                });
             }
         }
         catch (Exception ex)
@@ -478,12 +490,6 @@ public class NotificationService(
         try
         {
             ClearHistory(device);
-            // Only clear non-pinned notifications from the DB for this device
-            notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
-            // Ensure UI reflects the cleared device notifications (pinned remain)
-            UpdateActiveNotifications();
-            // 不再向设备发送清除命令；本地仅清除未置顶通知
-            if (!device.ConnectionStatus) return;
         }
         catch (Exception ex)
         {
@@ -494,7 +500,7 @@ public class NotificationService(
     /// <summary>
     /// 清除所有设备的全部通知
     /// </summary>
-    public void ClearAllNotifications()
+    public void ClearAllNotificationall()
     {
         _ = dispatcher.EnqueueAsync(() =>
         {
@@ -513,15 +519,6 @@ public class NotificationService(
                     }
                 }
 
-                // 从聚合活跃列表中移除所有未置顶通知
-                for (int i = activeNotifications.Count - 1; i >= 0; i--)
-                {
-                    if (!activeNotifications[i].Pinned)
-                    {
-                        activeNotifications.RemoveAt(i);
-                    }
-                }
-                
                 // 清除所有设备的未置顶通知历史（保留置顶）
                 foreach (var device in deviceManager.PairedDevices)
                 {
@@ -529,10 +526,48 @@ public class NotificationService(
                 }
                 
                 ClearBadge();
+                
+                // 更新活跃通知列表，确保UI反映最新状态
+                UpdateActiveNotifications();
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "清除所有设备通知时出错");
+            }
+        });
+    }
+    
+    /// <summary>
+    /// 按包名清除所有设备上的通知
+    /// </summary>
+    public void ClearAllNotifications(string appPackage)
+    {
+        _ = dispatcher.EnqueueAsync(() =>
+        {
+            try
+            {
+                // 遍历所有设备的通知列表
+                foreach (var (deviceId, notifications) in deviceNotifications)
+                {
+                    // 移除该设备上所有匹配包名的未置顶通知
+                    for (int i = notifications.Count - 1; i >= 0; i--)
+                    {
+                        var notification = notifications[i];
+                        if (!notification.Pinned && notification.AppPackage == appPackage)
+                        {
+                            notifications.RemoveAt(i);
+                            // 从数据库中删除该通知
+                            notificationRepository.DeleteNotification(deviceId, notification.Key);
+                        }
+                    }
+                }
+                
+                // 更新活跃通知列表，确保UI反映最新状态
+                UpdateActiveNotifications();
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "按包名清除通知时出错，包名：{AppPackage}", appPackage);
             }
         });
     }
@@ -557,6 +592,9 @@ public class NotificationService(
                 }
                 // 只清除数据库中未置顶的通知
                 notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
+                
+                // 更新活跃通知列表，确保UI反映最新状态
+                UpdateActiveNotifications();
             }
             catch (Exception ex)
             {
