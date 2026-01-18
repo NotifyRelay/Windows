@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Text.Json;
 using Sefirah.Data.AppDatabase.Models;
 using SQLite;
 namespace Sefirah.Data.AppDatabase;
@@ -88,6 +90,57 @@ public class DatabaseContext : IDisposable
         if (db.GetTableInfo(nameof(NotificationEntity)).Count == 0)
         {
             db.CreateTable<NotificationEntity>();
+        }
+        else
+        {
+            // 检查NotificationEntity表的列是否需要迁移
+            var notificationColumns = db.GetTableInfo(nameof(NotificationEntity));
+            var hasDeviceIdColumn = notificationColumns.Any(col => col.Name.Equals("DeviceId", StringComparison.OrdinalIgnoreCase));
+            var hasDeviceIdsColumn = notificationColumns.Any(col => col.Name.Equals("DeviceIds", StringComparison.OrdinalIgnoreCase));
+            var hasDeviceNamesColumn = notificationColumns.Any(col => col.Name.Equals("DeviceNames", StringComparison.OrdinalIgnoreCase));
+            
+            // 如果存在旧的DeviceId列，需要进行迁移
+            if (hasDeviceIdColumn)
+            {
+                // 添加新的DeviceIds和DeviceNames列
+                if (!hasDeviceIdsColumn)
+                {
+                    try
+                    {
+                        db.Execute("ALTER TABLE NotificationEntity ADD COLUMN DeviceIds TEXT DEFAULT '[]'");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Migration warning: Could not add DeviceIds column: {ex.Message}");
+                    }
+                }
+                
+                if (!hasDeviceNamesColumn)
+                {
+                    try
+                    {
+                        db.Execute("ALTER TABLE NotificationEntity ADD COLUMN DeviceNames TEXT DEFAULT '[]'");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Migration warning: Could not add DeviceNames column: {ex.Message}");
+                    }
+                }
+                
+                // 将现有数据迁移到新列
+                if (hasDeviceIdsColumn && hasDeviceNamesColumn)
+                {
+                    try
+                    {
+                        // 使用字符串拼接创建JSON数组，避免依赖SQLite的json_array函数
+                        db.Execute("UPDATE NotificationEntity SET DeviceIds = '[' || quote(DeviceId) || ']', DeviceNames = '[' || quote(DeviceId) || ']'");
+                    }
+                    catch (Exception ex)
+                    {
+                        Debug.WriteLine($"Migration warning: Could not migrate DeviceId to DeviceIds/DeviceNames: {ex.Message}");
+                    }
+                }
+            }
         }
 
         return db;

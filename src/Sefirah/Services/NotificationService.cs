@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Text.Json;
 using CommunityToolkit.WinUI;
 using Sefirah.Data.AppDatabase.Repository;
 using Sefirah.Data.Contracts;
@@ -400,7 +401,14 @@ public class NotificationService(
             else if (message.NotificationType == NotificationType.Removed)
             {
                 if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
-                var notification = notifications.FirstOrDefault(n => n.Key == message.NotificationKey);
+                
+                // 查找匹配的通知（基于内容匹配，因为可能是聚合通知）
+                var notification = notifications.FirstOrDefault(n => 
+                    n.Key == message.NotificationKey ||
+                    (n.AppPackage == message.AppPackage && 
+                     n.Title == message.Title && 
+                     n.Text == message.Text));
+                     
                 if (notification is not null && !notification.Pinned)
                 {
                     await dispatcher.EnqueueAsync(() => notifications.Remove(notification));
@@ -790,32 +798,52 @@ public class NotificationService(
 
                     var notif = await Notification.FromMessage(msg);
                     notif.Pinned = entity.Pinned;
-                    notif.AddSourceDevice(device.Id, device.Name);
+                    
+                    // 解析设备ID和名称列表
+                    try
+                    {
+                        var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds) ?? [];
+                        var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
+                        
+                        // 添加所有设备信息到通知
+                        for (int i = 0; i < deviceIds.Count; i++)
+                        {
+                            var deviceId = deviceIds[i];
+                            var deviceName = i < deviceNames.Count ? deviceNames[i] : deviceId;
+                            notif.AddSourceDevice(deviceId, deviceName);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "解析通知 {Id} 的设备信息失败", entity.Id);
+                        // 如果解析失败，至少添加当前设备
+                        notif.AddSourceDevice(device.Id, device.Name);
+                    }
                     
                     // 确保图标路径正确设置
-                        if (!string.IsNullOrEmpty(msg.AppPackage))
+                    if (!string.IsNullOrEmpty(msg.AppPackage))
+                    {
+                        // 直接设置图标路径，确保所有设备的通知都能访问到正确的图标路径
+                        string iconPath = IconUtils.GetAppIconPath(msg.AppPackage);
+                        notif.IconPath = iconPath;
+                        
+                        // 确保图标文件存在
+                        if (IconUtils.AppIconExists(msg.AppPackage))
                         {
-                            // 直接设置图标路径，确保所有设备的通知都能访问到正确的图标路径
-                            string iconPath = IconUtils.GetAppIconPath(msg.AppPackage);
-                            notif.IconPath = iconPath;
-                            
-                            // 确保图标文件存在
-                            if (IconUtils.AppIconExists(msg.AppPackage))
-                            {
-                                // 立即同步加载图标，确保历史通知能显示图标
-                                await notif.LoadIconAsync();
-                            }
-                            else
-                            {
-                                // 如果图标不存在，尝试异步请求图标
-                                logger.LogDebug("通知图标不存在，尝试请求图标: {AppPackage}", msg.AppPackage);
-                                // 发送图标请求
-                                networkService.SendIconRequest(device.Id, msg.AppPackage);
-                                // 延迟一段时间后再次尝试加载图标
-                                await Task.Delay(500);
-                                await notif.LoadIconAsync();
-                            }
+                            // 立即同步加载图标，确保历史通知能显示图标
+                            await notif.LoadIconAsync();
                         }
+                        else
+                        {
+                            // 如果图标不存在，尝试异步请求图标
+                            logger.LogDebug("通知图标不存在，尝试请求图标: {AppPackage}", msg.AppPackage);
+                            // 发送图标请求
+                            networkService.SendIconRequest(device.Id, msg.AppPackage);
+                            // 延迟一段时间后再次尝试加载图标
+                            await Task.Delay(500);
+                            await notif.LoadIconAsync();
+                        }
+                    }
                     
                     notifications.Add(notif);
                 }
