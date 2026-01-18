@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Sefirah.Data.AppDatabase.Models;
+using Sefirah.Data.Models;
+using Sefirah.Utils.Serialization;
 using SQLite;
 namespace Sefirah.Data.AppDatabase;
 
@@ -87,58 +89,106 @@ public class DatabaseContext : IDisposable
             db.CreateTable<ApplicationInfoEntity>();
         }
 
-        if (db.GetTableInfo(nameof(NotificationEntity)).Count == 0)
+        // 检查NotificationEntity表是否需要迁移（主键设计变更）
+        var tableInfo = db.GetTableInfo(nameof(NotificationEntity));
+        if (tableInfo.Count == 0)
         {
+            // 新表，直接创建
             db.CreateTable<NotificationEntity>();
         }
         else
         {
-            // 检查NotificationEntity表的列是否需要迁移
-            var notificationColumns = db.GetTableInfo(nameof(NotificationEntity));
-            var hasDeviceIdColumn = notificationColumns.Any(col => col.Name.Equals("DeviceId", StringComparison.OrdinalIgnoreCase));
-            var hasDeviceIdsColumn = notificationColumns.Any(col => col.Name.Equals("DeviceIds", StringComparison.OrdinalIgnoreCase));
-            var hasDeviceNamesColumn = notificationColumns.Any(col => col.Name.Equals("DeviceNames", StringComparison.OrdinalIgnoreCase));
+            // 检查是否需要迁移（旧表使用deviceId|notificationKey作为主键，新表使用内容哈希作为主键）
+            bool needMigration = true;
             
-            // 如果存在旧的DeviceId列，需要进行迁移
-            if (hasDeviceIdColumn)
+            try
             {
-                // 添加新的DeviceIds和DeviceNames列
-                if (!hasDeviceIdsColumn)
+                // 尝试使用新的主键设计插入一条测试记录
+                var testEntity = new NotificationEntity
                 {
-                    try
+                    Id = "test|test|test|New",
+                    DeviceIds = "[]",
+                    DeviceNames = "[]",
+                    MessageJson = "{}",
+                    CreatedAt = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                };
+                db.Insert(testEntity);
+                db.Delete(testEntity);
+                needMigration = false;
+            }
+            catch (Exception)
+            {
+                // 插入失败，需要迁移
+            }
+            
+            if (needMigration)
+            {
+                try
+                {
+                    // 1. 使用动态类型查询旧表数据，避免字段不匹配问题
+                    var oldNotifications = db.Query<dynamic>("SELECT * FROM NotificationEntity");
+                    
+                    // 2. 删除旧表
+                    db.Execute("DROP TABLE IF EXISTS NotificationEntity");
+                    
+                    // 3. 创建新表（使用新的主键设计）
+                    db.CreateTable<NotificationEntity>();
+                    
+                    // 4. 恢复数据到新表
+                    foreach (var oldRecord in oldNotifications)
                     {
-                        db.Execute("ALTER TABLE NotificationEntity ADD COLUMN DeviceIds TEXT DEFAULT '[]'");
+                        try
+                        {
+                            // 获取旧记录的字段值
+                            var oldId = oldRecord.Id as string ?? string.Empty;
+                            var notificationKey = oldRecord.NotificationKey as string ?? string.Empty;
+                            var messageJson = oldRecord.MessageJson as string ?? string.Empty;
+                            var pinned = (bool)(oldRecord.Pinned ?? false);
+                            var createdAt = (long)(oldRecord.CreatedAt ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                            
+                            // 从旧Id中提取设备ID (旧Id格式：deviceId|notificationKey)
+                            var deviceId = oldId.Split('|')[0];
+                            
+                            // 反序列化消息
+                            var message = SocketMessageSerializer.DeserializeMessage(messageJson) as NotificationMessage;
+                            
+                            if (message != null)
+                            {
+                                // 生成新的主键
+                                var newId = $"{message.AppPackage}|{message.Title}|{message.Text}|{message.NotificationType}";
+                                
+                                // 创建新实体，为DeviceIds和DeviceNames设置正确的JSON格式
+                                // 使用设备ID作为名称占位符，后续在EnsureNotificationsLoadedAsync中会更新为正确的设备名称
+                                var newEntity = new NotificationEntity
+                                {
+                                    Id = newId,
+                                    NotificationKey = notificationKey,
+                                    DeviceIds = JsonSerializer.Serialize(new List<string> { deviceId }),
+                                    DeviceNames = JsonSerializer.Serialize(new List<string> { deviceId }), // 临时使用设备ID作为名称
+                                    MessageJson = messageJson,
+                                    Pinned = pinned,
+                                    CreatedAt = createdAt
+                                };
+                                
+                                // 保存到新表
+                                db.Insert(newEntity);
+                            }
+                        }
+                        catch (Exception innerEx)
+                        {
+                            Debug.WriteLine($"Migration warning: Could not migrate notification record: {innerEx.Message}");
+                            // 跳过有问题的记录，继续迁移其他记录
+                        }
                     }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Migration warning: Could not add DeviceIds column: {ex.Message}");
-                    }
+                    
+                    Debug.WriteLine("NotificationEntity表迁移成功");
                 }
-                
-                if (!hasDeviceNamesColumn)
+                catch (Exception ex)
                 {
-                    try
-                    {
-                        db.Execute("ALTER TABLE NotificationEntity ADD COLUMN DeviceNames TEXT DEFAULT '[]'");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Migration warning: Could not add DeviceNames column: {ex.Message}");
-                    }
-                }
-                
-                // 将现有数据迁移到新列
-                if (hasDeviceIdsColumn && hasDeviceNamesColumn)
-                {
-                    try
-                    {
-                        // 使用字符串拼接创建JSON数组，避免依赖SQLite的json_array函数
-                        db.Execute("UPDATE NotificationEntity SET DeviceIds = '[' || quote(DeviceId) || ']', DeviceNames = '[' || quote(DeviceId) || ']'");
-                    }
-                    catch (Exception ex)
-                    {
-                        Debug.WriteLine($"Migration warning: Could not migrate DeviceId to DeviceIds/DeviceNames: {ex.Message}");
-                    }
+                    Debug.WriteLine($"Migration error: Could not migrate NotificationEntity table: {ex.Message}");
+                    // 如果迁移失败，至少创建一个空表
+                    db.Execute("DROP TABLE IF EXISTS NotificationEntity");
+                    db.CreateTable<NotificationEntity>();
                 }
             }
         }

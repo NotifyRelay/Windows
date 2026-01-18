@@ -636,6 +636,13 @@ public class NotificationService(
     {
         dispatcher.EnqueueAsync(() =>
         {
+            // 保存现有分组的展开/折叠状态
+            Dictionary<string, bool> existingGroupStates = [];
+            foreach (var existingGroup in groupedNotifications)
+            {
+                existingGroupStates[existingGroup.Id] = existingGroup.IsCollapsed;
+            }
+
             activeNotifications.Clear();
             groupedNotifications.Clear();
 
@@ -751,6 +758,13 @@ public class NotificationService(
                         Icon = notification.Icon,
                         EarliestTime = ParseNotificationTime(notification)
                     };
+                    
+                    // 恢复现有分组的展开/折叠状态
+                    if (existingGroupStates.TryGetValue(groupKey, out bool isCollapsed))
+                    {
+                        group.IsCollapsed = isCollapsed;
+                    }
+                    
                     groupedNotificationsDict[groupKey] = group;
                 }
                 
@@ -809,7 +823,12 @@ public class NotificationService(
                         for (int i = 0; i < deviceIds.Count; i++)
                         {
                             var deviceId = deviceIds[i];
-                            var deviceName = i < deviceNames.Count ? deviceNames[i] : deviceId;
+                            // 获取正确的设备名称，优先使用DeviceManager中的设备名称，否则使用存储的名称
+                            var storedDeviceName = i < deviceNames.Count ? deviceNames[i] : deviceId;
+                            // 从设备管理器中查找设备，获取正确的设备名称
+                            var pairedDevice = deviceManager.FindDeviceById(deviceId);
+                            var deviceName = pairedDevice?.Name ?? storedDeviceName;
+                            
                             notif.AddSourceDevice(deviceId, deviceName);
                         }
                     }
