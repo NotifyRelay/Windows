@@ -214,7 +214,7 @@ public class PlaceholdersService(
         // Only update placeholder state if directory is a hydrated directory
         if (isHydrated)
         {
-            logger.LogInformation("目录 {path} 已还原", relativeDirectory);
+            //logger.LogInformation("目录 {path} 已还原", relativeDirectory);
             if (!CloudFilter.IsPlaceholder(clientDirectory))
             {
                 CloudFilter.ConvertToPlaceholder(clientDirectory);
