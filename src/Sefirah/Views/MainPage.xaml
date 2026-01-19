@@ -28,7 +28,7 @@
         
         <wctconverters:EmptyObjectToObjectConverter x:Key="EmptyObjectToOpacityConverter" EmptyValue="1.0" NotEmptyValue="0.0" />
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinGlyphConverter" FalseValue="&#xE718;" TrueValue="&#xE77A;" />
-        <wctconverters:BoolToObjectConverter x:Key="BoolToCollapseGlyphConverter" FalseValue="&#xE909;" TrueValue="&#xE90A;" />
+        <!-- 不再使用，已移至 NotificationsListControl.xaml -->
         <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />

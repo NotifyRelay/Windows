@@ -19,7 +19,7 @@
             TrueValue="{helpers:ResourceString Name=Unpin}" />
         
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinGlyphConverter" FalseValue="&#xE718;" TrueValue="&#xE77A;" />
-        <wctconverters:BoolToObjectConverter x:Key="BoolToCollapseGlyphConverter" FalseValue="&#xE909;" TrueValue="&#xE90A;" />
+        <wctconverters:BoolToObjectConverter x:Key="BoolToCollapseGlyphConverter" FalseValue="&#xE1C5;" TrueValue="&#xE90A;" />
         <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
