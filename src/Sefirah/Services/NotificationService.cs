@@ -740,23 +740,55 @@ public class NotificationService(
             activeNotifications.Clear();
             activeNotifications.AddRange(sortedNotifications);
 
-            // Group notifications by app package
-            Dictionary<string, GroupedNotification> groupedNotificationsDict = [];
+            // Group notifications by app package, but exclude pinned notifications and single notifications
+            Dictionary<string, List<Notification>> appNotificationsDict = [];
+            
+            // First, separate pinned notifications and collect app notifications
+            List<Notification> pinnedNotifications = [];
             
             foreach (var notification in activeNotifications)
             {
-                string groupKey = notification.AppPackage ?? "UnknownApp";
-                
-                if (!groupedNotificationsDict.TryGetValue(groupKey, out var group))
+                if (notification.Pinned)
                 {
-                    group = new GroupedNotification
+                    pinnedNotifications.Add(notification);
+                }
+                else
+                {
+                    string groupKey = notification.AppPackage ?? "UnknownApp";
+                    if (!appNotificationsDict.TryGetValue(groupKey, out var notificationsList))
+                    {
+                        notificationsList = [];
+                        appNotificationsDict[groupKey] = notificationsList;
+                    }
+                    notificationsList.Add(notification);
+                }
+            }
+            
+            // Now create grouped notifications for remaining notifications
+            Dictionary<string, GroupedNotification> groupedNotificationsDict = [];
+            List<Notification> singleNotifications = [];
+            
+            foreach (var (groupKey, notificationsList) in appNotificationsDict)
+            {
+                if (notificationsList.Count == 1)
+                {
+                    // Single notification, add to single notifications list
+                    singleNotifications.Add(notificationsList[0]);
+                }
+                else
+                {
+                    // Multiple notifications, create a group
+                    var notification = notificationsList[0];
+                    var notificationTime = ParseNotificationTime(notification);
+                    var group = new GroupedNotification
                     {
                         Id = groupKey,
                         AppName = notification.AppName,
                         AppPackage = notification.AppPackage,
                         IconPath = notification.IconPath,
                         Icon = notification.Icon,
-                        EarliestTime = ParseNotificationTime(notification)
+                        EarliestTime = notificationTime,
+                        LatestTime = notificationTime
                     };
                     
                     // 恢复现有分组的展开/折叠状态
@@ -765,19 +797,52 @@ public class NotificationService(
                         group.IsCollapsed = isCollapsed;
                     }
                     
+                    foreach (var notif in notificationsList)
+                    {
+                        group.AddNotification(notif);
+                    }
+                    
                     groupedNotificationsDict[groupKey] = group;
                 }
-                
-                group.AddNotification(notification);
             }
             
-            // 保留所有分组，包括单条通知的分组
-            var groupsToKeep = groupedNotificationsDict.Values.ToList();
+            // Combine all notifications: pinned first, then single notifications, then grouped notifications
+            var finalNotifications = new List<object>();
             
-            // Sort groups by the earliest notification time (newest first)
-            var sortedGroups = groupsToKeep.OrderByDescending(g => g.EarliestTime).ToList();
+            // Add pinned notifications first (sorted by time)
+            finalNotifications.AddRange(pinnedNotifications.OrderByDescending(n => n.TimeStamp));
+            
+            // Add single notifications next (sorted by time)
+            finalNotifications.AddRange(singleNotifications.OrderByDescending(n => n.TimeStamp));
+            
+            // Add grouped notifications last (sorted by time)
+            var groupsToKeep = groupedNotificationsDict.Values.ToList();
+            finalNotifications.AddRange(groupsToKeep.OrderByDescending(g => g.EarliestTime));
+            
+            // Now populate the groupedNotifications collection with all types of notifications
             groupedNotifications.Clear();
-            groupedNotifications.AddRange(sortedGroups);
+            foreach (var item in finalNotifications)
+            {
+                if (item is GroupedNotification group)
+                {
+                    groupedNotifications.Add(group);
+                }
+                else if (item is Notification notification)
+                {
+                    // Create a wrapper GroupedNotification for single notifications to maintain consistency
+                    var singleGroup = new GroupedNotification
+                    {
+                        Id = notification.Key,
+                        AppName = notification.AppName,
+                        AppPackage = notification.AppPackage,
+                        IconPath = notification.IconPath,
+                        Icon = notification.Icon,
+                        EarliestTime = ParseNotificationTime(notification)
+                    };
+                    singleGroup.AddNotification(notification);
+                    groupedNotifications.Add(singleGroup);
+                }
+            }
         });
     }
     

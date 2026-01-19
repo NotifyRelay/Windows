@@ -17,6 +17,7 @@ public partial class GroupedNotification : ObservableObject
     private string? _iconPath;
     private BitmapImage? _icon;
     private DateTime _earliestTime;
+    private DateTime _latestTime;
 
     public string Id { get; set; } = string.Empty;
     
@@ -67,6 +68,14 @@ public partial class GroupedNotification : ObservableObject
         get => _earliestTime;
         set => SetProperty(ref _earliestTime, value);
     }
+
+    public DateTime LatestTime
+    {
+        get => _latestTime;
+        set => SetProperty(ref _latestTime, value);
+    }
+
+    public string FormattedLatestTime => LatestTime.ToString("MM-dd HH:mm");
 
     [ObservableProperty]
     private bool _hasExtra = false;
@@ -133,13 +142,17 @@ public partial class GroupedNotification : ObservableObject
     {
         Notifications.Add(notification);
         
-        // 更新最早时间
+        // 更新时间信息
         if (notification.TimeStamp != null)
         {
             var notificationTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(notification.TimeStamp)).DateTime;
             if (notificationTime < EarliestTime)
             {
                 EarliestTime = notificationTime;
+            }
+            if (notificationTime > LatestTime)
+            {
+                LatestTime = notificationTime;
             }
         }
         
