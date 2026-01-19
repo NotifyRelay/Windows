@@ -373,7 +373,7 @@
                     </NavigationView.Resources>
 
                     <NavigationView.MenuItems>
-                        <NavigationViewItem Content="应用" Tag="Apps">
+                        <NavigationViewItem Content="应用" Tag="Apps" IsSelected="True">
                             <NavigationViewItem.Icon>
                                 <SymbolIcon Symbol="AllApps" />
                             </NavigationViewItem.Icon>
@@ -384,5 +384,8 @@
                 </NavigationView>
             </Grid>
         </Grid>
+        <win:Grid>
+            <userControls:TrayIconControl />
+        </win:Grid>
     </Grid>
 </Page>

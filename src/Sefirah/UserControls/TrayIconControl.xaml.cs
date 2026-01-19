@@ -6,6 +6,9 @@ using Sefirah.Data.Models;
 #if WINDOWS
 using Sefirah.Platforms.Windows.Interop;
 #endif
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Windows.Input;
 using Windows.UI.ViewManagement;
 
 namespace Sefirah.UserControls;

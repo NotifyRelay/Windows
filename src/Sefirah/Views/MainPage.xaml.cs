@@ -19,6 +19,9 @@ public sealed partial class MainPage : Page
         ViewModel = Ioc.Default.GetRequiredService<MainPageViewModel>();
         DevicesViewModel = Ioc.Default.GetRequiredService<DevicesViewModel>();
         DataContext = ViewModel;
+        
+        // 默认导航到应用列表页
+        ContentFrame.Navigate(typeof(AppsPage));
     }
 
     private readonly Dictionary<string, Type> Pages = new()
