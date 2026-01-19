@@ -164,6 +164,12 @@ public partial class GroupedNotification : ObservableObject
             IconPath = notification.IconPath;
             Icon = notification.Icon;
         }
+        else if (Icon == null && notification.Icon != null)
+        {
+            // 如果分组没有图标，但通知有图标，更新分组图标
+            IconPath = notification.IconPath;
+            Icon = notification.Icon;
+        }
     }
     
     public static implicit operator Notification(GroupedNotification group)

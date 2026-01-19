@@ -636,11 +636,11 @@ public class NotificationService(
     {
         dispatcher.EnqueueAsync(() =>
         {
-            // 保存现有分组的展开/折叠状态
-            Dictionary<string, bool> existingGroupStates = [];
+            // 保存现有分组的展开/折叠状态和时间信息
+            Dictionary<string, (bool IsCollapsed, DateTime EarliestTime, DateTime LatestTime)> existingGroupStates = [];
             foreach (var existingGroup in groupedNotifications)
             {
-                existingGroupStates[existingGroup.Id] = existingGroup.IsCollapsed;
+                existingGroupStates[existingGroup.Id] = (existingGroup.IsCollapsed, existingGroup.EarliestTime, existingGroup.LatestTime);
             }
 
             activeNotifications.Clear();
@@ -791,10 +791,16 @@ public class NotificationService(
                         LatestTime = notificationTime
                     };
                     
-                    // 恢复现有分组的展开/折叠状态
-                    if (existingGroupStates.TryGetValue(groupKey, out bool isCollapsed))
+                    // 恢复现有分组的展开/折叠状态和时间信息
+                    if (existingGroupStates.TryGetValue(groupKey, out var groupState))
                     {
-                        group.IsCollapsed = isCollapsed;
+                        group.IsCollapsed = groupState.IsCollapsed;
+                        // 如果分组是展开状态，保留原有的时间信息，避免移除最新通知导致排序改变
+                        if (!groupState.IsCollapsed)
+                        {
+                            group.EarliestTime = groupState.EarliestTime;
+                            group.LatestTime = groupState.LatestTime;
+                        }
                     }
                     
                     foreach (var notif in notificationsList)
@@ -806,18 +812,43 @@ public class NotificationService(
                 }
             }
             
-            // Combine all notifications: pinned first, then single notifications, then grouped notifications
+            // Combine all notifications: pinned first, then mixed sorted non-pinned notifications
             var finalNotifications = new List<object>();
             
             // Add pinned notifications first (sorted by time)
             finalNotifications.AddRange(pinnedNotifications.OrderByDescending(n => n.TimeStamp));
             
-            // Add single notifications next (sorted by time)
-            finalNotifications.AddRange(singleNotifications.OrderByDescending(n => n.TimeStamp));
+            // Create a list of all non-pinned notifications (both single and grouped)
+            var nonPinnedNotifications = new List<object>();
             
-            // Add grouped notifications last (sorted by time)
+            // Add single notifications as grouped notifications for consistent processing
+            foreach (var notification in singleNotifications)
+            {
+                nonPinnedNotifications.Add(notification);
+            }
+            
+            // Add grouped notifications
             var groupsToKeep = groupedNotificationsDict.Values.ToList();
-            finalNotifications.AddRange(groupsToKeep.OrderByDescending(g => g.EarliestTime));
+            nonPinnedNotifications.AddRange(groupsToKeep);
+            
+            // Sort non-pinned notifications by timestamp (newest first)
+            var sortedNonPinnedNotifications = nonPinnedNotifications.OrderByDescending(item => 
+            {
+                if (item is Notification notification)
+                {
+                    // Single notification - use its own timestamp
+                    return ParseNotificationTime(notification);
+                }
+                else if (item is GroupedNotification group)
+                {
+                    // Grouped notification - use the latest timestamp in the group
+                    return group.LatestTime;
+                }
+                return DateTime.MinValue;
+            }).ToList();
+            
+            // Add sorted non-pinned notifications
+            finalNotifications.AddRange(sortedNonPinnedNotifications);
             
             // Now populate the groupedNotifications collection with all types of notifications
             groupedNotifications.Clear();
