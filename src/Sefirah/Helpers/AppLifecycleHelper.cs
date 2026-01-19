@@ -67,8 +67,9 @@ public static class AppLifecycleHelper
         localDevice = await deviceManager.GetLocalDeviceAsync();
         logger.LogInformation("UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
         
-        notificationService.Initialize();
+        // 7. 初始化设备管理器和通知服务
         await deviceManager.Initialize();
+        notificationService.Initialize();
 
         // 为LocalSocketRelayServer设置logger并启动服务器
         var socketLogger = Ioc.Default.GetRequiredService<ILogger>();

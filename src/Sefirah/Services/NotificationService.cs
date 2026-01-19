@@ -857,18 +857,21 @@ public class NotificationService(
 
     private async Task EnsureNotificationsLoadedAsync(PairedDevice device)
     {
-        if (loadedDeviceIds.Contains(device.Id)) return;
-
         try
         {
             var stored = notificationRepository.GetDeviceNotifications(device.Id);
-            if (stored.Count == 0)
+            
+            var notifications = GetOrCreateNotificationCollection(device);
+            
+            // 如果通知数量为0，或者存储的通知数量大于内存中的通知数量，说明需要重新加载
+            if (stored.Count == 0 && notifications.Count == 0)
             {
                 loadedDeviceIds.Add(device.Id);
                 return;
             }
-
-            var notifications = new ObservableCollection<Notification>();
+            
+            // 清空现有集合，准备重新加载
+            notifications.Clear();
 
             foreach (var entity in stored)
                 {
@@ -932,7 +935,6 @@ public class NotificationService(
                     notifications.Add(notif);
                 }
 
-            deviceNotifications[device.Id] = notifications;
             loadedDeviceIds.Add(device.Id);
 
             // Update all notifications, not just for the active device

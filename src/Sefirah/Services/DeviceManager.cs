@@ -282,7 +282,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     public async Task Initialize()
     {
         var pairedDevicesList = await repository.GetPairedDevices();
-        PairedDevices = pairedDevicesList.ToObservableCollection();
+        
+        // 清空现有集合，然后逐个添加设备，确保CollectionChanged事件被触发
+        PairedDevices.Clear();
+        foreach (var device in pairedDevicesList)
+        {
+            PairedDevices.Add(device);
+        }
+        
         ActiveDevice = PairedDevices.FirstOrDefault();
     }
 }
