@@ -28,19 +28,21 @@
             <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
             <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
             <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
+            <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter" />
             
             <!--  可复用的单条通知模板  -->
             <DataTemplate x:Key="NotificationItemTemplate" x:DataType="models:Notification">
-                <Grid RowSpacing="10" HorizontalAlignment="Stretch">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="*" />
-                    </Grid.ColumnDefinitions>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                        <RowDefinition Height="Auto" />
-                    </Grid.RowDefinitions>
+                <Border Padding="10" Background="Transparent" PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
+                    <Grid RowSpacing="10" HorizontalAlignment="Stretch">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         
                     <!--  应用名称  -->
                     <TextBlock
@@ -89,6 +91,7 @@
                             TextTrimming="CharacterEllipsis" />
                         <!--  时间戳 -->
                         <TextBlock
+                            x:Name="TimeStampTextBlock"
                             Grid.Row="0"
                             Grid.Column="1"
                             Margin="10,0,10,0"
@@ -113,10 +116,10 @@
                                 BorderBrush="Transparent"
                                 Click="ToggleNotificationPinClick"
                                 DataContext="{x:Bind}"
-                                IsHitTestVisible="True"
-                                Opacity="1"
+                                IsHitTestVisible="False"
+                                Opacity="{x:Bind Pinned, Converter={StaticResource BoolToOpacityConverter}}"
                                 VerticalAlignment="Center">
-                                <FontIcon Glyph="{x:Bind Pinned, Converter={StaticResource BoolToPinGlyphConverter}}" FontSize="14" />
+                                <FontIcon x:Name="PinIcon" Glyph="{x:Bind Pinned, Converter={StaticResource BoolToPinGlyphConverter}}" FontSize="14" Tag="{x:Bind Pinned}" />
                                 <ToolTipService.ToolTip>
                                     <ToolTip Content="{x:Bind Pinned, Converter={StaticResource BoolToPinTextConverter}}" />
                                 </ToolTipService.ToolTip>
@@ -129,8 +132,8 @@
                                 Padding="4"
                                 Command="{Binding ViewModel.RemoveNotificationCommand, ElementName=UserControlRoot}"
                                 CommandParameter="{x:Bind}"
-                                IsHitTestVisible="True"
-                                Opacity="1"
+                                IsHitTestVisible="False"
+                                Opacity="0"
                                 Style="{StaticResource AlternateCloseButtonStyle}"
                                 VerticalAlignment="Center" />
                         </StackPanel>
@@ -216,11 +219,14 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
+                </Border>
             </DataTemplate>
         </UserControl.Resources>
 
     <Grid
-        Margin="18,10,0,10">
+        Margin="18,10,0,10"
+        VerticalAlignment="Stretch"
+        HorizontalAlignment="Stretch">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -350,7 +356,9 @@
             HorizontalScrollBarVisibility="Disabled"
             HorizontalScrollMode="Disabled"
             VerticalScrollBarVisibility="Auto"
-            VerticalScrollMode="Enabled">
+            VerticalScrollMode="Enabled"
+            VerticalAlignment="Stretch"
+            HorizontalAlignment="Stretch">
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.GroupedNotifications, Mode=OneWay}" HorizontalAlignment="Stretch">
                 <ItemsRepeater.Layout>
                     <StackLayout Orientation="Vertical" Spacing="10" />

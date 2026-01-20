@@ -590,3 +590,16 @@ internal sealed partial class AdbIconToTypeConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+internal sealed partial class BoolToOpacityConverter : ValueConverter<bool, double>
+{
+    protected override double Convert(bool value, object? parameter, string? language)
+    {
+        return value ? 1.0 : 0.0;
+    }
+
+    protected override bool ConvertBack(double value, object? parameter, string? language)
+    {
+        throw new NotSupportedException();
+    }
+}

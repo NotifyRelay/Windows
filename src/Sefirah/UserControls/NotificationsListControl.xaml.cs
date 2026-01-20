@@ -18,20 +18,11 @@ public sealed partial class NotificationsListControl : UserControl
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e)
     {
         if (sender is Border border &&
-            border.FindName("PinIcon") is SymbolIcon pinIcon &&
             border.FindName("CloseButton") is Button closeButton &&
             border.FindName("PinButton") is Button pinButton &&
             border.FindName("TimeStampTextBlock") is TextBlock timeStamp)
         {
             timeStamp.Visibility = Visibility.Collapsed;
-
-            // Only make pinIcon visible if it's not already visible
-            if (pinIcon.Tag is bool isPinned && isPinned)
-            {
-                pinIcon.Visibility = Visibility.Collapsed;
-            }
-
-            pinIcon.IsHitTestVisible = true;
             closeButton.Opacity = 1;
             closeButton.IsHitTestVisible = true;
             pinButton.Opacity = 1;
@@ -42,23 +33,26 @@ public sealed partial class NotificationsListControl : UserControl
     private void OnPointerExited(object sender, PointerRoutedEventArgs e)
     {
         if (sender is Border border &&
-            border.FindName("PinIcon") is SymbolIcon pinIcon &&
+            border.FindName("PinIcon") is FontIcon pinIcon &&
             border.FindName("CloseButton") is Button closeButton &&
             border.FindName("PinButton") is Button pinButton &&
             border.FindName("TimeStampTextBlock") is TextBlock timeStamp)
         {
             timeStamp.Visibility = Visibility.Visible;
-
-            if (pinIcon.Tag is bool isPinned && isPinned)
-            {
-                pinIcon.Visibility = Visibility.Visible;
-            }
-
-            pinIcon.IsHitTestVisible = false;
             closeButton.Opacity = 0;
             closeButton.IsHitTestVisible = false;
-            pinButton.Opacity = 0;
-            pinButton.IsHitTestVisible = false;
+            
+            // 检查是否已置顶，如果已置顶则保持显示，否则隐藏
+            if (pinIcon.Tag is bool isPinned && isPinned)
+            {
+                pinButton.Opacity = 1;
+                pinButton.IsHitTestVisible = true;
+            }
+            else
+            {
+                pinButton.Opacity = 0;
+                pinButton.IsHitTestVisible = false;
+            }
         }
     }
 

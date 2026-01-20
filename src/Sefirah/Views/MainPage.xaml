@@ -357,7 +357,9 @@
                 <userControls:NotificationsListControl
                     Grid.Row="2"
                     ViewModel="{x:Bind ViewModel}"
-                    Visibility="{x:Bind ViewModel.Device, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}" />
+                    Visibility="{x:Bind ViewModel.Device, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}"
+                    VerticalAlignment="Stretch"
+                    HorizontalAlignment="Stretch" />
             </Grid>
             <Grid Grid.Column="1">
                 <NavigationView

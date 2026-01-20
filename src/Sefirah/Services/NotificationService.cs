@@ -661,6 +661,9 @@ public class NotificationService(
                 // 遍历每个设备的通知
                 foreach (var notification in notifications)
                 {
+                    // 检查notification是否为null
+                    if (notification == null) continue;
+                    
                     // 使用 AppPackage + Title + Text 作为聚合键
                     string aggregationKey = $"{notification.AppPackage}|{notification.Title}|{notification.Text}|{notification.Type}";
                     
