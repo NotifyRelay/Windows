@@ -142,6 +142,12 @@ public partial class GroupedNotification : ObservableObject
     {
         Notifications.Add(notification);
         
+        // 监听通知的PropertyChanged事件，以便在Icon属性变化时更新分组图标
+        if (notification is INotifyPropertyChanged notifyPropertyChanged)
+        {
+            notifyPropertyChanged.PropertyChanged += OnNotificationPropertyChanged;
+        }
+        
         // 更新时间信息
         if (notification.TimeStamp != null)
         {
@@ -164,11 +170,35 @@ public partial class GroupedNotification : ObservableObject
             IconPath = notification.IconPath;
             Icon = notification.Icon;
         }
-        else if (Icon == null && notification.Icon != null)
+        else
         {
             // 如果分组没有图标，但通知有图标，更新分组图标
-            IconPath = notification.IconPath;
-            Icon = notification.Icon;
+            if (Icon == null && notification.Icon != null)
+            {
+                IconPath = notification.IconPath;
+                Icon = notification.Icon;
+            }
+            // 确保图标路径始终正确设置
+            if (string.IsNullOrEmpty(IconPath) && !string.IsNullOrEmpty(notification.IconPath))
+            {
+                IconPath = notification.IconPath;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 监听通知的属性变化，当Icon属性变化时更新分组图标
+    /// </summary>
+    private void OnNotificationPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Notification.Icon))
+        {
+            if (sender is Notification notification && notification.Icon != null && Icon == null)
+            {
+                // 当通知的Icon加载完成，且分组还没有Icon时，更新分组的Icon
+                IconPath = notification.IconPath;
+                Icon = notification.Icon;
+            }
         }
     }
     

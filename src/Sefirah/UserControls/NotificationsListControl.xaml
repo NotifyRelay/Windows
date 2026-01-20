@@ -39,20 +39,33 @@
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
-                       
+                        
+                    <!--  应用名称  -->
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        Margin="0,0,0,2"
+                        FontSize="13"
+                        FontWeight="SemiBold"
+                        Foreground="Gray"
+                        HorizontalAlignment="Center"
+                        Text="{x:Bind AppName}"
+                        TextWrapping="NoWrap" />
                     <!--  应用图标  -->
                     <Image
-                        Grid.Row="0"
+                        Grid.Row="1"
                         Grid.Column="0"
                         Width="64"
                         Height="64"
-                        VerticalAlignment="Center"
+                        VerticalAlignment="Top"
                         Source="{x:Bind Icon, Mode=OneWay}" />
                        
                     <!--  通知内容  -->
                     <Grid
                         Grid.Row="0"
+                        Grid.RowSpan="2"
                         Grid.Column="1"
                         Margin="10,0,0,0"
                         HorizontalAlignment="Stretch">
@@ -446,62 +459,71 @@
                                             VerticalAlignment="Bottom"
                                             Fill="{ThemeResource SystemControlForegroundBaseMediumLowBrush}"
                                             Visibility="{x:Bind IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}, Mode=OneWay}" />
-                                        <!--  折叠状态下的前三条通知预览  -->
-                                        <StackPanel
+                                        <!--  折叠状态下的前三条通知预览，点击整个区域可展开  -->
+                                        <Button
                                             Grid.Row="1"
-                                            Margin="0,0,0,0"
+                                            Padding="0"
+                                            Background="Transparent"
+                                            BorderBrush="Transparent"
+                                            BorderThickness="0"
+                                            Click="ToggleGroupCollapse"
+                                            Tag="{x:Bind}"
                                             Visibility="{x:Bind IsCollapsed, Mode=OneWay}"
-                                            HorizontalAlignment="Stretch">
-                                            <!--  前三条通知  -->
-                                            <ItemsRepeater ItemsSource="{x:Bind CollapsedNotifications, Mode=OneWay}" HorizontalAlignment="Stretch">
-                                                <ItemsRepeater.Layout>
-                                                    <StackLayout Orientation="Vertical" Spacing="5" />
-                                                </ItemsRepeater.Layout>
-                                                <ItemsRepeater.ItemTemplate>
-                                                    <DataTemplate x:DataType="models:Notification">
-                                                        <Grid ColumnSpacing="10"
-                                                              Margin="0,5,0,0" HorizontalAlignment="Stretch">
-                                                            <Grid.ColumnDefinitions>
-                                                                <ColumnDefinition Width="*" />
-                                                                <ColumnDefinition Width="Auto" />
-                                                                <ColumnDefinition Width="*" />
-                                                            </Grid.ColumnDefinitions>
-                                                            <!--  通知标题  -->
-                                                            <TextBlock
-                                                                Grid.Column="0"
-                                                                FontSize="13"
-                                                                FontWeight="Medium"
-                                                                Text="{x:Bind Title}"
-                                                                TextWrapping="Wrap" />
-                                                            <!--  分隔符  -->
-                                                            <TextBlock
-                                                                Grid.Column="1"
-                                                                Margin="0,0,10,0"
-                                                                FontSize="12"
-                                                                Foreground="Gray"
-                                                                Text=":" />
-                                                            <!--  通知内容  -->
-                                                            <TextBlock
-                                                                Grid.Column="2"
-                                                                FontSize="12"
-                                                                Foreground="Gray"
-                                                                Text="{x:Bind Text}"
-                                                                TextWrapping="Wrap" />
-                                                        </Grid>
-                                                    </DataTemplate>
-                                                </ItemsRepeater.ItemTemplate>
-                                            </ItemsRepeater>
-                                            <!--  更多通知提示  -->
-                                            <TextBlock
-                                                Margin="0,5,0,10"
-                                                FontSize="12"
-                                                Foreground="Gray"
-                                                HorizontalAlignment="Left">
-                                                <Run Text="共" />
-                                                <Run Text="{x:Bind Notifications.Count, Mode=OneWay}" />
-                                                <Run Text="条，点击展开" />
-                                            </TextBlock>
-                                        </StackPanel>
+                                            HorizontalAlignment="Stretch"
+                                            HorizontalContentAlignment="Stretch">
+                                            <StackPanel HorizontalAlignment="Stretch">
+                                                <!--  前三条通知  -->
+                                                <ItemsRepeater ItemsSource="{x:Bind CollapsedNotifications, Mode=OneWay}" HorizontalAlignment="Stretch">
+                                                    <ItemsRepeater.Layout>
+                                                        <StackLayout Orientation="Vertical" Spacing="5" />
+                                                    </ItemsRepeater.Layout>
+                                                    <ItemsRepeater.ItemTemplate>
+                                                        <DataTemplate x:DataType="models:Notification">
+                                                            <Grid ColumnSpacing="10"
+                                                                  Margin="10,5,10,0" HorizontalAlignment="Stretch">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" />
+                                                                    <ColumnDefinition Width="Auto" />
+                                                                    <ColumnDefinition Width="*" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <!--  通知标题  -->
+                                                                <TextBlock
+                                                                    Grid.Column="0"
+                                                                    Margin="1,0,0,0"
+                                                                    FontSize="13"
+                                                                    FontWeight="Medium"
+                                                                    Text="{x:Bind Title}"
+                                                                    TextWrapping="Wrap" />
+                                                                <!--  分隔符  -->
+                                                                <TextBlock
+                                                                    Grid.Column="1"
+                                                                    Margin="0,0,10,0"
+                                                                    FontSize="12"
+                                                                    Foreground="Gray"
+                                                                    Text="" />
+                                                                <!--  通知内容  -->
+                                                                <TextBlock
+                                                                    Grid.Column="2"
+                                                                    FontSize="12"
+                                                                    Foreground="Gray"
+                                                                    Text="{x:Bind Text}"
+                                                                    TextWrapping="Wrap" />
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ItemsRepeater.ItemTemplate>
+                                                </ItemsRepeater>
+                                                <!--  更多通知提示  -->
+                                                <TextBlock
+                                                    Margin="10,5,10,10"
+                                                    FontSize="12"
+                                                    Foreground="Gray"
+                                                    HorizontalAlignment="Left">
+                                                    <Run Text="共" />
+                                                    <Run Text="{x:Bind Notifications.Count, Mode=OneWay}" />
+                                                    <Run Text="条，点击展开" />
+                                                </TextBlock>
+                                            </StackPanel>
+                                        </Button>
 
                                         <!--  展开状态下的完整通知列表  -->
                                         <StackPanel

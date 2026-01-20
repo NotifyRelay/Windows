@@ -778,18 +778,16 @@ public class NotificationService(
                 else
                 {
                     // Multiple notifications, create a group
-                    var notification = notificationsList[0];
-                    var notificationTime = ParseNotificationTime(notification);
+                    var notificationTime = ParseNotificationTime(notificationsList[0]);
                     var group = new GroupedNotification
                     {
                         Id = groupKey,
-                        AppName = notification.AppName,
-                        AppPackage = notification.AppPackage,
-                        IconPath = notification.IconPath,
-                        Icon = notification.Icon,
                         EarliestTime = notificationTime,
                         LatestTime = notificationTime
                     };
+                    
+                    // 先添加所有通知，让AddNotification方法处理应用信息和图标的设置
+                    // 这样可以确保即使第一条通知没有图标，也能从后续通知获取
                     
                     // 恢复现有分组的展开/折叠状态和时间信息
                     if (existingGroupStates.TryGetValue(groupKey, out var groupState))
@@ -864,10 +862,6 @@ public class NotificationService(
                     var singleGroup = new GroupedNotification
                     {
                         Id = notification.Key,
-                        AppName = notification.AppName,
-                        AppPackage = notification.AppPackage,
-                        IconPath = notification.IconPath,
-                        Icon = notification.Icon,
                         EarliestTime = ParseNotificationTime(notification)
                     };
                     singleGroup.AddNotification(notification);
