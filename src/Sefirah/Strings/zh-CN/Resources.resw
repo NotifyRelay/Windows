@@ -256,7 +256,7 @@
     <value>连接您的设备</value>
   </data>
   <data name="OnboardingDevice.Subtitle" xml:space="preserve">
-    <value>已发现的网络设备将显示在下文，请从您的移动端发起连接（请确保PIN码匹配）</value>
+    <value>已发现的网络设备将显示在下文，请从您的移动端发起连接</value>
   </data>
   <data name="ConnectionRequest.Title" xml:space="preserve">
     <value>设备连接请求</value>

@@ -1,4 +1,4 @@
-﻿<Page
+<Page
     x:Class="Sefirah.Views.Settings.DeviceDiscoveryPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -48,7 +48,7 @@
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="models:DiscoveredDevice">
-                        <wuc:SettingsCard Description="{x:Bind FormattedKey}" Header="{x:Bind DeviceName}">
+                        <wuc:SettingsCard Header="{x:Bind DeviceName}">
                             <wuc:SettingsCard.HeaderIcon>
                                 <FontIcon Glyph="&#xE8EA;" />
                             </wuc:SettingsCard.HeaderIcon>

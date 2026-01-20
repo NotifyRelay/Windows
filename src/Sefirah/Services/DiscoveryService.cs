@@ -245,7 +245,6 @@ public class DiscoveryService(
             service.DeviceId,
             null,
             service.DeviceName,
-            null,
             DateTimeOffset.UtcNow,
             DeviceOrigin.MdnsService,
             23333);
@@ -372,7 +371,6 @@ public class DiscoveryService(
                 deviceId,
                 null,
                 decodedName,
-                null,
                 DateTimeOffset.UtcNow,
                 DeviceOrigin.UdpBroadcast,
                 devicePort);

@@ -146,11 +146,7 @@ public static class NotifyCryptoHelper
         }
     }
 
-    public static byte[] ComputePasskey(byte[] sharedSecret)
-    {
-        using var sha256 = SHA256.Create();
-        return sha256.ComputeHash(sharedSecret);
-    }
+    
 
     public static (string Username, string Password) DeriveSftpCredentials(byte[] sharedSecret)
     {

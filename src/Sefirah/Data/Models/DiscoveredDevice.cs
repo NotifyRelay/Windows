@@ -6,7 +6,6 @@ public class DiscoveredDevice(
     string deviceId,
     string? publicKey,
     string deviceName,
-    byte[]? hashedKey,
     DateTimeOffset lastSeen,
     DeviceOrigin origin,
     int port)
@@ -14,23 +13,8 @@ public class DiscoveredDevice(
     public string DeviceId { get; } = deviceId;
     public string? PublicKey { get; } = publicKey;
     public string DeviceName { get; } = deviceName;
-    public byte[]? HashedKey { get; } = hashedKey;
     public DateTimeOffset LastSeen { get; } = lastSeen;
     public DeviceOrigin Origin { get; } = origin;
     public int Port { get; } = port;
-
-    public string? FormattedKey
-    {
-        get
-        {
-            if (HashedKey is null)
-            {
-                return "000000";
-            }
-            var derivedKeyInt = BitConverter.ToInt32(HashedKey, 0);
-            derivedKeyInt = Math.Abs(derivedKeyInt) % 1_000_000;
-            return derivedKeyInt.ToString().PadLeft(6, '0');
-        }
-    }
 }
 

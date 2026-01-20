@@ -129,7 +129,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             var localDevice = await GetLocalDeviceAsync();
             var localKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
             var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretBytes(localKey, remotePublicKey);
-            var passkey = NotifyCryptoHelper.ComputePasskey(sharedSecretBytes);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
@@ -155,7 +154,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 try
                 {
                     var frame = (Frame)App.MainWindow.Content!;
-                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, passkey, frame)
+                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, frame)
                     {
                         XamlRoot = App.MainWindow.Content!.XamlRoot
                     };

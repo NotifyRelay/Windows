@@ -12,21 +12,11 @@ public partial class ConnectionRequestViewModel : ObservableObject
         set => SetProperty(ref deviceName, value);
     }
 
-    private string passkey = string.Empty;
-    public string Passkey
-    {
-        get => passkey;
-        set => SetProperty(ref passkey, value);
-    }
-
     private readonly Frame _frame;
 
-    public ConnectionRequestViewModel(string deviceName, byte[] hashedKey, Frame frame)
+    public ConnectionRequestViewModel(string deviceName, Frame frame)
     {
         DeviceName = deviceName;
-        var derivedKeyInt = BitConverter.ToInt32(hashedKey, 0);
-        derivedKeyInt = Math.Abs(derivedKeyInt) % 1_000_000;
-        Passkey = derivedKeyInt.ToString().PadLeft(6, '0');
         _frame = frame;
     }
 
