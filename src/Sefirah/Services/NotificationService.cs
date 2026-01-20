@@ -43,6 +43,19 @@ public class NotificationService(
     /// 属性变更事件
     /// </summary>
     public event PropertyChangedEventHandler? PropertyChanged;
+    
+    /// <summary>
+    /// 分组通知集合变化事件
+    /// </summary>
+    public event System.Collections.Specialized.NotifyCollectionChangedEventHandler? GroupedNotificationsChanged;
+    
+    /// <summary>
+    /// 触发分组通知变化事件
+    /// </summary>
+    private void OnGroupedNotificationsChanged(System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        GroupedNotificationsChanged?.Invoke(this, e);
+    }
 
     /// <summary>
     /// Gets all notifications from all devices
@@ -871,6 +884,9 @@ public class NotificationService(
                     groupedNotifications.Add(singleGroup);
                 }
             }
+            
+            // 触发分组通知变化事件
+            OnGroupedNotificationsChanged(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
         });
     }
     

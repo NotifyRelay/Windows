@@ -9,10 +9,147 @@ namespace Sefirah.UserControls;
 public sealed partial class NotificationsListControl : UserControl
 {
     public MainPageViewModel ViewModel { get; set; }
+    private double lastScrollOffset = 0;
+    private bool isScrolling = false;
+    private System.Threading.Timer? scrollTimer;
+    private Microsoft.UI.Dispatching.DispatcherQueue? dispatcherQueue;
+    private const int SCROLL_DEBOUNCE_MS = 100;
+    private const int SCROLL_THRESHOLD = 10;
 
     public NotificationsListControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+        
+        // 保存UI线程的DispatcherQueue，用于定时器回调
+        dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+        
+        // 初始化滚动定时器
+        scrollTimer = new System.Threading.Timer(OnScrollTimerElapsed, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+    }
+
+    private void OnLoaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        // 订阅分组通知变化事件
+        if (ViewModel?.NotificationService != null)
+        {
+            ViewModel.NotificationService.GroupedNotificationsChanged += OnGroupedNotificationsChanged;
+            
+            // 为所有现有分组订阅PropertyChanged事件
+            foreach (var group in ViewModel.GroupedNotifications)
+            {
+                group.PropertyChanged += OnGroupPropertyChanged;
+            }
+        }
+    }
+
+    private void OnUnloaded(object sender, Microsoft.UI.Xaml.RoutedEventArgs e)
+    {
+        // 取消订阅分组通知变化事件，避免内存泄漏
+        if (ViewModel?.NotificationService != null)
+        {
+            ViewModel.NotificationService.GroupedNotificationsChanged -= OnGroupedNotificationsChanged;
+        }
+        
+        // 取消订阅所有分组的PropertyChanged事件，避免内存泄漏
+        foreach (var group in ViewModel?.GroupedNotifications ?? Enumerable.Empty<Data.Models.GroupedNotification>())
+        {
+            group.PropertyChanged -= OnGroupPropertyChanged;
+        }
+        
+        // 释放定时器资源
+        scrollTimer?.Dispose();
+        scrollTimer = null;
+    }
+
+    private void OnGroupedNotificationsChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+        {
+            // 只有当用户不在主动滚动时才处理滚动恢复
+            if (!isScrolling)
+            {
+                // 保存当前滚动位置
+                var currentOffset = NotificationsScrollViewer.VerticalOffset;
+                
+                // 延迟恢复滚动位置，确保UI已完全更新
+                var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    // 只有当不在顶部时才恢复位置
+                    if (currentOffset > SCROLL_THRESHOLD)
+                    {
+                        // 使用ChangeView恢复滚动位置，不触发动画
+                        NotificationsScrollViewer.ChangeView(null, currentOffset, null, false);
+                    }
+                });
+            }
+        }
+        else if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
+        {
+            // 为新添加的分组订阅IsCollapsed属性变化事件
+            foreach (var newItem in e.NewItems)
+            {
+                if (newItem is Data.Models.GroupedNotification newGroup)
+                {
+                    newGroup.PropertyChanged += OnGroupPropertyChanged;
+                }
+            }
+        }
+    }
+
+    private void OnScrollViewerViewChanged(object sender, Microsoft.UI.Xaml.Controls.ScrollViewerViewChangedEventArgs e)
+    {
+        // 只在用户主动滚动时保存位置
+        if (e.IsIntermediate)
+        {
+            // 用户正在滚动，保存当前位置
+            isScrolling = true;
+            lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
+            
+            // 重置滚动定时器
+            scrollTimer?.Change(SCROLL_DEBOUNCE_MS, System.Threading.Timeout.Infinite);
+        }
+        else
+        {
+            // 滚动已完成，保存最终位置
+            lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
+            
+            // 使用定时器来处理滚动结束后的状态
+            isScrolling = true;
+            scrollTimer?.Change(SCROLL_DEBOUNCE_MS, System.Threading.Timeout.Infinite);
+        }
+    }
+
+    private void OnScrollTimerElapsed(object? state)
+    {
+        // 滚动已停止一段时间，重置标志
+        dispatcherQueue?.TryEnqueue(() =>
+        {
+            isScrolling = false;
+        });
+    }
+
+    private void OnGroupPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Data.Models.GroupedNotification.IsCollapsed) && sender is Data.Models.GroupedNotification group)
+        {
+            // 当分组从折叠变为展开时，保存当前滚动位置
+            if (!group.IsCollapsed)
+            {
+                // 保存当前滚动位置
+                lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
+                
+                // 延迟执行，确保UI已完成高度调整
+                var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
+                dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
+                {
+                    // 恢复滚动位置，确保用户不会被意外滚动
+                    NotificationsScrollViewer.ChangeView(null, lastScrollOffset, null, false);
+                });
+            }
+        }
     }
 
     private void OnPointerEntered(object sender, PointerRoutedEventArgs e)

@@ -350,6 +350,7 @@
             </ItemsRepeater.ItemTemplate>
         </ItemsRepeater>
         <ScrollViewer
+            x:Name="NotificationsScrollViewer"
             Grid.Row="2"
             Margin="0,10,0,0"
             Padding="0"
@@ -358,7 +359,8 @@
             VerticalScrollBarVisibility="Auto"
             VerticalScrollMode="Enabled"
             VerticalAlignment="Stretch"
-            HorizontalAlignment="Stretch">
+            HorizontalAlignment="Stretch"
+            ViewChanged="OnScrollViewerViewChanged">
             <ItemsRepeater ItemsSource="{x:Bind ViewModel.GroupedNotifications, Mode=OneWay}" HorizontalAlignment="Stretch">
                 <ItemsRepeater.Layout>
                     <StackLayout Orientation="Vertical" Spacing="10" />

@@ -55,4 +55,9 @@ public interface INotificationService
     /// 处理音乐媒体块超时
     /// </summary>
     void CheckMusicMediaBlockTimeout();
+    
+    /// <summary>
+    /// 分组通知集合变化事件
+    /// </summary>
+    event System.Collections.Specialized.NotifyCollectionChangedEventHandler GroupedNotificationsChanged;
 }
