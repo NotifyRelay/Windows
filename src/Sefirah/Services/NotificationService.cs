@@ -23,6 +23,7 @@ public class NotificationService(
     INetworkService networkService) : INotificationService, INotifyPropertyChanged
 {
     private readonly Dictionary<string, ObservableCollection<Notification>> deviceNotifications = [];
+    private readonly object deviceNotificationsLock = new();
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
     
     private readonly ObservableCollection<Notification> activeNotifications = [];
@@ -129,12 +130,15 @@ public class NotificationService(
     /// </summary>
     private ObservableCollection<Notification> GetOrCreateNotificationCollection(PairedDevice device)
     {
-        if (!deviceNotifications.TryGetValue(device.Id, out var notifications))
+        lock (deviceNotificationsLock)
         {
-            notifications = [];
-            deviceNotifications[device.Id] = notifications;
+            if (!deviceNotifications.TryGetValue(device.Id, out var notifications))
+            {
+                notifications = [];
+                deviceNotifications[device.Id] = notifications;
+            }
+            return notifications;
         }
-        return notifications;
     }
 
     private void OnConnectionStatusChanged(object? sender, (PairedDevice Device, bool IsConnected) e)
@@ -263,17 +267,26 @@ public class NotificationService(
                                     contentMatchNotification.AddSourceDevice(device.Id, device.Name);
                                     
                                     // 更新设备本地通知集合中的对应通知
-                                    var existingNotification = notifications.FirstOrDefault(n => n.Key == contentMatchNotification.Key);
+                                    Notification? existingNotification;
+                                    lock (notifications)
+                                    {
+                                        existingNotification = notifications.FirstOrDefault(n => n.Key == contentMatchNotification.Key);
+                                    }
                                     if (existingNotification is not null)
                                     {
-                                        var index = notifications.IndexOf(existingNotification);
-                                        notifications[index] = contentMatchNotification;
+                                        lock (notifications)
+                                        {
+                                            var index = notifications.IndexOf(existingNotification);
+                                            notifications[index] = contentMatchNotification;
+                                        }
                                     }
                                     else
                                     {
-                                        notifications.Insert(0, contentMatchNotification);
+                                        lock (notifications)
+                                        {
+                                            notifications.Insert(0, contentMatchNotification);
+                                        }
                                     }
-                                    
                                     // 使用已存在通知的tag和groupKey
                                     message.NotificationKey = contentMatchNotification.Key;
                                     message.Tag = contentMatchNotification.Tag;
@@ -292,22 +305,32 @@ public class NotificationService(
                                     }
                                     
                                     // 检查设备本地是否已有相同Key的通知
-                                    var existingNotification = notifications.FirstOrDefault(n => n.Key == notification.Key);
+                                    Notification? existingNotification;
+                                    lock (notifications)
+                                    {
+                                        existingNotification = notifications.FirstOrDefault(n => n.Key == notification.Key);
+                                    }
 
                                     if (existingNotification is not null)
                                     {
                                         // 更新现有通知
-                                        var index = notifications.IndexOf(existingNotification);
                                         if (existingNotification.Pinned)
                                         {
                                             notification.Pinned = true;
                                         }
-                                        notifications[index] = notification;
+                                        lock (notifications)
+                                        {
+                                            var index = notifications.IndexOf(existingNotification);
+                                            notifications[index] = notification;
+                                        }
                                     }
                                     else
                                     {
                                         // 添加新通知
-                                        notifications.Insert(0, notification);
+                                        lock (notifications)
+                                        {
+                                            notifications.Insert(0, notification);
+                                        }
                                     }
                                     
                                     // 如果是新通知，使用内容生成唯一的tag和groupKey
@@ -325,7 +348,11 @@ public class NotificationService(
                                     notification = await Notification.FromMessage(message);
                                     notification.AddSourceDevice(device.Id, device.Name);
                                 }
-                                notifications.Add(notification);
+                                lock (notifications)
+                                {
+                                    notifications.Add(notification);
+                                }
+
                             }
                             else
                             {
@@ -416,15 +443,25 @@ public class NotificationService(
                 if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
                 
                 // 查找匹配的通知（基于内容匹配，因为可能是聚合通知）
-                var notification = notifications.FirstOrDefault(n => 
-                    n.Key == message.NotificationKey ||
-                    (n.AppPackage == message.AppPackage && 
-                     n.Title == message.Title && 
-                     n.Text == message.Text));
-                     
+                Notification? notification;
+                lock (notifications)
+                {
+                    notification = notifications.FirstOrDefault(n => 
+                        n.Key == message.NotificationKey ||
+                        (n.AppPackage == message.AppPackage && 
+                         n.Title == message.Title && 
+                         n.Text == message.Text));
+                }
+                
                 if (notification is not null && !notification.Pinned)
                 {
-                    await dispatcher.EnqueueAsync(() => notifications.Remove(notification));
+                    await dispatcher.EnqueueAsync(() =>
+                    {
+                        lock (notifications)
+                        {
+                            notifications.Remove(notification);
+                        }
+                    });
                     notificationRepository.DeleteNotification(device.Id, message.NotificationKey);
                     // Update all notifications
                     UpdateActiveNotifications();
@@ -446,17 +483,30 @@ public class NotificationService(
                 _ = dispatcher.EnqueueAsync(() => 
                 {
                     // 从所有设备的通知列表中移除匹配的通知
-                    foreach (var (deviceId, notifications) in deviceNotifications)
+                    List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
+                    lock (deviceNotificationsLock)
                     {
-                        var notificationToRemove = notifications.FirstOrDefault(n => 
-                            n.Key == notification.Key ||
-                            (n.AppPackage == notification.AppPackage && 
-                             n.Title == notification.Title && 
-                             n.Text == notification.Text));
+                        deviceNotificationsSnapshot = deviceNotifications.ToList();
+                    }
+
+                    foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
+                    {
+                        Notification? notificationToRemove;
+                        lock (notifications)
+                        {
+                            notificationToRemove = notifications.FirstOrDefault(n => 
+                                n.Key == notification.Key ||
+                                (n.AppPackage == notification.AppPackage && 
+                                 n.Title == notification.Title && 
+                                 n.Text == notification.Text));
+                        }
                         
                         if (notificationToRemove != null)
                         {
-                            notifications.Remove(notificationToRemove);
+                            lock (notifications)
+                            {
+                                notifications.Remove(notificationToRemove);
+                            }
                             logger.LogDebug("已从设备 {DeviceId} 移除通知：{NotificationKey}", deviceId, notification.Key);
 
                             notificationRepository.DeleteNotification(deviceId, notificationToRemove.Key);
@@ -484,19 +534,23 @@ public class NotificationService(
             
             notification.Pinned = !notification.Pinned;
             // Update existing notification: try to find by reference first, then by Key
-            var index = notifications.IndexOf(notification);
-            if (index < 0)
+            int index;
+            lock (notifications)
             {
-                index = notifications.ToList().FindIndex(n => n.Key == notification.Key);
-            }
-            if (index >= 0)
-            {
-                notifications[index] = notification;
-            }
-            else
-            {
-                // If not found, insert at the front
-                notifications.Insert(0, notification);
+                index = notifications.IndexOf(notification);
+                if (index < 0)
+                {
+                    index = notifications.ToList().FindIndex(n => n.Key == notification.Key);
+                }
+                if (index >= 0)
+                {
+                    notifications[index] = notification;
+                }
+                else
+                {
+                    // If not found, insert at the front
+                    notifications.Insert(0, notification);
+                }
             }
             SortNotifications(device.Id);
             notificationRepository.UpdatePinned(device.Id, notification.Key, notification.Pinned);
@@ -527,15 +581,24 @@ public class NotificationService(
         {
             try
             {
-                // 清除所有设备的通知集合
-                foreach (var (deviceId, notifications) in deviceNotifications)
+                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
+                lock (deviceNotificationsLock)
                 {
-                    // 移除集合中所有未置顶的通知，保留置顶
-                    for (int i = notifications.Count - 1; i >= 0; i--)
+                    deviceNotificationsSnapshot = deviceNotifications.ToList();
+                }
+
+                // 清除所有设备的通知集合
+                foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
+                {
+                    lock (notifications)
                     {
-                        if (!notifications[i].Pinned)
+                        // 移除集合中所有未置顶的通知，保留置顶
+                        for (int i = notifications.Count - 1; i >= 0; i--)
                         {
-                            notifications.RemoveAt(i);
+                            if (!notifications[i].Pinned)
+                            {
+                                notifications.RemoveAt(i);
+                            }
                         }
                     }
                 }
@@ -567,18 +630,27 @@ public class NotificationService(
         {
             try
             {
-                // 遍历所有设备的通知列表
-                foreach (var (deviceId, notifications) in deviceNotifications)
+                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
+                lock (deviceNotificationsLock)
                 {
-                    // 移除该设备上所有匹配包名的未置顶通知
-                    for (int i = notifications.Count - 1; i >= 0; i--)
+                    deviceNotificationsSnapshot = deviceNotifications.ToList();
+                }
+
+                // 遍历所有设备的通知列表
+                foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
+                {
+                    lock (notifications)
                     {
-                        var notification = notifications[i];
-                        if (!notification.Pinned && notification.AppPackage == appPackage)
+                        // 移除该设备上所有匹配包名的未置顶通知
+                        for (int i = notifications.Count - 1; i >= 0; i--)
                         {
-                            notifications.RemoveAt(i);
-                            // 从数据库中删除该通知
-                            notificationRepository.DeleteNotification(deviceId, notification.Key);
+                            var notification = notifications[i];
+                            if (!notification.Pinned && notification.AppPackage == appPackage)
+                            {
+                                notifications.RemoveAt(i);
+                                // 从数据库中删除该通知
+                                notificationRepository.DeleteNotification(deviceId, notification.Key);
+                            }
                         }
                     }
                 }
@@ -601,12 +673,15 @@ public class NotificationService(
             {
                 if (deviceNotifications.TryGetValue(device.Id, out var notifications))
                 {
-                    // 移除未置顶的通知，保留置顶
-                    for (int i = notifications.Count - 1; i >= 0; i--)
+                    lock (notifications)
                     {
-                        if (!notifications[i].Pinned)
+                        // 移除未置顶的通知，保留置顶
+                        for (int i = notifications.Count - 1; i >= 0; i--)
                         {
-                            notifications.RemoveAt(i);
+                            if (!notifications[i].Pinned)
+                            {
+                                notifications.RemoveAt(i);
+                            }
                         }
                     }
                     ClearBadge();
@@ -630,16 +705,24 @@ public class NotificationService(
         {
             if (!deviceNotifications.TryGetValue(deviceId, out var notifications)) return;
 
-            var sorted = notifications.OrderByDescending(n => n.Pinned)
-                .ThenByDescending(n => n.TimeStamp)
-                .ToList();
+            List<Notification> sorted;
+            lock (notifications)
+            {
+                sorted = notifications.OrderByDescending(n => n.Pinned)
+                    .ThenByDescending(n => n.TimeStamp)
+                    .ToList();
+            }
 
             for (int i = 0; i < sorted.Count; i++)
             {
-                int currentIndex = notifications.IndexOf(sorted[i]);
-                if (currentIndex != i)
+                int currentIndex;
+                lock (notifications)
                 {
-                    notifications.Move(currentIndex, i);
+                    currentIndex = notifications.IndexOf(sorted[i]);
+                    if (currentIndex != i)
+                    {
+                        notifications.Move(currentIndex, i);
+                    }
                 }
             }
         });
@@ -663,16 +746,29 @@ public class NotificationService(
             Dictionary<string, Notification> aggregatedNotifications = [];
             int totalNotifications = 0;
 
+            // 使用快照避免在遍历时集合被修改
+            List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
+            lock (deviceNotificationsLock)
+            {
+                deviceNotificationsSnapshot = deviceNotifications.ToList();
+            }
+
             // 遍历所有设备的通知
-            foreach (var (deviceId, notifications) in deviceNotifications)
+            foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
             {
                 // 检查notifications是否为null
                 if (notifications == null) continue;
                 
-                totalNotifications += notifications.Count;
+                Notification[] notificationsSnapshot;
+                lock (notifications)
+                {
+                    notificationsSnapshot = notifications.ToArray();
+                }
+
+                totalNotifications += notificationsSnapshot.Length;
                 
-                // 遍历每个设备的通知
-                foreach (var notification in notifications)
+                // 遍历每个设备的通知（使用快照防止枚举时集合被修改）
+                foreach (var notification in notificationsSnapshot)
                 {
                     // 检查notification是否为null
                     if (notification == null) continue;
@@ -915,7 +1011,10 @@ public class NotificationService(
             }
             
             // 清空现有集合，准备重新加载
-            notifications.Clear();
+            lock (notifications)
+            {
+                notifications.Clear();
+            }
 
             foreach (var entity in stored)
                 {
@@ -976,7 +1075,10 @@ public class NotificationService(
                         }
                     }
                     
-                    notifications.Add(notif);
+                    lock (notifications)
+                    {
+                        notifications.Add(notif);
+                    }
                 }
 
             loadedDeviceIds.Add(device.Id);
@@ -1185,11 +1287,22 @@ public class NotificationService(
             // 更新所有使用该包名的通知的图标
             dispatcher.EnqueueAsync(async () =>
             {
-                // 遍历所有设备的通知
-                foreach (var (deviceIdKey, notifications) in deviceNotifications)
+                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
+                lock (deviceNotificationsLock)
                 {
+                    deviceNotificationsSnapshot = deviceNotifications.ToList();
+                }
+                // 遍历所有设备的通知
+                foreach (var (deviceIdKey, notifications) in deviceNotificationsSnapshot)
+                {
+                    Notification[] notificationsSnapshot;
+                    lock (notifications)
+                    {
+                        notificationsSnapshot = notifications.ToArray();
+                    }
+
                     // 查找使用该包名的通知
-                    var notificationsToUpdate = notifications.Where(n => n.AppPackage == packageName).ToList();
+                    var notificationsToUpdate = notificationsSnapshot.Where(n => n.AppPackage == packageName).ToList();
                     foreach (var notification in notificationsToUpdate)
                     {
                         // 更新图标路径和图标
