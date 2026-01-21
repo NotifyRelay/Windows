@@ -57,14 +57,15 @@ public sealed class SyncRootConnector(
         catch (ExecutionEngineException ex)
         {
             logger.LogCritical(ex, "同步提供程序连接时发生执行引擎异常：{syncRootPath}", _rootDirectory);
-            // 重新抛出异常，让上层处理
+            // 执行引擎异常是严重错误，重新抛出让上层处理
             throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "同步提供程序连接失败：{syncRootPath}", _rootDirectory);
-            // 重新抛出异常，让上层处理
-            throw;
+            // 普通连接失败时，不重新抛出异常，避免形成无限循环
+            // 返回一个默认的连接键值
+            return default;
         }
     }
 

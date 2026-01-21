@@ -122,20 +122,38 @@ public static class ServiceCollectionExtensions
             .AddScoped((sp) => {
                 var context = sp.GetRequiredService<SyncProviderContextAccessor>();
                 var contextAccessor = sp.GetRequiredService<ISftpContextAccessor>();
+                var logger = sp.GetRequiredService<ILogger>();
+                
+                logger.LogDebug("正在创建SFTP客户端：主机={Host}, 端口={Port}, 用户名={Username}", 
+                    contextAccessor.Context.Host, 
+                    contextAccessor.Context.Port, 
+                    contextAccessor.Context.Username);
+                    
                 var client = new SftpClient(
                     contextAccessor.Context.Host,
                     contextAccessor.Context.Port,
                     contextAccessor.Context.Username,
                     contextAccessor.Context.Password
                 );
+                
                 try
                 {
+                    logger.LogDebug("正在连接SFTP服务器：{Host}:{Port}", 
+                        contextAccessor.Context.Host, 
+                        contextAccessor.Context.Port);
+                        
                     client.Connect();
+                    logger.LogDebug("SFTP连接成功：{Host}:{Port}", 
+                        contextAccessor.Context.Host, 
+                        contextAccessor.Context.Port);
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // ignore
+                    logger.LogError(ex, "SFTP连接失败：{Host}:{Port}", 
+                        contextAccessor.Context.Host, 
+                        contextAccessor.Context.Port);
                 }
+                
                 return client;
             })
             .AddKeyedScoped<IRemoteReadWriteService, SftpReadWriteService>("sftp")

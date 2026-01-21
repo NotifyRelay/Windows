@@ -101,13 +101,17 @@ public sealed class SftpWatcher(
                 }
                 catch (SshConnectionException ex)
                 {
-                    logger.LogError("SSH 连接错误", ex);
-                    break;
+                    logger.LogError(ex, "SSH 连接错误");
+                    // 连接错误时，等待一段时间后重试
+                    await Task.Delay(TimeSpan.FromSeconds(5), linkedTokenSource.Token);
+                    continue;
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError("SFTP 监视器发生意外错误", ex);
-                    break;
+                    logger.LogError(ex, "SFTP 监视器发生意外错误");
+                    // 其他错误时，等待一段时间后重试
+                    await Task.Delay(TimeSpan.FromSeconds(5), linkedTokenSource.Token);
+                    continue;
                 }
             }
         }
@@ -218,8 +222,8 @@ public sealed class SftpWatcher(
         }
         catch (Exception ex)
         {
-            logger.LogError("重连期间发生意外错误", ex);
-            throw;
+            logger.LogError(ex, "重连期间发生意外错误");
+            // 不重新抛出异常，避免监视器崩溃
         }
     }
 
