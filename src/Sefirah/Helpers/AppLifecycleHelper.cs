@@ -1,22 +1,22 @@
-using Sefirah.Data.AppDatabase;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Models;
+using NotifyRelay.Data.AppDatabase;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Models;
 #if WINDOWS
-using Sefirah.Platforms.Windows;
-using Sefirah.Platforms.Windows.Services;
+using NotifyRelay.Platforms.Windows;
+using NotifyRelay.Platforms.Windows.Services;
 #else
-using Sefirah.Platforms.Desktop;
+using NotifyRelay.Platforms.Desktop;
 #endif
-using Sefirah.Services;
-using Sefirah.Services.Settings;
-using Sefirah.Services.Socket;
-using Sefirah.ViewModels;
-using Sefirah.ViewModels.Settings;
+using NotifyRelay.Services;
+using NotifyRelay.Services.Settings;
+using NotifyRelay.Services.Socket;
+using NotifyRelay.ViewModels;
+using NotifyRelay.ViewModels.Settings;
 using Serilog;
 using ILogger = Microsoft.Extensions.Logging.ILogger;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 /// <summary>
 /// Provides static helper to manage app lifecycle.

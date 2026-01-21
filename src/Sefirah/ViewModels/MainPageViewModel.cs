@@ -1,13 +1,13 @@
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace Sefirah.ViewModels;
+namespace NotifyRelay.ViewModels;
 public sealed partial class MainPageViewModel : BaseViewModel
 {
     #region Services
@@ -120,12 +120,12 @@ public sealed partial class MainPageViewModel : BaseViewModel
             }
             
             // 检查所有连接的ADB设备，添加所有连接类型
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.USB))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 connectionTypes.Add("USB");
             }
             
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.WIFI))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 connectionTypes.Add("WiFi");
             }
@@ -194,13 +194,13 @@ public sealed partial class MainPageViewModel : BaseViewModel
             }
             
             // 添加USB图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.USB))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 icons.Add("\uE89E"); // USB图标
             }
             
             // 添加WiFi图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.WIFI))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 icons.Add("\uE927"); // WiFi图标
             }

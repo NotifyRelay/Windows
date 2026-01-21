@@ -1,15 +1,15 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Dialogs;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Dialogs;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 using System.Text;
 using Windows.Storage;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceRepository repository) : ObservableObject, IDeviceManager
 {

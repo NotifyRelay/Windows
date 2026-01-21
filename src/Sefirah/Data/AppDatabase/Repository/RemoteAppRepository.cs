@@ -1,12 +1,12 @@
 using System.Text.Json;
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Services;
-using Sefirah.Data.Contracts;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Services;
+using NotifyRelay.Data.Contracts;
 
-namespace Sefirah.Data.AppDatabase.Repository;
+namespace NotifyRelay.Data.AppDatabase.Repository;
 
 public class RemoteAppRepository(DatabaseContext context, ILogger logger, INetworkService networkService)
 {

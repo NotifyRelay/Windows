@@ -1,6 +1,6 @@
 using SQLite;
 
-namespace Sefirah.Data.AppDatabase.Models;
+namespace NotifyRelay.Data.AppDatabase.Models;
 
 public class NotificationEntity
 {

@@ -1,6 +1,6 @@
 using System.Net.Sockets;
 
-namespace Sefirah.Services.Socket;
+namespace NotifyRelay.Services.Socket;
 
 public interface ITcpServerProvider
 {

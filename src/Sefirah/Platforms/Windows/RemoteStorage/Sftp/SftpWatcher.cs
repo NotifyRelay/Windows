@@ -1,12 +1,12 @@
 using Microsoft.Extensions.Logging;
 using Renci.SshNet;
 using Renci.SshNet.Common;
-using Sefirah.Platforms.Windows.Abstractions;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Abstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Sftp;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
 public sealed class SftpWatcher(
     ISyncProviderContextAccessor syncContextAccessor,
     ISftpContextAccessor contextAccessor,

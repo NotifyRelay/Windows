@@ -1,11 +1,11 @@
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.PInvoke;
 using FileAttributes = System.IO.FileAttributes;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class PlaceholdersService(
     ISyncProviderContextAccessor contextAccessor,
     IRemoteReadWriteService remoteService,

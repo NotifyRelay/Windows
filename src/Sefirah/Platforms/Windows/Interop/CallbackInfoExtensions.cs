@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public static class CallbackInfoExtensions
 {
     public static CldApi.CF_OPERATION_INFO ToOperationInfo(this CldApi.CF_CALLBACK_INFO callbackInfo, CldApi.CF_OPERATION_TYPE operationType) =>

@@ -1,6 +1,6 @@
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public abstract class SafeMetaHFILE : IDisposable
 {
     public abstract HFILE FileHandle { get; }

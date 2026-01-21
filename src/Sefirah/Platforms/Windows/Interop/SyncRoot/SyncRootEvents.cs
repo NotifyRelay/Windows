@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.Interop.SyncRoot;
+namespace NotifyRelay.Platforms.Windows.Interop.SyncRoot;
 public record SyncRootEvents
 {
     public SyncRootCallback? FetchData { get; init; }

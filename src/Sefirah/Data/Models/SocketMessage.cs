@@ -1,130 +1,130 @@
-using Sefirah.Data.Enums;
+using NotifyRelay.Data.Enums;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 /// <summary>
 /// Socket消息多态类型定义，基于数字类型鉴别器路由
 /// </summary>
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 /// <summary>
 /// 命令消息 - 类型: "0"
-/// 路径: Sefirah.Data.Models.CommandMessage
+/// 路径: NotifyRelay.Data.Models.CommandMessage
 /// 功能: 用于发送设备控制命令，如清除通知、请求应用列表、断开连接等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 [JsonDerivedType(typeof(CommandMessage), typeDiscriminator: "0")]
 /// <summary>
 /// 设备信息 - 类型: "1"
-/// 路径: Sefirah.Data.Models.DeviceInfo
+/// 路径: NotifyRelay.Data.Models.DeviceInfo
 /// 功能: 包含设备的基本信息，如设备ID、名称、型号、公钥等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 [JsonDerivedType(typeof(DeviceInfo), typeDiscriminator: "1")]
 /// <summary>
 /// 设备状态 - 类型: "2"
-/// 路径: Sefirah.Data.Models.DeviceStatus
+/// 路径: NotifyRelay.Data.Models.DeviceStatus
 /// 功能: 包含设备的状态信息，如电量、充电状态、WiFi状态等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
 /// </summary>
 [JsonDerivedType(typeof(DeviceStatus), typeDiscriminator: "2")]
 /// <summary>
 /// 剪贴板消息 - 类型: "3"
-/// 路径: Sefirah.Data.Models.ClipboardMessage
+/// 路径: NotifyRelay.Data.Models.ClipboardMessage
 /// 功能: 用于在设备间同步剪贴板内容
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → ClipboardService.SetContentAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ClipboardService.SetContentAsync
 /// </summary>
 [JsonDerivedType(typeof(ClipboardMessage), typeDiscriminator: "3")]
 /// <summary>
 /// 通知消息 - 类型: "4"
-/// 路径: Sefirah.Data.Models.NotificationMessage
+/// 路径: NotifyRelay.Data.Models.NotificationMessage
 /// 功能: 包含通知的详细信息，如应用名称、标题、内容等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → NotificationService.HandleNotificationMessage
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → NotificationService.HandleNotificationMessage
 /// </summary>
 [JsonDerivedType(typeof(NotificationMessage), typeDiscriminator: "4")]
 
 /// <summary>
 /// 媒体播放会话 - 类型: "7"
-/// 路径: Sefirah.Data.Models.PlaybackSession
+/// 路径: NotifyRelay.Data.Models.PlaybackSession
 /// 功能: 包含媒体播放的详细信息，如歌曲标题、艺术家、播放状态等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 [JsonDerivedType(typeof(PlaybackSession), typeDiscriminator: "7")]
 /// <summary>
 /// 文件传输 - 类型: "8"
-/// 路径: Sefirah.Data.Models.FileTransfer
+/// 路径: NotifyRelay.Data.Models.FileTransfer
 /// 功能: 用于在设备间传输单个文件
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveFile
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveFile
 /// </summary>
 [JsonDerivedType(typeof(FileTransfer), typeDiscriminator: "8")]
 /// <summary>
 /// 批量文件传输 - 类型: "9"
-/// 路径: Sefirah.Data.Models.BulkFileTransfer
+/// 路径: NotifyRelay.Data.Models.BulkFileTransfer
 /// 功能: 用于在设备间批量传输文件
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveBulkFiles
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveBulkFiles
 /// </summary>
 [JsonDerivedType(typeof(BulkFileTransfer), typeDiscriminator: "9")]
 /// <summary>
 /// 应用信息消息 - 类型: "10"
-/// 路径: Sefirah.Data.Models.ApplicationInfoMessage
+/// 路径: NotifyRelay.Data.Models.ApplicationInfoMessage
 /// 功能: 包含单个应用的详细信息，如包名、应用名称等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.AddOrUpdateApplicationForDevice
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.AddOrUpdateApplicationForDevice
 /// </summary>
 [JsonDerivedType(typeof(ApplicationInfoMessage), typeDiscriminator: "10")]
 /// <summary>
 /// SFTP服务器信息 - 类型: "11"
-/// 路径: Sefirah.Data.Models.SftpServerInfo
+/// 路径: NotifyRelay.Data.Models.SftpServerInfo
 /// 功能: 包含SFTP服务器的连接信息，如IP地址、端口、用户名、密码等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
 /// </summary>
 [JsonDerivedType(typeof(SftpServerInfo), typeDiscriminator: "11")]
 /// <summary>
 /// UDP广播消息 - 类型: "12"
-/// 路径: Sefirah.Data.Models.UdpBroadcast
+/// 路径: NotifyRelay.Data.Models.UdpBroadcast
 /// 功能: 用于设备发现和广播设备信息
-/// 处理服务: Sefirah.Services.DiscoveryService
+/// 处理服务: NotifyRelay.Services.DiscoveryService
 /// </summary>
 [JsonDerivedType(typeof(UdpBroadcast), typeDiscriminator: "12")]
 /// <summary>
 /// 设备铃声模式 - 类型: "13"
-/// 路径: Sefirah.Data.Models.DeviceRingerMode
+/// 路径: NotifyRelay.Data.Models.DeviceRingerMode
 /// 功能: 包含设备的铃声模式信息
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 [JsonDerivedType(typeof(DeviceRingerMode), typeDiscriminator: "13")]
 /// <summary>
 /// 音频设备 - 类型: "17"
-/// 路径: Sefirah.Data.Models.AudioDevice
+/// 路径: NotifyRelay.Data.Models.AudioDevice
 /// 功能: 包含音频设备的详细信息，如设备ID、名称、音量等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 [JsonDerivedType(typeof(AudioDevice), typeDiscriminator: "17")]
 /// <summary>
 /// 媒体播放操作 - 类型: "18"
-/// 路径: Sefirah.Data.Models.PlaybackAction
+/// 路径: NotifyRelay.Data.Models.PlaybackAction
 /// 功能: 用于控制媒体播放，如播放、暂停、下一曲等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → PlaybackService.HandleMediaActionAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → PlaybackService.HandleMediaActionAsync
 /// </summary>
 [JsonDerivedType(typeof(PlaybackAction), typeDiscriminator: "18")]
 /// <summary>
 /// 应用列表 - 类型: "19"
-/// 路径: Sefirah.Data.Models.ApplicationList
+/// 路径: NotifyRelay.Data.Models.ApplicationList
 /// 功能: 包含设备上的应用列表
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.UpdateApplicationList
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.UpdateApplicationList
 /// </summary>
 [JsonDerivedType(typeof(ApplicationList), typeDiscriminator: "19")]
 /// <summary>
 /// 动作消息 - 类型: "20"
-/// 路径: Sefirah.Data.Models.ActionMessage
+/// 路径: NotifyRelay.Data.Models.ActionMessage
 /// 功能: 用于执行设备上的动作，如锁屏、关机等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
 /// </summary>
 [JsonDerivedType(typeof(ActionMessage), typeDiscriminator: "20")]
 public class SocketMessage { }
 /// <summary>
 /// 命令消息类
-/// 路径: Sefirah.Data.Models.CommandMessage
+/// 路径: NotifyRelay.Data.Models.CommandMessage
 /// 功能: 用于发送设备控制命令，如清除通知、请求应用列表、断开连接等
 /// 调用位置: MainPageViewModel.cs, DevicesViewModel.cs
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 public class CommandMessage : SocketMessage
 {
@@ -134,9 +134,9 @@ public class CommandMessage : SocketMessage
 
 /// <summary>
 /// 动作消息类
-/// 路径: Sefirah.Data.Models.ActionMessage
+/// 路径: NotifyRelay.Data.Models.ActionMessage
 /// 功能: 用于执行设备上的预定义动作，如锁屏、关机等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
 /// </summary>
 public class ActionMessage : SocketMessage
 {
@@ -149,9 +149,9 @@ public class ActionMessage : SocketMessage
 
 /// <summary>
 /// 自定义动作消息类
-/// 路径: Sefirah.Data.Models.CustomActionMessage
+/// 路径: NotifyRelay.Data.Models.CustomActionMessage
 /// 功能: 用于执行自定义路径的程序，支持传递参数
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
 /// </summary>
 public class CustomActionMessage : SocketMessage
 {
@@ -164,9 +164,9 @@ public class CustomActionMessage : SocketMessage
 
 /// <summary>
 /// 剪贴板消息类
-/// 路径: Sefirah.Data.Models.ClipboardMessage
+/// 路径: NotifyRelay.Data.Models.ClipboardMessage
 /// 功能: 用于在设备间同步剪贴板内容，支持多种内容类型
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → ClipboardService.SetContentAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ClipboardService.SetContentAsync
 /// </summary>
 public class ClipboardMessage : SocketMessage
 {
@@ -179,9 +179,9 @@ public class ClipboardMessage : SocketMessage
 
 /// <summary>
 /// 通知消息类
-/// 路径: Sefirah.Data.Models.NotificationMessage
+/// 路径: NotifyRelay.Data.Models.NotificationMessage
 /// 功能: 包含通知的详细信息，如应用名称、标题、内容、操作等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → NotificationService.HandleNotificationMessage
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → NotificationService.HandleNotificationMessage
 /// </summary>
 public class NotificationMessage : SocketMessage
 {
@@ -234,7 +234,7 @@ public class NotificationMessage : SocketMessage
 
 /// <summary>
 /// 通知文本消息类
-/// 路径: Sefirah.Data.Models.NotificationTextMessage
+/// 路径: NotifyRelay.Data.Models.NotificationTextMessage
 /// 功能: 包含通知中的单条文本消息，如聊天消息
 /// 用于: NotificationMessage.Messages 列表中
 /// </summary>
@@ -249,9 +249,9 @@ public class NotificationTextMessage
 
 /// <summary>
 /// 设备信息类
-/// 路径: Sefirah.Data.Models.DeviceInfo
+/// 路径: NotifyRelay.Data.Models.DeviceInfo
 /// 功能: 包含设备的基本信息，如设备ID、名称、型号、公钥等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 public class DeviceInfo : SocketMessage
 {
@@ -279,9 +279,9 @@ public class DeviceInfo : SocketMessage
 
 /// <summary>
 /// 设备状态类
-/// 路径: Sefirah.Data.Models.DeviceStatus
+/// 路径: NotifyRelay.Data.Models.DeviceStatus
 /// 功能: 包含设备的实时状态信息，如电量、充电状态、WiFi状态等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
 /// </summary>
 public class DeviceStatus : SocketMessage
 {
@@ -306,9 +306,9 @@ public class DeviceStatus : SocketMessage
 
 /// <summary>
 /// 媒体播放会话类
-/// 路径: Sefirah.Data.Models.PlaybackSession
+/// 路径: NotifyRelay.Data.Models.PlaybackSession
 /// 功能: 包含媒体播放的详细信息，如歌曲标题、艺术家、播放状态等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 public class PlaybackSession : SocketMessage
 {
@@ -351,9 +351,9 @@ public class PlaybackSession : SocketMessage
 
 /// <summary>
 /// 媒体播放操作类
-/// 路径: Sefirah.Data.Models.PlaybackAction
+/// 路径: NotifyRelay.Data.Models.PlaybackAction
 /// 功能: 用于控制媒体播放，如播放、暂停、下一曲等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → PlaybackService.HandleMediaActionAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → PlaybackService.HandleMediaActionAsync
 /// </summary>
 public class PlaybackAction : SocketMessage
 {
@@ -369,9 +369,9 @@ public class PlaybackAction : SocketMessage
 
 /// <summary>
 /// 音频设备类
-/// 路径: Sefirah.Data.Models.AudioDevice
+/// 路径: NotifyRelay.Data.Models.AudioDevice
 /// 功能: 包含音频设备的详细信息，如设备ID、名称、音量、静音状态等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 public class AudioDevice : SocketMessage
 {
@@ -396,9 +396,9 @@ public class AudioDevice : SocketMessage
 
 /// <summary>
 /// 文件传输类
-/// 路径: Sefirah.Data.Models.FileTransfer
+/// 路径: NotifyRelay.Data.Models.FileTransfer
 /// 功能: 用于在设备间传输单个文件，包含文件元数据和服务器信息
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveFile
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveFile
 /// </summary>
 public class FileTransfer : SocketMessage
 {
@@ -414,9 +414,9 @@ public class FileTransfer : SocketMessage
 
 /// <summary>
 /// 批量文件传输类
-/// 路径: Sefirah.Data.Models.BulkFileTransfer
+/// 路径: NotifyRelay.Data.Models.BulkFileTransfer
 /// 功能: 用于在设备间批量传输文件，包含多个文件的元数据和服务器信息
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveBulkFiles
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveBulkFiles
 /// </summary>
 public class BulkFileTransfer : SocketMessage
 {
@@ -429,7 +429,7 @@ public class BulkFileTransfer : SocketMessage
 
 /// <summary>
 /// 服务器信息类
-/// 路径: Sefirah.Data.Models.ServerInfo
+/// 路径: NotifyRelay.Data.Models.ServerInfo
 /// 功能: 包含文件传输服务器的连接信息，如IP地址、端口、密码等
 /// 用于: FileTransfer, BulkFileTransfer 类中
 /// </summary>
@@ -447,7 +447,7 @@ public class ServerInfo
 
 /// <summary>
 /// 文件元数据类
-/// 路径: Sefirah.Data.Models.FileMetadata
+/// 路径: NotifyRelay.Data.Models.FileMetadata
 /// 功能: 包含文件的基本信息，如文件名、MIME类型、文件大小等
 /// 用于: FileTransfer, BulkFileTransfer 类中
 /// </summary>
@@ -465,9 +465,9 @@ public class FileMetadata
 
 /// <summary>
 /// 应用列表类
-/// 路径: Sefirah.Data.Models.ApplicationList
+/// 路径: NotifyRelay.Data.Models.ApplicationList
 /// 功能: 包含设备上的应用列表
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.UpdateApplicationList
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.UpdateApplicationList
 /// </summary>
 public class ApplicationList : SocketMessage
 {
@@ -476,9 +476,9 @@ public class ApplicationList : SocketMessage
 
 /// <summary>
 /// 应用信息消息类
-/// 路径: Sefirah.Data.Models.ApplicationInfoMessage
+/// 路径: NotifyRelay.Data.Models.ApplicationInfoMessage
 /// 功能: 包含单个应用的详细信息，如包名、应用名称、图标等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.AddOrUpdateApplicationForDevice
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.AddOrUpdateApplicationForDevice
 /// </summary>
 public class ApplicationInfoMessage : SocketMessage
 {
@@ -495,9 +495,9 @@ public class ApplicationInfoMessage : SocketMessage
 
 /// <summary>
 /// SFTP服务器信息类
-/// 路径: Sefirah.Data.Models.SftpServerInfo
+/// 路径: NotifyRelay.Data.Models.SftpServerInfo
 /// 功能: 包含SFTP服务器的连接信息，如用户名、密码、IP地址、端口等
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
 /// </summary>
 public class SftpServerInfo : SocketMessage
 {
@@ -516,9 +516,9 @@ public class SftpServerInfo : SocketMessage
 
 /// <summary>
 /// UDP广播消息类
-/// 路径: Sefirah.Data.Models.UdpBroadcast
+/// 路径: NotifyRelay.Data.Models.UdpBroadcast
 /// 功能: 用于设备发现和广播设备信息，包含设备ID、名称、公钥等
-/// 处理服务: Sefirah.Services.DiscoveryService
+/// 处理服务: NotifyRelay.Services.DiscoveryService
 /// </summary>
 public class UdpBroadcast : SocketMessage
 {
@@ -543,9 +543,9 @@ public class UdpBroadcast : SocketMessage
 
 /// <summary>
 /// 设备铃声模式类
-/// 路径: Sefirah.Data.Models.DeviceRingerMode
+/// 路径: NotifyRelay.Data.Models.DeviceRingerMode
 /// 功能: 包含设备的铃声模式信息
-/// 处理服务: Sefirah.Services.MessageHandler.HandleMessageAsync
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
 /// </summary>
 public class DeviceRingerMode : SocketMessage
 {

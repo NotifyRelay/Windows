@@ -4,16 +4,16 @@ using Microsoft.UI.Dispatching;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Utils;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Utils.Serialization;
 using Windows.Media;
 using Windows.Media.Control;
 
-namespace Sefirah.Platforms.Windows.Services;
+namespace NotifyRelay.Platforms.Windows.Services;
 public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
     ISessionManager sessionManager,

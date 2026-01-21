@@ -1,11 +1,11 @@
-using Sefirah.Platforms.Windows.Async;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker.IO;
+using NotifyRelay.Platforms.Windows.Async;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
 using static Vanara.PInvoke.CldApi;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class SyncProvider(
     ISyncProviderContextAccessor contextAccessor,
     TaskQueue taskQueue,

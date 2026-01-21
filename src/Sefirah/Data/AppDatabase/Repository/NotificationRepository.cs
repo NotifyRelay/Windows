@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Models;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils.Serialization;
 
-namespace Sefirah.Data.AppDatabase.Repository;
+namespace NotifyRelay.Data.AppDatabase.Repository;
 
 public class NotificationRepository(DatabaseContext context, ILogger logger)
 {

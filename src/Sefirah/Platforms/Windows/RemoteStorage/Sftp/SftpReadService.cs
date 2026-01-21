@@ -1,11 +1,11 @@
 using Renci.SshNet;
 using Renci.SshNet.Common;
 using Renci.SshNet.Sftp;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using FileAttributes = System.IO.FileAttributes;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Sftp;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
 public class SftpReadService(
     ISftpContextAccessor contextAccessor,
     SftpClient client

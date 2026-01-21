@@ -1,13 +1,13 @@
 using System.Diagnostics;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
-using Sefirah.Data.Models;
-using Sefirah.ViewModels;
-using Sefirah.ViewModels.Settings;
+using NotifyRelay.Data.Models;
+using NotifyRelay.ViewModels;
+using NotifyRelay.ViewModels.Settings;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
-namespace Sefirah.Views;
+namespace NotifyRelay.Views;
 public sealed partial class MainPage : Page
 {
     public MainPageViewModel ViewModel { get; }

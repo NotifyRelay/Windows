@@ -1,13 +1,13 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Input;
 using Microsoft.UI.Windowing;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Views.DevicePreferences;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Views.DevicePreferences;
 using Uno.UI.HotDesign;
 using Rect = Windows.Foundation.Rect;
 
-namespace Sefirah.Views;
+namespace NotifyRelay.Views;
 public sealed partial class DeviceSettingsWindow : Window
 {
     public PairedDevice Device { get; }

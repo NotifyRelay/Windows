@@ -1,6 +1,6 @@
-using Sefirah.Data.Enums;
+using NotifyRelay.Data.Enums;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyChanged
 {

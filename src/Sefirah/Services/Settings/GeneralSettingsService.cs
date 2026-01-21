@@ -1,14 +1,14 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models.Actions;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Utils.Serialization;
 using Windows.UI;
 using Windows.UI.ViewManagement;
 
-namespace Sefirah.Services.Settings;
+namespace NotifyRelay.Services.Settings;
 internal sealed partial class GeneralSettingsService : BaseObservableJsonSettings, IGeneralSettingsService
 {
     private readonly UISettings _uiSettings = new();

@@ -1,6 +1,6 @@
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 public static class FileHelper
 {

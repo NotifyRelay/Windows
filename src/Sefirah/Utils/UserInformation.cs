@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace Sefirah.Utils;
+namespace NotifyRelay.Utils;
 
 public static class UserInformation
 {

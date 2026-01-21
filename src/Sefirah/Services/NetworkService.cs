@@ -10,17 +10,17 @@ using System.Threading;
 using CommunityToolkit.Mvvm.DependencyInjection;
 using CommunityToolkit.WinUI;
 using NetCoreServer;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Services.Socket;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Services.Socket;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 using Uno.Logging;
 using Windows.Devices.Power;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class NetworkService(
     Func<IMessageHandler> messageHandlerFactory,
     ILogger<NetworkService> logger,

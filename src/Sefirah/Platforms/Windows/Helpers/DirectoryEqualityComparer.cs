@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 public class DirectoryEqualityComparer : IEqualityComparer<DirectoryInfo>
 {
     public bool Equals(DirectoryInfo? x, DirectoryInfo? y)

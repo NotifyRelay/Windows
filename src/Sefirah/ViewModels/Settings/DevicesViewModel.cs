@@ -1,12 +1,12 @@
 using Microsoft.UI.Dispatching;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
-using Sefirah.Utils.Serialization;
-using Sefirah.Views;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
+using NotifyRelay.Utils.Serialization;
+using NotifyRelay.Views;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 
 public partial class DevicesViewModel : ObservableObject
 {

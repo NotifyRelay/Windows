@@ -1,6 +1,6 @@
-using Sefirah.Data.Models.Actions;
+using NotifyRelay.Data.Models.Actions;
 
-namespace Sefirah.Platforms.Windows;
+namespace NotifyRelay.Platforms.Windows;
 
 public class WindowsDefaultActions
 {

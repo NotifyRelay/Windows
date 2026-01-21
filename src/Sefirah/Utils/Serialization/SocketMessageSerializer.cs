@@ -1,7 +1,7 @@
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Utils.Serialization;
+namespace NotifyRelay.Utils.Serialization;
 
 public static class SocketMessageSerializer
 {

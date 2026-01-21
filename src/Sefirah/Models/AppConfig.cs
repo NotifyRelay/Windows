@@ -1,4 +1,4 @@
-namespace Sefirah.Models;
+namespace NotifyRelay.Models;
 
 public record AppConfig
 {

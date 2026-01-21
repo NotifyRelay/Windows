@@ -1,13 +1,13 @@
 using System.Runtime.InteropServices;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.Interop.Extensions;
-using Sefirah.Platforms.Windows.Interop.SyncRoot;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Interop.Extensions;
+using NotifyRelay.Platforms.Windows.Interop.SyncRoot;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.Extensions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public static class CloudFilter
 {
     public static CldApi.CF_CALLBACK_REGISTRATION[] ConnectSyncRoot(

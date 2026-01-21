@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Sftp;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
 [StructLayout(LayoutKind.Sequential)]
 public struct SftpContext
 {

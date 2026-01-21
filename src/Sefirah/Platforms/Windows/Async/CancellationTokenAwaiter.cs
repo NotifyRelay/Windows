@@ -1,6 +1,6 @@
 ﻿using System.Runtime.CompilerServices;
 
-namespace Sefirah.Platforms.Windows.Async;
+namespace NotifyRelay.Platforms.Windows.Async;
 public struct CancellationTokenAwaiter(CancellationToken cancellationToken) : INotifyCompletion, ICriticalNotifyCompletion
 {
     public void GetResult() { }

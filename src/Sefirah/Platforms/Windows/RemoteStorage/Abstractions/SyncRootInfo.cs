@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.Abstractions;
+namespace NotifyRelay.Platforms.Windows.Abstractions;
 public partial record SyncRootInfo
 {
     public required string Id { get; init; }

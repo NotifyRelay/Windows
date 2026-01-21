@@ -1,12 +1,12 @@
 using System.Collections.Specialized;
 using CommunityToolkit.WinUI;
 using Microsoft.Extensions.Logging;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Services.Socket;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Services.Socket;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public partial class PairedDevice : ObservableObject
 {

@@ -68,7 +68,7 @@
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
-        <StartupObject>Sefirah.Platforms.Windows.Program</StartupObject>
+        <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
     </PropertyGroup>
     <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-desktop'">
         <StartupObject>Program</StartupObject>

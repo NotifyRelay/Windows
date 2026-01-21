@@ -1,11 +1,11 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Sefirah.Data.Enums;
+using NotifyRelay.Data.Enums;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public partial class GroupedNotification : ObservableObject
 {

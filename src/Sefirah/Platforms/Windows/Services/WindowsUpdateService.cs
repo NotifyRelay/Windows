@@ -1,8 +1,8 @@
-using Sefirah.Data.Contracts;
+using NotifyRelay.Data.Contracts;
 using Windows.Services.Store;
 using WinRT.Interop;
 
-namespace Sefirah.Platforms.Windows.Services;
+namespace NotifyRelay.Platforms.Windows.Services;
 public partial class WindowsUpdateService : ObservableObject, IUpdateService
 {
     private StoreContext? storeContext;

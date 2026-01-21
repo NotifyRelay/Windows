@@ -1,14 +1,14 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class MessageHandler(
     RemoteAppRepository remoteAppRepository,
     IDeviceManager deviceManager,

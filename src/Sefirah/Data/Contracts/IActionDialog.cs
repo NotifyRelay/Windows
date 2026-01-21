@@ -1,6 +1,6 @@
-using Sefirah.Data.Models.Actions;
+using NotifyRelay.Data.Models.Actions;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 public interface IActionDialog
 {

@@ -1,12 +1,12 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Utils.Serialization;
-using static Sefirah.Utils.IconUtils;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils.Serialization;
+using static NotifyRelay.Utils.IconUtils;
 
-namespace Sefirah.ViewModels;
+namespace NotifyRelay.ViewModels;
 public sealed partial class AppsViewModel : BaseViewModel
 {
     #region Services

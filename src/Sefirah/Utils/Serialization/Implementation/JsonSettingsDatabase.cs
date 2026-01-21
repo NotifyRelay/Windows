@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
 
-namespace Sefirah.Utils.Serialization.Implementation;
+namespace NotifyRelay.Utils.Serialization.Implementation;
 internal class JsonSettingsDatabase(
     ISettingsSerializer settingsSerializer, 
     IJsonSettingsSerializer jsonSettingsSerializer

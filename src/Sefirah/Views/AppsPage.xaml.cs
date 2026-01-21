@@ -1,7 +1,7 @@
-using Sefirah.Data.Models;
-using Sefirah.ViewModels;
+using NotifyRelay.Data.Models;
+using NotifyRelay.ViewModels;
 
-namespace Sefirah.Views;
+namespace NotifyRelay.Views;
 
 public sealed partial class AppsPage : Page
 {

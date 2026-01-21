@@ -1,17 +1,17 @@
 using System.Text;
 using System.Linq;
 using CommunityToolkit.WinUI;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Dialogs;
-using Sefirah.Extensions;
-using Sefirah.Utils;
-using Sefirah.Views.Settings;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Dialogs;
+using NotifyRelay.Extensions;
+using NotifyRelay.Utils;
+using NotifyRelay.Views.Settings;
 using Uno.Logging;
 using Windows.ApplicationModel.DataTransfer;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class ScreenMirrorService(
     ILogger<ScreenMirrorService> logger,
     IUserSettingsService userSettingsService,

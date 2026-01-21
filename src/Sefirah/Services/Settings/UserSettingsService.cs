@@ -1,8 +1,8 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Utils.Serialization;
-using Sefirah.Utils.Serialization.Implementation;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Utils.Serialization;
+using NotifyRelay.Utils.Serialization.Implementation;
 
-namespace Sefirah.Services.Settings;
+namespace NotifyRelay.Services.Settings;
 internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsService
 {
     private IGeneralSettingsService _generalSettingsService;

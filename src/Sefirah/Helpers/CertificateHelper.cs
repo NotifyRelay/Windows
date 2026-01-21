@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 public class CertificateHelper
 {
-    private static string CertificateFileName { get; } = "Sefirah.pfx";
+    private static string CertificateFileName { get; } = "NotifyRelay.pfx";
     public static async Task<X509Certificate2> CreateECDSACertificate()
     {
         // Create ECDSA with NIST P-256 curve

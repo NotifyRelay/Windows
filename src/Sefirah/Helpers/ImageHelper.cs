@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Media.Imaging;
 using Windows.Storage.Streams;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 public static class ImageHelper
 {

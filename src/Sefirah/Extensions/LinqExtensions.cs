@@ -1,4 +1,4 @@
-namespace Sefirah.Extensions;
+namespace NotifyRelay.Extensions;
 
 public static class LinqExtensions
 {

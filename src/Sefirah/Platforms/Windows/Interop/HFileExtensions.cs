@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
-using Sefirah.Platforms.Windows.Interop.Extensions;
+using NotifyRelay.Platforms.Windows.Interop.Extensions;
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public static class HFileExtensions
 {
     public static SafeMetaHFILE ToMeta(this Kernel32.SafeHFILE fileHandle) => new SafeMetaHFILE.Kernel32HFILE(fileHandle);

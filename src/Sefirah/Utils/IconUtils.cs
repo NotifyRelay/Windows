@@ -1,7 +1,7 @@
 using System.Text.Json;
 using Windows.Storage.Streams;
 
-namespace Sefirah.Utils;
+namespace NotifyRelay.Utils;
 
 /// <summary>
 /// Utility class for image operations

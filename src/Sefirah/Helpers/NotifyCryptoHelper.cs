@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.IO;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 /// <summary>
 /// Notify 协议加解密与密钥派生工具。

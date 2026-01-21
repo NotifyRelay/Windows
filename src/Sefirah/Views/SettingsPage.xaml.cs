@@ -1,4 +1,4 @@
-namespace Sefirah.Views;
+namespace NotifyRelay.Views;
 
 public sealed partial class SettingsPage : Page
 {

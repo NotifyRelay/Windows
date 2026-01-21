@@ -1,18 +1,18 @@
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
-using Sefirah.Services;
-using Sefirah.Utils;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
+using NotifyRelay.Services;
+using NotifyRelay.Utils;
 using Uno.Logging;
 using Windows.System;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using static Sefirah.Constants;
+using static NotifyRelay.Constants;
 using System.IO;
 
-namespace Sefirah.Platforms.Windows.Services;
+namespace NotifyRelay.Platforms.Windows.Services;
 
 /// <summary>
 /// Windows implementation of the platform notification handler

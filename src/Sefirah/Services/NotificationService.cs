@@ -1,18 +1,18 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 using Windows.Data.Xml.Dom;
 using Windows.System;
 using Windows.UI.Notifications;
-using Notification = Sefirah.Data.Models.Notification;
+using Notification = NotifyRelay.Data.Models.Notification;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class NotificationService(
     ILogger logger,
     ISessionManager sessionManager,

@@ -1,4 +1,4 @@
-namespace Sefirah.Dialogs;
+namespace NotifyRelay.Dialogs;
 
 public sealed partial class PasswordInputDialog : ContentDialog
 {

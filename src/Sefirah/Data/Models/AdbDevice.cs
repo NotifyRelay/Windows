@@ -1,7 +1,7 @@
 using AdvancedSharpAdbClient.Models;
-using Sefirah.Data.Enums;
+using NotifyRelay.Data.Enums;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public partial class AdbDevice : ObservableObject
 {

@@ -1,6 +1,6 @@
 using System.Collections.Immutable;
 
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 public static class FileHelper
 {
     private const int MAX_ATTEMPTS = 60;

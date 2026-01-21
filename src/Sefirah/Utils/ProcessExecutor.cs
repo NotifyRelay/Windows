@@ -1,6 +1,6 @@
 using Uno.Logging;
 
-namespace Sefirah.Utils;
+namespace NotifyRelay.Utils;
 
 public static class ProcessExecutor
 {

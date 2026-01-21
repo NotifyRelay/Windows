@@ -1,11 +1,11 @@
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
-using Sefirah.Data.Items;
-using Sefirah.Extensions;
-using Sefirah.Utils;
+using NotifyRelay.Data.Items;
+using NotifyRelay.Extensions;
+using NotifyRelay.Utils;
 using Windows.System;
 
-namespace Sefirah.Views.Settings;
+namespace NotifyRelay.Views.Settings;
 
 public sealed partial class GeneralPage : Page
 {

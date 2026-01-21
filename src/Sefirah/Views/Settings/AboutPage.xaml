@@ -1,13 +1,13 @@
 <Page
-    x:Class="Sefirah.Views.Settings.AboutPage"
+    x:Class="NotifyRelay.Views.Settings.AboutPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:dataItems="using:Sefirah.Data.Items"
-    xmlns:helpers="using:Sefirah.Helpers"
-    xmlns:local="using:Sefirah.Views.Settings"
+    xmlns:dataItems="using:NotifyRelay.Data.Items"
+    xmlns:helpers="using:NotifyRelay.Helpers"
+    xmlns:local="using:NotifyRelay.Views.Settings"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="using:Sefirah.ViewModels.Settings"
+    xmlns:vm="using:NotifyRelay.ViewModels.Settings"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
 

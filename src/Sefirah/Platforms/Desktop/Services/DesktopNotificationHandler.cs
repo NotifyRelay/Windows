@@ -1,10 +1,10 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
-using Sefirah.Utils;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
+using NotifyRelay.Utils;
 using Tmds.DBus.Protocol;
 
-namespace Sefirah.Platforms.Desktop.Services;
+namespace NotifyRelay.Platforms.Desktop.Services;
 
 /// <summary>
 /// Desktop implementation of the platform notification handler using D-Bus

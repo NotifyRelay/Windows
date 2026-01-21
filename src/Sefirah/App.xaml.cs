@@ -1,25 +1,25 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Windows.AppLifecycle;
-using Sefirah.Helpers;
-using Sefirah.Views;
-using Sefirah.Views.Onboarding;
+using NotifyRelay.Helpers;
+using NotifyRelay.Views;
+using NotifyRelay.Views.Onboarding;
 using Windows.ApplicationModel.Activation;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 using H.NotifyIcon;
-using Sefirah.Data.Contracts;
+using NotifyRelay.Data.Contracts;
 using System.Runtime.InteropServices;
-using Sefirah.Extensions;
-using Sefirah.Data.Enums;
+using NotifyRelay.Extensions;
+using NotifyRelay.Data.Enums;
 using Microsoft.UI.Windowing;
 using WinRT.Interop;
 using Uno.UI.HotDesign;
 
 #if WINDOWS
-using Sefirah.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Helpers;
 #endif
 
-namespace Sefirah;
+namespace NotifyRelay;
 public partial class App : Application
 {
     public static TaskCompletionSource? SplashScreenLoadingTCS { get; private set; }

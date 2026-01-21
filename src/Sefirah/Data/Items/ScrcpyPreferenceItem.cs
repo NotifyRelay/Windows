@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Items;
+namespace NotifyRelay.Data.Items;
 
 public class ScrcpyPreferenceItem(int id, string command, string display)
 {

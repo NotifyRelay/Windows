@@ -1,12 +1,12 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Items;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Items;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 
 public sealed partial class DeviceSettingsViewModel : BaseViewModel
 {

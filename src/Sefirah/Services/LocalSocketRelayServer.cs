@@ -4,7 +4,7 @@ using System.Text;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 /// <summary>
 /// Simple local TCP server for delivering notifications to UWP widget clients.

@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml.Input;
-using Sefirah.ViewModels.Settings;
+using NotifyRelay.ViewModels.Settings;
 using Windows.System;
 
-namespace Sefirah.Views.DeviceSettings;
+namespace NotifyRelay.Views.DeviceSettings;
 
 public sealed partial class ScreenMirrorSettingsPage : Page
 {

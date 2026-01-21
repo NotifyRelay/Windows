@@ -1,7 +1,7 @@
 using Vanara.PInvoke;
 using static Vanara.PInvoke.Ole32;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Shell;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
 public class ClassFactory<T>(ClassFactory<T>.Generator generator) : IClassFactoryOf
 {
     public Type Type => typeof(T);

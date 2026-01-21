@@ -1,4 +1,4 @@
-namespace Sefirah.ViewModels;
+namespace NotifyRelay.ViewModels;
 public abstract class BaseViewModel : ObservableObject
 {
     public Microsoft.UI.Dispatching.DispatcherQueue dispatcher;

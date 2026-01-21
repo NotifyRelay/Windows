@@ -1,7 +1,7 @@
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 public interface IDeviceManager
 {

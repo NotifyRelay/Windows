@@ -1,6 +1,6 @@
-using Sefirah.ViewModels.Settings;
+using NotifyRelay.ViewModels.Settings;
 
-namespace Sefirah.Views.DeviceSettings;
+namespace NotifyRelay.Views.DeviceSettings;
 
 public sealed partial class AdbSettingsPage : Page
 {

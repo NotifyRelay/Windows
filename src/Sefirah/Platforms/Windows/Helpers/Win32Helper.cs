@@ -3,7 +3,7 @@ using Vanara.PInvoke;
 using static Vanara.PInvoke.User32;
 using static Vanara.PInvoke.Kernel32;
 
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 
 
 /// <summary>

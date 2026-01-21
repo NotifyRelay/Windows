@@ -1,7 +1,7 @@
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Sftp;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
 public interface ISftpContextAccessor
 {
     SftpContext Context { get; }

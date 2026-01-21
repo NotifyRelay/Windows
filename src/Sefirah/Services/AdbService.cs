@@ -4,12 +4,12 @@ using AdvancedSharpAdbClient.DeviceCommands;
 using AdvancedSharpAdbClient.Models;
 using AdvancedSharpAdbClient.Receivers;
 using CommunityToolkit.WinUI;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Items;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Items;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public class AdbService(
     ILogger<AdbService> logger,

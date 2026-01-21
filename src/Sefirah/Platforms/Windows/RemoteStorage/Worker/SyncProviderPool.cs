@@ -1,12 +1,12 @@
 using System.Runtime.InteropServices.WindowsRuntime;
-using Sefirah.Platforms.Windows.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.PInvoke;
 using Windows.Storage.Provider;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class SyncProviderPool(
     IServiceScopeFactory scopeFactory,
     ILogger logger)

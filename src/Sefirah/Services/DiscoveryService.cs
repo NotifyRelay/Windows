@@ -3,17 +3,17 @@ using System.Text;
 using CommunityToolkit.WinUI;
 using MeaMod.DNS.Multicast;
 using Microsoft.UI.Dispatching;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.EventArguments;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Services.Socket;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.EventArguments;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Services.Socket;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class DiscoveryService(
     ILogger logger,
     IMdnsService mdnsService,

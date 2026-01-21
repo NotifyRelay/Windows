@@ -1,15 +1,15 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Sefirah.Data.Enums;
-using Sefirah.Extensions;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Extensions;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 using System.Collections.ObjectModel;
 using System.Net.Http;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 // 用于存储通知来源设备的类
 public class SourceDevice

@@ -1,14 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Channels;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.Ole32;
 using static Vanara.PInvoke.Shell32;
 using static Vanara.PInvoke.ShlwApi;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Shell.Commands;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
 [ComVisible(true), Guid("942952b6-3bdc-4e50-8fe2-8d2d869ca70f")]
 public class SyncCommand(
     ChannelWriter<ShellCommand> commandWriter,

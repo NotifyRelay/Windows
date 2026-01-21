@@ -1,7 +1,7 @@
 using System.Collections.Concurrent;
-using Sefirah.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Helpers;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public sealed class FileLocker(ILogger logger) : IDisposable
 {
     private readonly Dictionary<string, SemaphoreQueue> _lockers = [];

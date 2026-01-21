@@ -1,10 +1,10 @@
 using System.Text.Json;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Utils;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils;
 using SQLite;
 
-namespace Sefirah.Data.AppDatabase.Models;
+namespace NotifyRelay.Data.AppDatabase.Models;
 
 public partial class ApplicationInfoEntity
 {

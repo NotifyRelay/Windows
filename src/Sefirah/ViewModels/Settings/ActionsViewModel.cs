@@ -1,9 +1,9 @@
 using System.Collections.Specialized;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models.Actions;
-using Sefirah.Dialogs;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Dialogs;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 
 public sealed partial class ActionsViewModel : BaseViewModel
 {

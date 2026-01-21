@@ -1,6 +1,6 @@
-using Sefirah.Platforms.Windows.Abstractions;
+using NotifyRelay.Platforms.Windows.Abstractions;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 public interface ISyncProviderContextAccessor
 {
     SyncProviderContext Context { get; }

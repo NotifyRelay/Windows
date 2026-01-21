@@ -3,10 +3,10 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 /// <summary>
 /// 统一加密发送器

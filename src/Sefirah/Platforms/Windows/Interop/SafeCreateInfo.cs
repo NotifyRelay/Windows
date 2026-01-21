@@ -1,9 +1,9 @@
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.Extensions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public sealed class SafeCreateInfo : IDisposable
 {
     private readonly SafeCoTaskMemString _relativePathPointer;

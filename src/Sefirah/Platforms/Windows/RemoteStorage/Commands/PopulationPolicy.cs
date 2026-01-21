@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.RemoteStorage.Commands;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
 public enum PopulationPolicy
 {
     Full = 1,

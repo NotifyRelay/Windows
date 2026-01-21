@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Models;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils.Serialization;
 using SQLite;
-namespace Sefirah.Data.AppDatabase;
+namespace NotifyRelay.Data.AppDatabase;
 
 public class DatabaseContext : IDisposable
 {
@@ -27,7 +27,7 @@ public class DatabaseContext : IDisposable
 
     private static SQLiteConnection TryCreateDatabase()
     {
-        var databasePath = Path.Combine(ApplicationData.Current.LocalFolder.Path, "sefirah.db");
+        var databasePath = Path.Combine(ApplicationData.Current.LocalFolder.Path, "NotifyRelay.db");
         var db = new SQLiteConnection(databasePath);
 
         if (db.GetTableInfo(nameof(LocalDeviceEntity)).Count == 0)

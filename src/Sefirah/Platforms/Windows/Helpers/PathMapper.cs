@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 public static class PathMapper
 {
     public static string GetRelativePath(string fullPath, string startPath)

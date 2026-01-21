@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
 using SQLite;
 
-namespace Sefirah.Data.AppDatabase.Models;
+namespace NotifyRelay.Data.AppDatabase.Models;
 
 public partial class RemoteDeviceEntity
 {

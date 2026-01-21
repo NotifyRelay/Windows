@@ -1,14 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Extensions.Options;
-using Sefirah.Platforms.Windows.Abstractions;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.RemoteStorage.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Configuration;
+using NotifyRelay.Platforms.Windows.Abstractions;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
 using Windows.Security.Cryptography;
 using Windows.Storage.Provider;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class SyncRootRegistrar(
     IOptions<ProviderOptions> providerOptions,
     ILogger logger

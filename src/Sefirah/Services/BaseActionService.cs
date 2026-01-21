@@ -1,9 +1,9 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Data.Models.Actions;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Utils.Serialization;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public abstract class BaseActionService(
     IGeneralSettingsService generalSettingsService,

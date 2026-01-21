@@ -1,13 +1,13 @@
 using System.Security.Principal;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Platforms.Windows.RemoteStorage.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Sftp;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 using Windows.Storage.Provider;
 using Windows.System.Profile;
 
-namespace Sefirah.Platforms.Windows.Services;
+namespace NotifyRelay.Platforms.Windows.Services;
 
 public class WindowsSftpService(
     ILogger logger,

@@ -1,7 +1,7 @@
 using System.Collections.ObjectModel;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface INotificationService
 {
     /// <summary>

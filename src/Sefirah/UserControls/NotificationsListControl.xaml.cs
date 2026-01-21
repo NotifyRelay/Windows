@@ -2,10 +2,10 @@ using System.Diagnostics;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
-using Sefirah.Data.Models;
-using Sefirah.ViewModels;
+using NotifyRelay.Data.Models;
+using NotifyRelay.ViewModels;
 
-namespace Sefirah.UserControls;
+namespace NotifyRelay.UserControls;
 public sealed partial class NotificationsListControl : UserControl
 {
     public MainPageViewModel ViewModel { get; set; }

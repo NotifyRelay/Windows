@@ -1,7 +1,7 @@
-using Sefirah.Data.Models;
-using Sefirah.Services.Socket;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Services.Socket;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface ISessionManager
 {
     /// <summary>

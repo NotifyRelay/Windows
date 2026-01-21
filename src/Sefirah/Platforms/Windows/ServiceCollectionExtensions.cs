@@ -1,20 +1,20 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Renci.SshNet;
-using Sefirah.Data.Contracts;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Configuration;
-using Sefirah.Platforms.Windows.RemoteStorage.Remote;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Sftp;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell.Local;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker.IO;
-using Sefirah.Platforms.Windows.Services;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Remote;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Sftp;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
+using NotifyRelay.Platforms.Windows.Services;
 
-namespace Sefirah.Platforms.Windows;
+namespace NotifyRelay.Platforms.Windows;
 
 /// <summary>
 /// Extension methods for registering Windows-specific services

@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Models.Actions;
+namespace NotifyRelay.Data.Models.Actions;
 
 [JsonDerivedType(typeof(ProcessAction), typeDiscriminator: "Process")]
 public abstract class BaseAction : ObservableObject

@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Sefirah.Extensions;
+namespace NotifyRelay.Extensions;
 
 /// <summary>
 /// Extension methods for working with localized resources and message formatting.

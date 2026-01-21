@@ -1,8 +1,8 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Utils;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils;
 
-namespace Sefirah.Platforms.Desktop.Services;
+namespace NotifyRelay.Platforms.Desktop.Services;
 
 public class DesktopSftpService(ILogger<DesktopSftpService> logger) : ISftpService
 {

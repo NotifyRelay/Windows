@@ -1,6 +1,6 @@
-using Sefirah.ViewModels.Dialogs;
+using NotifyRelay.ViewModels.Dialogs;
 
-namespace Sefirah.Dialogs;
+namespace NotifyRelay.Dialogs;
 public sealed partial class ConnectionRequestDialog : ContentDialog
 {
     public ConnectionRequestViewModel ViewModel

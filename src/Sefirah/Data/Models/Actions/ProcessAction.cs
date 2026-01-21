@@ -1,7 +1,7 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Dialogs;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Dialogs;
 
-namespace Sefirah.Data.Models.Actions;
+namespace NotifyRelay.Data.Models.Actions;
 
 public partial class ProcessAction : BaseAction, IActionDialog
 {

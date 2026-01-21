@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Views;
+namespace NotifyRelay.Views;
 
 public class NotificationItemTemplateSelector : DataTemplateSelector
 {

@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml.Media.Animation;
-using Sefirah.Views;
-using Sefirah.Views.Onboarding;
+using NotifyRelay.Views;
+using NotifyRelay.Views.Onboarding;
 
-namespace Sefirah.ViewModels.Dialogs;
+namespace NotifyRelay.ViewModels.Dialogs;
 public partial class ConnectionRequestViewModel : ObservableObject
 {
     private string deviceName = string.Empty;
