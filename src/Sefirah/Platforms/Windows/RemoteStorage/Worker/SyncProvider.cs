@@ -23,11 +23,13 @@ public class SyncProvider(
         shellCommandQueue.Start(cancellation);
 
         // Hook up callback methods (in this class) for transferring files between client and server
+        CF_CONNECTION_KEY connectionKey = default;
+        bool connected = false;
+        
         try
         {
-            var connectionKey = syncProvider.Connect();
-            // 只有在连接成功时才创建Disposable对象
-            using var connectDisposable = new Disposable<CF_CONNECTION_KEY>(connectionKey, syncProvider.Disconnect);
+            connectionKey = syncProvider.Connect();
+            connected = true;
             
             // Create the placeholders in the client folder so the user sees something
             if (contextAccessor.Context.PopulationPolicy == PopulationPolicy.AlwaysFull)
@@ -44,19 +46,30 @@ public class SyncProvider(
             // to let the cloud know.
             clientWatcher.Start();
             remoteWatcher.Start(cancellation);
+
+            // Run until SIGTERM
+            await cancellation;
+
+            // 等待队列中的任务完成
+            await shellCommandQueue.Stop();
+            await taskQueue.Stop();
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "同步提供程序初始化失败");
-            // 初始化失败时，跳过后续步骤，等待取消信号
+            logger.LogError(ex, "同步提供程序运行失败");
         }
-
-        // Run until SIGTERM
-        await cancellation;
-
-        await shellCommandQueue.Stop();
-
-        await taskQueue.Stop();
+        finally
+        {
+            // 清理资源
+            clientWatcher.Dispose();
+            
+            // 只有在连接成功时才断开连接
+            if (connected)
+            {
+                logger.LogDebug("正在断开同步提供程序：{connectionKey}", connectionKey);
+                syncProvider.Disconnect(connectionKey);
+            }
+        }
 
         logger.LogDebug("断开连接...");
     }

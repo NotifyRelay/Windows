@@ -3,6 +3,7 @@ using NotifyRelay.Platforms.Windows.Interop;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.PInvoke;
+using System.ComponentModel;
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
@@ -92,7 +93,6 @@ public class PlaceholdersService(
             out var entriesProcessed
         ).ThrowIfFailed("Create placeholder failed");
 
-        logger.LogInformation("已为 {path} 创建占位文件", relativeFile);
         return Task.CompletedTask;
     }
 
@@ -122,8 +122,6 @@ public class PlaceholdersService(
                 CldApi.CF_CREATE_FLAGS.CF_CREATE_FLAG_NONE,
                 out var entriesProcessed
             ).ThrowIfFailed("Create placeholder failed");
-
-            logger.LogInformation("已为 {path} 创建占位符", relativeDirectory);
         }
         catch (Exception ex)
         {
@@ -158,42 +156,70 @@ public class PlaceholdersService(
             ? await FileHelper.WaitUntilUnlocked(() => CloudFilter.CreateHFileWithOplock(clientFile, FileAccess.Write), logger)
             : CloudFilter.CreateHFile(clientFile, FileAccess.Write);
         var placeholderState = CloudFilter.GetPlaceholderState(hfile);
-        if (!placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER))
+        
+        // 检查文件是否已经是占位符，如果不是，尝试复用现有文件而不是强制转换
+        bool isPlaceholder = placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER);
+        bool canConvertToPlaceholder = true;
+        
+        if (!isPlaceholder)
         {
-            CloudFilter.ConvertToPlaceholder(hfile);
+            // 尝试转换为占位符，但如果失败，我们将继续使用现有文件
+            try
+            {
+                CloudFilter.ConvertToPlaceholder(hfile);
+                isPlaceholder = true;
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 380) // ERROR_INVALID_PARAMETER
+            {
+                //logger.LogDebug("无法将文件转换为占位符，将复用现有文件：{path}，错误：{error}", relativeFile, ex.Message);
+                canConvertToPlaceholder = false;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "转换文件为占位符失败：{path}", relativeFile);
+                return;
+            }
         }
 
         var remoteFileInfo = remoteService.GetFileInfo(relativeFile);
         if (!force && remoteFileInfo.GetHashCode() == _fileComparer.GetHashCode(clientFileInfo))
         {
             //logger.Info("更新占位文件 - 相同，忽略 {relativeFile}", relativeFile);
-            if (!placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_IN_SYNC))
+            if (isPlaceholder && !placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_IN_SYNC))
             {
                 CloudFilter.SetInSyncState(hfile);
             }
             return;
         }
 
-        logger.LogInformation("更新占位文件：{relativeFile}", relativeFile);
-        var pinned = clientFileInfo.Attributes.HasAnySyncFlag(SyncAttributes.PINNED);
-        if (pinned)
+        // 只有当文件是占位符时，才执行后续的更新操作
+        if (isPlaceholder)
         {
-            // Clear Pinned to avoid 392 ERROR_CLOUD_FILE_PINNED
-            CloudFilter.SetPinnedState(hfile, 0);
+            var pinned = clientFileInfo.Attributes.HasAnySyncFlag(SyncAttributes.PINNED);
+            if (pinned)
+            {
+                // Clear Pinned to avoid 392 ERROR_CLOUD_FILE_PINNED
+                CloudFilter.SetPinnedState(hfile, 0);
+            }
+            var redownload = downloaded && !clientFileInfo.Attributes.HasAnySyncFlag(SyncAttributes.UNPINNED);
+            var relativePath = PathMapper.GetRelativePath(clientFile, rootDirectory);
+            var usn = downloaded
+                ? CloudFilter.UpdateAndDehydratePlaceholder(hfile, relativePath, remoteFileInfo)
+                : CloudFilter.UpdateFilePlaceholder(hfile, relativePath, remoteFileInfo);
+            if (pinned)
+            {
+                // ClientWatcher calls HydratePlaceholder when both Offline and Pinned are set
+                CloudFilter.SetPinnedState(hfile, SyncAttributes.PINNED);
+            }
+            else if (redownload)
+            {
+                CloudFilter.HydratePlaceholder(hfile);
+            }
         }
-        var redownload = downloaded && !clientFileInfo.Attributes.HasAnySyncFlag(SyncAttributes.UNPINNED);
-        var relativePath = PathMapper.GetRelativePath(clientFile, rootDirectory);
-        var usn = downloaded
-            ? CloudFilter.UpdateAndDehydratePlaceholder(hfile, relativePath, remoteFileInfo)
-            : CloudFilter.UpdateFilePlaceholder(hfile, relativePath, remoteFileInfo);
-        if (pinned)
+        else
         {
-            // ClientWatcher calls HydratePlaceholder when both Offline and Pinned are set
-            CloudFilter.SetPinnedState(hfile, SyncAttributes.PINNED);
-        }
-        else if (redownload)
-        {
-            CloudFilter.HydratePlaceholder(hfile);
+            // 如果不是占位符，我们仍然可以更新文件的同步状态
+            logger.LogDebug("复用现有非占位符文件：{path}", relativeFile);
         }
     }
 
@@ -217,12 +243,31 @@ public class PlaceholdersService(
             //logger.LogInformation("目录 {path} 已还原", relativeDirectory);
             if (!CloudFilter.IsPlaceholder(clientDirectory))
             {
-                CloudFilter.ConvertToPlaceholder(clientDirectory);
-                CloudFilter.SetInSyncState(clientDirectory);
-                logger.LogInformation("已转换为占位符并更新：{path}", relativeDirectory);
+                try
+                {
+                    CloudFilter.ConvertToPlaceholder(clientDirectory);
+                    CloudFilter.SetInSyncState(clientDirectory);
+                }
+                catch (Win32Exception ex) when (ex.NativeErrorCode == 380) // ERROR_INVALID_PARAMETER
+                {
+                    // 忽略Convert to placeholder failed错误，这可能是由于目录已被锁定或其他系统限制
+                    logger.LogDebug("转换为占位符失败（忽略）：{path}，错误：{error}", relativeDirectory, ex.Message);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "更新目录占位符失败：{path}", relativeDirectory);
+                }
                 return Task.CompletedTask;
             }
-            CloudFilter.SetInSyncState(clientDirectory);
+            
+            try
+            {
+                CloudFilter.SetInSyncState(clientDirectory);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "设置目录同步状态失败：{path}", relativeDirectory);
+            }
         }
         return Task.CompletedTask;
     }
