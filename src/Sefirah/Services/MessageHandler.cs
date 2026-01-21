@@ -204,6 +204,10 @@ public class MessageHandler(
                     logger.LogDebug("处理 DATA_SFTP 消息");
                     await HandleDataSftpAsync(device, root);
                     break;
+                case "DATA_CLIPBOARD":
+                    logger.LogDebug("处理 DATA_CLIPBOARD 消息");
+                    await HandleDataClipboardAsync(device, root);
+                    break;
                 default:
                     if (!string.IsNullOrEmpty(messageType))
                     {
@@ -564,6 +568,43 @@ public class MessageHandler(
         catch (Exception ex)
         {
             logger.LogError(ex, "处理 DATA_SFTP 消息时出错");
+        }
+    }
+
+    /// <summary>
+    /// 处理 DATA_CLIPBOARD 类型的消息
+    /// </summary>
+    /// <param name="device">设备</param>
+    /// <param name="root">JSON 根元素</param>
+    private async Task HandleDataClipboardAsync(PairedDevice device, JsonElement root)
+    {
+        try
+        {
+            logger.LogDebug("处理 DATA_CLIPBOARD 消息");
+
+            // 直接从根元素获取属性（新格式，与手机端一致）
+            if (!root.TryGetProperty("clipboardType", out var typeProp) ||
+                !root.TryGetProperty("content", out var contentProp))
+            {
+                logger.LogWarning("DATA_CLIPBOARD 消息缺少必要属性");
+                return;
+            }
+
+            var clipboardType = typeProp.GetString() ?? "text/plain";
+            var content = contentProp.GetString() ?? string.Empty;
+
+            logger.LogDebug("剪贴板类型：{clipboardType}，内容长度：{contentLength}", clipboardType, content.Length);
+
+            // 直接调用剪贴板服务设置内容
+            await clipboardService.SetContentAsync(content, device);
+        }
+        catch (JsonException jsonEx)
+        {
+            logger.LogError(jsonEx, "解析 DATA_CLIPBOARD 消息时出错");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 DATA_CLIPBOARD 消息时出错");
         }
     }
 }

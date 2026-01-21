@@ -270,7 +270,7 @@ public class NetworkService(
         // 根据消息内容选择消息类型
         string messageType = "DATA_JSON";
         
-        // 直接检查消息中的 type 字段值，支持不同的引号格式
+        // 直接检查消息中的 type 字段值或内容特征
         if (message.Contains("APP_LIST_REQUEST", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_APP_LIST_REQUEST";
@@ -287,20 +287,36 @@ public class NetworkService(
         {
             messageType = "DATA_MEDIA_CONTROL";
         }
-        else if (message.Contains("DATA_SFTP", StringComparison.OrdinalIgnoreCase))
+        else if (message.Contains("DATA_SFTP", StringComparison.OrdinalIgnoreCase) || 
+                 message.Contains("SftpServerInfo", StringComparison.OrdinalIgnoreCase))
         {
             messageType = "DATA_SFTP";
         }
-        else if (message.Contains("SftpServerInfo", StringComparison.OrdinalIgnoreCase))
+        else if (message.Contains("clipboardType", StringComparison.OrdinalIgnoreCase) && 
+                 message.Contains("content", StringComparison.OrdinalIgnoreCase))
         {
-            messageType = "DATA_SFTP";
+            // 识别剪贴板消息，根据content和clipboardType字段
+            messageType = "DATA_CLIPBOARD";
         }
         else
         {
         }
+        
+        // 根据消息类型设置描述
+        string description = messageType switch
+        {
+            "DATA_JSON" => "通用消息",
+            "DATA_APP_LIST_REQUEST" => "应用列表请求",
+            "DATA_ICON_REQUEST" => "图标请求",
+            "DATA_AUDIO_RESPONSE" => "音频响应",
+            "DATA_MEDIA_CONTROL" => "媒体控制",
+            "DATA_SFTP" => "SFTP操作",
+            "DATA_CLIPBOARD" => "剪贴板消息",
+            _ => "通用消息"
+        };
 
         // 调用通用发送方法
-        SendRequest(deviceId, messageType, message, "通用消息");
+        SendRequest(deviceId, messageType, message, description);
     }
 
     public void BroadcastMessage(string message)
@@ -844,6 +860,11 @@ public class NetworkService(
                     await DispatchPayloadAsync(device, decryptedPayload);
                     break;
                     
+                case "DATA_CLIPBOARD":
+                    // 剪贴板消息
+                    await DispatchPayloadAsync(device, decryptedPayload);
+                    break;
+                    
                 default:
                     logger.LogWarning("不支持的 DATA 消息类型: {messageType}", messageType);
                     break;
@@ -1094,6 +1115,21 @@ public class NetworkService(
                     }
                     return;
                 }
+            }
+            
+            // 检查是否为剪贴板消息（没有type字段但有clipboardType和content字段）
+            if (root.TryGetProperty("clipboardType", out var clipboardTypeProp) && 
+                root.TryGetProperty("content", out var contentProp))
+            {
+                logger.LogDebug("识别到剪贴板消息");
+                // 直接调用MessageHandler的HandleDataClipboardAsync方法处理剪贴板消息
+                var handleDataClipboardMethod = messageHandler.Value.GetType().GetMethod("HandleDataClipboardAsync", 
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (handleDataClipboardMethod != null)
+                {
+                    await (Task)handleDataClipboardMethod.Invoke(messageHandler.Value, new object[] { device, root });
+                }
+                return;
             }
 
             // 尝试作为普通SocketMessage处理
