@@ -1,6 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using Windows.Services.Store;
 using WinRT.Interop;
+using System.Runtime.InteropServices;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 public partial class WindowsUpdateService : ObservableObject, IUpdateService
@@ -46,9 +47,15 @@ public partial class WindowsUpdateService : ObservableObject, IUpdateService
             var updateList = await storeContext.GetAppAndOptionalStorePackageUpdatesAsync();
             updatePackages = updateList?.ToList();
         }
-        catch (Exception)
+        catch (COMException comEx)
         {
-            // GetAppAndOptionalStorePackageUpdatesAsync throws for unknown reasons.
+            // 专门处理WinRT COM异常，记录详细日志
+            System.Diagnostics.Debug.WriteLine($"Windows Update WinRT COM Exception: {comEx.Message}, HResult: {comEx.HResult}");
+        }
+        catch (Exception ex)
+        {
+            // 其他异常仍保持静默处理
+            System.Diagnostics.Debug.WriteLine($"Windows Update Exception: {ex.Message}");
         }
     }
 }

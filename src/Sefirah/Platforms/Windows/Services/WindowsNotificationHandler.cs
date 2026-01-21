@@ -11,6 +11,7 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 using static NotifyRelay.Constants;
 using System.IO;
+using System.Runtime.InteropServices;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -110,6 +111,11 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
 
                                 builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
                             }
+                            catch (COMException comExLocal)
+                            {
+                                logger.LogDebug(comExLocal, "WinRT COM异常：无法读取本地图标 URI，回退使用原始 URI：{IconUri}", iconUri);
+                                builder.SetAppLogoOverride(iconUri, AppNotificationImageCrop.Circle);
+                            }
                             catch (Exception exLocal)
                             {
                                 logger.LogWarning(exLocal, "无法读取本地图标 URI，回退使用原始 URI：{IconUri}", iconUri);
@@ -121,6 +127,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                             logger.LogDebug("设置通知图标为 {IconUri}，通知键：{NotificationKey}", iconUri, message.NotificationKey);
                             builder.SetAppLogoOverride(iconUri, AppNotificationImageCrop.Circle);
                         }
+                    }
+                    catch (COMException comEx)
+                    {
+                        logger.LogDebug(comEx, "WinRT COM异常：设置通知图标时出错，通知键：{NotificationKey}", message.NotificationKey);
                     }
                     catch (Exception ex)
                     {
@@ -147,6 +157,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                         var fileUri = new Uri($"file://{tempFilePath}");
                         logger.LogDebug("包名图标不存在，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", fileUri, message.NotificationKey);
                         builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
+                    }
+                    catch (COMException comEx)
+                    {
+                        logger.LogDebug(comEx, "WinRT COM异常：保存大图标到临时目录时出错，通知键：{NotificationKey}", message.NotificationKey);
                     }
                     catch (Exception ex)
                     {
@@ -179,6 +193,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                     logger.LogDebug("未设置包名，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", fileUri, message.NotificationKey);
                     builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
                 }
+                catch (COMException comEx)
+                {
+                    logger.LogDebug(comEx, "WinRT COM异常：保存大图标到临时目录时出错，通知键：{NotificationKey}", message.NotificationKey);
+                }
                 catch (Exception ex)
                 {
                     logger.LogWarning(ex, "保存大图标到临时目录时出错，通知键：{NotificationKey}", message.NotificationKey);
@@ -192,6 +210,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             var notification = builder.BuildNotification();
             notification.ExpiresOnReboot = true;
             AppNotificationManager.Default.Show(notification);
+        }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：显示远程通知失败");
         }
         catch (Exception ex)
         {
@@ -246,6 +268,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                 AppNotificationManager.Default.Show(notification);
             }
         }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：文件传输通知失败，进度：{Progress}, 序列：{NotificationSequence}", progress, notificationSequence);
+        }
         catch (Exception ex)
         {
             logger.Error($"通知失败，进度：{progress}, 序列：{notificationSequence}", ex);
@@ -286,6 +312,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             notification.ExpiresOnReboot = true;
             AppNotificationManager.Default.Show(notification);
         }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：显示文件传输通知失败");
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "显示文件传输通知失败");
@@ -307,6 +337,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             var notification = builder.BuildNotification();
             notification.ExpiresOnReboot = true;
             AppNotificationManager.Default.Show(notification);
+        }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：显示剪贴板通知失败");
         }
         catch (Exception ex)
         {
@@ -335,6 +369,10 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             var notification = builder.BuildNotification();
             notification.ExpiresOnReboot = true;
             AppNotificationManager.Default.Show(notification);
+        }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：显示带操作的剪贴板通知失败");
         }
         catch (Exception ex)
         {

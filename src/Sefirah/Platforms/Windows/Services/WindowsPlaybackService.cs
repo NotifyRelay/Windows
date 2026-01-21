@@ -93,6 +93,11 @@ public class WindowsPlaybackService(
                             await UpdatePlaybackDataAsync(currentSession);
                         }
                     }
+                    catch (COMException comEx)
+                    {
+                        // 忽略WinRT COM异常，避免频繁触发日志
+                        logger.LogDebug(comEx, "定期更新播放数据时WinRT COM异常");
+                    }
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "定期更新播放数据时出错");
@@ -101,6 +106,11 @@ public class WindowsPlaybackService(
             });
 
             logger.LogInformation("播放服务初始化成功");
+        }
+        catch (COMException comEx)
+        {
+            // 忽略WinRT COM异常，避免频繁触发日志
+            logger.LogDebug(comEx, "初始化播放服务时WinRT COM异常");
         }
         catch (Exception ex)
         {
@@ -329,6 +339,11 @@ public class WindowsPlaybackService(
                 SendPlaybackData(message);
             }
         }
+        catch (COMException comEx)
+        {
+            // 忽略WinRT COM异常，避免频繁触发日志
+            logger.LogDebug(comEx, "WinRT COM异常（时间线属性）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "处理时间线属性时出错：{SourceAppUserModelId}", sender.SourceAppUserModelId);
@@ -384,6 +399,11 @@ public class WindowsPlaybackService(
             await UpdatePlaybackDataAsync(sender);
 
         }
+        catch (COMException comEx)
+        {
+            // 忽略WinRT COM异常，避免频繁触发日志
+            logger.LogDebug(comEx, "WinRT COM异常（媒体属性变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "更新播放数据时出错：{SourceAppUserModelId}", sender.SourceAppUserModelId);
@@ -396,6 +416,11 @@ public class WindowsPlaybackService(
         {
             // 播放状态变化时，获取完整的媒体信息
             await UpdatePlaybackDataAsync(sender);
+        }
+        catch (COMException comEx)
+        {
+            // 忽略WinRT COM异常，避免频繁触发日志
+            logger.LogDebug(comEx, "WinRT COM异常（播放信息变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
         }
         catch (Exception ex)
         {
@@ -444,6 +469,12 @@ public class WindowsPlaybackService(
                 playbackSession.Thumbnail = await mediaProperties.Thumbnail.ToBase64Async();
 
             return playbackSession;
+        }
+        catch (COMException comEx)
+        {
+            // 忽略WinRT COM异常，避免频繁触发日志
+            logger.LogDebug(comEx, "WinRT COM异常（获取播放数据）：{SourceAppUserModelId}", session.SourceAppUserModelId);
+            return null;
         }
         catch (Exception ex)
         {
