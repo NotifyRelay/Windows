@@ -12,7 +12,7 @@ namespace NotifyRelay.Services;
 public class MessageHandler(
     RemoteAppRepository remoteAppRepository,
     IDeviceManager deviceManager,
-    INetworkService networkService,
+    Func<INetworkService> networkServiceFactory,
     INotificationService notificationService,
     IClipboardService clipboardService,
     
@@ -63,7 +63,7 @@ public class MessageHandler(
             }
 
             var message = JsonSerializer.Serialize(json);
-            networkService.SendMessage(device.Id, message);
+            networkServiceFactory().SendMessage(device.Id, message);
             logger.LogDebug("已发送 SFTP 命令：action={action}, device={deviceName}", action, device.Name);
         }
         catch (Exception ex)
@@ -291,7 +291,7 @@ public class MessageHandler(
             // 发送批量图标请求
             if (packageNamesWithoutIcons.Count > 0)
             {
-                networkService.SendIconRequest(device.Id, packageNamesWithoutIcons);
+                networkServiceFactory().SendIconRequest(device.Id, packageNamesWithoutIcons);
             }
 
             return Task.CompletedTask;
@@ -487,7 +487,7 @@ public class MessageHandler(
                 : "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
             
             // 通过 networkService 发送响应
-            networkService.SendMessage(device.Id, response);
+            networkServiceFactory().SendMessage(device.Id, response);
             
             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
         }
@@ -497,7 +497,7 @@ public class MessageHandler(
             
             // 发送拒绝响应，使用新的 MEDIA_CONTROL 格式
             string errorResponse = "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
-            networkService.SendMessage(device.Id, errorResponse);
+            networkServiceFactory().SendMessage(device.Id, errorResponse);
         }
     }
 

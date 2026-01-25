@@ -18,7 +18,7 @@ public class DiscoveryService(
     ILogger logger,
     IMdnsService mdnsService,
     IDeviceManager deviceManager,
-    INetworkService networkService
+    Func<INetworkService> networkServiceFactory
     ) : IDiscoveryService, IUdpClientProvider
 {
     private MulticastClient? udpClient; 
@@ -101,6 +101,7 @@ public class DiscoveryService(
             }
             
             // 7. 立即发布mDNS服务广告
+            var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var udpBroadcast = new UdpBroadcast
             {
@@ -144,6 +145,7 @@ public class DiscoveryService(
     private string BuildDiscoverMessage(string deviceName)
     {
         var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
+        var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
         return $"NOTIFYRELAY_DISCOVER:{localDevice.DeviceId}:{encodedName}:{serverPort}";
     }
@@ -162,6 +164,7 @@ public class DiscoveryService(
             
             // 重新发布mDNS服务广告
             mdnsService.UnAdvertiseService();
+            var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var udpBroadcast = new UdpBroadcast
             {
@@ -325,6 +328,7 @@ public class DiscoveryService(
                     if (device is not null)
                     {
                         // 直接调用NetworkService的ProcessProtocolMessageAsync方法处理心跳
+                        var networkService = networkServiceFactory();
                         _ = networkService.ProcessProtocolMessageAsync(device, message);
                     }
                 }

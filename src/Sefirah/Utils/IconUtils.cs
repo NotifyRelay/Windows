@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using Windows.Storage.Streams;
 
@@ -163,11 +164,39 @@ public static class IconUtils
             }
             
             var appIconsFolder = await GetAppIconsFolderAsync();
-            var file = await appIconsFolder.CreateFileAsync($"{appPackage}.png", CreationCollisionOption.ReplaceExisting);
-            using var stream = await file.OpenAsync(FileAccessMode.ReadWrite);
-            using var dataWriter = new DataWriter(stream);
-            dataWriter.WriteBytes(bytes);
-            await dataWriter.StoreAsync();
+            
+            // 尝试保存文件，最多重试3次，每次间隔100ms
+            int retryCount = 0;
+            const int maxRetries = 3;
+            const int retryDelayMs = 100;
+            
+            while (retryCount < maxRetries)
+            {
+                try
+                {
+                    var file = await appIconsFolder.CreateFileAsync($"{appPackage}.png", CreationCollisionOption.ReplaceExisting);
+                    using var stream = await file.OpenAsync(FileAccessMode.ReadWrite);
+                    using var dataWriter = new DataWriter(stream);
+                    dataWriter.WriteBytes(bytes);
+                    await dataWriter.StoreAsync();
+                    // 保存成功，退出循环
+                    break;
+                }
+                catch (COMException ex) when (ex.HResult == unchecked((int)0x80070020)) // ERROR_SHARING_VIOLATION
+                {
+                    // 文件被占用，重试
+                    retryCount++;
+                    if (retryCount < maxRetries)
+                    {
+                        await Task.Delay(retryDelayMs);
+                    }
+                }
+                catch (Exception)
+                {
+                    // 其他错误，忽略
+                    break;
+                }
+            }
         }
         catch (Exception)
         {

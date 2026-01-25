@@ -20,7 +20,7 @@ public class NotificationService(
     IPlatformNotificationHandler platformNotificationHandler,
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
-    INetworkService networkService) : INotificationService, INotifyPropertyChanged
+    Func<INetworkService> networkServiceFactory) : INotificationService, INotifyPropertyChanged
 {
     private readonly Dictionary<string, ObservableCollection<Notification>> deviceNotifications = [];
     private readonly object deviceNotificationsLock = new();
@@ -151,8 +151,15 @@ public class NotificationService(
 
     public async Task HandleNotificationMessage(PairedDevice device, NotificationMessage message)
     {
+        logger.LogDebug("收到通知消息: NotificationType={NotificationType}, Title={Title}, AppPackage={AppPackage}, AppName={AppName}, Text={Text}", 
+            message.NotificationType, message.Title, message.AppPackage, message.AppName, message.Text);
+        
         // Check if device has notification sync enabled
-        if (!device.DeviceSettings.NotificationSyncEnabled) return;
+        if (!device.DeviceSettings.NotificationSyncEnabled)
+        {
+            logger.LogDebug("设备通知同步已禁用，跳过通知");
+            return;
+        }
         
         try
         { 
@@ -185,7 +192,7 @@ public class NotificationService(
                     pendingIconRequests[requestKey] = iconRequestTcs;
                     
                     // 发送图标请求
-                    networkService.SendIconRequest(device.Id, message.AppPackage);
+                    networkServiceFactory().SendIconRequest(device.Id, message.AppPackage);
                 }
 
                 // 等待图标请求完成，最长等待 3 秒
@@ -1074,7 +1081,7 @@ public class NotificationService(
                             // 如果图标不存在，尝试异步请求图标
                             logger.LogDebug("通知图标不存在，尝试请求图标: {AppPackage}", msg.AppPackage);
                             // 发送图标请求
-                            networkService.SendIconRequest(device.Id, msg.AppPackage);
+                            networkServiceFactory().SendIconRequest(device.Id, msg.AppPackage);
                             // 延迟一段时间后再次尝试加载图标
                             await Task.Delay(500);
                             await notif.LoadIconAsync();

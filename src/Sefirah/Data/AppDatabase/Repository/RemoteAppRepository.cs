@@ -8,7 +8,7 @@ using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.Data.AppDatabase.Repository;
 
-public class RemoteAppRepository(DatabaseContext context, ILogger logger, INetworkService networkService)
+public class RemoteAppRepository(DatabaseContext context, ILogger logger, Func<INetworkService> networkServiceFactory)
 {
     public ObservableCollection<ApplicationInfo> Applications { get; set; } = [];
     
@@ -263,6 +263,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger, INetwo
         try
         {
             // 使用网络服务发送请求
+            var networkService = networkServiceFactory();
             if (networkService == null)
             {
                 logger.LogError("网络服务为 null，无法发送应用列表请求：deviceId={deviceId}", deviceId);
