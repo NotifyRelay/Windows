@@ -36,6 +36,12 @@ public class SyncProvider(
             {
                 placeholdersService.CreateBulk(string.Empty);
             }
+            // For OnDemand policy, only create root folder contents, don't recursively create all
+            else if (contextAccessor.Context.PopulationPolicy == PopulationPolicy.Full)
+            {
+                placeholdersService.CreateBulk(string.Empty);
+            }
+            // For OnDemand policy, do nothing initially - placeholders will be created when accessed
 
             syncProvider.UpdatePlaceholders(contextAccessor.Context.RootDirectory);
 

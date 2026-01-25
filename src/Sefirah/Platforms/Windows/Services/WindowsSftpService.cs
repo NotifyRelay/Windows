@@ -124,7 +124,7 @@ public class WindowsSftpService(
                 Name = name,
                 Directory = directory,
                 AccountId = accountId,
-                PopulationPolicy = PopulationPolicy.Full,
+                PopulationPolicy = PopulationPolicy.OnDemand,
             };
 
             StorageFolder storageFolder = await StorageFolder.GetFolderFromPathAsync(directory);

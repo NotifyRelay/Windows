@@ -56,9 +56,9 @@ public class SyncRootRegistrar(
             Path = directory,
             DisplayNameResource = command.Name,
             IconResource = $"{iconPath},0",
-            HydrationPolicy = StorageProviderHydrationPolicy.Full,
+            HydrationPolicy = StorageProviderHydrationPolicy.Progressive, // 渐进式水合，支持按需访问
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.AutoDehydrationAllowed |
-                                     StorageProviderHydrationPolicyModifier.AllowFullRestartHydration,
+                                        StorageProviderHydrationPolicyModifier.ValidationRequired,
             PopulationPolicy = (StorageProviderPopulationPolicy)command.PopulationPolicy,
             InSyncPolicy = StorageProviderInSyncPolicy.FileCreationTime | 
                            StorageProviderInSyncPolicy.DirectoryCreationTime |

@@ -160,23 +160,14 @@ public class ProtocolRouter
                                 if (!string.IsNullOrEmpty(ipAddress))
                                 {
                                     // 安卓端不再发送用户名和密码，PC端需要从sharedSecret派生
-                                    // 按照安卓端的逻辑从sharedSecret派生SFTP凭据
-                                    // 1. 直接使用sharedSecret的字节数组（与安卓端完全一致）
-                                    var sharedSecretBytes = device.SharedSecret;
+                                    if (device.SharedSecret == null)
+                                    {
+                                        logger.LogWarning("设备 {DeviceId} 没有 sharedSecret，无法生成 SFTP 凭据", device.Id);
+                                        return;
+                                    }
                                     
-                                    // 2. 使用SHA-256对sharedSecret字节数组进行哈希处理（与安卓端完全一致）
-                                    using var sha256 = System.Security.Cryptography.SHA256.Create();
-                                    var hashBytes = sha256.ComputeHash(sharedSecretBytes);
-                                    
-                                    // 3. 派生用户名：前缀"sftp_" + 哈希结果前8字节的Base64编码，取前16个字符，转换为小写
-                                    var usernameBase64 = Convert.ToBase64String(hashBytes.AsSpan(0, 8));
-                                    var cleanedUsername = System.Text.RegularExpressions.Regex.Replace(usernameBase64, "[^a-zA-Z0-9]", "");
-                                    // 确保Substring参数正确，使用替换后的字符串长度
-                                    var username = "sftp_" + cleanedUsername.Substring(0, Math.Min(16, cleanedUsername.Length)).ToLower();
-                                    
-                                    // 4. 派生密码：哈希结果前32字节的Base64编码，替换所有非字母数字字符
-                                    var passwordBase64 = Convert.ToBase64String(hashBytes.AsSpan(0, 32));
-                                    var password = System.Text.RegularExpressions.Regex.Replace(passwordBase64, "[^a-zA-Z0-9]", "");
+                                    // 直接使用NotifyCryptoHelper.DeriveSftpCredentials方法生成SFTP凭据，确保与MessageHandler.cs中的逻辑一致
+                                    var (username, password) = NotifyCryptoHelper.DeriveSftpCredentials(device.SharedSecret);
                                     
                                     var sftpServerInfo = new SftpServerInfo
                                     {

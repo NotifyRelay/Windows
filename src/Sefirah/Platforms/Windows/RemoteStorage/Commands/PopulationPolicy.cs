@@ -3,4 +3,5 @@ public enum PopulationPolicy
 {
     Full = 1,
     AlwaysFull,
+    OnDemand,
 }

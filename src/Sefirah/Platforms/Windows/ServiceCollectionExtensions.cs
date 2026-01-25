@@ -115,12 +115,16 @@ public static class ServiceCollectionExtensions
 
     public static IServiceCollection AddSftpRemoteServices(this IServiceCollection services) =>
         services
-            .AddSingleton<SftpContextAccessor>()
-            .AddKeyedSingleton<IRemoteContextSetter>("sftp", (sp, key) => sp.GetRequiredService<SftpContextAccessor>())
-            .AddSingleton((sp) => sp.GetRequiredKeyedService<IRemoteContextSetter>("sftp"))
-            .AddSingleton<ISftpContextAccessor>((sp) => sp.GetRequiredService<SftpContextAccessor>())
+            // 将SftpContextAccessor改为Scoped，确保每个设备有自己的上下文
+            .AddScoped<SftpContextAccessor>()
+            // 将SftpContextAccessor注册为IRemoteContextSetter，同时作为Keyed服务和普通服务
+            .AddKeyedScoped<IRemoteContextSetter>("sftp", (sp, key) => sp.GetRequiredService<SftpContextAccessor>())
+            // 同时注册为普通的Scoped服务，以便SyncProviderPool能够通过GetServices获取
+            .AddScoped<IRemoteContextSetter>(sp => sp.GetRequiredService<SftpContextAccessor>())
+            // 将ISftpContextAccessor改为Scoped，每个设备有自己的上下文访问器
+            .AddScoped<ISftpContextAccessor>((sp) => sp.GetRequiredService<SftpContextAccessor>())
+            // 按设备创建SFTP客户端，每个设备有自己的客户端实例
             .AddScoped((sp) => {
-                var context = sp.GetRequiredService<SyncProviderContextAccessor>();
                 var contextAccessor = sp.GetRequiredService<ISftpContextAccessor>();
                 var logger = sp.GetRequiredService<ILogger>();
                 
@@ -156,6 +160,7 @@ public static class ServiceCollectionExtensions
                 
                 return client;
             })
+            // SFTP相关服务都注册为Scoped，确保每个设备有自己的实例
             .AddKeyedScoped<IRemoteReadWriteService, SftpReadWriteService>("sftp")
             .AddScoped((sp) => new LazyRemote<IRemoteReadWriteService>(() => sp.GetRequiredKeyedService<IRemoteReadWriteService>("sftp"), SftpConstants.KIND))
             .AddKeyedScoped<IRemoteReadService>("sftp", (sp, key) => sp.GetRequiredService<IRemoteReadWriteService>())
