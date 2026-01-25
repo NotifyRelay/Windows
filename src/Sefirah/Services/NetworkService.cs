@@ -698,16 +698,8 @@ public class NetworkService(
                 return;
             }
             
-            if (message.TrimStart().StartsWith('{') || message.TrimStart().StartsWith('['))
-            {
-                // 处理直接的JSON格式消息
-                MarkDeviceAlive(device);
-                // 这里我们暂时保留对直接JSON消息的处理，因为ProtocolRouter目前只处理DATA_*消息
-                await DispatchPayloadAsync(device, message);
-                return;
-            }
-            
-            logger.LogWarning("收到不支持的消息格式: {message}", message.Length > 50 ? message[..50] + "..." : message);
+            logger.LogDebug("收到不支持的消息类型，按照要求直接不处理: {message}", message.Length > 50 ? message[..50] + "..." : message);
+            return;
         }
         catch (Exception ex)
         {
@@ -824,31 +816,8 @@ public class NetworkService(
                 return;
             }
 
-            // 尝试作为普通SocketMessage处理
-            try
-            {
-                var socketMessage = SocketMessageSerializer.DeserializeMessage(payload);
-                if (socketMessage is not null && socketMessage is not SocketMessage)
-                {
-                    logger.LogDebug("处理为普通SocketMessage");
-                    await messageHandler.Value.HandleMessageAsync(device, socketMessage);
-                    return;
-                }
-            }
-            catch (JsonException ex)
-            {
-                logger.LogDebug("解析SocketMessage时出错：{ex.Message}", ex.Message);
-            }
-
-            // 尝试作为通知消息处理
-            if (TryParseNotifyRelayNotification(payload, out var notificationMessage))
-            {
-                logger.LogDebug("处理为通知消息");
-                await messageHandler.Value.HandleMessageAsync(device, notificationMessage);
-                return;
-            }
-            
-            logger.LogWarning("无法处理的JSON载荷：{payload}", payload.Length > 100 ? payload[..100] + "..." : payload);
+            logger.LogDebug("无法识别的JSON载荷，按照要求直接不处理");
+            return;
         }
         catch (Exception ex)
         {
@@ -926,62 +895,6 @@ public class NetworkService(
         {
             logger.LogError(ex, "绑定预握手 DATA 会话时出错");
             return null;
-        }
-    }
-    
-    private bool TryParseNotifyRelayNotification(string payload, out NotificationMessage notificationMessage)
-    {
-        notificationMessage = null!;
-
-        try
-        {
-            using var doc = JsonDocument.Parse(payload);
-            if (doc.RootElement.ValueKind is not JsonValueKind.Object) return false;
-
-            var root = doc.RootElement;
-
-            if (!root.TryGetProperty("packageName", out var packageProp)) return false;
-
-            var packageName = packageProp.GetString();
-            if (string.IsNullOrWhiteSpace(packageName)) return false;
-            
-            // 过滤超级岛通知，识别段是'superisland:'
-            if (packageName.StartsWith("superisland:"))
-            {
-                // 注释掉丢弃超级岛通知的调试日志
-                // logger.LogDebug("丢弃超级岛通知: {PackageName}", packageName);
-                return false;
-            }
-
-            var timeMs = root.TryGetProperty("time", out var timeProp)
-                ? timeProp.GetInt64()
-                : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-            string notificationKey = root.TryGetProperty("id", out var idProp) && !string.IsNullOrWhiteSpace(idProp.GetString())
-                ? idProp.GetString()!
-                : root.TryGetProperty("key", out var keyProp) && !string.IsNullOrWhiteSpace(keyProp.GetString())
-                    ? keyProp.GetString()!
-                    : $"{packageName}:{timeMs}";
-
-            notificationMessage = new NotificationMessage
-            {
-                NotificationKey = notificationKey,
-                TimeStamp = timeMs.ToString(),
-                NotificationType = NotificationType.New,
-                AppPackage = packageName,
-                AppName = root.TryGetProperty("appName", out var appNameProp) ? appNameProp.GetString() : null,
-                Title = root.TryGetProperty("title", out var titleProp) ? titleProp.GetString() : null,
-                Text = root.TryGetProperty("text", out var textProp) ? textProp.GetString() : null,
-                AppIcon = root.TryGetProperty("appIcon", out var appIconProp) ? appIconProp.GetString() : null,
-                LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) ? largeIconProp.GetString() : null,
-                CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) ? coverUrlProp.GetString() : null
-            };
-
-            return true;
-        }
-        catch (Exception)
-        {
-            return false;
         }
     }
 

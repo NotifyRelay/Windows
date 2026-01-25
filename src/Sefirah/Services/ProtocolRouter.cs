@@ -83,7 +83,7 @@ public class ProtocolRouter
                     break;
                     
                 case "DATA_NOTIFICATION":
-                    // 普通通知和通用JSON数据
+                    // 普通通知
                     await DispatchPayloadAsync(device, decryptedPayload);
                     break;
                     
@@ -457,31 +457,42 @@ public class ProtocolRouter
                 }
             }
             
-            // 尝试作为通知消息处理
-            if (TryParseNotifyRelayNotification(payload, out var notificationMessage))
+            // 检查是否为普通通知消息（来自DATA_NOTIFICATION）
+            bool isNotificationMessage = root.TryGetProperty("packageName", out var _) || 
+                                         root.TryGetProperty("appPackage", out var _);
+            
+            if (isNotificationMessage)
             {
-                logger.LogDebug("处理为通知消息");
+                logger.LogDebug("处理普通通知消息");
+                // 创建NotificationMessage对象
+                var notificationMessage = new NotificationMessage
+                {
+                    NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ? 
+                        keyProp.GetString() : Guid.NewGuid().ToString(),
+                    TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ? 
+                        timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                    NotificationType = root.TryGetProperty("notificationType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ? 
+                        Enum.TryParse<NotificationType>(typeProp.GetString(), true, out var type) ? type : NotificationType.New : NotificationType.New,
+                    // 同时尝试获取packageName和appPackage字段
+                    AppPackage = (root.TryGetProperty("packageName", out var notificationPackageNameProp) && notificationPackageNameProp.ValueKind == JsonValueKind.String ? notificationPackageNameProp.GetString() : null) ??
+                                (root.TryGetProperty("appPackage", out var appPackageProp) && appPackageProp.ValueKind == JsonValueKind.String ? appPackageProp.GetString() : null),
+                    AppName = root.TryGetProperty("appName", out var appNameProp) && appNameProp.ValueKind == JsonValueKind.String ? appNameProp.GetString() : null,
+                    Title = root.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String ? titleProp.GetString() : null,
+                    Text = root.TryGetProperty("text", out var textProp) && textProp.ValueKind == JsonValueKind.String ? textProp.GetString() : null,
+                    BigPicture = root.TryGetProperty("bigPicture", out var bigPictureProp) && bigPictureProp.ValueKind == JsonValueKind.String ? bigPictureProp.GetString() : null,
+                    LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) && largeIconProp.ValueKind == JsonValueKind.String ? largeIconProp.GetString() : null,
+                    CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) && coverUrlProp.ValueKind == JsonValueKind.String ? coverUrlProp.GetString() : null,
+                    MediaType = root.TryGetProperty("mediaType", out var mediaTypeProp) && mediaTypeProp.ValueKind == JsonValueKind.String ? mediaTypeProp.GetString() : null
+                };
+                
+                // 调用消息处理器处理通知消息
                 await messageHandler.Value.HandleMessageAsync(device, notificationMessage);
                 return;
             }
-
-            // 尝试作为普通SocketMessage处理
-            try
-            {
-                var socketMessage = SocketMessageSerializer.Deserialize<SocketMessage>(payload);
-                if (socketMessage is not null)
-                {
-                    logger.LogDebug("处理为普通SocketMessage");
-                    await messageHandler.Value.HandleMessageAsync(device, socketMessage);
-                    return;
-                }
-            }
-            catch (JsonException ex)
-            {
-                logger.LogDebug("解析SocketMessage时出错：{ex.Message}", ex.Message);
-            }
             
-            logger.LogWarning("无法处理的JSON载荷：{payload}", payload.Length > 100 ? payload[..100] + "..." : payload);
+            // 按照要求，对于无法识别的消息类型，直接不处理
+            logger.LogDebug("无法识别的JSON载荷，按照要求直接不处理");
+            return;
         }
         catch (Exception ex)
         {
@@ -489,53 +500,7 @@ public class ProtocolRouter
         }
     }
 
-    /// <summary>
-    /// 尝试解析为NotifyRelay通知
-    /// </summary>
-    private bool TryParseNotifyRelayNotification(string payload, out NotificationMessage notificationMessage)
-    {
-        notificationMessage = null;
-        try
-        {
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
 
-            // 检查是否包含必要的通知字段
-            bool hasNotificationType = root.TryGetProperty("notificationType", out var notificationTypeProp);
-            bool hasTitle = root.TryGetProperty("title", out var notificationTitleProp);
-            bool hasText = root.TryGetProperty("text", out var notificationTextProp);
-            
-            if (hasNotificationType || hasTitle || hasText)
-            {
-                notificationMessage = new NotificationMessage
-                {
-                    NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ? 
-                        keyProp.GetString() : Guid.NewGuid().ToString(),
-                    TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ? 
-                        timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
-                    NotificationType = hasNotificationType && notificationTypeProp.ValueKind == JsonValueKind.String ? 
-                        Enum.TryParse<NotificationType>(notificationTypeProp.GetString(), true, out var type) ? type : NotificationType.New : NotificationType.New,
-                    // 同时尝试获取packageName和appPackage字段
-                    AppPackage = (root.TryGetProperty("packageName", out var packageNameProp) && packageNameProp.ValueKind == JsonValueKind.String ? packageNameProp.GetString() : null) ??
-                                (root.TryGetProperty("appPackage", out var appPackageProp) && appPackageProp.ValueKind == JsonValueKind.String ? appPackageProp.GetString() : null),
-                    AppName = root.TryGetProperty("appName", out var appNameProp) && appNameProp.ValueKind == JsonValueKind.String ? appNameProp.GetString() : null,
-                    Title = hasTitle && notificationTitleProp.ValueKind == JsonValueKind.String ? notificationTitleProp.GetString() : null,
-                    Text = hasText && notificationTextProp.ValueKind == JsonValueKind.String ? notificationTextProp.GetString() : null,
-                    BigPicture = root.TryGetProperty("bigPicture", out var bigPictureProp) && bigPictureProp.ValueKind == JsonValueKind.String ? bigPictureProp.GetString() : null,
-                    LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) && largeIconProp.ValueKind == JsonValueKind.String ? largeIconProp.GetString() : null,
-                    CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) && coverUrlProp.ValueKind == JsonValueKind.String ? coverUrlProp.GetString() : null,
-                    MediaType = root.TryGetProperty("mediaType", out var mediaTypeProp) && mediaTypeProp.ValueKind == JsonValueKind.String ? mediaTypeProp.GetString() : null
-                };
-                return true;
-            }
-            return false;
-        }
-        catch (Exception ex)
-        {
-            logger.LogDebug("解析为通知消息时出错：{ex.Message}", ex.Message);
-            return false;
-        }
-    }
 
     /// <summary>
     /// 处理媒体控制消息

@@ -18,7 +18,7 @@ public class WindowsSftpService(
     ISessionManager sessionManager
     ) : ISftpService
 {
-    private StorageProviderSyncRootInfo? info;
+    private readonly Dictionary<string, StorageProviderSyncRootInfo> deviceSyncRoots = new();
 
     public async Task InitializeAsync(PairedDevice device, SftpServerInfo info)
     {
@@ -73,12 +73,18 @@ public class WindowsSftpService(
                 Directory.CreateDirectory(deviceDirectory);
             }
             
-            await Register(
+            var syncRootInfo = await Register(
                 name: device.Name,
                 directory: deviceDirectory,
                 accountId: device.Id,
                 context: sftpContext
             );
+            
+            // Store the sync root info for this device
+            if (syncRootInfo is not null)
+            {
+                deviceSyncRoots[device.Id] = syncRootInfo;
+            }
         }
         catch (Exception ex)
         {
@@ -92,9 +98,11 @@ public class WindowsSftpService(
         var id = $"Shrimqy:Sefirah!{WindowsIdentity.GetCurrent().User}!{deviceId}";
         try
         {
-            if (info?.Id == id)
+            // Check if we have sync root info for this device
+            if (deviceSyncRoots.TryGetValue(deviceId, out var syncRootInfo))
             {
-                await syncProviderPool.StopSyncRoot(info);
+                await syncProviderPool.StopSyncRoot(syncRootInfo);
+                deviceSyncRoots.Remove(deviceId);
             }
             if (registrar.IsRegistered(id))
             {
@@ -107,7 +115,7 @@ public class WindowsSftpService(
         }
     }
 
-    private async Task Register<T>(string name, string directory, string accountId, T context) where T : struct 
+    private async Task<StorageProviderSyncRootInfo?> Register<T>(string name, string directory, string accountId, T context) where T : struct 
     {
         try 
         {
@@ -121,16 +129,18 @@ public class WindowsSftpService(
 
             StorageFolder storageFolder = await StorageFolder.GetFolderFromPathAsync(directory);
 
-            info = registrar.Register(registerCommand, storageFolder, context);
-            if (info is not null)
+            var syncRootInfo = registrar.Register(registerCommand, storageFolder, context);
+            if (syncRootInfo is not null)
             {
-                syncProviderPool.Start(info);
+                syncProviderPool.Start(syncRootInfo);
                 logger.LogDebug("正在启动同步提供程序池");
             }
+            return syncRootInfo;
         }
         catch (Exception ex) 
         {
             logger.LogError(ex, "注册同步根失败。目录：{directory}，账户 ID：{accountId}", directory, accountId);
+            return null;
         }
     }
 }
