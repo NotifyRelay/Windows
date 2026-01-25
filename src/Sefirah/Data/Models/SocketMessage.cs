@@ -226,6 +226,9 @@ public class NotificationMessage : SocketMessage
     
     [JsonPropertyName("coverUrl")]
     public string? CoverUrl { get; set; }
+    
+    [JsonPropertyName("mediaType")]
+    public string? MediaType { get; set; }
 }
 
 

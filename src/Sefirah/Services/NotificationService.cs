@@ -1148,6 +1148,31 @@ public class NotificationService(
                 return;
             }
             
+            // 检查是否为媒体结束包
+            if (notificationMessage.MediaType == "END")
+            {
+                // logger.LogDebug("收到媒体结束包，移除设备：{deviceId}的媒体块", device.Id);
+                // 所有对_currentMusicMediaBlocks集合的访问都必须在UI线程上进行
+                await dispatcher.EnqueueAsync(() =>
+                {
+                    try
+                    {
+                        // 查找并移除对应设备的媒体块
+                        var existingBlock = _currentMusicMediaBlocks.FirstOrDefault(b => b.DeviceId == device.Id);
+                        if (existingBlock != null)
+                        {
+                            _currentMusicMediaBlocks.Remove(existingBlock);
+                            // logger.LogDebug("已移除设备：{deviceId}的媒体块", device.Id);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "移除媒体块时出错，设备：{deviceId}", device.Id);
+                    }
+                });
+                return;
+            }
+            
             // 解析媒体播放通知的标题和文本
             // 注意：对于差异包，我们需要保留现有值，而不是将缺失的字段置空
             string title = notificationMessage.Title ?? "";
