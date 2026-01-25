@@ -156,15 +156,16 @@ public class NotificationService(
         
         try
         { 
+            // 过滤超级岛通知，识别段是'superisland:'
+            if (message.AppPackage?.StartsWith("superisland:") == true)
+            {
+                // 注释掉丢弃超级岛通知的调试日志
+                // logger.LogDebug("丢弃超级岛通知: {AppPackage}", message.AppPackage);
+                return;
+            }
+            
             if (message.Title is not null && message.AppPackage is not null)
             {
-                // 过滤超级岛通知，识别段是'superisland:'
-                if (message.AppPackage.StartsWith("superisland:"))
-                {
-                    // 注释掉丢弃超级岛通知的调试日志
-                    // logger.LogDebug("丢弃超级岛通知: {AppPackage}", message.AppPackage);
-                    return;
-                }
 
                 var filter = remoteAppsRepository.GetAppNotificationFilterAsync(message.AppPackage, device.Id)
                 ?? await remoteAppsRepository.AddOrUpdateApplicationForDevice(device.Id, message.AppPackage, message.AppName!, message.AppIcon);
@@ -443,29 +444,34 @@ public class NotificationService(
                 if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
                 
                 // 查找匹配的通知（基于内容匹配，因为可能是聚合通知）
-                Notification? notification;
-                lock (notifications)
-                {
-                    notification = notifications.FirstOrDefault(n => 
-                        n.Key == message.NotificationKey ||
-                        (n.AppPackage == message.AppPackage && 
-                         n.Title == message.Title && 
-                         n.Text == message.Text));
-                }
+                string notificationKey = message.NotificationKey;
+                string? appPackage = message.AppPackage;
+                string? title = message.Title;
+                string? text = message.Text;
                 
-                if (notification is not null && !notification.Pinned)
+                await dispatcher.EnqueueAsync(async () =>
                 {
-                    await dispatcher.EnqueueAsync(() =>
+                    Notification? notification;
+                    lock (notifications)
+                    {
+                        notification = notifications.FirstOrDefault(n => 
+                            n.Key == notificationKey ||
+                            (n.AppPackage == appPackage && 
+                             n.Title == title && 
+                             n.Text == text));
+                    }
+                    
+                    if (notification is not null && !notification.Pinned)
                     {
                         lock (notifications)
                         {
                             notifications.Remove(notification);
                         }
-                    });
-                    notificationRepository.DeleteNotification(device.Id, message.NotificationKey);
-                    // Update all notifications
-                    UpdateActiveNotifications();
-                }
+                        notificationRepository.DeleteNotification(device.Id, notificationKey);
+                        // Update all notifications
+                        UpdateActiveNotifications();
+                    }
+                });
             }
         }
         catch (Exception ex)
