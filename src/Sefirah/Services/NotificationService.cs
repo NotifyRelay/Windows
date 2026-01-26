@@ -21,7 +21,8 @@ public class NotificationService(
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
     Func<INetworkService> networkServiceFactory,
-    Func<IRemoteAppService> remoteAppServiceFactory) : INotificationService, INotifyPropertyChanged
+    Func<IRemoteAppService> remoteAppServiceFactory,
+    IPlaybackService playbackService) : INotificationService, INotifyPropertyChanged
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
     
@@ -86,6 +87,31 @@ public class NotificationService(
             null,
             TimeSpan.FromSeconds(1),
             TimeSpan.FromSeconds(1));
+            
+        // 订阅 Socket 指令
+        LocalSocketRelayServer.CommandReceived += OnSocketCommandReceived;
+    }
+
+    private void OnSocketCommandReceived(object? sender, string commandJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(commandJson);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("action", out var actionProp) && actionProp.GetString() == "media_control")
+            {
+                var deviceId = root.GetProperty("deviceId").GetString();
+                var command = root.GetProperty("command").GetString();
+                if (!string.IsNullOrEmpty(deviceId) && !string.IsNullOrEmpty(command))
+                {
+                    playbackService.SendMediaControlRequest(deviceId, command);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理Socket指令失败");
+        }
     }
 
 
@@ -754,7 +780,7 @@ public class NotificationService(
             {
                 // logger.LogDebug("收到媒体结束包，移除设备：{deviceId}的媒体块", device.Id);
                 // 所有对_currentMusicMediaBlocks集合的访问都必须在UI线程上进行
-                await dispatcher.EnqueueAsync(() =>
+                await dispatcher.EnqueueAsync(async () =>
                 {
                     try
                     {
@@ -764,6 +790,7 @@ public class NotificationService(
                         {
                             _currentMusicMediaBlocks.Remove(existingBlock);
                             // logger.LogDebug("已移除设备：{deviceId}的媒体块", device.Id);
+                            _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, "", "", "", false);
                         }
                     }
                     catch (Exception ex)
@@ -804,7 +831,7 @@ public class NotificationService(
             }
             
             // 所有对_currentMusicMediaBlocks集合的访问都必须在UI线程上进行
-            await dispatcher.EnqueueAsync(() =>
+            await dispatcher.EnqueueAsync(async () =>
             {
                 try
                 {
@@ -824,6 +851,7 @@ public class NotificationService(
                         );
                         _currentMusicMediaBlocks.Add(newBlock);
                         // logger.LogDebug("新音乐媒体块已加入集合");
+                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, title, text, coverUrl ?? "", true);
                     }
                     else
                     {
@@ -854,6 +882,7 @@ public class NotificationService(
                         // 直接更新音乐媒体块的属性
                         existingBlock.Update(updatedTitle, updatedText, updatedCoverUrl);
                         // logger.LogDebug("音乐媒体块更新完成");
+                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, updatedTitle, updatedText, updatedCoverUrl ?? "", true);
                     }
                     
                     // logger.LogDebug("媒体播放通知处理完成");
@@ -875,7 +904,7 @@ public class NotificationService(
     /// </summary>
     public void CheckMusicMediaBlockTimeout()
     {
-        dispatcher.EnqueueAsync(() =>
+        dispatcher.EnqueueAsync(async () =>
         {
             // 检查集合中每个媒体块是否超时，超时则移除
             var toRemove = _currentMusicMediaBlocks.Where(b => b.IsTimeout(MUSIC_MEDIA_BLOCK_TIMEOUT)).ToList();
@@ -889,6 +918,8 @@ public class NotificationService(
                 {
                     logger.LogError(ex, "移除超时的音乐媒体块时出错，设备：{deviceId}", b.DeviceId);
                 }
+                
+                _ = LocalSocketRelayServer.SendMediaInfoAsync(b.DeviceId, "", "", "", false);
             }
         });
     }

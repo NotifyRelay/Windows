@@ -326,6 +326,9 @@ public class NetworkService(
         var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
         logger.Info($"收到握手来自 {connectedSessionIpAddress} (类型: {remoteDeviceType}, 电量: {remoteBattery})");
 
+        // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
+        bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
+
         var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, discoveredName, connectedSessionIpAddress);
 
         if (device is not null)
@@ -361,7 +364,11 @@ public class NetworkService(
             ConnectionStatusChanged?.Invoke(this, (device, true));
             
             // 延迟请求应用列表，避免阻塞握手
-            DelayedRequestAppList(device.Id);
+            // 仅对新配对设备自动触发
+            if (!isKnownDevice)
+            {
+                DelayedRequestAppList(device.Id);
+            }
         }
         else
         {
@@ -536,9 +543,6 @@ public class NetworkService(
             BindSession(device.Id, session);
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
-            
-            // 延迟请求应用列表，避免阻塞握手
-            DelayedRequestAppList(device.Id);
             
             return device;
         }

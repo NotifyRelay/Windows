@@ -13,6 +13,9 @@ using NotifyRelay.Services;
 using NotifyRelay.Utils.Serialization;
 using Windows.Media;
 using Windows.Media.Control;
+using Windows.Media.Core;
+using Windows.Media.Playback;
+using Windows.Storage.Streams;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 public class WindowsPlaybackService(
@@ -23,6 +26,10 @@ public class WindowsPlaybackService(
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
     private GlobalSystemMediaTransportControlsSessionManager? manager;
+    
+    // Local SMTC for remote media display
+    private string? _currentRemoteDeviceId;
+    
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
 
@@ -74,7 +81,7 @@ public class WindowsPlaybackService(
                     //    device.AudioDeviceType = AudioMessageType.New;
                     //    string jsonMessage = SocketMessageSerializer.Serialize(device);
                     //    sessionManager.SendMessage(args.Device.Id, jsonMessage);
-                   // }
+                    // }
                 //}
             };
 

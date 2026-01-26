@@ -17,6 +17,9 @@ public static class LocalSocketRelayServer
     private static CancellationTokenSource? cts;
     private static ILogger? logger;
 
+    // 事件定义：当收到客户端指令时触发
+    public static event EventHandler<string>? CommandReceived;
+
     public static bool IsRunning => listener != null;
 
     /// <summary>
@@ -112,16 +115,36 @@ public static class LocalSocketRelayServer
                     // 定期检查是否有数据可读，避免连接被防火墙关闭
                     if (stream.DataAvailable)
                     {
-                        // 读取数据（虽然我们只推送数据，但读取可以保持连接活跃）
+                        // 读取数据
                         var bytesRead = await stream.ReadAsync(buffer, 0, buffer.Length, token);
                         if (bytesRead == 0)
                         {
                             logger?.LogWarning("本地Socket中继服务器: 客户端已关闭连接");
                             break;
                         }
+                        
+                        // 处理接收到的数据
+                        try 
+                        {
+                            string receivedData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
+                            // 可能包含多条指令，按换行符分割
+                            var commands = receivedData.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+                            foreach (var cmd in commands)
+                            {
+                                if (!string.IsNullOrWhiteSpace(cmd))
+                                {
+                                    logger?.LogDebug("本地Socket中继服务器: 收到客户端指令: {Command}", cmd);
+                                    CommandReceived?.Invoke(null, cmd);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger?.LogError(ex, "本地Socket中继服务器: 处理接收数据时出错");
+                        }
                     }
                     // keep the connection open; we only push from server side
-                    await Task.Delay(5000, token); // 每5秒检查一次连接状态
+                    await Task.Delay(500, token); // 缩短检查间隔以提高响应速度
                 }
             }
         }
@@ -221,6 +244,51 @@ public static class LocalSocketRelayServer
         catch (Exception ex)
         {
             logger?.LogError(ex, "本地Socket中继服务器: 发送通知时发生意外错误");
+            return false;
+        }
+    }
+    
+    public static async Task<bool> SendMediaInfoAsync(string deviceId, string title, string artist, string coverUrl, bool isPlaying)
+    {
+        try
+        {
+            var mediaInfo = new 
+            { 
+                type = "media_update",
+                deviceId,
+                title, 
+                artist, 
+                coverUrl, 
+                isPlaying 
+            };
+            
+            var json = System.Text.Json.JsonSerializer.Serialize(mediaInfo);
+            var payload = json + "\n";
+            var data = Encoding.UTF8.GetBytes(payload);
+            
+            bool sentToAnyClient = false;
+            var clientList = clients.ToList();
+            
+            foreach (var client in clientList)
+            {
+                try
+                {
+                    if (client.Connected)
+                    {
+                        var stream = client.GetStream();
+                        await stream.WriteAsync(data, 0, data.Length);
+                        await stream.FlushAsync();
+                        sentToAnyClient = true;
+                    }
+                }
+                catch { }
+            }
+            
+            return sentToAnyClient;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "本地Socket中继服务器: 发送媒体信息失败");
             return false;
         }
     }
