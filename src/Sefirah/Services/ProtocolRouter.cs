@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using NotifyRelay.Data.AppDatabase.Repository;
@@ -101,7 +102,7 @@ public class ProtocolRouter
                     
                 case "DATA_NOTIFICATION":
                     // 普通通知
-                    await DispatchPayloadAsync(device, decryptedPayload);
+                    await HandleNotificationPayloadAsync(device, decryptedPayload);
                     break;
                     
                 case "DATA_MEDIAPLAY":
@@ -110,10 +111,18 @@ public class ProtocolRouter
                     break;
                     
                 case "DATA_APP_LIST_RESPONSE":
+                    // 应用列表响应
+                    await HandleAppListResponseAsync(device, decryptedPayload);
+                    break;
+                    
                 case "DATA_ICON_RESPONSE":
+                    // 图标响应
+                    await HandleIconResponseAsync(device, decryptedPayload);
+                    break;
+                    
                 case "DATA_AUDIO_REQUEST":
-                    // 应用列表响应、图标响应和音频请求
-                    await DispatchPayloadAsync(device, decryptedPayload);
+                    // 音频请求
+                    await HandleNotificationPayloadAsync(device, decryptedPayload);
                     break;
                     
                 case "DATA_SUPERISLAND":
@@ -121,38 +130,9 @@ public class ProtocolRouter
                     break;
                     
                 case "DATA_MEDIA_CONTROL":
-                    // 媒体控制指令，直接处理
+                    // 媒体控制指令，委托给专门的处理方法
                     logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {decryptedPayload}", decryptedPayload);
-                    try
-                    {
-                        // 直接解析媒体控制消息并处理
-                        var doc = JsonDocument.Parse(decryptedPayload);
-                        var root = doc.RootElement;
-                        
-                        // 提取媒体控制消息内容
-                        var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
-                        
-                        // 创建PlaybackAction对象
-                        var playbackAction = new PlaybackAction
-                        {
-                            PlaybackActionType = action switch
-                            {
-                                "playPause" => PlaybackActionType.Play,
-                                "next" => PlaybackActionType.Next,
-                                "previous" => PlaybackActionType.Previous,
-                                _ => PlaybackActionType.Play
-                            },
-                            Source = "MediaControl"
-                        };
-                        
-                        // 调用消息处理器处理媒体控制消息
-                        await messageHandler.Value.HandleMessageAsync(device, playbackAction);
-                        logger.LogDebug("已处理媒体控制消息，动作: {action}", action);
-                    }
-                    catch (JsonException ex)
-                    {
-                        logger.LogError(ex, "解析媒体控制消息失败: {decryptedPayload}", decryptedPayload);
-                    }
+                    await HandleMediaControlMessageAsync(device, decryptedPayload);
                     break;
                 
 #if WINDOWS
@@ -366,15 +346,15 @@ public class ProtocolRouter
     }
 
     /// <summary>
-    /// 分发载荷到对应的处理方法
+    /// 处理图标响应消息
     /// </summary>
-    private async Task DispatchPayloadAsync(PairedDevice device, string payload)
+    private async Task HandleIconResponseAsync(PairedDevice device, string payload)
     {
         try
         {
             if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
             {
-                logger.LogWarning("跳过非 JSON 载荷：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
+                logger.LogWarning("跳过非 JSON 图标响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
                 return;
             }
             
@@ -388,38 +368,65 @@ public class ProtocolRouter
             }
             catch (JsonException ex)
             {
-                logger.LogWarning("解析JSON时出错：{ex.Message}", ex.Message);
+                logger.LogWarning("解析图标响应JSON时出错：{ex.Message}", ex.Message);
                 return;
             }
             
-            // 检查是否为ICON_RESPONSE消息
-            if (root.TryGetProperty("packageName", out var packageNameProp) && 
-                root.TryGetProperty("iconData", out var iconDataProp))
+            logger.LogDebug("处理ICON_RESPONSE消息");
+            // 直接调用IconUtils保存图标
+            var packageName = root.TryGetProperty("packageName", out var packageNameProp) ? packageNameProp.GetString() : null;
+            var iconData = root.TryGetProperty("iconData", out var iconDataProp) ? iconDataProp.GetString() : null;
+            
+            if (!string.IsNullOrEmpty(packageName) && !string.IsNullOrEmpty(iconData))
             {
-                logger.LogDebug("处理ICON_RESPONSE消息");
-                // 直接调用IconUtils保存图标
-                var packageName = packageNameProp.GetString();
-                var iconData = iconDataProp.GetString();
-                
-                if (!string.IsNullOrEmpty(packageName) && !string.IsNullOrEmpty(iconData))
-                {
-                    await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
-                    logger.LogDebug("已保存应用图标：{packageName}", packageName);
-                    // 触发应用图标更新
-                    var notificationService = Ioc.Default.GetRequiredService<INotificationService>();
-                    // 由于没有公开方法，我们只能记录日志
-                    logger.LogDebug("图标已保存，通知UI可能需要刷新");
-                }
+                await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
+                logger.LogDebug("已保存应用图标：{packageName}", packageName);
+                // 触发应用图标更新
+                var notificationService = Ioc.Default.GetRequiredService<INotificationService>();
+                // 由于没有公开方法，我们只能记录日志
+                logger.LogDebug("图标已保存，通知UI可能需要刷新");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理图标响应时出错");
+        }
+    }
+
+    /// <summary>
+    /// 处理应用列表响应消息
+    /// </summary>
+    private async Task HandleAppListResponseAsync(PairedDevice device, string payload)
+    {
+        try
+        {
+            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
+            {
+                logger.LogWarning("跳过非 JSON 应用列表响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
                 return;
             }
-            // 检查是否为APP_LIST_RESPONSE消息
-            else if (root.TryGetProperty("apps", out var appsArray))
+            
+            // 首先尝试解析JSON
+            JsonDocument doc;
+            JsonElement root;
+            try
             {
-                logger.LogDebug("处理APP_LIST_RESPONSE消息");
-                // 直接处理应用列表响应
-                var remoteAppRepository = Ioc.Default.GetRequiredService<RemoteAppRepository>();
-                var appList = new ApplicationList { AppList = new List<ApplicationInfoMessage>() };
-                
+                doc = JsonDocument.Parse(payload);
+                root = doc.RootElement;
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning("解析应用列表响应JSON时出错：{ex.Message}", ex.Message);
+                return;
+            }
+            
+            logger.LogDebug("处理APP_LIST_RESPONSE消息");
+            // 直接处理应用列表响应
+            var remoteAppRepository = Ioc.Default.GetRequiredService<RemoteAppRepository>();
+            var appList = new ApplicationList { AppList = new List<ApplicationInfoMessage>() };
+            
+            if (root.TryGetProperty("apps", out var appsArray))
+            {
                 foreach (var appElement in appsArray.EnumerateArray())
                 {
                     if (appElement.TryGetProperty("packageName", out var pkgNameProp))
@@ -451,60 +458,100 @@ public class ProtocolRouter
                 if (packageNamesWithoutIcons.Count > 0)
                 {
                     logger.LogDebug("发送 {Count} 个图标请求", packageNamesWithoutIcons.Count);
-                    var networkService = Ioc.Default.GetRequiredService<INetworkService>();
+                    // 直接构建图标请求并使用ProtocolSender发送，避免依赖INetworkService
+                    var localDevice = await deviceManager.GetLocalDeviceAsync();
+                    var localDeviceId = localDevice.DeviceId;
+                    var localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+                    
                     foreach (var packageName in packageNamesWithoutIcons)
                     {
-                        networkService.SendIconRequest(device.Id, packageName);
+                        // 构建图标请求对象
+                        var requestObj = new
+                        {
+                            type = "ICON_REQUEST",
+                            packageName = packageName,
+                            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+                        };
+                        
+                        // 序列化为JSON
+                        string requestJson = JsonSerializer.Serialize(requestObj);
+                        
+                        // 使用ProtocolSender发送请求
+                        await ProtocolSender.SendEncryptedAsync(
+                            logger,
+                            device,
+                            "DATA_ICON_REQUEST",
+                            requestJson,
+                            localDeviceId,
+                            localPublicKey
+                        );
                     }
                 }
-                return;
             }
-
-            
-            // 检查是否为普通通知消息（来自DATA_NOTIFICATION）
-            bool isNotificationMessage = root.TryGetProperty("packageName", out var _) || 
-                                         root.TryGetProperty("appPackage", out var _);
-            
-            if (isNotificationMessage)
-            {
-                logger.LogDebug("处理普通通知消息");
-                // 创建NotificationMessage对象
-                var notificationMessage = new NotificationMessage
-                {
-                    NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ? 
-                        keyProp.GetString() : Guid.NewGuid().ToString(),
-                    TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ? 
-                        timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
-                    NotificationType = root.TryGetProperty("notificationType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ? 
-                        Enum.TryParse<NotificationType>(typeProp.GetString(), true, out var type) ? type : NotificationType.New : NotificationType.New,
-                    // 同时尝试获取packageName和appPackage字段
-                    AppPackage = (root.TryGetProperty("packageName", out var notificationPackageNameProp) && notificationPackageNameProp.ValueKind == JsonValueKind.String ? notificationPackageNameProp.GetString() : null) ??
-                                (root.TryGetProperty("appPackage", out var appPackageProp) && appPackageProp.ValueKind == JsonValueKind.String ? appPackageProp.GetString() : null),
-                    AppName = root.TryGetProperty("appName", out var appNameProp) && appNameProp.ValueKind == JsonValueKind.String ? appNameProp.GetString() : null,
-                    Title = root.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String ? titleProp.GetString() : null,
-                    Text = root.TryGetProperty("text", out var textProp) && textProp.ValueKind == JsonValueKind.String ? textProp.GetString() : null,
-                    BigPicture = root.TryGetProperty("bigPicture", out var bigPictureProp) && bigPictureProp.ValueKind == JsonValueKind.String ? bigPictureProp.GetString() : null,
-                    LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) && largeIconProp.ValueKind == JsonValueKind.String ? largeIconProp.GetString() : null,
-                    CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) && coverUrlProp.ValueKind == JsonValueKind.String ? coverUrlProp.GetString() : null,
-                    MediaType = root.TryGetProperty("mediaType", out var mediaTypeProp) && mediaTypeProp.ValueKind == JsonValueKind.String ? mediaTypeProp.GetString() : null
-                };
-                
-                // 调用消息处理器处理通知消息
-                await messageHandler.Value.HandleMessageAsync(device, notificationMessage);
-                return;
-            }
-            
-            // 按照要求，对于无法识别的消息类型，直接不处理
-            logger.LogDebug("无法识别的JSON载荷，按照要求直接不处理");
-            return;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "分发载荷时出错");
+            logger.LogError(ex, "处理应用列表响应时出错");
         }
     }
 
-
+    /// <summary>
+    /// 处理普通通知消息
+    /// </summary>
+    private async Task HandleNotificationPayloadAsync(PairedDevice device, string payload)
+    {
+        try
+        {
+            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
+            {
+                logger.LogWarning("跳过非 JSON 通知载荷：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
+                return;
+            }
+            
+            // 首先尝试解析JSON
+            JsonDocument doc;
+            JsonElement root;
+            try
+            {
+                doc = JsonDocument.Parse(payload);
+                root = doc.RootElement;
+            }
+            catch (JsonException ex)
+            {
+                logger.LogWarning("解析通知JSON时出错：{ex.Message}", ex.Message);
+                return;
+            }
+            
+            logger.LogDebug("处理普通通知消息");
+            // 创建NotificationMessage对象
+            var notificationMessage = new NotificationMessage
+            {
+                NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ? 
+                    keyProp.GetString() : Guid.NewGuid().ToString(),
+                TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ? 
+                    timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                NotificationType = root.TryGetProperty("notificationType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ? 
+                    Enum.TryParse<NotificationType>(typeProp.GetString(), true, out var type) ? type : NotificationType.New : NotificationType.New,
+                // 同时尝试获取packageName和appPackage字段
+                AppPackage = (root.TryGetProperty("packageName", out var notificationPackageNameProp) && notificationPackageNameProp.ValueKind == JsonValueKind.String ? notificationPackageNameProp.GetString() : null) ??
+                            (root.TryGetProperty("appPackage", out var appPackageProp) && appPackageProp.ValueKind == JsonValueKind.String ? appPackageProp.GetString() : null),
+                AppName = root.TryGetProperty("appName", out var appNameProp) && appNameProp.ValueKind == JsonValueKind.String ? appNameProp.GetString() : null,
+                Title = root.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String ? titleProp.GetString() : null,
+                Text = root.TryGetProperty("text", out var textProp) && textProp.ValueKind == JsonValueKind.String ? textProp.GetString() : null,
+                BigPicture = root.TryGetProperty("bigPicture", out var bigPictureProp) && bigPictureProp.ValueKind == JsonValueKind.String ? bigPictureProp.GetString() : null,
+                LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) && largeIconProp.ValueKind == JsonValueKind.String ? largeIconProp.GetString() : null,
+                CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) && coverUrlProp.ValueKind == JsonValueKind.String ? coverUrlProp.GetString() : null,
+                MediaType = root.TryGetProperty("mediaType", out var mediaTypeProp) && mediaTypeProp.ValueKind == JsonValueKind.String ? mediaTypeProp.GetString() : null
+            };
+            
+            // 调用消息处理器处理通知消息
+            await messageHandler.Value.HandleMessageAsync(device, notificationMessage);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理普通通知消息时出错");
+        }
+    }
 
     /// <summary>
     /// 处理媒体控制消息
@@ -573,13 +620,51 @@ public class ProtocolRouter
                                 result = success ? "accepted" : "rejected"
                             };
                             string responseJson = JsonSerializer.Serialize(response);
-                            // 发送响应，使用 DATA_MEDIA_CONTROL 协议头
+                            
+                            // 获取本地设备信息
+                            var localDevice = await deviceManager.GetLocalDeviceAsync();
+                            var localDeviceId = localDevice.DeviceId;
+                            var localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+                            
+                            // 直接使用 ProtocolSender 发送响应，使用 DATA_MEDIA_CONTROL 协议头
+                            await ProtocolSender.SendEncryptedAsync(
+                                logger,
+                                device,
+                                "DATA_MEDIA_CONTROL",
+                                responseJson,
+                                localDeviceId,
+                                localPublicKey
+                            );
                             
                             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
                         }
                         catch (Exception ex)
                         {
                             logger.LogError(ex, "处理音频转发请求时出错");
+                            
+                            // 发送拒绝响应，使用 DATA_MEDIA_CONTROL 协议头
+                            var errorResponse = new
+                            {
+                                type = "MEDIA_CONTROL",
+                                action = "audioResponse",
+                                result = "rejected"
+                            };
+                            string errorResponseJson = JsonSerializer.Serialize(errorResponse);
+                            
+                            // 获取本地设备信息
+                            var localDevice = await deviceManager.GetLocalDeviceAsync();
+                            var localDeviceId = localDevice.DeviceId;
+                            var localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+                            
+                            // 直接使用 ProtocolSender 发送响应
+                            await ProtocolSender.SendEncryptedAsync(
+                                logger,
+                                device,
+                                "DATA_MEDIA_CONTROL",
+                                errorResponseJson,
+                                localDeviceId,
+                                localPublicKey
+                            );
                         }
                         break;
                 }
