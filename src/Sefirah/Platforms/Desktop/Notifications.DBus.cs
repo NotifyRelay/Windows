@@ -1,6 +1,6 @@
 using Tmds.DBus.Protocol;
 
-namespace Sefirah.Platforms.Desktop;
+namespace NotifyRelay.Platforms.Desktop;
 
 /// <summary>
 /// Helper class for creating standard notification hints as defined in the Desktop Notifications Specification

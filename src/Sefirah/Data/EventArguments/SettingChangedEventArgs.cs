@@ -1,4 +1,4 @@
-namespace Sefirah.Data.EventArguments;
+namespace NotifyRelay.Data.EventArguments;
 
 public sealed class SettingChangedEventArgs(string settingName, object? newValue) : EventArgs
 {

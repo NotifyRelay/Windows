@@ -1,9 +1,9 @@
 using Microsoft.UI.Windowing;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Data.Models.Actions;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Data.Models.Actions;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface IGeneralSettingsService : IBaseSettingsService, INotifyPropertyChanged
 {
     /// <summary>

@@ -1,14 +1,17 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
 #if WINDOWS
-using Sefirah.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.Interop;
 #endif
+using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
+using System.Windows.Input;
 using Windows.UI.ViewManagement;
 
-namespace Sefirah.UserControls;
+namespace NotifyRelay.UserControls;
 public sealed partial class TrayIconControl : UserControl
 {
     private readonly UISettings uiSettings = new();

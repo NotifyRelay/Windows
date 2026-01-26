@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.Interop.Extensions;
+namespace NotifyRelay.Platforms.Windows.Interop.Extensions;
 public class HFileException : Exception
 {
     public int ErrorCode { get; }

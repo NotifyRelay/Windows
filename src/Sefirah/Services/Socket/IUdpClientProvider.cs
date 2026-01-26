@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Sefirah.Services.Socket;
+namespace NotifyRelay.Services.Socket;
 
 public interface IUdpClientProvider
 {

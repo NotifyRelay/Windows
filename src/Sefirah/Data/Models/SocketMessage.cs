@@ -1,33 +1,153 @@
-using Sefirah.Data.Enums;
+using NotifyRelay.Data.Enums;
+using System.Text.Json.Serialization;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
-[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
-[JsonDerivedType(typeof(CommandMessage), typeDiscriminator: "0")]
-[JsonDerivedType(typeof(DeviceInfo), typeDiscriminator: "1")]
-[JsonDerivedType(typeof(DeviceStatus), typeDiscriminator: "2")]
-[JsonDerivedType(typeof(ClipboardMessage), typeDiscriminator: "3")]
-[JsonDerivedType(typeof(NotificationMessage), typeDiscriminator: "4")]
-[JsonDerivedType(typeof(NotificationAction), typeDiscriminator: "5")]
-[JsonDerivedType(typeof(ReplyAction), typeDiscriminator: "6")]
-[JsonDerivedType(typeof(PlaybackSession), typeDiscriminator: "7")]
-[JsonDerivedType(typeof(FileTransfer), typeDiscriminator: "8")]
-[JsonDerivedType(typeof(BulkFileTransfer), typeDiscriminator: "9")]
-[JsonDerivedType(typeof(ApplicationInfoMessage), typeDiscriminator: "10")]
-[JsonDerivedType(typeof(SftpServerInfo), typeDiscriminator: "11")]
-[JsonDerivedType(typeof(UdpBroadcast), typeDiscriminator: "12")]
-[JsonDerivedType(typeof(DeviceRingerMode), typeDiscriminator: "13")]
-[JsonDerivedType(typeof(AudioDevice), typeDiscriminator: "17")]
-[JsonDerivedType(typeof(PlaybackAction), typeDiscriminator: "18")]
-[JsonDerivedType(typeof(ApplicationList), typeDiscriminator: "19")]
-[JsonDerivedType(typeof(ActionMessage), typeDiscriminator: "20")]
-public class SocketMessage { }
+public class SocketMessage
+{
+    [JsonPropertyName("type")]
+    public virtual string Type { get; set; } = "DATA_JSON";
+}
+
+/// <summary>
+/// 应用列表请求消息
+/// </summary>
+public class ApplicationListRequest : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_APP_LIST_REQUEST";
+
+    [JsonPropertyName("scope")]
+    public string Scope { get; set; } = "user";
+
+    [JsonPropertyName("time")]
+    public long Time { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+}
+
+/// <summary>
+/// 图标请求消息
+/// </summary>
+public class IconRequest : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_ICON_REQUEST";
+
+    [JsonPropertyName("packageName")]
+    public string? PackageName { get; set; }
+
+    [JsonPropertyName("packageNames")]
+    public List<string>? PackageNames { get; set; }
+
+    [JsonPropertyName("time")]
+    public long Time { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+}
+
+/// <summary>
+/// 媒体控制请求消息
+/// </summary>
+public class MediaControlRequest : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_MEDIA_CONTROL";
+
+    [JsonPropertyName("action")]
+    public required string Action { get; set; }
+}
+
+/// <summary>
+/// 媒体播放通知消息
+/// </summary>
+public class MediaPlayNotification : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_MEDIAPLAY";
+
+    [JsonPropertyName("packageName")]
+    public string? PackageName { get; set; }
+
+    [JsonPropertyName("appName")]
+    public string? AppName { get; set; }
+
+    [JsonPropertyName("title")]
+    public string? Title { get; set; }
+
+    [JsonPropertyName("text")]
+    public string? Text { get; set; }
+
+    [JsonPropertyName("coverUrl")]
+    public string? CoverUrl { get; set; }
+
+    [JsonPropertyName("time")]
+    public long Time { get; set; } = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+    [JsonPropertyName("isLocked")]
+    public bool IsLocked { get; set; }
+
+    [JsonPropertyName("mediaType")]
+    public string MediaType { get; set; } = "FULL";
+
+    [JsonPropertyName("terminate")]
+    public bool? Terminate { get; set; }
+
+    [JsonPropertyName("terminateValue")]
+    public string? TerminateValue { get; set; }
+
+    [JsonPropertyName("featureKeyName")]
+    public string? FeatureKeyName { get; set; }
+
+    [JsonPropertyName("featureKeyValue")]
+    public string? FeatureKeyValue { get; set; }
+}
+
+/// <summary>
+/// FTP 控制命令
+/// </summary>
+public class FtpCommand : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_FTP";
+
+    [JsonPropertyName("action")]
+    public required string Action { get; set; }
+
+    [JsonPropertyName("username")]
+    public string? Username { get; set; }
+
+    [JsonPropertyName("password")]
+    public string? Password { get; set; }
+}
+
+/// <summary>
+/// 剪贴板消息类
+/// 路径: NotifyRelay.Data.Models.ClipboardMessage
+/// 功能: 用于在设备间同步剪贴板内容，支持多种内容类型
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ClipboardService.SetContentAsync
+/// </summary>
+public class ClipboardMessage : SocketMessage
+{
+    public override string Type { get; set; } = "DATA_CLIPBOARD";
+
+    [JsonPropertyName("clipboardType")]
+    public string ClipboardType { get; set; } = "text/plain";
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 命令消息类
+/// 路径: NotifyRelay.Data.Models.CommandMessage
+/// 功能: 用于发送设备控制命令，如清除通知、请求应用列表、断开连接等
+/// 调用位置: MainPageViewModel.cs, DevicesViewModel.cs
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
+/// </summary>
 public class CommandMessage : SocketMessage
 {
     [JsonPropertyName("commandType")]
     public required CommandType CommandType { get; set; }
 }
 
+/// <summary>
+/// 动作消息类
+/// 路径: NotifyRelay.Data.Models.ActionMessage
+/// 功能: 用于执行设备上的预定义动作，如锁屏、关机等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
+/// </summary>
 public class ActionMessage : SocketMessage
 {
     [JsonPropertyName("actionId")]
@@ -37,6 +157,12 @@ public class ActionMessage : SocketMessage
     public required string ActionName { get; set; }
 }
 
+/// <summary>
+/// 自定义动作消息类
+/// 路径: NotifyRelay.Data.Models.CustomActionMessage
+/// 功能: 用于执行自定义路径的程序，支持传递参数
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
+/// </summary>
 public class CustomActionMessage : SocketMessage
 {
     [JsonPropertyName("path")]
@@ -46,17 +172,16 @@ public class CustomActionMessage : SocketMessage
     public string? Arguments { get; set; } = null;
 }
 
-public class ClipboardMessage : SocketMessage
-{
-    [JsonPropertyName("clipboardType")]
-    public string ClipboardType { get; set; } = "text/plain";
-
-    [JsonPropertyName("content")]
-    public string Content { get; set; } = string.Empty;
-}
-
+/// <summary>
+/// 通知消息类
+/// 路径: NotifyRelay.Data.Models.NotificationMessage
+/// 功能: 包含通知的详细信息，如应用名称、标题、内容、操作等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → NotificationService.HandleNotificationMessage
+/// </summary>
 public class NotificationMessage : SocketMessage
 {
+    public override string Type { get; set; } = "DATA_NOTIFICATION";
+
     [JsonPropertyName("notificationKey")]
     public required string NotificationKey { get; set; }
 
@@ -87,12 +212,6 @@ public class NotificationMessage : SocketMessage
     [JsonPropertyName("groupKey")]
     public string? GroupKey { get; set; }
 
-    [JsonPropertyName("actions")]
-    public List<NotificationAction?> Actions { get; set; } = [];
-
-    [JsonPropertyName("replyResultKey")]
-    public string? ReplyResultKey { get; set; }
-
     [JsonPropertyName("appIcon")]
     public string? AppIcon { get; set; }
 
@@ -104,35 +223,17 @@ public class NotificationMessage : SocketMessage
     
     [JsonPropertyName("coverUrl")]
     public string? CoverUrl { get; set; }
+    
+    [JsonPropertyName("mediaType")]
+    public string? MediaType { get; set; }
 }
 
-public class ReplyAction : SocketMessage
-{
-    [JsonPropertyName("notificationKey")]
-    public required string NotificationKey { get; set; }
-
-    [JsonPropertyName("replyResultKey")]
-    public required string ReplyResultKey { get; set; }
-
-    [JsonPropertyName("replyText")]
-    public required string ReplyText { get; set; }
-}
-
-public class NotificationAction : SocketMessage
-{
-    [JsonPropertyName("notificationKey")]
-    public required string NotificationKey { get; set; }
-
-    [JsonPropertyName("label")]
-    public string? Label { get; set; } = string.Empty;
-
-    [JsonPropertyName("actionIndex")]
-    public required int ActionIndex { get; set; }
-
-    [JsonPropertyName("isReplyAction")]
-    public bool IsReplyAction { get; set; }
-}
-
+/// <summary>
+/// 通知文本消息类
+/// 路径: NotifyRelay.Data.Models.NotificationTextMessage
+/// 功能: 包含通知中的单条文本消息，如聊天消息
+/// 用于: NotificationMessage.Messages 列表中
+/// </summary>
 public class NotificationTextMessage
 {
     [JsonPropertyName("sender")]
@@ -142,6 +243,12 @@ public class NotificationTextMessage
     public required string Text { get; set; }
 }
 
+/// <summary>
+/// 设备信息类
+/// 路径: NotifyRelay.Data.Models.DeviceInfo
+/// 功能: 包含设备的基本信息，如设备ID、名称、型号、公钥等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
+/// </summary>
 public class DeviceInfo : SocketMessage
 {
     [JsonPropertyName("deviceId")]
@@ -164,11 +271,14 @@ public class DeviceInfo : SocketMessage
 
     [JsonPropertyName("publicKey")]
     public string PublicKey { get; set; }
-
-    [JsonPropertyName("phoneNumbers")]
-    public List<PhoneNumber> PhoneNumbers { get; set; } = [];
 }
 
+/// <summary>
+/// 设备状态类
+/// 路径: NotifyRelay.Data.Models.DeviceStatus
+/// 功能: 包含设备的实时状态信息，如电量、充电状态、WiFi状态等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
+/// </summary>
 public class DeviceStatus : SocketMessage
 {
     [JsonPropertyName("batteryStatus")]
@@ -190,8 +300,16 @@ public class DeviceStatus : SocketMessage
     public int RingerMode { get; set; }
 }
 
+/// <summary>
+/// 媒体播放会话类
+/// 路径: NotifyRelay.Data.Models.PlaybackSession
+/// 功能: 包含媒体播放的详细信息，如歌曲标题、艺术家、播放状态等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
+/// </summary>
 public class PlaybackSession : SocketMessage
 {
+    public override string Type { get; set; } = "DATA_MEDIAPLAY";
+
     [JsonPropertyName("sessionType")]
     public SessionType SessionType { get; set; }
 
@@ -229,8 +347,16 @@ public class PlaybackSession : SocketMessage
     public string? Thumbnail { get; set; }
 }
 
+/// <summary>
+/// 媒体播放操作类
+/// 路径: NotifyRelay.Data.Models.PlaybackAction
+/// 功能: 用于控制媒体播放，如播放、暂停、下一曲等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → PlaybackService.HandleMediaActionAsync
+/// </summary>
 public class PlaybackAction : SocketMessage
 {
+    public override string Type { get; set; } = "DATA_MEDIA_CONTROL";
+
     [JsonPropertyName("playbackActionType")]
     public PlaybackActionType PlaybackActionType { get; set; }
 
@@ -241,6 +367,12 @@ public class PlaybackAction : SocketMessage
     public double? Value { get; set; }
 }
 
+/// <summary>
+/// 音频设备类
+/// 路径: NotifyRelay.Data.Models.AudioDevice
+/// 功能: 包含音频设备的详细信息，如设备ID、名称、音量、静音状态等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
+/// </summary>
 public class AudioDevice : SocketMessage
 {
     [JsonPropertyName("audioDeviceType")]
@@ -262,6 +394,12 @@ public class AudioDevice : SocketMessage
     public bool IsSelected { get; set; }
 }
 
+/// <summary>
+/// 文件传输类
+/// 路径: NotifyRelay.Data.Models.FileTransfer
+/// 功能: 用于在设备间传输单个文件，包含文件元数据和服务器信息
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveFile
+/// </summary>
 public class FileTransfer : SocketMessage
 {
     [JsonPropertyName("transferType")]
@@ -274,6 +412,12 @@ public class FileTransfer : SocketMessage
     public required ServerInfo ServerInfo { get; set; }
 }
 
+/// <summary>
+/// 批量文件传输类
+/// 路径: NotifyRelay.Data.Models.BulkFileTransfer
+/// 功能: 用于在设备间批量传输文件，包含多个文件的元数据和服务器信息
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → FileTransferService.ReceiveBulkFiles
+/// </summary>
 public class BulkFileTransfer : SocketMessage
 {
     [JsonPropertyName("files")]
@@ -283,6 +427,12 @@ public class BulkFileTransfer : SocketMessage
     public required ServerInfo ServerInfo { get; set; }
 }
 
+/// <summary>
+/// 服务器信息类
+/// 路径: NotifyRelay.Data.Models.ServerInfo
+/// 功能: 包含文件传输服务器的连接信息，如IP地址、端口、密码等
+/// 用于: FileTransfer, BulkFileTransfer 类中
+/// </summary>
 public class ServerInfo
 {
     [JsonPropertyName("ipAddress")]
@@ -295,6 +445,12 @@ public class ServerInfo
     public string Password { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// 文件元数据类
+/// 路径: NotifyRelay.Data.Models.FileMetadata
+/// 功能: 包含文件的基本信息，如文件名、MIME类型、文件大小等
+/// 用于: FileTransfer, BulkFileTransfer 类中
+/// </summary>
 public class FileMetadata
 {
     [JsonPropertyName("fileName")]
@@ -307,11 +463,25 @@ public class FileMetadata
     public required long FileSize { get; set; }
 }
 
+/// <summary>
+/// 应用列表类
+/// 路径: NotifyRelay.Data.Models.ApplicationList
+/// 功能: 包含设备上的应用列表
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.UpdateApplicationList
+/// </summary>
 public class ApplicationList : SocketMessage
 {
+    public override string Type { get; set; } = "DATA_APP_LIST_RESPONSE";
+
     public required List<ApplicationInfoMessage> AppList { get; set; }
 }
 
+/// <summary>
+/// 应用信息消息类
+/// 路径: NotifyRelay.Data.Models.ApplicationInfoMessage
+/// 功能: 包含单个应用的详细信息，如包名、应用名称、图标等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → RemoteAppRepository.AddOrUpdateApplicationForDevice
+/// </summary>
 public class ApplicationInfoMessage : SocketMessage
 {
     [JsonPropertyName("packageName")]
@@ -325,13 +495,21 @@ public class ApplicationInfoMessage : SocketMessage
 
 }
 
-public class SftpServerInfo : SocketMessage
+/// <summary>
+/// ftp服务器信息类
+/// 路径: NotifyRelay.Data.Models.ftpServerInfo
+/// 功能: 包含ftp服务器的连接信息，如用户名、密码、IP地址、端口等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ftpService.InitializeAsync
+/// </summary>
+public class ftpServerInfo : SocketMessage
 {
+    public override string Type { get; set; } = "DATA_FTP";
+
     [JsonPropertyName("username")]
-    public required string Username { get; set; }
+    public string? Username { get; set; }
 
     [JsonPropertyName("password")]
-    public required string Password { get; set; }
+    public string? Password { get; set; }
 
     [JsonPropertyName("ipAddress")]
     public required string IpAddress { get; set; }
@@ -340,6 +518,12 @@ public class SftpServerInfo : SocketMessage
     public int Port { get; set; }
 }
 
+/// <summary>
+/// UDP广播消息类
+/// 路径: NotifyRelay.Data.Models.UdpBroadcast
+/// 功能: 用于设备发现和广播设备信息，包含设备ID、名称、公钥等
+/// 处理服务: NotifyRelay.Services.DiscoveryService
+/// </summary>
 public class UdpBroadcast : SocketMessage
 {
     [JsonPropertyName("ipAddresses")]
@@ -361,21 +545,14 @@ public class UdpBroadcast : SocketMessage
     public long TimeStamp { get; set; }
 }
 
+/// <summary>
+/// 设备铃声模式类
+/// 路径: NotifyRelay.Data.Models.DeviceRingerMode
+/// 功能: 包含设备的铃声模式信息
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
+/// </summary>
 public class DeviceRingerMode : SocketMessage
 {
     [JsonPropertyName("ringerMode")]
     public int RingerMode { get; set; }
 }
-
-
-
-public class PhoneNumber
-{
-    [JsonPropertyName("number")]
-    public string Number { get; set; } = string.Empty;
-
-    [JsonPropertyName("subscriptionId")]
-    public int SubscriptionId { get; set; } = -1;
-}
-
-

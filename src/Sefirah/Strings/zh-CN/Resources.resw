@@ -256,7 +256,7 @@
     <value>连接您的设备</value>
   </data>
   <data name="OnboardingDevice.Subtitle" xml:space="preserve">
-    <value>已发现的网络设备将显示在下文，请从您的移动端发起连接（请确保PIN码匹配）</value>
+    <value>已发现的网络设备将显示在下文，请从您的移动端发起连接</value>
   </data>
   <data name="ConnectionRequest.Title" xml:space="preserve">
     <value>设备连接请求</value>
@@ -327,9 +327,7 @@
   <data name="FileTransferNotificationAction.OpenFolder" xml:space="preserve">
     <value>打开文件夹</value>
   </data>
-  <data name="NotificationFilterButton" xml:space="preserve">
-    <value>关闭从 {0} 的通知</value>
-  </data>
+  
   <data name="SubmitBugReport" xml:space="preserve">
     <value>报告错误
 </value>
@@ -527,7 +525,7 @@
     <value>shell 命令帮助</value>
   </data>
   <data name="UnlockDeviceHelpDescription" xml:space="preserve">
-    <value>The shell commands in the text box will be executed before launching scrcpy. Enter commands that work on your device, separated by line.</value>
+    <value>文本框中的 Shell 命令将在启动 scrcpy 之前执行。请输入适用于你的设备的命令，命令之间按行分隔</value>
   </data>
   <data name="UnlockDeviceHelpExample" xml:space="preserve">
     <value>例子：</value>
@@ -536,10 +534,10 @@
     <value>有用的信息：</value>
   </data>
   <data name="UnlockDeviceHelpNote" xml:space="preserve">
-    <value>26 or POWER: Wakes or sleeps the device screen.
-66 or ENTER: Simulates the Enter key press.
-82 or MENU: Brings up the unlock interface, or prompts for fingerprint authentication.
-Some devices may also require a swipe gesture to bring up the unlock UI:
+    <value>226 或 POWER：唤醒或关闭设备屏幕。
+66 或 ENTER：模拟按下回车键。
+82 或 MENU：调出解锁界面，或触发指纹验证。
+部分设备可能还需要通过滑动手势才能调出解锁界面：
 input touchscreen swipe 540 1800 540 900</value>
   </data>
   <data name="PinnedApps" xml:space="preserve">
@@ -555,7 +553,7 @@ input touchscreen swipe 540 1800 540 900</value>
     <value>ADB 设备未连接</value>
   </data>
   <data name="AdbNoDeviceSubtitle" xml:space="preserve">
-    <value>Turn on ADB and connect your device via USB or Wi-Fi to see it here</value>
+    <value>启用 ADB 调试功能，然后通过 USB 或 Wi-Fi 连接你的设备，即可在此处显示设备。</value>
   </data>
   <data name="ClipboardSettings" xml:space="preserve">
     <value>粘贴板设置</value>

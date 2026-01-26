@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 public class DisposableArray<T>(T[] source)
     : Disposable<T[]>(source, (items) => { foreach (var item in items) { item.Dispose(); } })
     where T : IDisposable

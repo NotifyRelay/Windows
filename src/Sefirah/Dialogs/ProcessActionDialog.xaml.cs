@@ -1,7 +1,7 @@
-using Sefirah.Data.Models.Actions;
-using Sefirah.Utils;
+using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Utils;
 
-namespace Sefirah.Dialogs;
+namespace NotifyRelay.Dialogs;
 
 public sealed partial class ProcessActionDialog : ContentDialog
 {

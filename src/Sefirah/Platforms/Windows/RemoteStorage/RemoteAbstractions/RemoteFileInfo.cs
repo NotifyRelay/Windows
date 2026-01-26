@@ -1,4 +1,4 @@
-namespace Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 public record RemoteFileInfo : RemoteFileSystemInfo
 {
     public required long Length { get; init; }

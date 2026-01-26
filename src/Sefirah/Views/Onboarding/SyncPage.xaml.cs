@@ -1,8 +1,8 @@
 using Microsoft.UI.Xaml.Media.Animation;
-using Sefirah.Data.Contracts;
-using Sefirah.ViewModels.Settings;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.ViewModels.Settings;
 
-namespace Sefirah.Views.Onboarding;
+namespace NotifyRelay.Views.Onboarding;
 
 public sealed partial class SyncPage : Page
 {

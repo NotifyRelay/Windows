@@ -1,7 +1,7 @@
 using Windows.System;
-using static Sefirah.Constants;
+using static NotifyRelay.Constants;
 
-namespace Sefirah.Views.Onboarding;
+namespace NotifyRelay.Views.Onboarding;
 
 public sealed partial class WelcomePage : Page
 {

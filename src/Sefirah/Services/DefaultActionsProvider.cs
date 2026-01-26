@@ -1,11 +1,11 @@
-using Sefirah.Data.Models.Actions;
+using NotifyRelay.Data.Models.Actions;
 #if WINDOWS
-using Sefirah.Platforms.Windows;
+using NotifyRelay.Platforms.Windows;
 #elif DESKTOP
-using Sefirah.Platforms.Desktop;
+using NotifyRelay.Platforms.Desktop;
 #endif
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public static class DefaultActionsProvider
 {

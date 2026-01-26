@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
-using Sefirah.Data.Contracts;
-using Sefirah.Platforms.Desktop.Services;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Platforms.Desktop.Services;
 
-namespace Sefirah.Platforms.Desktop;
+namespace NotifyRelay.Platforms.Desktop;
 
 /// <summary>
 /// Extension methods for registering Desktop-specific services
@@ -15,7 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlaybackService, DesktopPlaybackService>();
         services.AddSingleton<IActionService, DesktopActionService>();
         services.AddSingleton<IUpdateService, DesktopUpdateService>();
-        services.AddSingleton<ISftpService, DesktopSftpService>();
+        services.AddSingleton<IftpService, DesktopftpService>();
         return services;
     }
 } 

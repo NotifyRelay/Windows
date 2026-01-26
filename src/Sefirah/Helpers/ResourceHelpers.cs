@@ -1,7 +1,7 @@
 using Microsoft.UI.Xaml.Markup;
 using Microsoft.Windows.ApplicationModel.Resources;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 
 [MarkupExtensionReturnType(ReturnType = typeof(string))]

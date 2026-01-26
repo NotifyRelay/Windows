@@ -1,20 +1,19 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
 using Renci.SshNet;
-using Sefirah.Data.Contracts;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Configuration;
-using Sefirah.Platforms.Windows.RemoteStorage.Remote;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Sftp;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Shell.Local;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker.IO;
-using Sefirah.Platforms.Windows.Services;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Remote;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
+using NotifyRelay.Platforms.Windows.Services;
 
-namespace Sefirah.Platforms.Windows;
+namespace NotifyRelay.Platforms.Windows;
 
 /// <summary>
 /// Extension methods for registering Windows-specific services
@@ -28,17 +27,12 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IActionService, WindowsActionService>();
         services.AddSingleton<IUpdateService, WindowsUpdateService>();
 
-        // Remote Storage
-        services.AddSftpRemoteServices();
-        services.AddCloudSyncWorker();
+        // 注册网络磁盘映射服务
+        services.AddSingleton<NetworkDriveMapper>();
 
-        // Shell
-        services.AddCommonClassObjects();
-        services.AddSingleton<ShellRegistrar>();
-        services.AddHostedService<ShellWorker>();
+        // 注册FTP服务，用于处理网络磁盘映射的移除操作
+        services.AddSingleton<IftpService, WindowftpService>();
 
-        services.AddSingleton<SyncProviderWorker>();
-        services.AddSingleton<ISftpService, WindowsSftpService>();
         return services;
     }
 
@@ -72,7 +66,8 @@ public static class ServiceCollectionExtensions
     public static IServiceCollection AddCloudSyncWorker(this IServiceCollection services) =>
         services
             .AddOptionsWithValidateOnStart<ProviderOptions>()
-            .Configure<IConfiguration>((options, config) => {
+            .Configure<IConfiguration>((options, config) =>
+            {
                 options.ProviderId = "Shrimqy:Sefirah";
             })
             .Services
@@ -112,36 +107,6 @@ public static class ServiceCollectionExtensions
             .AddScoped<PlaceholdersService>()
             .AddScoped<ClientWatcher>()
             .AddScoped<RemoteWatcher>();
+}
 
-    public static IServiceCollection AddSftpRemoteServices(this IServiceCollection services) =>
-        services
-            .AddSingleton<SftpContextAccessor>()
-            .AddKeyedSingleton<IRemoteContextSetter>("sftp", (sp, key) => sp.GetRequiredService<SftpContextAccessor>())
-            .AddSingleton((sp) => sp.GetRequiredKeyedService<IRemoteContextSetter>("sftp"))
-            .AddSingleton<ISftpContextAccessor>((sp) => sp.GetRequiredService<SftpContextAccessor>())
-            .AddScoped((sp) => {
-                var context = sp.GetRequiredService<SyncProviderContextAccessor>();
-                var contextAccessor = sp.GetRequiredService<ISftpContextAccessor>();
-                var client = new SftpClient(
-                    contextAccessor.Context.Host,
-                    contextAccessor.Context.Port,
-                    contextAccessor.Context.Username,
-                    contextAccessor.Context.Password
-                );
-                try
-                {
-                    client.Connect();
-                }
-                catch
-                {
-                    // ignore
-                }
-                return client;
-            })
-            .AddKeyedScoped<IRemoteReadWriteService, SftpReadWriteService>("sftp")
-            .AddScoped((sp) => new LazyRemote<IRemoteReadWriteService>(() => sp.GetRequiredKeyedService<IRemoteReadWriteService>("sftp"), SftpConstants.KIND))
-            .AddKeyedScoped<IRemoteReadService>("sftp", (sp, key) => sp.GetRequiredService<IRemoteReadWriteService>())
-            .AddScoped((sp) => new LazyRemote<IRemoteReadService>(() => sp.GetRequiredKeyedService<IRemoteReadService>("sftp"), SftpConstants.KIND))
-            .AddKeyedScoped<IRemoteWatcher, SftpWatcher>("sftp")
-            .AddScoped((sp) => new LazyRemote<IRemoteWatcher>(() => sp.GetRequiredKeyedService<IRemoteWatcher>("sftp"), SftpConstants.KIND));
-} 
+    

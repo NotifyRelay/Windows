@@ -1,6 +1,6 @@
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop.SyncRoot;
+namespace NotifyRelay.Platforms.Windows.Interop.SyncRoot;
 public static class SyncRootEventsExtensions
 {
     private static (SyncRootCallback? Callback, CldApi.CF_CALLBACK_TYPE Type)[] ToPairs(this SyncRootEvents source) =>

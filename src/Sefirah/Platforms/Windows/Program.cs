@@ -1,10 +1,10 @@
 using Microsoft.UI.Dispatching;
 using Microsoft.Windows.AppLifecycle;
-using Sefirah.Extensions;
-using Sefirah.Platforms.Windows.Interop;
+using NotifyRelay.Extensions;
+using NotifyRelay.Platforms.Windows.Interop;
 using AppInstance = Microsoft.Windows.AppLifecycle.AppInstance;
 
-namespace Sefirah.Platforms.Windows;
+namespace NotifyRelay.Platforms.Windows;
 internal class Program
 {
     [STAThread]

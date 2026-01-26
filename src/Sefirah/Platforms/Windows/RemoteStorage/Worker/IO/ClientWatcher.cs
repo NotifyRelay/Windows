@@ -1,15 +1,15 @@
 using System.Threading.Channels;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.Interop.Extensions;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.Interop.Extensions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.CldApi;
 using FileAttributes = System.IO.FileAttributes;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker.IO;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
 public class ClientWatcher : IDisposable
 {
     private readonly ISyncProviderContextAccessor _contextAccessor;

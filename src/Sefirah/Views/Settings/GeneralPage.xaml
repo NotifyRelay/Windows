@@ -1,14 +1,14 @@
 ﻿<Page
-    x:Class="Sefirah.Views.Settings.GeneralPage"
+    x:Class="NotifyRelay.Views.Settings.GeneralPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:controls="using:Sefirah.UserControls"
+    xmlns:controls="using:NotifyRelay.UserControls"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-    xmlns:helpers="using:Sefirah.Helpers"
-    xmlns:local="using:Sefirah.Views.Settings"
-    xmlns:items="using:Sefirah.Data.Items"
+    xmlns:helpers="using:NotifyRelay.Helpers"
+    xmlns:local="using:NotifyRelay.Views.Settings"
+    xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-    xmlns:vm="using:Sefirah.ViewModels.Settings"
+    xmlns:vm="using:NotifyRelay.ViewModels.Settings"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
 

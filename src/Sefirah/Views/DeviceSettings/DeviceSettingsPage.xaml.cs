@@ -1,9 +1,9 @@
 using Microsoft.UI.Xaml.Media.Animation;
-using Sefirah.Data.Models;
-using Sefirah.ViewModels.Settings;
-using Sefirah.Views.DeviceSettings;
+using NotifyRelay.Data.Models;
+using NotifyRelay.ViewModels.Settings;
+using NotifyRelay.Views.DeviceSettings;
 
-namespace Sefirah.Views.DevicePreferences;
+namespace NotifyRelay.Views.DevicePreferences;
 
 public sealed partial class DeviceSettingsPage : Page
 {

@@ -1,6 +1,6 @@
 using Windows.Storage.Pickers;
 
-namespace Sefirah.Utils;
+namespace NotifyRelay.Utils;
 public static class PickerHelper
 {
     public static async Task<StorageFolder?> PickFolderAsync(string startLocation = "DocumentsLibrary")

@@ -1,7 +1,7 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Services;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Services;
 
-namespace Sefirah.Platforms.Windows.Services;
+namespace NotifyRelay.Platforms.Windows.Services;
 
 public class WindowsActionService(
     IGeneralSettingsService generalSettingsService,

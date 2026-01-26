@@ -3,22 +3,22 @@ using System.Text;
 using CommunityToolkit.WinUI;
 using MeaMod.DNS.Multicast;
 using Microsoft.UI.Dispatching;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.EventArguments;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Services.Socket;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.EventArguments;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Services.Socket;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class DiscoveryService(
     ILogger logger,
     IMdnsService mdnsService,
     IDeviceManager deviceManager,
-    INetworkService networkService
+    Func<INetworkService> networkServiceFactory
     ) : IDiscoveryService, IUdpClientProvider
 {
     private MulticastClient? udpClient; 
@@ -101,6 +101,7 @@ public class DiscoveryService(
             }
             
             // 7. 立即发布mDNS服务广告
+            var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var udpBroadcast = new UdpBroadcast
             {
@@ -144,6 +145,7 @@ public class DiscoveryService(
     private string BuildDiscoverMessage(string deviceName)
     {
         var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
+        var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
         return $"NOTIFYRELAY_DISCOVER:{localDevice.DeviceId}:{encodedName}:{serverPort}";
     }
@@ -162,6 +164,7 @@ public class DiscoveryService(
             
             // 重新发布mDNS服务广告
             mdnsService.UnAdvertiseService();
+            var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var udpBroadcast = new UdpBroadcast
             {
@@ -245,7 +248,6 @@ public class DiscoveryService(
             service.DeviceId,
             null,
             service.DeviceName,
-            null,
             DateTimeOffset.UtcNow,
             DeviceOrigin.MdnsService,
             23333);
@@ -326,6 +328,7 @@ public class DiscoveryService(
                     if (device is not null)
                     {
                         // 直接调用NetworkService的ProcessProtocolMessageAsync方法处理心跳
+                        var networkService = networkServiceFactory();
                         _ = networkService.ProcessProtocolMessageAsync(device, message);
                     }
                 }
@@ -372,7 +375,6 @@ public class DiscoveryService(
                 deviceId,
                 null,
                 decodedName,
-                null,
                 DateTimeOffset.UtcNow,
                 DeviceOrigin.UdpBroadcast,
                 devicePort);

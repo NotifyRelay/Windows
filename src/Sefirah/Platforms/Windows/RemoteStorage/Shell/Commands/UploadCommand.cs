@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Channels;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.CldApi;
@@ -10,7 +10,7 @@ using static Vanara.PInvoke.Ole32;
 using static Vanara.PInvoke.Shell32;
 using static Vanara.PInvoke.ShlwApi;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Shell.Commands;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
 [ComVisible(true), Guid("4a3c9b56-f075-4499-b4ee-ba4b88d1fe05")]
 public class UploadCommand(
     ChannelWriter<ShellCommand> commandWriter, 

@@ -1,6 +1,6 @@
-using Sefirah.Data.EventArguments;
+using NotifyRelay.Data.EventArguments;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface IUserSettingsService : IBaseSettingsService
 {
     event EventHandler<SettingChangedEventArgs> OnSettingChangedEvent;

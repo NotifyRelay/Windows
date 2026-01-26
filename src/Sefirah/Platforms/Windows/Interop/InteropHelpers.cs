@@ -2,7 +2,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.UI.Input;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 
 [ComImport, Guid("f8679f50-850a-41cf-9c72-430f290290c8")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]

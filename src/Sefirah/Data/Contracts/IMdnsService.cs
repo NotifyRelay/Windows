@@ -1,8 +1,8 @@
 using MeaMod.DNS.Multicast;
-using Sefirah.Data.EventArguments;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.EventArguments;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 /// <summary>
 /// mDNS is primarily used in the pairing process to exchange information, and to advertise the device on the local network so that android app can discover.

@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.IO;
 
-namespace Sefirah.Helpers;
+namespace NotifyRelay.Helpers;
 
 /// <summary>
 /// Notify 协议加解密与密钥派生工具。
@@ -146,15 +146,11 @@ public static class NotifyCryptoHelper
         }
     }
 
-    public static byte[] ComputePasskey(byte[] sharedSecret)
-    {
-        using var sha256 = SHA256.Create();
-        return sha256.ComputeHash(sharedSecret);
-    }
+    
 
-    public static (string Username, string Password) DeriveSftpCredentials(byte[] sharedSecret)
+    public static (string Username, string Password) DeriveftpCredentials(byte[] sharedSecret)
     {
-        const string usernamePrefix = "sftp_";
+        const string usernamePrefix = "ftp_";
         const int passwordLength = 32;
 
         using var sha256 = SHA256.Create();

@@ -1,7 +1,7 @@
-using Sefirah.Data.Enums;
-using Sefirah.Extensions;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Extensions;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public partial class ApplicationInfo(string packageName, string appName, string? iconPath, AppDeviceInfo deviceInfo) : ObservableObject
 {

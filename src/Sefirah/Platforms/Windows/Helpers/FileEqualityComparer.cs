@@ -1,6 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 
-namespace Sefirah.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
 public class FileEqualityComparer : IComparer<FileInfo>, IEqualityComparer<FileInfo>
 {
     public int Compare(FileInfo? x, FileInfo? y)

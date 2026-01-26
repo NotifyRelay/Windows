@@ -1,6 +1,6 @@
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 public interface IScreenMirrorService : IDisposable
 {
@@ -8,4 +8,9 @@ public interface IScreenMirrorService : IDisposable
     void StopScrcpy(string deviceSerial);
     void StopScrcpyByDeviceId(string deviceId);
     bool IsAudioOnlyRunning(string deviceId);
+
+    /// <summary>
+    /// 处理音频转发请求
+    /// </summary>
+    Task ProcessAudioRequestAsync(PairedDevice device);
 }

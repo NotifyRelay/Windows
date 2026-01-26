@@ -1,8 +1,8 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Items;
-using Sefirah.Extensions;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Items;
+using NotifyRelay.Extensions;
 
-namespace Sefirah.Views.Settings;
+namespace NotifyRelay.Views.Settings;
 
 public sealed partial class DeviceDiscoveryPage : Page
 {

@@ -1,15 +1,15 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Sefirah.Data.Enums;
-using Sefirah.Extensions;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Extensions;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 using System.Collections.ObjectModel;
 using System.Net.Http;
 using Windows.Storage;
 using Windows.Storage.Streams;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 // 用于存储通知来源设备的类
 public class SourceDevice
@@ -41,8 +41,7 @@ public partial class Notification : ObservableObject
     public bool HasGroupedMessages => GroupedMessages?.Count > 0;
     public string? Tag { get; set; }
     public string? GroupKey { get; set; }
-    public List<NotificationAction> Actions { get; set; } = [];
-    public string? ReplyResultKey { get; set; }
+    
     
     [ObservableProperty]
     private BitmapImage? icon;
@@ -101,7 +100,7 @@ public partial class Notification : ObservableObject
         }
     }
 
-    public string FlyoutFilterString => string.Format("NotificationFilterButton".GetLocalizedResource(), AppName);
+
 
     #region Helpers
     public static async Task<Notification> FromMessage(NotificationMessage message)
@@ -117,9 +116,7 @@ public partial class Notification : ObservableObject
             Text = message.Text,
             GroupedMessages = GroupBySender(message.Messages),
             Tag = message.Tag,
-            GroupKey = message.GroupKey,
-            Actions = message.Actions.Where(a => a != null).ToList()!,
-            ReplyResultKey = message.ReplyResultKey
+            GroupKey = message.GroupKey
         };
 
         // 设置图标路径，复用应用列表的已有图标

@@ -1,14 +1,14 @@
 using System.Threading.Channels;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.Interop.SyncRoot;
-using Sefirah.Platforms.Windows.RemoteStorage.Abstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.Interop.SyncRoot;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.CldApi;
 using FileAttributes = System.IO.FileAttributes;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public sealed class SyncRootConnector(
     ISyncProviderContextAccessor contextAccessor,
     ChannelWriter<Func<Task>> taskWriter,
@@ -19,38 +19,54 @@ public sealed class SyncRootConnector(
 {
     private readonly string _rootDirectory = contextAccessor.Context.RootDirectory;
 
-    // Trying to prevent garbage collection of these callbacks
-    private static CF_CALLBACK_REGISTRATION[] CallbackRegistrations;
+    // 实例字段，防止回调被垃圾回收
+    private CF_CALLBACK_REGISTRATION[] _callbackRegistrations;
 
     public CF_CONNECTION_KEY Connect()
     {
         logger.LogDebug("正在将同步提供程序连接到 {syncRootPath}", _rootDirectory);
-        CallbackRegistrations = CloudFilter.ConnectSyncRoot(
-            _rootDirectory,
-            new SyncRootEvents
-            {
-                FetchPlaceholders = FetchPlaceholders,
-                FetchData = (in callbackInfo, in callbackParameters) =>
-                    FetchData(callbackInfo, callbackParameters),
-                OnCloseCompletion = OnCloseCompletion,
-                OnRenameCompletion = (in callbackInfo, in callbackParameters) =>
+        try
+        {
+            _callbackRegistrations = CloudFilter.ConnectSyncRoot(
+                _rootDirectory,
+                new SyncRootEvents
                 {
-                    var volumeDosName = callbackInfo.VolumeDosName;
-                    var oldPath = callbackParameters.RenameCompletion.SourcePath;
-                    var newPath = callbackInfo.NormalizedPath;
-                    taskWriter.TryWrite(() => OnRenameCompletion(volumeDosName, oldPath, newPath));
+                    FetchPlaceholders = FetchPlaceholders,
+                    FetchData = (in callbackInfo, in callbackParameters) =>
+                        FetchData(callbackInfo, callbackParameters),
+                    OnCloseCompletion = OnCloseCompletion,
+                    OnRenameCompletion = (in callbackInfo, in callbackParameters) =>
+                    {
+                        var volumeDosName = callbackInfo.VolumeDosName;
+                        var oldPath = callbackParameters.RenameCompletion.SourcePath;
+                        var newPath = callbackInfo.NormalizedPath;
+                        taskWriter.TryWrite(() => OnRenameCompletion(volumeDosName, oldPath, newPath));
+                    },
+                    OnDeleteCompletion = (in callbackInfo, in callbackParameters) =>
+                    {
+                        var volumeDosName = callbackInfo.VolumeDosName;
+                        var path = callbackInfo.NormalizedPath;
+                        taskWriter.TryWrite(() => OnDeleteCompletion(volumeDosName, path));
+                    },
                 },
-                OnDeleteCompletion = (in callbackInfo, in callbackParameters) =>
-                {
-                    var volumeDosName = callbackInfo.VolumeDosName;
-                    var path = callbackInfo.NormalizedPath;
-                    taskWriter.TryWrite(() => OnDeleteCompletion(volumeDosName, path));
-                },
-            },
-            out var connectionKey
-        );
+                out var connectionKey
+            );
 
-        return connectionKey;
+            return connectionKey;
+        }
+        catch (ExecutionEngineException ex)
+        {
+            logger.LogCritical(ex, "同步提供程序连接时发生执行引擎异常：{syncRootPath}", _rootDirectory);
+            // 执行引擎异常是严重错误，重新抛出让上层处理
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "同步提供程序连接失败：{syncRootPath}", _rootDirectory);
+            // 普通连接失败时，不重新抛出异常，避免形成无限循环
+            // 返回一个默认的连接键值
+            return default;
+        }
     }
 
     public void Disconnect(CF_CONNECTION_KEY connectionKey)

@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Items;
+namespace NotifyRelay.Data.Items;
 
 /// <summary>
 /// Represents an item for open source library shown on <see cref="Views.Settings.AboutPage"/>.

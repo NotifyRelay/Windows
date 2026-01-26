@@ -3,10 +3,10 @@ using System.IO;
 using Windows.Storage.Streams;
 using Microsoft.UI.Xaml.Data;
 using Microsoft.UI.Xaml.Media.Imaging;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
 
-namespace Sefirah.Converters;
+namespace NotifyRelay.Converters;
 
 /// <summary>
 /// The generic base implementation of a value converter.
@@ -588,5 +588,18 @@ internal sealed partial class AdbIconToTypeConverter : IValueConverter
     public object ConvertBack(object value, Type targetType, object parameter, string language)
     {
         throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class BoolToOpacityConverter : ValueConverter<bool, double>
+{
+    protected override double Convert(bool value, object? parameter, string? language)
+    {
+        return value ? 1.0 : 0.0;
+    }
+
+    protected override bool ConvertBack(double value, object? parameter, string? language)
+    {
+        throw new NotSupportedException();
     }
 }

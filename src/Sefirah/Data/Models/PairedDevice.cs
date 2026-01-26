@@ -1,12 +1,12 @@
 using System.Collections.Specialized;
 using CommunityToolkit.WinUI;
 using Microsoft.Extensions.Logging;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Services.Socket;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Services.Socket;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public partial class PairedDevice : ObservableObject
 {
@@ -22,8 +22,6 @@ public partial class PairedDevice : ObservableObject
     public string Model { get; set; } = string.Empty;
 
     public List<string>? IpAddresses { get; set; } = [];
-
-    public List<PhoneNumber>? PhoneNumbers { get; set; } = [];
 
     private ImageSource? wallpaper;
     public ImageSource? Wallpaper
@@ -59,63 +57,63 @@ public partial class PairedDevice : ObservableObject
                 SetProperty(ref connectionStatus, true);
                 logger.LogDebug("连接状态已更新为：True");
                 
-                // 如果设备之前未连接，并且已经发送过SFTP请求，启动自动SFTP请求计时器
+                // 如果设备之前未连接，并且已经发送过ftp请求，启动自动ftp请求计时器
                 if (!wasConnected)
                 {
-                    logger.LogDebug("设备 {Name} ({Id}) 已连接，检查HasSentSftpRequest属性", Name, Id);
+                    logger.LogDebug("设备 {Name} ({Id}) 已连接，检查HasSentftpRequest属性", Name, Id);
                     
-                    // 只有当HasSentSftpRequest为true时才启动计时器
-                    if (HasSentSftpRequest)
+                    // 只有当HasSentftpRequest为true时才启动计时器
+                    if (HasSentftpRequest)
                     {
-                        logger.LogDebug("HasSentSftpRequest为true，启动自动SFTP计时器", Name, Id);
+                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器", Name, Id);
                         
                         // 确保之前的计时器已被释放
-                        autoSftpTimer?.Stop();
-                        autoSftpTimer?.Dispose();
+                        autoftpTimer?.Stop();
+                        autoftpTimer?.Dispose();
                         
-                        // 启动5秒自动SFTP请求计时器
-                        autoSftpTimer = new System.Timers.Timer(5000);
-                        autoSftpTimer.AutoReset = false; // 只触发一次
-                        autoSftpTimer.Elapsed += (s, e) =>
+                        // 启动5秒自动ftp请求计时器
+                        autoftpTimer = new System.Timers.Timer(5000);
+                        autoftpTimer.AutoReset = false; // 只触发一次
+                        autoftpTimer.Elapsed += (s, e) =>
                         {
-                            logger.LogDebug("设备 {Name} ({Id}) 的自动SFTP计时器已触发", Name, Id);
+                            logger.LogDebug("设备 {Name} ({Id}) 的自动ftp计时器已触发", Name, Id);
                             App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
                             {
                                 try
                                 {
-                                    // 再次检查连接状态和HasSentSftpRequest属性
-                                    if (ConnectionStatus && HasSentSftpRequest)
+                                    // 再次检查连接状态和HasSentftpRequest属性
+                                    if (ConnectionStatus && HasSentftpRequest)
                                     {
-                                        logger.LogDebug("设备仍然连接且HasSentSftpRequest为true，发送SFTP命令");
+                                        logger.LogDebug("设备仍然连接且HasSentftpRequest为true，发送ftp命令");
                                         
-                                        // 从DI获取messageHandler并发送SFTP命令
+                                        // 从DI获取messageHandler并发送ftp命令
                                         var messageHandler = Ioc.Default.GetRequiredService<IMessageHandler>();
-                                        messageHandler.SendSftpCommand(this, "start");
-                                        logger.LogDebug("SFTP命令发送成功");
+                                        messageHandler.SendftpCommand(this, "start");
+                                        logger.LogDebug("ftp命令发送成功");
                                     }
                                     else
                                     {
-                                        logger.LogDebug("设备已断开连接或HasSentSftpRequest为false，跳过发送SFTP命令");
+                                        logger.LogDebug("设备已断开连接或HasSentftpRequest为false，跳过发送ftp命令");
                                     }
                                 }
                                 catch (Exception ex)
                                 {
-                                    logger.LogError(ex, "设备 {Name} ({Id}) 的自动SFTP请求失败", Name, Id);
+                                    logger.LogError(ex, "设备 {Name} ({Id}) 的自动ftp请求失败", Name, Id);
                                 }
                                 finally
                                 {
                                     // 确保计时器被释放
-                                    autoSftpTimer?.Dispose();
-                                    autoSftpTimer = null;
+                                    autoftpTimer?.Dispose();
+                                    autoftpTimer = null;
                                 }
                             });
                         };
-                        autoSftpTimer.Start();
-                        logger.LogDebug("设备 {Name} ({Id}) 的自动SFTP计时器已启动", Name, Id);
+                        autoftpTimer.Start();
+                        logger.LogDebug("设备 {Name} ({Id}) 的自动ftp计时器已启动", Name, Id);
                     }
                     else
                     {
-                        logger.LogDebug("HasSentSftpRequest为false，跳过启动自动SFTP计时器");
+                        logger.LogDebug("HasSentftpRequest为false，跳过启动自动ftp计时器");
                     }
                 }
             }
@@ -171,7 +169,7 @@ public partial class PairedDevice : ObservableObject
     public string? RemoteBattery { get; set; }
 
     private System.Timers.Timer? disconnectDebounceTimer;
-    private System.Timers.Timer? autoSftpTimer;
+    private System.Timers.Timer? autoftpTimer;
     private bool pendingDisconnect;
 
     private readonly IAdbService adbService;
@@ -185,15 +183,15 @@ public partial class PairedDevice : ObservableObject
         private set => SetProperty(ref deviceSettings, value);
     }
 
-    private bool hasSentSftpRequest;
-    public bool HasSentSftpRequest
+    private bool hasSentftpRequest;
+    public bool HasSentftpRequest
     {
-        get => hasSentSftpRequest;
+        get => hasSentftpRequest;
         set
         {
-            if (SetProperty(ref hasSentSftpRequest, value))
+            if (SetProperty(ref hasSentftpRequest, value))
             {
-                logger.LogDebug("HasSentSftpRequest属性值已更新为：{value}", value);
+                logger.LogDebug("HasSentftpRequest属性值已更新为：{value}", value);
                 // 当属性变化时保存到数据库
                 App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
                 {
@@ -206,17 +204,16 @@ public partial class PairedDevice : ObservableObject
                             Name = Name,
                             Model = Model,
                             IpAddresses = IpAddresses,
-                            PhoneNumbers = PhoneNumbers,
                             SharedSecret = SharedSecret,
                             PublicKey = RemotePublicKey,
-                            HasSentSftpRequest = value
+                            HasSentftpRequest = value
                         };
                         deviceRepository.AddOrUpdateRemoteDevice(deviceEntity);
-                        logger.LogDebug("HasSentSftpRequest属性已保存到数据库");
+                        logger.LogDebug("HasSentftpRequest属性已保存到数据库");
                     }
                     catch (Exception ex)
                     {
-                        logger.LogError(ex, "保存HasSentSftpRequest属性到数据库失败");
+                        logger.LogError(ex, "保存HasSentftpRequest属性到数据库失败");
                     }
                 });
             }

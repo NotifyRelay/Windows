@@ -1,7 +1,7 @@
-using Sefirah.Data.Models;
-using Sefirah.Services.Socket;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Services.Socket;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface ISessionManager
 {
     /// <summary>
@@ -26,11 +26,4 @@ public interface ISessionManager
     /// Disconnects the specified device session (if any).
     /// </summary>
     void DisconnectDevice(string deviceId);
-    
-    /// <summary>
-    /// Sends a media control request to the specified device.
-    /// </summary>
-    /// <param name="deviceId">Target device ID.</param>
-    /// <param name="controlType">Control type (e.g., play, pause, next).</param>
-    void SendMediaControlRequest(string deviceId, string controlType);
 }

@@ -1,8 +1,8 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Utils.Serialization;
 
-namespace Sefirah.Services.Settings;
+namespace NotifyRelay.Services.Settings;
 
 internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSharingContext settingsSharingContext) : BaseDeviceAwareJsonSettings(deviceId, settingsSharingContext), IDeviceSettingsService
 {

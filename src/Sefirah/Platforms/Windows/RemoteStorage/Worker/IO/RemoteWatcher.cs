@@ -1,9 +1,9 @@
 using System.Threading.Channels;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using Sefirah.Platforms.Windows.RemoteStorage.Worker;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker.IO;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
 public sealed class RemoteWatcher(
     IRemoteReadService remoteReadService,
     IRemoteWatcher remoteWatcher,

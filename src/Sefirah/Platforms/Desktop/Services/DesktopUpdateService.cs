@@ -1,6 +1,6 @@
-using Sefirah.Data.Contracts;
+using NotifyRelay.Data.Contracts;
 
-namespace Sefirah.Platforms.Desktop.Services;
+namespace NotifyRelay.Platforms.Desktop.Services;
 public partial class DesktopUpdateService : ObservableObject, IUpdateService
 {
     public bool IsUpdateAvailable => false;

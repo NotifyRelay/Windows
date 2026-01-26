@@ -1,13 +1,13 @@
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Utils;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Utils;
+using NotifyRelay.Utils.Serialization;
 using System.ComponentModel;
 using System.Diagnostics;
 
-namespace Sefirah.ViewModels;
+namespace NotifyRelay.ViewModels;
 public sealed partial class MainPageViewModel : BaseViewModel
 {
     #region Services
@@ -19,11 +19,49 @@ public sealed partial class MainPageViewModel : BaseViewModel
     private IUpdateService UpdateService { get; } = Ioc.Default.GetRequiredService<IUpdateService>();
     private IFileTransferService FileTransferService { get; } = Ioc.Default.GetRequiredService<IFileTransferService>();
     private IMessageHandler MessageHandler { get; } = Ioc.Default.GetRequiredService<IMessageHandler>();
+    private IPlaybackService PlaybackService { get; } = Ioc.Default.GetRequiredService<IPlaybackService>();
     #endregion
 
     #region Properties
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ReadOnlyObservableCollection<Notification> Notifications => NotificationService.NotificationHistory;
+    public ReadOnlyObservableCollection<GroupedNotification> GroupedNotifications => NotificationService.GroupedNotificationHistory;
+    
+    // 合并后的仪表盘项目集合（包含媒体块和通知）
+    public ObservableCollection<object> DashboardItems { get; } = new ObservableCollection<object>();
+    
+    // 混合集合，包含所有通知（分组和单个）
+    public ObservableCollection<object> MixedNotifications
+    {
+        get
+        {
+            var mixed = new ObservableCollection<object>();
+            
+            // 获取所有分组通知
+            var grouped = GroupedNotifications.ToList();
+            
+            // 获取所有分组使用的应用包名
+            var groupedPackageNames = new HashSet<string>(grouped.Select(g => g.AppPackage ?? "UnknownApp"));
+            
+            // 添加所有分组通知
+            foreach (var group in grouped)
+            {
+                mixed.Add(group);
+            }
+            
+            // 添加未分组的单个通知
+            foreach (var notification in Notifications)
+            {
+                string packageName = notification.AppPackage ?? "UnknownApp";
+                if (!groupedPackageNames.Contains(packageName))
+                {
+                    mixed.Add(notification);
+                }
+            }
+            
+            return mixed;
+        }
+    }
     public PairedDevice? Device => DeviceManager.ActiveDevice;
     
     /// <summary>
@@ -86,12 +124,12 @@ public sealed partial class MainPageViewModel : BaseViewModel
             }
             
             // 检查所有连接的ADB设备，添加所有连接类型
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.USB))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 connectionTypes.Add("USB");
             }
             
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.WIFI))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 connectionTypes.Add("WiFi");
             }
@@ -160,13 +198,13 @@ public sealed partial class MainPageViewModel : BaseViewModel
             }
             
             // 添加USB图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.USB))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 icons.Add("\uE89E"); // USB图标
             }
             
             // 添加WiFi图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == Sefirah.Data.Enums.DeviceType.WIFI))
+            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 icons.Add("\uE927"); // WiFi图标
             }
@@ -228,8 +266,94 @@ public sealed partial class MainPageViewModel : BaseViewModel
                 if (e.PropertyName == nameof(INotificationService.CurrentMusicMediaBlocks))
                 {
                     OnPropertyChanged(nameof(CurrentMusicMediaBlocks));
+                    // 当媒体块集合实例改变时，更新 DashboardItems
+                    UpdateDashboardItems();
                 }
             };
+        }
+
+        // 初始化 DashboardItems 并监听集合变化
+        InitializeDashboardItems();
+    }
+    
+    private void InitializeDashboardItems()
+    {
+        // 初始填充
+        UpdateDashboardItems();
+        
+        // 监听 GroupedNotifications 的变化
+        if (GroupedNotifications is System.Collections.Specialized.INotifyCollectionChanged groupedNcc)
+        {
+            groupedNcc.CollectionChanged += (s, e) => UpdateDashboardItems();
+        }
+        
+        // 注意：CurrentMusicMediaBlocks 是 ReadOnlyObservableCollection，我们需要监听其内部集合的变化
+        // 这里简化处理：如果在 NotificationService 中 CurrentMusicMediaBlocks 的实例被替换，我们在上面的 PropertyChanged 中处理
+        // 如果只是内容变化，我们也需要监听。
+        // 由于 NotificationService.CurrentMusicMediaBlocks 可能已经在上面被监听了 PropertyChanged，
+        // 这里我们尝试监听 CollectionChanged。
+        if (CurrentMusicMediaBlocks is System.Collections.Specialized.INotifyCollectionChanged mediaNcc)
+        {
+            mediaNcc.CollectionChanged += (s, e) => UpdateDashboardItems();
+        }
+    }
+
+    /// <summary>
+    /// 更新 DashboardItems 集合
+    /// 为了保证性能，这里尽量做增量更新，但为了实现简单和稳健，先采用智能重置策略
+    /// </summary>
+    private void UpdateDashboardItems()
+    {
+        // 如果是在非 UI 线程调用，可能需要 Dispatcher，但通常 ViewModel 的 PropertyChanged 会由 UI 框架处理
+        // 这里假设是在 UI 线程或框架能处理 ObservableCollection 的跨线程操作（WinUI 3 通常需要 DispatcherQueue，但这里先直接操作）
+        
+        // 简单策略：清空并重新添加。为了减少闪烁，可以比较差异。
+        // 但 ItemsRepeater 处理 Clear + Add 可能会导致滚动位置丢失。
+        // 优化策略：
+        // 1. 确保 MediaBlocks 在最前
+        // 2. 确保 Notifications 在后
+        
+        // 由于 MediaBlocks 很少变动，Notifications 变动频繁，我们分别处理。
+        
+        // 现在的简单实现：完全重建。
+        // TODO: 后续优化为增量更新以保持滚动位置和性能
+        
+        // 实际上，为了避免 ItemsRepeater 闪烁，我们应该尽量复用现有的集合
+        
+        var newItems = new List<object>();
+        if (CurrentMusicMediaBlocks != null)
+        {
+            newItems.AddRange(CurrentMusicMediaBlocks);
+        }
+        if (GroupedNotifications != null)
+        {
+            newItems.AddRange(GroupedNotifications);
+        }
+        
+        // 简单的 Diff 算法：如果数量差距不大，且大部分元素相同
+        
+        // 如果 DashboardItems 为空，直接添加
+        if (DashboardItems.Count == 0)
+        {
+            foreach (var item in newItems)
+            {
+                DashboardItems.Add(item);
+            }
+            return;
+        }
+
+        // 粗暴的同步方法：
+        // 1. 移除多余的
+        // 2. 添加新增的
+        // 3. 移动顺序不对的（这里暂不处理顺序移动，假设顺序相对稳定）
+        
+        // 为了简单起见，我们使用一个临时列表来同步
+        // 注意：这种同步在大量数据下可能效率不高，但在通知列表场景下（通常几十条）是可以接受的
+        
+        DashboardItems.Clear();
+        foreach (var item in newItems)
+        {
+            DashboardItems.Add(item);
         }
     }
     
@@ -366,9 +490,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    public void ClearAllNotifications()
+    public void ClearAllNotificationall()
     {
-        NotificationService.ClearAllNotifications();
+        NotificationService.ClearAllNotificationall();
     }
 
     [RelayCommand]
@@ -382,13 +506,13 @@ public sealed partial class MainPageViewModel : BaseViewModel
     {
         NotificationService.RemoveNotification(Device!, notification);
     }
-
-    [RelayCommand]
-    public void HandleNotificationAction(NotificationAction action)
-    {
-        NotificationService.ProcessClickAction(Device!, action.NotificationKey, action.ActionIndex);
-    }
     
+    [RelayCommand]
+    public void ClearAllNotifications(string appPackage)
+    {
+        NotificationService.ClearAllNotifications(appPackage);
+    }
+
     [RelayCommand]
     public void SendMediaControl(string mediaControlParam)
     {
@@ -408,17 +532,17 @@ public sealed partial class MainPageViewModel : BaseViewModel
         string action = parts[1];
         
         // 发送媒体控制请求到指定设备
-        SessionManager.SendMediaControlRequest(deviceId, action);
+        PlaybackService.SendMediaControlRequest(deviceId, action);
     }
 
     [RelayCommand]
-    public void StartSftpConnection()
+    public void StartftpConnection()
     {
         if (Device != null)
         {
-            // 设置手动发送过SFTP请求的标记
-            Device.HasSentSftpRequest = true;
-            MessageHandler.SendSftpCommand(Device, "start");
+            // 设置手动发送过ftp请求的标记
+            Device.HasSentftpRequest = true;
+            MessageHandler.SendftpCommand(Device, "start");
         }
     }
 
@@ -480,11 +604,6 @@ public sealed partial class MainPageViewModel : BaseViewModel
     public void SendFiles(IReadOnlyList<IStorageItem> storageItems)
     {
         FileTransferService.SendFiles(storageItems);
-    }
-
-    public void HandleNotificationReply(Notification notification, string replyText)
-    {
-        NotificationService.ProcessReplyAction(Device!, notification.Key, notification.ReplyResultKey!, replyText);
     }
 
     #endregion

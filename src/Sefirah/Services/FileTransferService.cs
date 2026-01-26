@@ -2,17 +2,17 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using NetCoreServer;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Dialogs;
-using Sefirah.Extensions;
-using Sefirah.Helpers;
-using Sefirah.Services.Socket;
-using Sefirah.Utils.Serialization;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Dialogs;
+using NotifyRelay.Extensions;
+using NotifyRelay.Helpers;
+using NotifyRelay.Services.Socket;
+using NotifyRelay.Utils.Serialization;
 using Uno.Logging;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public class FileTransferService(
     ILogger logger,

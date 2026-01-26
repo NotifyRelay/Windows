@@ -1,12 +1,12 @@
 using Microsoft.UI.Dispatching;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
-using Sefirah.Utils.Serialization;
-using Sefirah.Views;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
+using NotifyRelay.Utils.Serialization;
+using NotifyRelay.Views;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 
 public partial class DevicesViewModel : ObservableObject
 {
@@ -15,7 +15,7 @@ public partial class DevicesViewModel : ObservableObject
     private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
     private IDiscoveryService DiscoveryService { get; } = Ioc.Default.GetRequiredService<IDiscoveryService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private ISftpService SftpService { get; } = Ioc.Default.GetRequiredService<ISftpService>();
+    private IftpService ftpService { get; } = Ioc.Default.GetRequiredService<IftpService>();
     private IAdbService AdbService { get; } = Ioc.Default.GetRequiredService<IAdbService>();
     #endregion
     
@@ -67,7 +67,7 @@ public partial class DevicesViewModel : ObservableObject
                     SessionManager.DisconnectDevice(device.Id);
                 }
 
-                SftpService.Remove(device.Id);
+                ftpService.Remove(device.Id);
 
                 DeviceManager.RemoveDevice(device);
             }

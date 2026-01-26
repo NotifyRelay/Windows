@@ -1,6 +1,6 @@
 using System.Collections.Concurrent;
 
-namespace Sefirah.Extensions;
+namespace NotifyRelay.Extensions;
 
 /// <summary>
 /// Extension methods for working with localized resources and message formatting.
@@ -29,5 +29,35 @@ public static class StringExtensions
         }
 
         return value ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Checks if the string is a valid Base64 encoded string.
+    /// </summary>
+    /// <param name="input">The string to check.</param>
+    /// <returns>True if the string is a valid Base64 encoded string, otherwise false.</returns>
+    public static bool IsBase64String(this string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return false;
+        }
+
+        try
+        {
+            // Check for valid Base64 length (must be a multiple of 4)
+            if (input.Length % 4 != 0)
+            {
+                return false;
+            }
+
+            // Try to decode the string
+            Convert.FromBase64String(input);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

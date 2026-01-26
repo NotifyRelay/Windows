@@ -1,4 +1,4 @@
-namespace Sefirah;
+namespace NotifyRelay;
 public static class Constants
 {
     public static class Notification

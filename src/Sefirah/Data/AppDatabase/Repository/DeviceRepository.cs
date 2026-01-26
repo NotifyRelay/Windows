@@ -1,7 +1,7 @@
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.AppDatabase.Repository;
+namespace NotifyRelay.Data.AppDatabase.Repository;
 public class DeviceRepository(DatabaseContext context, ILogger logger)
 {
     public LocalDeviceEntity? GetLocalDevice()

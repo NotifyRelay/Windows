@@ -1,6 +1,6 @@
 using Windows.Storage.Provider;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Shell;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
 public delegate IStorageProviderStatusUISource CreateStatusUiSource<T>(string syncRootId) where T : IStorageProviderStatusUISource;
 
 /// <remarks>

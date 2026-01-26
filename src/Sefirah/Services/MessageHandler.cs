@@ -1,25 +1,25 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 public class MessageHandler(
     RemoteAppRepository remoteAppRepository,
     IDeviceManager deviceManager,
-    INetworkService networkService,
+    Func<INetworkService> networkServiceFactory,
+    Func<IRemoteAppService> remoteAppServiceFactory,
     INotificationService notificationService,
     IClipboardService clipboardService,
     
     IFileTransferService fileTransferService,
     IPlaybackService playbackService,
     IActionService actionService,
-    ISftpService sftpService,
     IScreenMirrorService screenMirrorService,
     ILogger<MessageHandler> logger) : IMessageHandler
 {
@@ -32,43 +32,36 @@ public class MessageHandler(
     }
 
     /// <summary>
-    /// 发送 SFTP 控制命令到 Android 设备
+    /// 发送 FTP 控制命令到 Android 设备
     /// </summary>
     /// <param name="device">目标设备</param>
     /// <param name="action">操作类型：start 或 stop</param>
     /// <param name="username">用户名（仅 start 时需要）</param>
     /// <param name="password">密码（仅 start 时需要）</param>
-    public void SendSftpCommand(PairedDevice device, string action, string? username = null, string? password = null)
+    public void SendftpCommand(PairedDevice device, string action, string? username = null, string? password = null)
     {
         if (!IsRemoteDeviceAndroid(device))
         {
-            logger.LogWarning("SFTP 命令被忽略：非 Android 设备 ({deviceType})", device.RemoteDeviceType);
+            logger.LogWarning("FTP 命令被忽略：非 Android 设备 ({deviceType})", device.RemoteDeviceType);
             return;
         }
 
         try
         {
-            var json = new JsonObject
+            var command = new FtpCommand
             {
-                ["type"] = "DATA_SFTP",
-                ["action"] = action
+                Action = action,
+                Username = action == "start" ? username : null,
+                Password = action == "start" ? password : null
             };
 
-            if (action == "start")
-            {
-                if (!string.IsNullOrEmpty(username))
-                    json["username"] = username;
-                if (!string.IsNullOrEmpty(password))
-                    json["password"] = password;
-            }
-
-            var message = JsonSerializer.Serialize(json);
-            networkService.SendMessage(device.Id, message);
-            logger.LogDebug("已发送 SFTP 命令：action={action}, device={deviceName}", action, device.Name);
+            var message = JsonSerializer.Serialize(command);
+            networkServiceFactory().SendMessage(device.Id, message);
+            logger.LogDebug("已发送 FTP 命令：action={action}, device={deviceName}", action, device.Name);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "发送 SFTP 命令失败：{deviceName}", device.Name);
+            logger.LogError(ex, "发送 FTP 命令失败：{deviceName}", device.Name);
         }
     }
 
@@ -107,10 +100,6 @@ public class MessageHandler(
 
                 case ActionMessage action:
                     actionService.HandleActionMessage(action);
-                    break;
-
-                case SftpServerInfo sftpServerInfo:
-                    await sftpService.InitializeAsync(device, sftpServerInfo);
                     break;
 
                 case FileTransfer fileTransfer:
@@ -174,18 +163,6 @@ public class MessageHandler(
                 logger.LogDebug("识别到 JSON 消息类型：{messageType}", messageType);
             }
             
-            // 检查是否为SFTP响应（没有type字段但有action字段）
-            if (string.IsNullOrEmpty(messageType) && root.TryGetProperty("action", out var actionProp))
-            {
-                var action = actionProp.GetString();
-                if (action is "started" or "stopped" or "error")
-                {
-                    logger.LogDebug("处理 SFTP 响应：action={action}", action);
-                    await HandleDataSftpAsync(device, root);
-                    return;
-                }
-            }
-            
             switch (messageType)
             {
                 case "APP_LIST_RESPONSE":
@@ -200,9 +177,9 @@ public class MessageHandler(
                     logger.LogDebug("处理 MEDIA_CONTROL 消息");
                     await HandleMediaControlAsync(device, root);
                     break;
-                case "DATA_SFTP":
-                    logger.LogDebug("处理 DATA_SFTP 消息");
-                    await HandleDataSftpAsync(device, root);
+                case "DATA_CLIPBOARD":
+                    logger.LogDebug("处理 DATA_CLIPBOARD 消息");
+                    await HandleDataClipboardAsync(device, root);
                     break;
                 default:
                     if (!string.IsNullOrEmpty(messageType))
@@ -211,7 +188,7 @@ public class MessageHandler(
                     }
                     else
                     {
-                        logger.LogWarning("JSON 消息缺少 type 属性且不是 SFTP 响应");
+                        logger.LogWarning("JSON 消息缺少 type 属性");
                     }
                     break;
             }
@@ -287,7 +264,7 @@ public class MessageHandler(
             // 发送批量图标请求
             if (packageNamesWithoutIcons.Count > 0)
             {
-                networkService.SendIconRequest(device.Id, packageNamesWithoutIcons);
+                remoteAppServiceFactory().SendIconRequest(device.Id, packageNamesWithoutIcons);
             }
 
             return Task.CompletedTask;
@@ -483,7 +460,7 @@ public class MessageHandler(
                 : "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
             
             // 通过 networkService 发送响应
-            networkService.SendMessage(device.Id, response);
+            networkServiceFactory().SendMessage(device.Id, response);
             
             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
         }
@@ -493,77 +470,44 @@ public class MessageHandler(
             
             // 发送拒绝响应，使用新的 MEDIA_CONTROL 格式
             string errorResponse = "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
-            networkService.SendMessage(device.Id, errorResponse);
+            networkServiceFactory().SendMessage(device.Id, errorResponse);
         }
     }
 
     /// <summary>
-    /// 处理 SFTP 消息（DATA_SFTP）
+    /// 处理 DATA_CLIPBOARD 类型的消息
     /// </summary>
     /// <param name="device">设备</param>
     /// <param name="root">JSON 根元素</param>
-    private async Task HandleDataSftpAsync(PairedDevice device, JsonElement root)
+    private async Task HandleDataClipboardAsync(PairedDevice device, JsonElement root)
     {
         try
         {
-            if (!root.TryGetProperty("action", out var actionProp))
+            logger.LogDebug("处理 DATA_CLIPBOARD 消息");
+
+            // 直接从根元素获取属性（新格式，与手机端一致）
+            if (!root.TryGetProperty("clipboardType", out var typeProp) ||
+                !root.TryGetProperty("content", out var contentProp))
             {
-                logger.LogWarning("DATA_SFTP 消息缺少 action 属性");
+                logger.LogWarning("DATA_CLIPBOARD 消息缺少必要属性");
                 return;
             }
 
-            var action = actionProp.GetString() ?? string.Empty;
-            logger.LogDebug("处理 DATA_SFTP action：{action}", action);
+            var clipboardType = typeProp.GetString() ?? "text/plain";
+            var content = contentProp.GetString() ?? string.Empty;
 
-            switch (action)
-            {
-                case "started":
-                    if (!root.TryGetProperty("ipAddress", out var ipProp) ||
-                        !root.TryGetProperty("port", out var portProp))
-                    {
-                        logger.LogWarning("DATA_SFTP started 消息缺少必要属性");
-                        return;
-                    }
+            logger.LogDebug("剪贴板类型：{clipboardType}，内容长度：{contentLength}", clipboardType, content.Length);
 
-                    if (device.SharedSecret == null)
-                    {
-                        logger.LogWarning("设备 {DeviceId} 没有 sharedSecret，无法生成 SFTP 凭据", device.Id);
-                        return;
-                    }
-
-                    // 直接从 sharedSecret 生成 SFTP 凭据，不再依赖收到的凭据
-                    var (expectedUsername, expectedPassword) = NotifyCryptoHelper.DeriveSftpCredentials(device.SharedSecret);
-
-                    var sftpInfo = new SftpServerInfo
-                    {
-                        IpAddress = ipProp.GetString() ?? string.Empty,
-                        Port = portProp.GetInt32(),
-                        Username = expectedUsername,
-                        Password = expectedPassword
-                    };
-
-                    await sftpService.InitializeAsync(device, sftpInfo);
-                    logger.LogInformation("SFTP 连接已建立（凭据验证通过）：IP={IpAddress}, Port={Port}", sftpInfo.IpAddress, sftpInfo.Port);
-                    break;
-
-                case "stopped":
-                    sftpService.Remove(device.Id);
-                    logger.LogInformation("SFTP 连接已断开：{deviceId}", device.Id);
-                    break;
-
-                case "error":
-                    var errorMessage = root.TryGetProperty("message", out var msgProp) ? msgProp.GetString() : "未知错误";
-                    logger.LogWarning("SFTP 服务器启动失败：{errorMessage}", errorMessage);
-                    break;
-
-                default:
-                    logger.LogWarning("不支持的 DATA_SFTP action：{action}", action);
-                    break;
-            }
+            // 直接调用剪贴板服务设置内容
+            await clipboardService.SetContentAsync(content, device);
+        }
+        catch (JsonException jsonEx)
+        {
+            logger.LogError(jsonEx, "解析 DATA_CLIPBOARD 消息时出错");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "处理 DATA_SFTP 消息时出错");
+            logger.LogError(ex, "处理 DATA_CLIPBOARD 消息时出错");
         }
     }
 }

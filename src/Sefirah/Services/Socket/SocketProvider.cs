@@ -5,7 +5,7 @@ using UdpClient = NetCoreServer.UdpClient;
 using TcpClient = NetCoreServer.TcpClient;
 using TcpServer = NetCoreServer.TcpServer;
 
-namespace Sefirah.Services.Socket;
+namespace NotifyRelay.Services.Socket;
 
 public partial class ServerSession(TcpServer server, ITcpServerProvider socketProvider) : TcpSession(server)
 {

@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 /// <summary>
 /// 音乐媒体块数据模型

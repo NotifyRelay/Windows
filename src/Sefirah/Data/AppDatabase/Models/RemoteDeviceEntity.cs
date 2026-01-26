@@ -1,9 +1,9 @@
 using System.Text.Json;
-using Sefirah.Data.Models;
-using Sefirah.Helpers;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
 using SQLite;
 
-namespace Sefirah.Data.AppDatabase.Models;
+namespace NotifyRelay.Data.AppDatabase.Models;
 
 public partial class RemoteDeviceEntity
 {
@@ -23,7 +23,7 @@ public partial class RemoteDeviceEntity
 
     public DateTime? LastConnected { get; set; }
 
-    public bool HasSentSftpRequest { get; set; } = false;
+    public bool HasSentftpRequest { get; set; } = false;
 
     [Column("IpAddresses")]
     public string? IpAddressesJson { get; set; }
@@ -35,16 +35,6 @@ public partial class RemoteDeviceEntity
         set => IpAddressesJson = value is null ? null : JsonSerializer.Serialize(value);
     }
 
-    [Column("PhoneNumbers")]
-    public string? PhoneNumbersJson { get; set; }
-
-    [Ignore]
-    public List<PhoneNumber>? PhoneNumbers
-    {
-        get => string.IsNullOrEmpty(PhoneNumbersJson) ? null : JsonSerializer.Deserialize<List<PhoneNumber>>(PhoneNumbersJson);
-        set => PhoneNumbersJson = value is null ? null : JsonSerializer.Serialize(value);
-    }
-
     #region Helpers
     internal async Task<PairedDevice> ToPairedDevice()
     {
@@ -53,11 +43,10 @@ public partial class RemoteDeviceEntity
             Name = Name,
             Model = Model,
             IpAddresses = IpAddresses,
-            PhoneNumbers = PhoneNumbers,
             Wallpaper = await ImageHelper.ToBitmapAsync(WallpaperBytes),
             SharedSecret = SharedSecret,
             RemotePublicKey = PublicKey,
-            HasSentSftpRequest = HasSentSftpRequest,
+            HasSentftpRequest = HasSentftpRequest,
         };
     }
     #endregion

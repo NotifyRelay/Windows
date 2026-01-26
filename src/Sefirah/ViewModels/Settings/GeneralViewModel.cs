@@ -1,11 +1,11 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Enums;
-using Sefirah.Extensions;
-using Sefirah.Helpers;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Extensions;
+using NotifyRelay.Helpers;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 public sealed partial class GeneralViewModel : BaseViewModel
 {
     #region Services
@@ -151,8 +151,8 @@ public sealed partial class GeneralViewModel : BaseViewModel
             if (value != UserSettingsService.GeneralSettingsService.RemoteStoragePath)
             {
                 UserSettingsService.GeneralSettingsService.RemoteStoragePath = value;
-                var sftpService = Ioc.Default.GetRequiredService<ISftpService>();
-                //sftpService.RemoveAllSyncRoots();
+                var ftpService = Ioc.Default.GetRequiredService<IftpService>();
+                //ftpService.RemoveAllSyncRoots();
                 OnPropertyChanged();
             }
         }

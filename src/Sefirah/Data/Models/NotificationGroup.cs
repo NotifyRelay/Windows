@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public sealed class NotificationGroup(string sender, List<string> messages)
 {

@@ -1,6 +1,6 @@
-using Sefirah.Data.Models.Actions;
+using NotifyRelay.Data.Models.Actions;
 
-namespace Sefirah.Platforms.Desktop;
+namespace NotifyRelay.Platforms.Desktop;
 
 public class DesktopDefaultActions
 {

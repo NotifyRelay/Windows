@@ -1,8 +1,8 @@
-using Sefirah.Data.EventArguments;
-using Sefirah.Utils.Serialization.Implementation;
+using NotifyRelay.Data.EventArguments;
+using NotifyRelay.Utils.Serialization.Implementation;
 using System.Runtime.CompilerServices;
 
-namespace Sefirah.Utils.Serialization;
+namespace NotifyRelay.Utils.Serialization;
 
 /// <summary>
 /// A base class for device-specific settings that stores settings in separate files per device.

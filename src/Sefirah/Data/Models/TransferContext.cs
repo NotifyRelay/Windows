@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 
 public class TransferContext(string device, string transferId, List<FileMetadata> files)
 {

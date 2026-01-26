@@ -1,8 +1,8 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.Models;
-using Sefirah.Extensions;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Extensions;
 
-namespace Sefirah.Dialogs;
+namespace NotifyRelay.Dialogs;
 public static class DeviceSelector
 {
     public static async Task<PairedDevice?> ShowDeviceSelectionDialog(List<PairedDevice> onlineDevices)

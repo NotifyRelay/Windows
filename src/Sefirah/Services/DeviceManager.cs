@@ -1,15 +1,15 @@
 using CommunityToolkit.WinUI;
-using Sefirah.Data.AppDatabase.Models;
-using Sefirah.Data.AppDatabase.Repository;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
-using Sefirah.Dialogs;
-using Sefirah.Helpers;
-using Sefirah.Utils;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Dialogs;
+using NotifyRelay.Helpers;
+using NotifyRelay.Utils;
 using System.Text;
 using Windows.Storage;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceRepository repository) : ObservableObject, IDeviceManager
 {
@@ -51,7 +51,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 existingDevice.Name = device.Name;
                 existingDevice.Model = device.Model;
                 existingDevice.IpAddresses = device.IpAddresses;
-                existingDevice.PhoneNumbers = device.PhoneNumbers;
                 existingDevice.Wallpaper = device.Wallpaper;
                 existingDevice.Session = device.Session;
                 existingDevice.SharedSecret = device.SharedSecret;
@@ -130,7 +129,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             var localDevice = await GetLocalDeviceAsync();
             var localKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
             var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretBytes(localKey, remotePublicKey);
-            var passkey = NotifyCryptoHelper.ComputePasskey(sharedSecretBytes);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
@@ -156,7 +154,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 try
                 {
                     var frame = (Frame)App.MainWindow.Content!;
-                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, passkey, frame)
+                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, frame)
                     {
                         XamlRoot = App.MainWindow.Content!.XamlRoot
                     };
@@ -180,7 +178,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                         PublicKey = remotePublicKey,
                         WallpaperBytes = null,
                         IpAddresses = ipAddress is not null ? [ipAddress] : [],
-                        PhoneNumbers = [],
                     };
 
                     repository.AddOrUpdateRemoteDevice(newDevice);
@@ -284,7 +281,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     public async Task Initialize()
     {
         var pairedDevicesList = await repository.GetPairedDevices();
-        PairedDevices = pairedDevicesList.ToObservableCollection();
+        
+        // 清空现有集合，然后逐个添加设备，确保CollectionChanged事件被触发
+        PairedDevices.Clear();
+        foreach (var device in pairedDevicesList)
+        {
+            PairedDevices.Add(device);
+        }
+        
         ActiveDevice = PairedDevices.FirstOrDefault();
     }
 }

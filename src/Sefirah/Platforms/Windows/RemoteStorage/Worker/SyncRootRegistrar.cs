@@ -1,14 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Extensions.Options;
-using Sefirah.Platforms.Windows.Abstractions;
-using Sefirah.Platforms.Windows.Interop;
-using Sefirah.Platforms.Windows.RemoteStorage.Commands;
-using Sefirah.Platforms.Windows.RemoteStorage.Configuration;
+using NotifyRelay.Platforms.Windows.Abstractions;
+using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
 using Windows.Security.Cryptography;
 using Windows.Storage.Provider;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class SyncRootRegistrar(
     IOptions<ProviderOptions> providerOptions,
     ILogger logger
@@ -56,9 +56,9 @@ public class SyncRootRegistrar(
             Path = directory,
             DisplayNameResource = command.Name,
             IconResource = $"{iconPath},0",
-            HydrationPolicy = StorageProviderHydrationPolicy.Full,
+            HydrationPolicy = StorageProviderHydrationPolicy.Progressive, // 渐进式水合，支持按需访问
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.AutoDehydrationAllowed |
-                                     StorageProviderHydrationPolicyModifier.AllowFullRestartHydration,
+                                        StorageProviderHydrationPolicyModifier.ValidationRequired,
             PopulationPolicy = (StorageProviderPopulationPolicy)command.PopulationPolicy,
             InSyncPolicy = StorageProviderInSyncPolicy.FileCreationTime | 
                            StorageProviderInSyncPolicy.DirectoryCreationTime |

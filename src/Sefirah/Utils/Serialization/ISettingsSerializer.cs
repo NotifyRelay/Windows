@@ -1,4 +1,4 @@
-namespace Sefirah.Utils.Serialization;
+namespace NotifyRelay.Utils.Serialization;
 internal interface ISettingsSerializer
 {
     bool CreateFile(string path);

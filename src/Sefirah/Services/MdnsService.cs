@@ -1,10 +1,10 @@
 using MeaMod.DNS.Model;
 using MeaMod.DNS.Multicast;
-using Sefirah.Data.Contracts;
-using Sefirah.Data.EventArguments;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.EventArguments;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Services;
+namespace NotifyRelay.Services;
 
 public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
 {
@@ -21,7 +21,7 @@ public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
         try
         {
             // Set up the service profile
-            serviceProfile = new ServiceProfile(broadcast.DeviceId, "_sefirah._udp", ((ushort)port));
+            serviceProfile = new ServiceProfile(broadcast.DeviceId, "_NotifyRelay._udp", ((ushort)port));
             serviceProfile.AddProperty("deviceName", broadcast.DeviceName);
             serviceProfile.AddProperty("publicKey", broadcast.PublicKey);
             serviceProfile.AddProperty("serverPort", broadcast.Port.ToString());
@@ -91,8 +91,8 @@ public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
                 // Ignore our own service instance
                 if (serviceProfile is not null && args.ServiceInstanceName == serviceProfile.FullyQualifiedName) return;
                 
-                // Only process _sefirah._udp services
-                if (!args.ServiceInstanceName.ToCanonical().ToString().Contains("_sefirah._udp")) return;
+                // Only process _NotifyRelay._udp services
+                if (!args.ServiceInstanceName.ToCanonical().ToString().Contains("_NotifyRelay._udp")) return;
 
                 // Queries
                 multicastService.SendQuery(args.ServiceInstanceName, type: DnsType.TXT);
@@ -109,8 +109,8 @@ public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
                     string? deviceName = null;
                     string? publicKey = null;
 
-                    // Only process _sefirah._udp services
-                    if (!txtRecord.CanonicalName.Contains("_sefirah._udp")) continue;
+                    // Only process _NotifyRelay._udp services
+                    if (!txtRecord.CanonicalName.Contains("_NotifyRelay._udp")) continue;
 
                     foreach (var txtData in txtRecord.Strings)
                     {

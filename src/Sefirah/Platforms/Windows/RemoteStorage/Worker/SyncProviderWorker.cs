@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Options;
-using Sefirah.Platforms.Windows.Async;
-using Sefirah.Platforms.Windows.RemoteStorage.Configuration;
+using NotifyRelay.Platforms.Windows.Async;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
 using Windows.Storage.Provider;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Worker;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 public class SyncProviderWorker(
     IOptions<ProviderOptions> providerOptions,
     SyncProviderPool pool

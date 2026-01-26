@@ -1,9 +1,9 @@
 using AdvancedSharpAdbClient;
 using AdvancedSharpAdbClient.Models;
-using Sefirah.Data.Items;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Items;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 public interface IAdbService
 {
     ObservableCollection<AdbDevice> AdbDevices { get; }

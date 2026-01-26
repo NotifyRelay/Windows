@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Sefirah.Utils.Serialization.Implementation;
+namespace NotifyRelay.Utils.Serialization.Implementation;
 internal sealed class JsonSettingsSerializer : IJsonSettingsSerializer
 {
     public static readonly JsonSerializerOptions Options = new()

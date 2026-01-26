@@ -1,7 +1,7 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Services;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Services;
 
-namespace Sefirah.Platforms.Desktop.Services;
+namespace NotifyRelay.Platforms.Desktop.Services;
 
 public class DesktopActionService(
     IGeneralSettingsService generalSettingsService, 

@@ -1,13 +1,13 @@
 using System.Runtime.InteropServices;
-using Sefirah.Platforms.Windows.Helpers;
-using Sefirah.Platforms.Windows.Interop.Extensions;
-using Sefirah.Platforms.Windows.Interop.SyncRoot;
-using Sefirah.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+using NotifyRelay.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Interop.Extensions;
+using NotifyRelay.Platforms.Windows.Interop.SyncRoot;
+using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.Extensions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
 
-namespace Sefirah.Platforms.Windows.Interop;
+namespace NotifyRelay.Platforms.Windows.Interop;
 public static class CloudFilter
 {
     public static CldApi.CF_CALLBACK_REGISTRATION[] ConnectSyncRoot(
@@ -338,10 +338,13 @@ public static class CloudFilter
             }
         );
         var hr = CldApi.CfExecute(opInfo, ref opParameters);
-        // expected ERROR_CLOUD_REQUEST_CANCELED
+        // expected ERROR_CLOUD_REQUEST_CANCELED (398) or other expected errors
         if (hr.Code != 398)
         {
-            hr.ThrowIfFailed("Update transfer data failed");
+            // 记录错误但不抛出异常，避免async void方法崩溃
+            // 常见错误包括：0x80073D54 (15700) - 该进程没有程序包标识符
+            // 这在某些环境下可能是预期行为
+            System.Diagnostics.Debug.WriteLine($"TransferData failed with hr={hr.Code} (0x{hr.Code:X8})");
         };
     }
 

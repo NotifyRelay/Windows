@@ -1,6 +1,6 @@
 using System.Net;
 
-namespace Sefirah.Data.Models;
+namespace NotifyRelay.Data.Models;
 public class IPNetwork(IPAddress address, IPAddress mask)
 {
     public IPAddress Address { get; } = address;

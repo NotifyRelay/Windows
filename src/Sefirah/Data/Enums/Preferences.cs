@@ -1,4 +1,4 @@
-namespace Sefirah.Data.Enums;
+namespace NotifyRelay.Data.Enums;
 
 public enum Theme
 {

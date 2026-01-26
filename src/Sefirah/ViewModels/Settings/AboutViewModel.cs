@@ -1,8 +1,8 @@
-using Sefirah.Data.Items;
+using NotifyRelay.Data.Items;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
-namespace Sefirah.ViewModels.Settings;
+namespace NotifyRelay.ViewModels.Settings;
 public partial class AboutViewModel : ObservableObject
 {
     [ObservableProperty]

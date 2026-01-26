@@ -1,7 +1,7 @@
-using Sefirah.Data.EventArguments;
+using NotifyRelay.Data.EventArguments;
 using System.Runtime.CompilerServices;
 
-namespace Sefirah.Utils.Serialization;
+namespace NotifyRelay.Utils.Serialization;
 
 /// <summary>
 /// A base class to easily manage all application's settings.

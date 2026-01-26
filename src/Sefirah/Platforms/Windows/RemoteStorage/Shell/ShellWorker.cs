@@ -1,7 +1,7 @@
-using Sefirah.Platforms.Windows.Async;
-using Sefirah.Platforms.Windows.Helpers;
+using NotifyRelay.Platforms.Windows.Async;
+using NotifyRelay.Platforms.Windows.Helpers;
 
-namespace Sefirah.Platforms.Windows.RemoteStorage.Shell;
+namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
 
 public sealed class ShellWorker(
     ShellRegistrar shellRegistrar,

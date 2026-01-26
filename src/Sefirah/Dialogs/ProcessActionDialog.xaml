@@ -1,9 +1,9 @@
 ﻿<ContentDialog
-    x:Class="Sefirah.Dialogs.ProcessActionDialog"
+    x:Class="NotifyRelay.Dialogs.ProcessActionDialog"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:helpers="using:Sefirah.Helpers"
-    xmlns:local="using:Sefirah.Dialogs"
+    xmlns:helpers="using:NotifyRelay.Helpers"
+    xmlns:local="using:NotifyRelay.Dialogs"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     DefaultButton="Primary"
     IsPrimaryButtonEnabled="{x:Bind IsFormValid, Mode=OneWay}"

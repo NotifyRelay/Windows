@@ -1,7 +1,7 @@
-using Sefirah.Data.Contracts;
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Platforms.Desktop.Services;
+namespace NotifyRelay.Platforms.Desktop.Services;
 public class DesktopPlaybackService : IPlaybackService
 {
     public Task HandleMediaActionAsync(PlaybackAction mediaAction)
@@ -17,5 +17,10 @@ public class DesktopPlaybackService : IPlaybackService
     public Task InitializeAsync()
     {
         return Task.CompletedTask;
+    }
+
+    public void SendMediaControlRequest(string deviceId, string controlType)
+    {
+        // 桌面平台实现暂为空，或者记录日志
     }
 }

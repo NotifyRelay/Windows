@@ -1,6 +1,6 @@
-using Sefirah.Data.Models;
+using NotifyRelay.Data.Models;
 
-namespace Sefirah.Data.Contracts;
+namespace NotifyRelay.Data.Contracts;
 
 public interface IClipboardService
 {
@@ -8,4 +8,9 @@ public interface IClipboardService
     /// Sets the content of the clipboard.
     /// </summary>
     Task SetContentAsync(object content, PairedDevice sourceDevice);
+
+    /// <summary>
+    /// 处理剪贴板消息 (DATA_CLIPBOARD)
+    /// </summary>
+    Task ProcessClipboardMessageAsync(PairedDevice device, string payload);
 }

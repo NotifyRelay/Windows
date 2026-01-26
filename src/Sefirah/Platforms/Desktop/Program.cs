@@ -1,4 +1,4 @@
-using Sefirah;
+using NotifyRelay;
 using Uno.UI.Hosting;
 
 internal class Program
