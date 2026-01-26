@@ -561,7 +561,7 @@
             x:Name="NotificationsScrollViewer"
             Grid.Row="1"
             Margin="0,10,0,0"
-            Padding="0"
+            Padding="0,0,0,40"
             HorizontalScrollBarVisibility="Disabled"
             HorizontalScrollMode="Disabled"
             VerticalScrollBarVisibility="Auto"

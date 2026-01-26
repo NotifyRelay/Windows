@@ -28,7 +28,8 @@ public class NetworkService(
     IAdbService adbService,
     IScreenMirrorService screenMirrorService,
     ISystemInfoService systemInfoService,
-    ProtocolRouter protocolRouter) : INetworkService, ISessionManager, ITcpServerProvider
+    ProtocolRouter protocolRouter,
+    Func<IRemoteAppService> remoteAppServiceFactory) : INetworkService, ISessionManager, ITcpServerProvider
 {
     private Server? server;
     public int ServerPort { get; private set; } = 23333;
@@ -44,6 +45,7 @@ public class NetworkService(
     private Timer? heartbeatTimer;
     private readonly TimeSpan heartbeatInterval = TimeSpan.FromSeconds(4);
     private readonly TimeSpan heartbeatTimeout = TimeSpan.FromSeconds(15);
+    private readonly Lazy<IRemoteAppService> remoteAppService = new(remoteAppServiceFactory);
     
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
 
@@ -357,6 +359,9 @@ public class NetworkService(
             }
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
+            
+            // 延迟请求应用列表，避免阻塞握手
+            DelayedRequestAppList(device.Id);
         }
         else
         {
@@ -531,6 +536,10 @@ public class NetworkService(
             BindSession(device.Id, session);
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
+            
+            // 延迟请求应用列表，避免阻塞握手
+            DelayedRequestAppList(device.Id);
+            
             return device;
         }
         catch (Exception ex)
@@ -538,6 +547,25 @@ public class NetworkService(
             logger.LogError(ex, "绑定预握手 DATA 会话时出错");
             return null;
         }
+    }
+
+    private void DelayedRequestAppList(string deviceId)
+    {
+        Task.Run(async () =>
+        {
+            try
+            {
+                // 等待几秒钟，确保连接稳定，且不阻塞主握手流程
+                await Task.Delay(3000);
+                
+                remoteAppService.Value.SendAppListRequest(deviceId);
+                logger.LogDebug("已自动触发设备 {deviceId} 的应用列表请求", deviceId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "自动请求应用列表失败");
+            }
+        });
     }
 
     private void DisconnectSession(ServerSession session)

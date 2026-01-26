@@ -72,16 +72,28 @@ public sealed partial class NotificationsListControl : UserControl
             {
                 // 保存当前滚动位置
                 var currentOffset = NotificationsScrollViewer.VerticalOffset;
+                var scrollableHeight = NotificationsScrollViewer.ScrollableHeight;
                 
+                // 检查是否接近底部 (例如在最后 20 像素内)，考虑到浮点数误差和可能的Padding影响
+                bool isAtBottom = scrollableHeight > 0 && currentOffset >= (scrollableHeight - 20);
+
                 // 延迟恢复滚动位置，确保UI已完全更新
                 var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
                 dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
                 {
-                    // 只有当不在顶部时才恢复位置
-                    if (currentOffset > SCROLL_THRESHOLD)
+                    // 如果之前在底部，则更新后也保持在底部
+                    if (isAtBottom)
+                    {
+                         // 滚动到最新的底部
+                         NotificationsScrollViewer.ChangeView(null, NotificationsScrollViewer.ScrollableHeight, null, false);
+                    }
+                    // 否则，只有当不在顶部时才恢复位置
+                    else if (currentOffset > SCROLL_THRESHOLD)
                     {
                         // 使用ChangeView恢复滚动位置，不触发动画
-                        NotificationsScrollViewer.ChangeView(null, currentOffset, null, false);
+                        // 确保不超过新的 ScrollableHeight
+                        var targetOffset = Math.Min(currentOffset, NotificationsScrollViewer.ScrollableHeight);
+                        NotificationsScrollViewer.ChangeView(null, targetOffset, null, false);
                     }
                 });
             }
