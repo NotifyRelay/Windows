@@ -134,93 +134,13 @@ public class ProtocolRouter
                     logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {decryptedPayload}", decryptedPayload);
                     await HandleMediaControlMessageAsync(device, decryptedPayload);
                     break;
-                
 #if WINDOWS
                 case "DATA_FTP":
-                    // ftp 消息，直接处理网络磁盘映射
-                    logger.LogDebug("处理DATA_FTP消息，内容: {decryptedPayload}", decryptedPayload);
-                    try
-                    {
-                        var doc = JsonDocument.Parse(decryptedPayload);
-                        var root = doc.RootElement;
-                        
-                        var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
-                        logger.LogDebug("ftp消息action: {action}", action);
-                        
-                        if (action == "started")
-                        {
-                            // ftp服务已启动，解析服务器信息
-                            if (root.TryGetProperty("ipAddress", out var ipAddressProp))
-                            {
-                                var ipAddress = ipAddressProp.GetString();
-                                var port = root.TryGetProperty("port", out var portProp) ? portProp.GetInt32() : 22;
-                                
-                                if (!string.IsNullOrEmpty(ipAddress))
-                                {
-                                    var serverInfo = new ftpServerInfo
-                                    {
-                                        IpAddress = ipAddress,
-                                        Port = port
-                                    };
-                                    
-                                    // 直接调用NetworkDriveMapper进行网络磁盘映射
-                                    try
-                                    {
-                                        string mappedDrive = networkDriveMapper.Value.MapftpDrive(device, serverInfo);
-                                        if (!string.IsNullOrEmpty(mappedDrive))
-                                        {
-                                            logger.LogDebug("设备 {DeviceName} 已成功映射为网络磁盘，盘符：{MappedDrive}", device.Name, mappedDrive);
-                                        }
-                                        else
-                                        {
-                                            logger.LogWarning("网络磁盘映射失败，但未抛出异常，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}", 
-                                                device.Name, ipAddress, port);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        logger.LogError(ex, "网络磁盘映射失败，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}", 
-                                            device.Name, ipAddress, port);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    catch (JsonException ex)
-                    {
-                        logger.LogError(ex, "解析ftp消息失败: {decryptedPayload}", decryptedPayload);
-                    }
+                    await HandleFtpMessageAsync(device, decryptedPayload);
                     break;
 #endif
-                    
                 case "DATA_CLIPBOARD":
-                    // 剪贴板消息，直接处理
-                    logger.LogDebug("处理DATA_CLIPBOARD消息，内容: {decryptedPayload}", decryptedPayload);
-                    try
-                    {
-                        // 直接解析为ClipboardMessage并处理
-                        var doc = JsonDocument.Parse(decryptedPayload);
-                        var root = doc.RootElement;
-                        
-                        // 提取剪贴板消息内容
-                        var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
-                        var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
-                        
-                        // 创建ClipboardMessage对象
-                        var clipboardMessage = new ClipboardMessage
-                        {
-                            ClipboardType = clipboardType,
-                            Content = content
-                        };
-                        
-                        // 调用消息处理器处理剪贴板消息
-                        await messageHandler.Value.HandleMessageAsync(device, clipboardMessage);
-                        logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
-                    }
-                    catch (JsonException ex)
-                    {
-                        logger.LogError(ex, "解析剪贴板消息失败: {decryptedPayload}", decryptedPayload);
-                    }
+                    await HandleClipboardMessageAsync(device, decryptedPayload);
                     break;
                     
                 default:
@@ -673,6 +593,88 @@ public class ProtocolRouter
         catch (Exception ex)
         {
             logger.LogError(ex, "处理媒体控制消息时出错");
+        }
+    }
+
+#if WINDOWS
+    private async Task HandleFtpMessageAsync(PairedDevice device, string decryptedPayload)
+    {
+        logger.LogDebug("处理DATA_FTP消息，内容: {decryptedPayload}", decryptedPayload);
+        try
+        {
+            using var doc = JsonDocument.Parse(decryptedPayload);
+            var root = doc.RootElement;
+
+            var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
+            logger.LogDebug("ftp消息action: {action}", action);
+
+            if (action == "started")
+            {
+                if (root.TryGetProperty("ipAddress", out var ipAddressProp))
+                {
+                    var ipAddress = ipAddressProp.GetString();
+                    var port = root.TryGetProperty("port", out var portProp) ? portProp.GetInt32() : 22;
+
+                    if (!string.IsNullOrEmpty(ipAddress))
+                    {
+                        var serverInfo = new ftpServerInfo
+                        {
+                            IpAddress = ipAddress,
+                            Port = port
+                        };
+
+                        try
+                        {
+                            string mappedDrive = networkDriveMapper.Value.MapftpDrive(device, serverInfo);
+                            if (!string.IsNullOrEmpty(mappedDrive))
+                            {
+                                logger.LogDebug("设备 {DeviceName} 已成功映射为网络磁盘，盘符：{MappedDrive}", device.Name, mappedDrive);
+                            }
+                            else
+                            {
+                                logger.LogWarning("网络磁盘映射失败，但未抛出异常，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}",
+                                    device.Name, ipAddress, port);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError(ex, "网络磁盘映射失败，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}",
+                                device.Name, ipAddress, port);
+                        }
+                    }
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "解析ftp消息失败: {decryptedPayload}", decryptedPayload);
+        }
+    }
+#endif
+
+    private async Task HandleClipboardMessageAsync(PairedDevice device, string decryptedPayload)
+    {
+        logger.LogDebug("处理DATA_CLIPBOARD消息，内容: {decryptedPayload}", decryptedPayload);
+        try
+        {
+            using var doc = JsonDocument.Parse(decryptedPayload);
+            var root = doc.RootElement;
+
+            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
+            var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
+
+            var clipboardMessage = new ClipboardMessage
+            {
+                ClipboardType = clipboardType,
+                Content = content
+            };
+
+            await messageHandler.Value.HandleMessageAsync(device, clipboardMessage);
+            logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "解析剪贴板消息失败: {decryptedPayload}", decryptedPayload);
         }
     }
 }

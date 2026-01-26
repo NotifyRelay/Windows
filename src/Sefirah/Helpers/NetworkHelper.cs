@@ -37,4 +37,24 @@ public static class NetworkHelper
     }
 
     public record IPAddressInfo(IPAddress Address, IPAddress SubnetMask, IPAddress? Gateway);
+
+    public static string GetLocalIpAddress()
+    {
+        try
+        {
+            var host = Dns.GetHostEntry(Dns.GetHostName());
+            foreach (var ip in host.AddressList)
+            {
+                if (ip.AddressFamily == AddressFamily.InterNetwork && !IPAddress.IsLoopback(ip))
+                {
+                    return ip.ToString();
+                }
+            }
+            return "0.0.0.0";
+        }
+        catch
+        {
+            return "0.0.0.0";
+        }
+    }
 }
