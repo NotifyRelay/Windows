@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using System.Linq;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
@@ -15,7 +16,8 @@ namespace NotifyRelay.Services;
 public class ScreenMirrorService(
     ILogger<ScreenMirrorService> logger,
     IUserSettingsService userSettingsService,
-    IAdbService adbService
+    IAdbService adbService,
+    Func<INetworkService> networkServiceFactory
 ) : IScreenMirrorService, IDisposable
 {
     private readonly ObservableCollection<AdbDevice> devices = adbService.AdbDevices;
@@ -778,7 +780,7 @@ public class ScreenMirrorService(
             string responseJson = JsonSerializer.Serialize(response);
             
             // 发送响应
-            deviceCommunicationServiceFactory().SendMessage(device.Id, responseJson);
+            networkServiceFactory().SendMessage(device.Id, responseJson);
             
             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
         }
@@ -795,7 +797,7 @@ public class ScreenMirrorService(
             };
             string errorResponseJson = JsonSerializer.Serialize(errorResponse);
             
-            deviceCommunicationServiceFactory().SendMessage(device.Id, errorResponseJson);
+            networkServiceFactory().SendMessage(device.Id, errorResponseJson);
         }
     }
 

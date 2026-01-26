@@ -192,12 +192,11 @@ public class ClipboardService : IClipboardService
         // Convert Windows CRLF to Unix LF 
         text = text.Replace("\r\n", "\n");
         
-        // 创建剪贴板消息内容，不使用继承自SocketMessage的ClipboardMessage类，避免生成"type":"3"字段
-        var clipboardContent = new
+        // 创建剪贴板消息内容
+        var clipboardContent = new ClipboardMessage
         {
-            type = "DATA_CLIPBOARD",
-            clipboardType = "text/plain",
-            content = text
+            ClipboardType = "text/plain",
+            Content = text
         };
         // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
         var jsonOptions = new JsonSerializerOptions
@@ -241,12 +240,11 @@ public class ClipboardService : IClipboardService
         byte[] buffer = new byte[stream.Length];
         await stream.ReadExactlyAsync(buffer);
 
-        // 创建剪贴板消息内容，不使用继承自SocketMessage的ClipboardMessage类，避免生成"type":"3"字段
-        var clipboardContent = new
+        // 创建剪贴板消息内容
+        var clipboardContent = new ClipboardMessage
         {
-            type = "DATA_CLIPBOARD",
-            clipboardType = mimeType,
-            content = Convert.ToBase64String(buffer)
+            ClipboardType = mimeType,
+            Content = Convert.ToBase64String(buffer)
         };
         // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
         var jsonOptions = new JsonSerializerOptions

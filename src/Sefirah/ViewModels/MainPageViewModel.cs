@@ -19,6 +19,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     private IUpdateService UpdateService { get; } = Ioc.Default.GetRequiredService<IUpdateService>();
     private IFileTransferService FileTransferService { get; } = Ioc.Default.GetRequiredService<IFileTransferService>();
     private IMessageHandler MessageHandler { get; } = Ioc.Default.GetRequiredService<IMessageHandler>();
+    private IPlaybackService PlaybackService { get; } = Ioc.Default.GetRequiredService<IPlaybackService>();
     #endregion
 
     #region Properties
@@ -442,7 +443,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
         string action = parts[1];
         
         // 发送媒体控制请求到指定设备
-        SessionManager.SendMediaControlRequest(deviceId, action);
+        PlaybackService.SendMediaControlRequest(deviceId, action);
     }
 
     [RelayCommand]

@@ -13,6 +13,7 @@ public class MessageHandler(
     RemoteAppRepository remoteAppRepository,
     IDeviceManager deviceManager,
     Func<INetworkService> networkServiceFactory,
+    Func<IRemoteAppService> remoteAppServiceFactory,
     INotificationService notificationService,
     IClipboardService clipboardService,
     
@@ -47,21 +48,14 @@ public class MessageHandler(
 
         try
         {
-            var json = new JsonObject
+            var command = new FtpCommand
             {
-                ["type"] = "DATA_FTP",
-                ["action"] = action
+                Action = action,
+                Username = action == "start" ? username : null,
+                Password = action == "start" ? password : null
             };
 
-            if (action == "start")
-            {
-                if (!string.IsNullOrEmpty(username))
-                    json["username"] = username;
-                if (!string.IsNullOrEmpty(password))
-                    json["password"] = password;
-            }
-
-            var message = JsonSerializer.Serialize(json);
+            var message = JsonSerializer.Serialize(command);
             networkServiceFactory().SendMessage(device.Id, message);
             logger.LogDebug("已发送 FTP 命令：action={action}, device={deviceName}", action, device.Name);
         }
@@ -270,7 +264,7 @@ public class MessageHandler(
             // 发送批量图标请求
             if (packageNamesWithoutIcons.Count > 0)
             {
-                networkServiceFactory().SendIconRequest(device.Id, packageNamesWithoutIcons);
+                remoteAppServiceFactory().SendIconRequest(device.Id, packageNamesWithoutIcons);
             }
 
             return Task.CompletedTask;

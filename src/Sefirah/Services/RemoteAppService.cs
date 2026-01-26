@@ -84,15 +84,10 @@ public class RemoteAppService(
     public void SendAppListRequest(string deviceId)
     {
         // 构建应用列表请求对象
-        var requestObj = new
-        {
-            type = "DATA_APP_LIST_REQUEST",
-            scope = "user",
-            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
+        var request = new ApplicationListRequest();
         
         // 序列化为 JSON
-        string requestJson = JsonSerializer.Serialize(requestObj);
+        string requestJson = JsonSerializer.Serialize(request);
         
         // 调用通用发送方法
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
@@ -108,28 +103,18 @@ public class RemoteAppService(
         logger.LogInformation("开始发送图标请求：deviceId={deviceId}, packageCount={packageCount}", deviceId, packageNames.Count);
 
         // 构建图标请求对象（支持单个或多个包名）
-        object requestObj;
+        var request = new IconRequest();
         if (packageNames.Count == 1)
         {
-            requestObj = new
-            {
-                type = "DATA_ICON_REQUEST",
-                packageName = packageNames.First(),
-                time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
+            request.PackageName = packageNames.First();
         }
         else
         {
-            requestObj = new
-            {
-                type = "DATA_ICON_REQUEST",
-                packageNames = packageNames,
-                time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-            };
+            request.PackageNames = packageNames;
         }
         
         // 序列化为 JSON
-        string requestJson = JsonSerializer.Serialize(requestObj);
+        string requestJson = JsonSerializer.Serialize(request);
         
         // 调用通用发送方法
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);

@@ -364,21 +364,20 @@ public class WindowsPlaybackService(
             if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
             {
                 // 构造媒体结束包
-                var endPayload = new
+                var endPayload = new MediaPlayNotification
                 {
-                    type = "DATA_MEDIAPLAY",
-                    packageName = "MusicIsland",
-                    appName = "Music Island",
-                    title = "No media playing",
-                    text = "",
-                    coverUrl = "",
-                    time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    isLocked = false,
-                    mediaType = "FULL",
-                    terminate = true, // 明确标识结束
-                    terminateValue = "__END__", // 统一结束标识
-                    featureKeyName = "si_feature_id", // 与超级岛保持一致
-                    featureKeyValue = "media_island_global" // 媒体会话全局特征ID
+                    PackageName = "MusicIsland",
+                    AppName = "Music Island",
+                    Title = "No media playing",
+                    Text = "",
+                    CoverUrl = "",
+                    Time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    IsLocked = false,
+                    MediaType = "FULL",
+                    Terminate = true,
+                    TerminateValue = "__END__",
+                    FeatureKeyName = "si_feature_id",
+                    FeatureKeyValue = "media_island_global"
                 };
                 
                 // 序列化为JSON字符串
@@ -578,17 +577,16 @@ public class WindowsPlaybackService(
                 if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
                 {
                     // 构造与Android兼容的媒体播放通知对象
-                    var requestObj = new
+                    var requestObj = new MediaPlayNotification
                     {
-                        type = "DATA_MEDIAPLAY",
-                        packageName = playbackSession.Source,
-                        appName = appName,
-                        title = title,
-                        text = text,
-                        coverUrl = coverUrl, // 始终包含封面URL，避免安卓端清理图标
-                        time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        isLocked = false,
-                        mediaType = sendFullPayload ? "FULL" : "DELTA"
+                        PackageName = playbackSession.Source,
+                        AppName = appName,
+                        Title = title,
+                        Text = text,
+                        CoverUrl = coverUrl, // 始终包含封面URL，避免安卓端清理图标
+                        Time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        IsLocked = false,
+                        MediaType = sendFullPayload ? "FULL" : "DELTA"
                     };
 
                     string requestJson = JsonSerializer.Serialize(requestObj);
@@ -774,10 +772,9 @@ public class WindowsPlaybackService(
     /// <inheritdoc/>
     public void SendMediaControlRequest(string deviceId, string controlType)
     {
-        var requestObj = new
+        var requestObj = new MediaControlRequest
         {
-            type = "DATA_MEDIA_CONTROL",
-            action = controlType
+            Action = controlType
         };
         string requestJson = JsonSerializer.Serialize(requestObj);
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);

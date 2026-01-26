@@ -226,6 +226,12 @@ public static class AppLifecycleHelper
                 
                 // 6. 注册INotificationService，它依赖ISessionManager
                 .AddSingleton<INotificationService, NotificationService>()
+                .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
+
+                // 注册其他需要的工厂
+                .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
+                .AddSingleton<Func<IRemoteAppService>>(sp => () => sp.GetRequiredService<IRemoteAppService>())
+                .AddSingleton<Func<IPlaybackService>>(sp => () => sp.GetRequiredService<IPlaybackService>())
                 
                 // 7. 注册IDiscoveryService，它依赖INetworkService
                 .AddSingleton<IDiscoveryService, DiscoveryService>()

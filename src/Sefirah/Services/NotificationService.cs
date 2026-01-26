@@ -20,7 +20,8 @@ public class NotificationService(
     IPlatformNotificationHandler platformNotificationHandler,
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
-    Func<INetworkService> networkServiceFactory) : INotificationService, INotifyPropertyChanged
+    Func<INetworkService> networkServiceFactory,
+    Func<IRemoteAppService> remoteAppServiceFactory) : INotificationService, INotifyPropertyChanged
 {
     private readonly Dictionary<string, ObservableCollection<Notification>> deviceNotifications = [];
     private readonly object deviceNotificationsLock = new();
@@ -192,7 +193,7 @@ public class NotificationService(
                     pendingIconRequests[requestKey] = iconRequestTcs;
                     
                     // 发送图标请求
-                    networkServiceFactory().SendIconRequest(device.Id, message.AppPackage);
+                    remoteAppServiceFactory().SendIconRequest(device.Id, [message.AppPackage]);
                 }
 
                 // 等待图标请求完成，最长等待 3 秒
@@ -1081,7 +1082,7 @@ public class NotificationService(
                             // 如果图标不存在，尝试异步请求图标
                             logger.LogDebug("通知图标不存在，尝试请求图标: {AppPackage}", msg.AppPackage);
                             // 发送图标请求
-                            networkServiceFactory().SendIconRequest(device.Id, msg.AppPackage);
+                            remoteAppServiceFactory().SendIconRequest(device.Id, [msg.AppPackage]);
                             // 延迟一段时间后再次尝试加载图标
                             await Task.Delay(500);
                             await notif.LoadIconAsync();

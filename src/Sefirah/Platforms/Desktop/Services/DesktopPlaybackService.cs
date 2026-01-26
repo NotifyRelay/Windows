@@ -18,4 +18,9 @@ public class DesktopPlaybackService : IPlaybackService
     {
         return Task.CompletedTask;
     }
+
+    public void SendMediaControlRequest(string deviceId, string controlType)
+    {
+        // 桌面平台实现暂为空，或者记录日志
+    }
 }
