@@ -9,6 +9,7 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Services;
 using NotifyRelay.Utils.Serialization;
 using Windows.Media;
 using Windows.Media.Control;
@@ -362,20 +363,19 @@ public class WindowsPlaybackService(
         {
             if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
             {
-                // 构造与Android端buildMediaPlayEndPayload方法保持一致的媒体结束包
-                string appName = session.SourceAppUserModelId ?? "Unknown App";
-                string packageName = session.SourceAppUserModelId ?? "Unknown Package";
-                long time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-                
-                // 构建JSON对象，与Android端保持一致
+                // 构造媒体结束包
                 var endPayload = new
                 {
-                    packageName = packageName,
-                    appName = appName,
-                    time = time,
-                    isLocked = false, // PC端无法获取锁屏状态，默认设为false
-                    type = "MEDIA_PLAY",
-                    mediaType = "END", // 结束包标记
+                    type = "DATA_MEDIAPLAY",
+                    packageName = "MusicIsland",
+                    appName = "Music Island",
+                    title = "No media playing",
+                    text = "",
+                    coverUrl = "",
+                    time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    isLocked = false,
+                    mediaType = "FULL",
+                    terminate = true, // 明确标识结束
                     terminateValue = "__END__", // 统一结束标识
                     featureKeyName = "si_feature_id", // 与超级岛保持一致
                     featureKeyValue = "media_island_global" // 媒体会话全局特征ID
@@ -384,9 +384,8 @@ public class WindowsPlaybackService(
                 // 序列化为JSON字符串
                 string endPayloadJson = JsonSerializer.Serialize(endPayload);
                 
-                // 使用NetworkService的SendRequest方法直接发送媒体结束包，使用DATA_MEDIAPLAY协议头
-                var networkService = Ioc.Default.GetRequiredService<INetworkService>();
-                networkService.SendMessage(device.Id, endPayloadJson);
+                // 使用 ProtocolSender 发送媒体结束包
+                _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, endPayloadJson);
             }
         }
     }
@@ -578,22 +577,22 @@ public class WindowsPlaybackService(
             {
                 if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
                 {
-                    // 构造与Android兼容的NotificationMessage
-                    var notificationMessage = new NotificationMessage
+                    // 构造与Android兼容的媒体播放通知对象
+                    var requestObj = new
                     {
-                        NotificationKey = Guid.NewGuid().ToString(),
-                        TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
-                        NotificationType = NotificationType.New,
-                        AppPackage = playbackSession.Source,
-                        AppName = appName,
-                        Title = title,
-                        Text = text,
-                        CoverUrl = coverUrl, // 始终包含封面URL，避免安卓端清理图标
+                        type = "DATA_MEDIAPLAY",
+                        packageName = playbackSession.Source,
+                        appName = appName,
+                        title = title,
+                        text = text,
+                        coverUrl = coverUrl, // 始终包含封面URL，避免安卓端清理图标
+                        time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        isLocked = false,
+                        mediaType = sendFullPayload ? "FULL" : "DELTA"
                     };
-                    
-                    // 使用NetworkService发送与Android兼容的媒体会话，传递正确的mediaType参数
-                    string mediaType = sendFullPayload ? "FULL" : "DELTA";
-                    networkService.SendMediaPlayNotification(device.Id, notificationMessage, mediaType);
+
+                    string requestJson = JsonSerializer.Serialize(requestObj);
+                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, requestJson);
                 }
             }
         }
@@ -770,5 +769,17 @@ public class WindowsPlaybackService(
     {
         AudioDevice? device = AudioDevices.FirstOrDefault(d => d.DeviceId == pwstrDeviceId);
         device?.Volume = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.MasterVolumeLevelScalar;
+    }
+
+    /// <inheritdoc/>
+    public void SendMediaControlRequest(string deviceId, string controlType)
+    {
+        var requestObj = new
+        {
+            type = "DATA_MEDIA_CONTROL",
+            action = controlType
+        };
+        string requestJson = JsonSerializer.Serialize(requestObj);
+        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
     }
 }

@@ -11,6 +11,7 @@ public sealed partial class AppsViewModel : BaseViewModel
 {
     #region Services
     private RemoteAppRepository RemoteAppsRepository { get; } = Ioc.Default.GetRequiredService<RemoteAppRepository>();
+    private IRemoteAppService RemoteAppService { get; } = Ioc.Default.GetRequiredService<IRemoteAppService>();
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
     private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
@@ -41,7 +42,7 @@ public sealed partial class AppsViewModel : BaseViewModel
 
         IsLoading = true;
         // 使用新协议请求应用列表
-        RemoteAppsRepository.RequestAppList(DeviceManager.ActiveDevice!.Id);
+        RemoteAppService.SendAppListRequest(DeviceManager.ActiveDevice!.Id);
     }
 
     public void PinApp(ApplicationInfo app)

@@ -22,5 +22,12 @@ public interface IPlaybackService
     /// </summary>
     /// <param name="data">The playback data containing action details.</param>
     Task HandleRemotePlaybackMessageAsync(PlaybackSession data);
+
+    /// <summary>
+    /// Sends a media control request to the specified device.
+    /// </summary>
+    /// <param name="deviceId">The target device ID.</param>
+    /// <param name="controlType">The control type (e.g., play, pause, next).</param>
+    void SendMediaControlRequest(string deviceId, string controlType);
 }
 

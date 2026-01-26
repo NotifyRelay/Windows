@@ -198,12 +198,12 @@ public static class AppLifecycleHelper
                 // 1. 首先注册基础服务
                 .AddSingleton<ISystemInfoService, SystemInfoService>()
                 .AddSingleton<IDeviceManager, DeviceManager>()
-                .AddSingleton<IDeviceCommunicationService, DeviceCommunicationService>()
                 .AddSingleton<IMdnsService, MdnsService>()
                 .AddSingleton<IAdbService, AdbService>()
                 .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
                 .AddSingleton<IFileTransferService, FileTransferService>()
                 .AddSingleton<IClipboardService, ClipboardService>()
+                .AddSingleton<IRemoteAppService, RemoteAppService>()
                 
                 // 2. 注册IMessageHandler，它依赖RemoteAppRepository，而RemoteAppRepository依赖Func<INetworkService>
                 .AddSingleton<IMessageHandler, MessageHandler>()

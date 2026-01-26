@@ -1,8 +1,11 @@
 using System;
+using System.Linq;
 using System.Net.Sockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 
@@ -19,6 +22,53 @@ public static class ProtocolSender
     private const string TAG = "ProtocolSender";
     private const int DEFAULT_TIMEOUT = 80000;
     private const int DEFAULT_CONNECT_TIMEOUT = 5000;
+
+    /// <summary>
+    /// 发送消息，自动从JSON中提取type作为协议头
+    /// </summary>
+    /// <param name="logger">日志记录器</param>
+    /// <param name="deviceManager">设备管理器</param>
+    /// <param name="deviceId">目标设备ID</param>
+    /// <param name="messageJson">消息JSON字符串</param>
+    public static async Task SendMessageAsync(
+        ILogger logger,
+        IDeviceManager deviceManager,
+        string deviceId,
+        string messageJson)
+    {
+        string header = "DATA_JSON";
+        try
+        {
+            using var doc = JsonDocument.Parse(messageJson);
+            if (doc.RootElement.TryGetProperty("type", out var typeProp))
+            {
+                header = typeProp.GetString() ?? "DATA_JSON";
+            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "解析消息JSON以提取type失败，使用默认头DATA_JSON");
+        }
+
+        var device = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == deviceId);
+        if (device is null)
+        {
+            logger.LogWarning("跳过发送：未找到设备 {deviceId}", deviceId);
+            return;
+        }
+
+        var localDevice = await deviceManager.GetLocalDeviceAsync();
+        var localDeviceId = localDevice.DeviceId;
+        var localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+
+        if (localPublicKey is null || localDeviceId is null)
+        {
+            logger.LogWarning("本地身份未初始化，跳过发送");
+            return;
+        }
+
+        await SendEncryptedAsync(logger, device, header, messageJson, localDeviceId, localPublicKey);
+    }
     
     /// <summary>
     /// 发送一条加密负载到指定设备。

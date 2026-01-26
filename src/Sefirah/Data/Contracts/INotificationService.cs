@@ -55,6 +55,21 @@ public interface INotificationService
     /// 处理音乐媒体块超时
     /// </summary>
     void CheckMusicMediaBlockTimeout();
+
+    /// <summary>
+    /// 处理媒体播放消息 (DATA_MEDIAPLAY)
+    /// </summary>
+    Task ProcessMediaPlayMessageAsync(PairedDevice device, string payload);
+
+    /// <summary>
+    /// 处理图标响应消息 (DATA_ICON_RESPONSE)
+    /// </summary>
+    Task ProcessIconResponseAsync(PairedDevice device, string payload);
+
+    /// <summary>
+    /// 处理普通通知消息 (DATA_NOTIFICATION)
+    /// </summary>
+    Task ProcessNotificationMessageAsync(PairedDevice device, string payload);
     
     /// <summary>
     /// 分组通知集合变化事件

@@ -28,7 +28,6 @@ public class NetworkService(
     IAdbService adbService,
     IScreenMirrorService screenMirrorService,
     ISystemInfoService systemInfoService,
-    IDeviceCommunicationService deviceCommunicationService,
     ProtocolRouter protocolRouter) : INetworkService, ISessionManager, ITcpServerProvider
 {
     private Server? server;
@@ -92,74 +91,25 @@ public class NetworkService(
         }
     }
 
-    /// <summary>
-    /// 发送应用列表请求
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    public void SendAppListRequest(string deviceId)
-    {
-        deviceCommunicationService.SendAppListRequest(deviceId);
-    }
-    
-    /// <summary>
-    /// 发送图标请求
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="packageNames">应用包名列表</param>
-    public void SendIconRequest(string deviceId, List<string> packageNames)
-    {
-        deviceCommunicationService.SendIconRequest(deviceId, packageNames);
-    }
-    
-    /// <summary>
-    /// 发送图标请求（单个包名）
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="packageName">应用包名</param>
-    public void SendIconRequest(string deviceId, string packageName)
-    {
-        deviceCommunicationService.SendIconRequest(deviceId, packageName);
-    }
-
-    /// <summary>
-    /// 发送媒体控制请求
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="controlType">控制类型（如 play, pause, next 等）</param>
-    public void SendMediaControlRequest(string deviceId, string controlType)
-    {
-        deviceCommunicationService.SendMediaControlRequest(deviceId, controlType);
-    }
-    
-    /// <summary>
-    /// 发送媒体播放通知
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="mediaInfo">媒体播放信息</param>
-    public void SendMediaPlayNotification(string deviceId, NotificationMessage mediaInfo)
-    {
-        deviceCommunicationService.SendMediaPlayNotification(deviceId, mediaInfo);
-    }
-    
-    /// <summary>
-    /// 发送媒体播放通知
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="mediaInfo">媒体播放信息</param>
-    /// <param name="mediaType">媒体类型，FULL 表示全量包，DELTA 表示差异包</param>
-    public void SendMediaPlayNotification(string deviceId, NotificationMessage mediaInfo, string mediaType)
-    {
-        deviceCommunicationService.SendMediaPlayNotification(deviceId, mediaInfo, mediaType);
-    }
-
     public void SendMessage(string deviceId, string message)
     {
-        deviceCommunicationService.SendMessage(deviceId, message);
+        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, message);
     }
 
     public void BroadcastMessage(string message)
     {
-        deviceCommunicationService.BroadcastMessage(message);
+        try
+        {
+            var targets = PairedDevices.Where(d => d.ConnectionStatus).Select(d => d.Id).ToList();
+            foreach (var deviceId in targets)
+            {
+                SendMessage(deviceId, message);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "向所有设备发送消息时出错");
+        }
     }
 
     public void DisconnectDevice(string deviceId)

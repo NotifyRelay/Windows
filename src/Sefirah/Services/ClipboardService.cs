@@ -195,6 +195,7 @@ public class ClipboardService : IClipboardService
         // 创建剪贴板消息内容，不使用继承自SocketMessage的ClipboardMessage类，避免生成"type":"3"字段
         var clipboardContent = new
         {
+            type = "DATA_CLIPBOARD",
             clipboardType = "text/plain",
             content = text
         };
@@ -243,6 +244,7 @@ public class ClipboardService : IClipboardService
         // 创建剪贴板消息内容，不使用继承自SocketMessage的ClipboardMessage类，避免生成"type":"3"字段
         var clipboardContent = new
         {
+            type = "DATA_CLIPBOARD",
             clipboardType = mimeType,
             content = Convert.ToBase64String(buffer)
         };
@@ -417,5 +419,25 @@ public class ClipboardService : IClipboardService
                (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) && 
                !string.IsNullOrWhiteSpace(uri.Host) &&
                uri.Host.Contains('.');
+    }
+
+    public async Task ProcessClipboardMessageAsync(PairedDevice device, string payload)
+    {
+        logger.LogDebug("处理DATA_CLIPBOARD消息，内容: {payload}", payload);
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+
+            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
+            var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
+
+            await SetContentAsync(content, device);
+            logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogError(ex, "解析剪贴板消息失败: {payload}", payload);
+        }
     }
 }

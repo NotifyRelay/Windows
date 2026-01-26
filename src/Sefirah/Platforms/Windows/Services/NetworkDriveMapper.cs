@@ -151,5 +151,60 @@ public class NetworkDriveMapper
         }
     }
 
+    public async Task ProcessFtpMessageAsync(PairedDevice device, string payload)
+    {
+        _logger.LogDebug("处理DATA_FTP消息，内容: {payload}", payload);
+        try
+        {
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
 
+            var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
+            _logger.LogDebug("ftp消息action: {action}", action);
+
+            if (action == "started")
+            {
+                if (root.TryGetProperty("ipAddress", out var ipAddressProp))
+                {
+                    var ipAddress = ipAddressProp.GetString();
+                    var port = root.TryGetProperty("port", out var portProp) ? portProp.GetInt32() : 22;
+
+                    if (!string.IsNullOrEmpty(ipAddress))
+                    {
+                        var serverInfo = new ftpServerInfo
+                        {
+                            IpAddress = ipAddress,
+                            Port = port
+                        };
+
+                        await Task.Run(() => 
+                        {
+                            try
+                            {
+                                string mappedDrive = MapftpDrive(device, serverInfo);
+                                if (!string.IsNullOrEmpty(mappedDrive))
+                                {
+                                    _logger.LogDebug("设备 {DeviceName} 已成功映射为网络磁盘，盘符：{MappedDrive}", device.Name, mappedDrive);
+                                }
+                                else
+                                {
+                                    _logger.LogWarning("网络磁盘映射失败，但未抛出异常，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}",
+                                        device.Name, ipAddress, port);
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogError(ex, "网络磁盘映射失败，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}",
+                                    device.Name, ipAddress, port);
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "解析ftp消息失败: {payload}", payload);
+        }
+    }
 }

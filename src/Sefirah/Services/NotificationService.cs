@@ -1358,4 +1358,166 @@ public class NotificationService(
             logger.LogError(ex, "处理图标响应通知时出错");
         }
     }
+
+    public async Task ProcessMediaPlayMessageAsync(PairedDevice device, string payload)
+    {
+        try
+        {
+            logger.LogTrace("收到DATA_MEDIAPLAY消息，设备：{deviceId}", device.Id);
+            
+            // 直接使用JsonDocument解析DATA_MEDIAPLAY消息
+            using JsonDocument doc = JsonDocument.Parse(payload);
+            JsonElement root = doc.RootElement;
+            
+            // 提取time字段，处理Number和String两种类型
+            string timeStamp;
+            if (root.TryGetProperty("time", out JsonElement timeElement))
+            {
+                if (timeElement.ValueKind == JsonValueKind.String)
+                {
+                    timeStamp = timeElement.GetString() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                }
+                else if (timeElement.ValueKind == JsonValueKind.Number)
+                {
+                    timeStamp = timeElement.GetInt64().ToString();
+                }
+                else
+                {
+                    timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                }
+            }
+            else if (root.TryGetProperty("timeStamp", out JsonElement timeStampElement))
+            {
+                if (timeStampElement.ValueKind == JsonValueKind.String)
+                {
+                    timeStamp = timeStampElement.GetString() ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                }
+                else if (timeStampElement.ValueKind == JsonValueKind.Number)
+                {
+                    timeStamp = timeStampElement.GetInt64().ToString();
+                }
+                else
+                {
+                    timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+                }
+            }
+            else
+            {
+                timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+            }
+            
+            // 直接构造NotificationMessage对象
+            var notificationMessage = new NotificationMessage
+            {
+                NotificationKey = Guid.NewGuid().ToString(),
+                TimeStamp = timeStamp,
+                NotificationType = NotificationType.New,
+                AppPackage = root.TryGetProperty("packageName", out JsonElement packageNameElement) && packageNameElement.ValueKind == JsonValueKind.String ? packageNameElement.GetString() : null,
+                AppName = root.TryGetProperty("appName", out JsonElement appNameElement) && appNameElement.ValueKind == JsonValueKind.String ? appNameElement.GetString() : null,
+                Title = root.TryGetProperty("title", out JsonElement titleElement) && titleElement.ValueKind == JsonValueKind.String ? titleElement.GetString() : null,
+                Text = root.TryGetProperty("text", out JsonElement textElement) && textElement.ValueKind == JsonValueKind.String ? textElement.GetString() : null,
+                BigPicture = root.TryGetProperty("bigPicture", out JsonElement bigPictureElement) && bigPictureElement.ValueKind == JsonValueKind.String ? bigPictureElement.GetString() : null,
+                LargeIcon = root.TryGetProperty("largeIcon", out JsonElement largeIconElement) && largeIconElement.ValueKind == JsonValueKind.String ? largeIconElement.GetString() : null,
+                CoverUrl = root.TryGetProperty("coverUrl", out JsonElement coverUrlElement) && coverUrlElement.ValueKind == JsonValueKind.String ? coverUrlElement.GetString() : null,
+                MediaType = root.TryGetProperty("mediaType", out JsonElement mediaTypeElement) && mediaTypeElement.ValueKind == JsonValueKind.String ? mediaTypeElement.GetString() : null
+            };
+            
+            await HandleMediaPlayNotification(device, notificationMessage);
+        }
+        catch (JsonException jsonEx)
+        {
+            logger.LogError(jsonEx, "解析DATA_MEDIAPLAY消息JSON时出错，消息内容：{payload}", payload.Length > 100 ? payload[..100] + "..." : payload);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理DATA_MEDIAPLAY消息时出错");
+        }
+    }
+
+    public async Task ProcessIconResponseAsync(PairedDevice device, string payload)
+    {
+        try
+        {
+            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
+            {
+                logger.LogWarning("跳过非 JSON 图标响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
+                return;
+            }
+            
+            // 首先尝试解析JSON
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            
+            logger.LogDebug("处理ICON_RESPONSE消息");
+            // 直接调用IconUtils保存图标
+            var packageName = root.TryGetProperty("packageName", out var packageNameProp) ? packageNameProp.GetString() : null;
+            var iconData = root.TryGetProperty("iconData", out var iconDataProp) ? iconDataProp.GetString() : null;
+            
+            if (!string.IsNullOrEmpty(packageName) && !string.IsNullOrEmpty(iconData))
+            {
+                await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
+                logger.LogDebug("已保存应用图标：{packageName}", packageName);
+                // 触发应用图标更新
+                HandleIconResponse(device.Id, packageName);
+            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning("解析图标响应JSON时出错：{ex.Message}", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理图标响应时出错");
+        }
+    }
+
+    public async Task ProcessNotificationMessageAsync(PairedDevice device, string payload)
+    {
+        try
+        {
+            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
+            {
+                logger.LogWarning("跳过非 JSON 通知载荷：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
+                return;
+            }
+            
+            // 首先尝试解析JSON
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+            
+            logger.LogDebug("处理普通通知消息");
+            // 创建NotificationMessage对象
+            var notificationMessage = new NotificationMessage
+            {
+                NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ? 
+                    keyProp.GetString() : Guid.NewGuid().ToString(),
+                TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ? 
+                    timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                NotificationType = root.TryGetProperty("notificationType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ? 
+                    Enum.TryParse<NotificationType>(typeProp.GetString(), true, out var type) ? type : NotificationType.New : NotificationType.New,
+                // 同时尝试获取packageName和appPackage字段
+                AppPackage = (root.TryGetProperty("packageName", out var notificationPackageNameProp) && notificationPackageNameProp.ValueKind == JsonValueKind.String ? notificationPackageNameProp.GetString() : null) ??
+                            (root.TryGetProperty("appPackage", out var appPackageProp) && appPackageProp.ValueKind == JsonValueKind.String ? appPackageProp.GetString() : null),
+                AppName = root.TryGetProperty("appName", out var appNameProp) && appNameProp.ValueKind == JsonValueKind.String ? appNameProp.GetString() : null,
+                Title = root.TryGetProperty("title", out var titleProp) && titleProp.ValueKind == JsonValueKind.String ? titleProp.GetString() : null,
+                Text = root.TryGetProperty("text", out var textProp) && textProp.ValueKind == JsonValueKind.String ? textProp.GetString() : null,
+                BigPicture = root.TryGetProperty("bigPicture", out var bigPictureProp) && bigPictureProp.ValueKind == JsonValueKind.String ? bigPictureProp.GetString() : null,
+                LargeIcon = root.TryGetProperty("largeIcon", out var largeIconProp) && largeIconProp.ValueKind == JsonValueKind.String ? largeIconProp.GetString() : null,
+                CoverUrl = root.TryGetProperty("coverUrl", out var coverUrlProp) && coverUrlProp.ValueKind == JsonValueKind.String ? coverUrlProp.GetString() : null,
+                MediaType = root.TryGetProperty("mediaType", out var mediaTypeProp) && mediaTypeProp.ValueKind == JsonValueKind.String ? mediaTypeProp.GetString() : null
+            };
+            
+            // 调用消息处理器处理通知消息
+            await HandleNotificationMessage(device, notificationMessage);
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning("解析通知JSON时出错：{ex.Message}", ex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理普通通知消息时出错");
+        }
+    }
+
 }

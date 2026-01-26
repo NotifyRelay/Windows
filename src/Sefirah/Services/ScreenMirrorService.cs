@@ -757,6 +757,48 @@ public class ScreenMirrorService(
                !process.HasExited;
     }
 
+    public async Task ProcessAudioRequestAsync(PairedDevice device)
+    {
+        logger.LogDebug("收到音频转发请求");
+        try
+        {
+            // 构建仅音频转发的 scrcpy 参数
+            string customArgs = "--no-video --no-control";
+            
+            // 启动 scrcpy 仅音频转发
+            bool success = await StartScrcpy(device, customArgs);
+            
+            // 构造响应
+            var response = new
+            {
+                type = "MEDIA_CONTROL",
+                action = "audioResponse",
+                result = success ? "accepted" : "rejected"
+            };
+            string responseJson = JsonSerializer.Serialize(response);
+            
+            // 发送响应
+            deviceCommunicationServiceFactory().SendMessage(device.Id, responseJson);
+            
+            logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理音频转发请求时出错");
+            
+            // 发送拒绝响应
+            var errorResponse = new
+            {
+                type = "MEDIA_CONTROL",
+                action = "audioResponse",
+                result = "rejected"
+            };
+            string errorResponseJson = JsonSerializer.Serialize(errorResponse);
+            
+            deviceCommunicationServiceFactory().SendMessage(device.Id, errorResponseJson);
+        }
+    }
+
     public void Dispose()
     {
         foreach (var kvp in scrcpyProcesses.ToList())
