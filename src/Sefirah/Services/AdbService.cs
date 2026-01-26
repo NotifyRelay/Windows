@@ -176,6 +176,9 @@ public class AdbService(
             // Refresh the full device information
             var connectedDevice = await GetFullDeviceInfoAsync(e.Device);
             
+            // Check and grant permissions
+            await CheckAndGrantLogPermissionAsync(e.Device);
+            
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
                 AdbDevices.Add(connectedDevice);
@@ -400,6 +403,37 @@ public class AdbService(
             };
             
             return device;
+        }
+    }
+
+    private async Task CheckAndGrantLogPermissionAsync(DeviceData deviceData)
+    {
+        try
+        {
+            string packageName = "com.xzyht.notifyrelay";
+            string permission = "android.permission.READ_LOGS";
+            
+            logger.LogTrace($"正在检查并授予设备 {deviceData.Serial} 的 {permission} 权限");
+            
+            // 直接尝试授予权限，pm grant 是幂等的
+            string grantCommand = $"pm grant {packageName} {permission}";
+            var receiver = new ConsoleOutputReceiver();
+            
+            await adbClient.ExecuteShellCommandAsync(deviceData, grantCommand, receiver);
+            
+            string result = receiver.ToString().Trim();
+            if (string.IsNullOrEmpty(result))
+            {
+                logger.LogInformation($"成功授予 {permission} 权限给 {packageName}");
+            }
+            else
+            {
+                logger.LogTrace($"授予权限结果: {result}");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, $"尝试授予 READ_LOGS 权限失败：{deviceData.Serial}");
         }
     }
 
