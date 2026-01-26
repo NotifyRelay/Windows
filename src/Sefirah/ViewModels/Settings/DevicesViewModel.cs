@@ -15,7 +15,7 @@ public partial class DevicesViewModel : ObservableObject
     private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
     private IDiscoveryService DiscoveryService { get; } = Ioc.Default.GetRequiredService<IDiscoveryService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private ISftpService SftpService { get; } = Ioc.Default.GetRequiredService<ISftpService>();
+    private IftpService ftpService { get; } = Ioc.Default.GetRequiredService<IftpService>();
     private IAdbService AdbService { get; } = Ioc.Default.GetRequiredService<IAdbService>();
     #endregion
     
@@ -67,7 +67,7 @@ public partial class DevicesViewModel : ObservableObject
                     SessionManager.DisconnectDevice(device.Id);
                 }
 
-                SftpService.Remove(device.Id);
+                ftpService.Remove(device.Id);
 
                 DeviceManager.RemoveDevice(device);
             }

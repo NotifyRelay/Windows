@@ -148,9 +148,9 @@ public static class NotifyCryptoHelper
 
     
 
-    public static (string Username, string Password) DeriveSftpCredentials(byte[] sharedSecret)
+    public static (string Username, string Password) DeriveftpCredentials(byte[] sharedSecret)
     {
-        const string usernamePrefix = "sftp_";
+        const string usernamePrefix = "ftp_";
         const int passwordLength = 32;
 
         using var sha256 = SHA256.Create();

@@ -446,13 +446,13 @@ public sealed partial class MainPageViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    public void StartSftpConnection()
+    public void StartftpConnection()
     {
         if (Device != null)
         {
-            // 设置手动发送过SFTP请求的标记
-            Device.HasSentSftpRequest = true;
-            MessageHandler.SendSftpCommand(Device, "start");
+            // 设置手动发送过ftp请求的标记
+            Device.HasSentftpRequest = true;
+            MessageHandler.SendftpCommand(Device, "start");
         }
     }
 

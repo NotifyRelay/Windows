@@ -15,7 +15,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlaybackService, DesktopPlaybackService>();
         services.AddSingleton<IActionService, DesktopActionService>();
         services.AddSingleton<IUpdateService, DesktopUpdateService>();
-        services.AddSingleton<ISftpService, DesktopSftpService>();
+        services.AddSingleton<IftpService, DesktopftpService>();
         return services;
     }
 } 

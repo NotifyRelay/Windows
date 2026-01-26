@@ -4,32 +4,33 @@ using NotifyRelay.Utils;
 
 namespace NotifyRelay.Platforms.Desktop.Services;
 
-public class DesktopSftpService(ILogger<DesktopSftpService> logger) : ISftpService
+public class DesktopftpService(ILogger<DesktopftpService> logger) : IftpService
 {
     private readonly Dictionary<string, string> _mountedDevices = [];
 
-    public async Task InitializeAsync(PairedDevice device, SftpServerInfo info)
+    public async Task InitializeAsync(PairedDevice device, ftpServerInfo info)
     {
-        logger.LogInformation("正在为设备 {DeviceName} 初始化 SFTP 服务，IP：{IpAddress}，端口：{Port}，密码：{Password}", 
-            device.Name, info.IpAddress, info.Port, info.Password);
+        logger.LogInformation("正在为设备 {DeviceName} 初始化 ftp 服务，IP：{IpAddress}，端口：{Port}", 
+            device.Name, info.IpAddress, info.Port);
 
-        var sftpUri = $"sftp://{info.Username}@{info.IpAddress}:{info.Port}/";
+        // 使用匿名登录构建ftpUri
+        var ftpUri = $"ftp://{info.IpAddress}:{info.Port}/";
         
-        logger.LogInformation("正在为设备 {DeviceName} 挂载 SFTP", device.Name);
+        logger.LogInformation("正在为设备 {DeviceName} 挂载 ftp", device.Name);
 
-        ProcessExecutor.ExecuteProcess("gio", $"mount -s \"{sftpUri}\"");
+        ProcessExecutor.ExecuteProcess("gio", $"mount -s \"{ftpUri}\"");
 
-        // Use gio mount with password input via stdin
-        var (exitCode, errorOutput) = await ExecuteProcessWithPasswordAsync("gio", $"mount \"{sftpUri}\"", info.Password);
+        // 使用匿名登录，不需要密码
+        var (exitCode, errorOutput) = await ExecuteProcessWithPasswordAsync("gio", $"mount \"{ftpUri}\"", string.Empty);
         
         if (exitCode != 0)
         {
-            logger.LogError("为设备 {DeviceName} 挂载 SFTP 失败：{Error}", device.Name, errorOutput);
+            logger.LogError("为设备 {DeviceName} 挂载 ftp 失败：{Error}", device.Name, errorOutput);
             return;
         }
         
-        _mountedDevices[device.Id] = sftpUri;
-        logger.LogInformation("为设备 {DeviceName} 成功挂载 SFTP", device.Name);
+        _mountedDevices[device.Id] = ftpUri;
+        logger.LogInformation("为设备 {DeviceName} 成功挂载 ftp", device.Name);
     }
 
     private static async Task<(int ExitCode, string ErrorOutput)> ExecuteProcessWithPasswordAsync(string fileName, string arguments, string password)
@@ -63,14 +64,14 @@ public class DesktopSftpService(ILogger<DesktopSftpService> logger) : ISftpServi
 
     public void Remove(string deviceId)
     {
-        if (!_mountedDevices.TryGetValue(deviceId, out var sftpUri))
+        if (!_mountedDevices.TryGetValue(deviceId, out var ftpUri))
         {
             logger.LogDebug("设备 {DeviceId} 未挂载", deviceId);
             return;
         }
         
-        logger.LogInformation("正在卸载设备 {DeviceId} 的 SFTP 挂载", deviceId);
-        ProcessExecutor.ExecuteProcess("gio", $"mount -u \"{sftpUri}\"");
+        logger.LogInformation("正在卸载设备 {DeviceId} 的 ftp 挂载", deviceId);
+        ProcessExecutor.ExecuteProcess("gio", $"mount -u \"{ftpUri}\"");
         _mountedDevices.Remove(deviceId);
     }
 }

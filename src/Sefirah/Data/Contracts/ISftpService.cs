@@ -1,12 +1,12 @@
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Data.Contracts;
-public interface ISftpService
+public interface IftpService
 {
     /// <summary>
-    /// Initializes the sftp service with the server information and shell services.
+    /// Initializes the ftp service with the server information and shell services.
     /// </summary>
-    Task InitializeAsync(PairedDevice device, SftpServerInfo info);
+    Task InitializeAsync(PairedDevice device, ftpServerInfo info);
 
     /// <summary>
     /// Removes the sync root.

@@ -7,5 +7,5 @@ public partial record SyncProviderContext
     public required string RootDirectory { get; init; }
     public required PopulationPolicy PopulationPolicy { get; init; }
     public string AccountId => Id.Split('!', 3)[2];
-    public string RemoteKind => "Sftp";
+    public string RemoteKind => "ftp";
 }

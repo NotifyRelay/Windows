@@ -288,10 +288,10 @@ public class NetworkService(
         {
             messageType = "DATA_MEDIA_CONTROL";
         }
-        else if (message.Contains("DATA_SFTP", StringComparison.OrdinalIgnoreCase) || 
-                 message.Contains("SftpServerInfo", StringComparison.OrdinalIgnoreCase))
+        else if (message.Contains("DATA_FTP", StringComparison.OrdinalIgnoreCase) || 
+                 message.Contains("ftpServerInfo", StringComparison.OrdinalIgnoreCase))
         {
-            messageType = "DATA_SFTP";
+            messageType = "DATA_FTP";
         }
         else if (message.Contains("clipboardType", StringComparison.OrdinalIgnoreCase) && 
                  message.Contains("content", StringComparison.OrdinalIgnoreCase))
@@ -311,7 +311,7 @@ public class NetworkService(
             "DATA_ICON_REQUEST" => "图标请求",
             "DATA_AUDIO_RESPONSE" => "音频响应",
             "DATA_MEDIA_CONTROL" => "媒体控制",
-            "DATA_SFTP" => "SFTP操作",
+            "DATA_FTP" => "ftp操作",
             "DATA_CLIPBOARD" => "剪贴板消息",
             _ => "通用消息"
         };
@@ -771,8 +771,8 @@ public class NetworkService(
                         await HandleMediaControlMessageAsync(device, payload);
                         return;
                     
-                    case "DATA_SFTP":
-                        // DATA_SFTP消息，使用反射调用处理方法
+                    case "DATA_FTP":
+                        // DATA_FTP消息，使用反射调用处理方法
                         handleJsonMethod = messageHandler.Value.GetType().GetMethod("HandleJsonMessageAsync", 
                             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                         if (handleJsonMethod != null)
@@ -783,14 +783,14 @@ public class NetworkService(
                 }
             }
             
-            // 检查是否为SFTP响应（没有type字段但有action字段）
+            // 检查是否为ftp响应（没有type字段但有action字段）
             if (root.TryGetProperty("action", out var actionProp))
             {
                 var action = actionProp.GetString();
                 if (action is "started" or "stopped" or "error")
                 {
-                    logger.LogDebug("识别到SFTP响应：action={action}", action);
-                    // 直接调用MessageHandler的HandleJsonMessageAsync方法处理SFTP响应
+                    logger.LogDebug("识别到ftp响应：action={action}", action);
+                    // 直接调用MessageHandler的HandleJsonMessageAsync方法处理ftp响应
                     var handleJsonMethod = messageHandler.Value.GetType().GetMethod("HandleJsonMessageAsync", 
                         System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
                     if (handleJsonMethod != null)

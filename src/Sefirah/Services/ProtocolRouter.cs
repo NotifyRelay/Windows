@@ -7,6 +7,9 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
+#if WINDOWS
+using NotifyRelay.Platforms.Windows.Services;
+#endif
 
 namespace NotifyRelay.Services;
 
@@ -25,17 +28,31 @@ public class ProtocolRouter
     private readonly ILogger<ProtocolRouter> logger;
     private readonly IDeviceManager deviceManager;
     private readonly IScreenMirrorService screenMirrorService;
+#if WINDOWS
+    private readonly Lazy<NetworkDriveMapper> networkDriveMapper;
+#endif
 
     public ProtocolRouter(
         Func<IMessageHandler> messageHandlerFactory,
         ILogger<ProtocolRouter> logger,
         IDeviceManager deviceManager,
-        IScreenMirrorService screenMirrorService)
+        IScreenMirrorService screenMirrorService
+#if WINDOWS
+        , Func<NetworkDriveMapper> networkDriveMapperFactory
+#endif
+        )
     {
         this.messageHandler = new Lazy<IMessageHandler>(messageHandlerFactory);
         this.logger = logger;
         this.deviceManager = deviceManager;
         this.screenMirrorService = screenMirrorService;
+#if WINDOWS
+        if (networkDriveMapperFactory == null)
+        {
+            throw new ArgumentNullException(nameof(networkDriveMapperFactory), "NetworkDriveMapperFactory cannot be null on Windows platform");
+        }
+        this.networkDriveMapper = new Lazy<NetworkDriveMapper>(networkDriveMapperFactory);
+#endif
     }
 
     private static bool IsRemoteDeviceAndroid(PairedDevice? device)
@@ -138,20 +155,21 @@ public class ProtocolRouter
                     }
                     break;
                 
-                case "DATA_SFTP":
-                    // SFTP 消息，直接处理
-                    logger.LogDebug("处理DATA_SFTP消息，内容: {decryptedPayload}", decryptedPayload);
+#if WINDOWS
+                case "DATA_FTP":
+                    // ftp 消息，直接处理网络磁盘映射
+                    logger.LogDebug("处理DATA_FTP消息，内容: {decryptedPayload}", decryptedPayload);
                     try
                     {
                         var doc = JsonDocument.Parse(decryptedPayload);
                         var root = doc.RootElement;
                         
                         var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
-                        logger.LogDebug("SFTP消息action: {action}", action);
+                        logger.LogDebug("ftp消息action: {action}", action);
                         
                         if (action == "started")
                         {
-                            // SFTP服务已启动，解析服务器信息
+                            // ftp服务已启动，解析服务器信息
                             if (root.TryGetProperty("ipAddress", out var ipAddressProp))
                             {
                                 var ipAddress = ipAddressProp.GetString();
@@ -159,36 +177,41 @@ public class ProtocolRouter
                                 
                                 if (!string.IsNullOrEmpty(ipAddress))
                                 {
-                                    // 安卓端不再发送用户名和密码，PC端需要从sharedSecret派生
-                                    if (device.SharedSecret == null)
+                                    var serverInfo = new ftpServerInfo
                                     {
-                                        logger.LogWarning("设备 {DeviceId} 没有 sharedSecret，无法生成 SFTP 凭据", device.Id);
-                                        return;
-                                    }
-                                    
-                                    // 直接使用NotifyCryptoHelper.DeriveSftpCredentials方法生成SFTP凭据，确保与MessageHandler.cs中的逻辑一致
-                                    var (username, password) = NotifyCryptoHelper.DeriveSftpCredentials(device.SharedSecret);
-                                    
-                                    var sftpServerInfo = new SftpServerInfo
-                                    {
-                                        Username = username,
-                                        Password = password,
                                         IpAddress = ipAddress,
                                         Port = port
                                     };
                                     
-                                    var sftpService = Ioc.Default.GetRequiredService<ISftpService>();
-                                    await sftpService.InitializeAsync(device, sftpServerInfo);
-                                    logger.LogDebug("已初始化SFTP服务，IP: {IpAddress}, Port: {Port}", ipAddress, port);
+                                    // 直接调用NetworkDriveMapper进行网络磁盘映射
+                                    try
+                                    {
+                                        string mappedDrive = networkDriveMapper.Value.MapftpDrive(device, serverInfo);
+                                        if (!string.IsNullOrEmpty(mappedDrive))
+                                        {
+                                            logger.LogDebug("设备 {DeviceName} 已成功映射为网络磁盘，盘符：{MappedDrive}", device.Name, mappedDrive);
+                                        }
+                                        else
+                                        {
+                                            logger.LogWarning("网络磁盘映射失败，但未抛出异常，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}", 
+                                                device.Name, ipAddress, port);
+                                        }
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        logger.LogError(ex, "网络磁盘映射失败，设备: {DeviceName}，IP: {IpAddress}，端口: {Port}", 
+                                            device.Name, ipAddress, port);
+                                    }
                                 }
                             }
                         }
                     }
                     catch (JsonException ex)
                     {
-                        logger.LogError(ex, "解析SFTP消息失败: {decryptedPayload}", decryptedPayload);
+                        logger.LogError(ex, "解析ftp消息失败: {decryptedPayload}", decryptedPayload);
                     }
                     break;
+#endif
                     
                 case "DATA_CLIPBOARD":
                     // 剪贴板消息，直接处理
@@ -436,17 +459,7 @@ public class ProtocolRouter
                 }
                 return;
             }
-            // 检查是否为SFTP响应消息 - 已在ProcessDataMessageAsync中专门处理DATA_SFTP类型的消息，此处不再需要
-            // 保留此注释，说明SFTP响应已在其他地方处理
-            if (root.TryGetProperty("action", out var actionProp))
-            {
-                var action = actionProp.GetString() ?? string.Empty;
-                if (action == "started" && root.TryGetProperty("ipAddress", out var _))
-                {
-                    logger.LogDebug("SFTP响应消息已在DATA_SFTP处理路径中处理，此处跳过");
-                    return;
-                }
-            }
+
             
             // 检查是否为普通通知消息（来自DATA_NOTIFICATION）
             bool isNotificationMessage = root.TryGetProperty("packageName", out var _) || 

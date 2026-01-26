@@ -208,6 +208,10 @@ public static class AppLifecycleHelper
                 .AddSingleton<Func<IMessageHandler>>(sp => () => sp.GetRequiredService<IMessageHandler>())
                 
                 // 3. 注册ProtocolRouter，它依赖IMessageHandler
+#if WINDOWS
+                // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
+                .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
+#endif
                 .AddSingleton<ProtocolRouter>()
                 
                 // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter

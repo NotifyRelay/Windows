@@ -70,12 +70,12 @@ namespace NotifyRelay.Data.Models;
 /// </summary>
 [JsonDerivedType(typeof(ApplicationInfoMessage), typeDiscriminator: "10")]
 /// <summary>
-/// SFTP服务器信息 - 类型: "11"
-/// 路径: NotifyRelay.Data.Models.SftpServerInfo
-/// 功能: 包含SFTP服务器的连接信息，如IP地址、端口、用户名、密码等
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
+/// ftp服务器信息 - 类型: "11"
+/// 路径: NotifyRelay.Data.Models.ftpServerInfo
+/// 功能: 包含ftp服务器的连接信息，如IP地址、端口、用户名、密码等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ftpService.InitializeAsync
 /// </summary>
-[JsonDerivedType(typeof(SftpServerInfo), typeDiscriminator: "11")]
+[JsonDerivedType(typeof(ftpServerInfo), typeDiscriminator: "11")]
 /// <summary>
 /// UDP广播消息 - 类型: "12"
 /// 路径: NotifyRelay.Data.Models.UdpBroadcast
@@ -497,18 +497,18 @@ public class ApplicationInfoMessage : SocketMessage
 }
 
 /// <summary>
-/// SFTP服务器信息类
-/// 路径: NotifyRelay.Data.Models.SftpServerInfo
-/// 功能: 包含SFTP服务器的连接信息，如用户名、密码、IP地址、端口等
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → SftpService.InitializeAsync
+/// ftp服务器信息类
+/// 路径: NotifyRelay.Data.Models.ftpServerInfo
+/// 功能: 包含ftp服务器的连接信息，如用户名、密码、IP地址、端口等
+/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ftpService.InitializeAsync
 /// </summary>
-public class SftpServerInfo : SocketMessage
+public class ftpServerInfo : SocketMessage
 {
     [JsonPropertyName("username")]
-    public required string Username { get; set; }
+    public string? Username { get; set; }
 
     [JsonPropertyName("password")]
-    public required string Password { get; set; }
+    public string? Password { get; set; }
 
     [JsonPropertyName("ipAddress")]
     public required string IpAddress { get; set; }
