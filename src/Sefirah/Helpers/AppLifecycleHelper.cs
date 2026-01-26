@@ -196,6 +196,7 @@ public static class AppLifecycleHelper
 #endif
                 // Services
                 // 1. 首先注册基础服务
+                .AddSingleton<ISystemInfoService, SystemInfoService>()
                 .AddSingleton<IDeviceManager, DeviceManager>()
                 .AddSingleton<IMdnsService, MdnsService>()
                 .AddSingleton<IAdbService, AdbService>()

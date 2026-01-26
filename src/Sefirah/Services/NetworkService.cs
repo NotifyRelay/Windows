@@ -18,7 +18,7 @@ using NotifyRelay.Services.Socket;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
 using Uno.Logging;
-using Windows.Devices.Power;
+
 
 namespace NotifyRelay.Services;
 public class NetworkService(
@@ -27,6 +27,7 @@ public class NetworkService(
     IDeviceManager deviceManager,
     IAdbService adbService,
     IScreenMirrorService screenMirrorService,
+    ISystemInfoService systemInfoService,
     ProtocolRouter protocolRouter) : INetworkService, ISessionManager, ITcpServerProvider
 {
     private Server? server;
@@ -288,6 +289,10 @@ public class NetworkService(
         {
             messageType = "DATA_MEDIA_CONTROL";
         }
+        else if (message.Contains("MEDIA_PLAY", StringComparison.OrdinalIgnoreCase))
+        {
+            messageType = "DATA_MEDIAPLAY";
+        }
         else if (message.Contains("DATA_FTP", StringComparison.OrdinalIgnoreCase) || 
                  message.Contains("ftpServerInfo", StringComparison.OrdinalIgnoreCase))
         {
@@ -311,6 +316,7 @@ public class NetworkService(
             "DATA_ICON_REQUEST" => "图标请求",
             "DATA_AUDIO_RESPONSE" => "音频响应",
             "DATA_MEDIA_CONTROL" => "媒体控制",
+            "DATA_MEDIAPLAY" => "媒体播放",
             "DATA_FTP" => "ftp操作",
             "DATA_CLIPBOARD" => "剪贴板消息",
             _ => "通用消息"
@@ -837,79 +843,7 @@ public class NetworkService(
         });
     }
 
-    /// <summary>
-    /// 获取系统电量百分比
-    /// </summary>
-    private int GetSystemBatteryLevel()
-    {
-        try
-        {
-            // 使用Windows.Devices.Power API获取电量
-            var batteryReport = Battery.AggregateBattery.GetReport();
-            
-            // 检查电量信息是否可用
-            if (batteryReport.RemainingCapacityInMilliwattHours.HasValue &&
-                batteryReport.FullChargeCapacityInMilliwattHours.HasValue &&
-                batteryReport.FullChargeCapacityInMilliwattHours.Value > 0)
-            {
-                // 计算电量百分比
-                var remainingCapacity = batteryReport.RemainingCapacityInMilliwattHours.Value;
-                var fullCapacity = batteryReport.FullChargeCapacityInMilliwattHours.Value;
-                var batteryLevel = (int)Math.Round((double)remainingCapacity / fullCapacity * 100);
-                
-                // 确保电量值在0-100之间
-                return Math.Clamp(batteryLevel, 0, 100);
-            }
-            
-            // 如果无法获取电量信息，返回默认值100%
-            return 100;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning("获取系统电量失败：{ex}", ex);
-            // 异常情况下返回默认值100%
-            return 100;
-        }
-    }
 
-    /// <summary>
-    /// 获取系统充电状态
-    /// </summary>
-    private bool GetSystemChargingStatus()
-    {
-        try
-        {
-            // 使用Windows API的GetSystemPowerStatus获取充电状态
-            SYSTEM_POWER_STATUS powerStatus = new SYSTEM_POWER_STATUS();
-            if (GetSystemPowerStatus(ref powerStatus))
-            {
-                // 如果交流电源连接或电池正在充电，则返回true
-                return powerStatus.ACLineStatus == 1 || powerStatus.BatteryFlag == 8;
-            }
-            return false;
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning("获取系统充电状态失败：{ex}", ex);
-            // 异常情况下返回默认值false
-            return false;
-        }
-    }
-    
-    // Windows API结构体和函数声明
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct SYSTEM_POWER_STATUS
-    {
-        public byte ACLineStatus;          // AC电源状态：0=离线，1=在线，255=未知
-        public byte BatteryFlag;           // 电池状态：1=高，2=低，4=临界，8=充电，128=无电池
-        public byte BatteryLifePercent;    // 电池剩余百分比：0-100，255=未知
-        public byte Reserved1;             // 保留
-        public uint BatteryLifeTime;       // 电池剩余时间（秒），0xFFFFFFFF=未知
-        public uint BatteryFullLifeTime;   // 电池满电时间（秒），0xFFFFFFFF=未知
-    }
-    
-    [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
-    private static extern bool GetSystemPowerStatus(ref SYSTEM_POWER_STATUS lpSystemPowerStatus);
 
     private void StartHeartbeat()
     {
@@ -923,8 +857,8 @@ public class NetworkService(
             if (localDeviceId is null) return;
 
             // 获取PC设备电量百分比和充电状态
-            var batteryLevel = GetSystemBatteryLevel(); // 接入系统电量API
-            var isCharging = GetSystemChargingStatus(); // 获取充电状态
+            var batteryLevel = systemInfoService.GetSystemBatteryLevel(); // 接入系统电量API
+            var isCharging = systemInfoService.GetSystemChargingStatus(); // 获取充电状态
             var chargeSign = isCharging ? "+" : "-";
             
             // 心跳格式：HEARTBEAT:<deviceUuid><<+/->设备电量%>,<设备类型>
