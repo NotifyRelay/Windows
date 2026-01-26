@@ -7,6 +7,22 @@ namespace NotifyRelay.Data.AppDatabase.Repository;
 
 public class NotificationRepository(DatabaseContext context, ILogger logger)
 {
+    public List<NotificationEntity> GetAllNotifications(int take = 500)
+    {
+        try
+        {
+            return context.Database.Table<NotificationEntity>()
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(take)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "获取所有通知失败");
+            return [];
+        }
+    }
+
     public List<NotificationEntity> GetDeviceNotifications(string deviceId, int take = 200)
     {
         try

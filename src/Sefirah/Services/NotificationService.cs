@@ -23,13 +23,11 @@ public class NotificationService(
     Func<INetworkService> networkServiceFactory,
     Func<IRemoteAppService> remoteAppServiceFactory) : INotificationService, INotifyPropertyChanged
 {
-    private readonly Dictionary<string, ObservableCollection<Notification>> deviceNotifications = [];
-    private readonly object deviceNotificationsLock = new();
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
     
     private readonly ObservableCollection<Notification> activeNotifications = [];
     private readonly ObservableCollection<GroupedNotification> groupedNotifications = [];
-    private readonly HashSet<string> loadedDeviceIds = [];
+    private readonly object activeNotificationsLock = new(); // 添加锁用于保护 activeNotifications
     
     // 音乐媒体块相关（支持多个设备同时显示）
     private readonly ObservableCollection<MusicMediaBlock> _currentMusicMediaBlocks = new();
@@ -78,45 +76,9 @@ public class NotificationService(
     public void Initialize()
     {
         ClearBadge();
-        // Listen to device connection status changes
-        sessionManager.ConnectionStatusChanged += OnConnectionStatusChanged;
         
-        // When active device changes, ensure that device's notifications are loaded
-        ((INotifyPropertyChanged)deviceManager).PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName is nameof(IDeviceManager.ActiveDevice) && deviceManager.ActiveDevice is not null)
-            {
-                _ = EnsureNotificationsLoadedAsync(deviceManager.ActiveDevice);
-            }
-        };
-
-        // Ensure notifications are loaded for all currently paired devices at startup
-        try
-        {
-            foreach (var d in deviceManager.PairedDevices)
-            {
-                _ = EnsureNotificationsLoadedAsync(d);
-            }
-
-            // Subscribe to collection changes so newly paired devices get their notifications loaded automatically
-            deviceManager.PairedDevices.CollectionChanged += (s, e) =>
-            {
-                if (e.NewItems is not null)
-                {
-                    foreach (var item in e.NewItems)
-                    {
-                        if (item is PairedDevice newDevice)
-                        {
-                            _ = EnsureNotificationsLoadedAsync(newDevice);
-                        }
-                    }
-                }
-            };
-        }
-        catch
-        {
-            // ignore any issue enumerating paired devices during startup
-        }
+        // Load all notifications at startup
+        _ = LoadAllNotificationsAsync();
 
         // 初始化音乐媒体块超时检查定时器，每1秒检查一次
         _musicMediaBlockTimer = new System.Threading.Timer(
@@ -126,29 +88,9 @@ public class NotificationService(
             TimeSpan.FromSeconds(1));
     }
 
-    /// <summary>
-    /// Gets or creates the notification collection for a device session
-    /// </summary>
-    private ObservableCollection<Notification> GetOrCreateNotificationCollection(PairedDevice device)
-    {
-        lock (deviceNotificationsLock)
-        {
-            if (!deviceNotifications.TryGetValue(device.Id, out var notifications))
-            {
-                notifications = [];
-                deviceNotifications[device.Id] = notifications;
-            }
-            return notifications;
-        }
-    }
 
-    private void OnConnectionStatusChanged(object? sender, (PairedDevice Device, bool IsConnected) e)
-    {
-        if (e.IsConnected)
-        {
-            _ = EnsureNotificationsLoadedAsync(e.Device);
-        }
-    }
+
+
 
     public async Task HandleNotificationMessage(PairedDevice device, NotificationMessage message)
     {
@@ -167,14 +109,44 @@ public class NotificationService(
             // 过滤超级岛通知，识别段是'superisland:'
             if (message.AppPackage?.StartsWith("superisland:") == true)
             {
-                // 注释掉丢弃超级岛通知的调试日志
-                // logger.LogDebug("丢弃超级岛通知: {AppPackage}", message.AppPackage);
+                return;
+            }
+
+            if (message.NotificationType == NotificationType.Removed)
+            {
+                await dispatcher.EnqueueAsync(() =>
+                {
+                    // Find matching notification
+                    var notification = activeNotifications.FirstOrDefault(n => 
+                        n.Key == message.NotificationKey ||
+                        (n.AppPackage == message.AppPackage && 
+                         n.Title == message.Title && 
+                         n.Text == message.Text));
+                    
+                    if (notification != null && !notification.Pinned)
+                    {
+                        // Remove source device
+                        var source = notification.SourceDevices.FirstOrDefault(sd => sd.DeviceId == device.Id);
+                        if (source != null)
+                        {
+                            notification.SourceDevices.Remove(source);
+                        }
+                        
+                        // If no sources left, remove from activeNotifications
+                        if (notification.SourceDevices.Count == 0)
+                        {
+                            activeNotifications.Remove(notification);
+                        }
+                        
+                        notificationRepository.DeleteNotification(device.Id, message.NotificationKey);
+                        UpdateActiveNotifications();
+                    }
+                });
                 return;
             }
             
             if (message.Title is not null && message.AppPackage is not null)
             {
-
                 var filter = remoteAppsRepository.GetAppNotificationFilterAsync(message.AppPackage, device.Id)
                 ?? await remoteAppsRepository.AddOrUpdateApplicationForDevice(device.Id, message.AppPackage, message.AppName!, message.AppIcon);
 
@@ -187,299 +159,133 @@ public class NotificationService(
                 
                 if (needIconRequest)
                 {
-                    // 创建 TaskCompletionSource 用于跟踪图标请求状态
                     requestKey = $"{message.AppPackage}|{device.Id}";
                     iconRequestTcs = new TaskCompletionSource<bool>();
                     pendingIconRequests[requestKey] = iconRequestTcs;
-                    
-                    // 发送图标请求
                     remoteAppServiceFactory().SendIconRequest(device.Id, [message.AppPackage]);
                 }
 
-                // 等待图标请求完成，最长等待 3 秒
                 if (iconRequestTcs != null)
                 {
                     var timeoutTask = Task.Delay(ICON_REQUEST_TIMEOUT);
                     var completedTask = await Task.WhenAny(iconRequestTcs.Task, timeoutTask);
-                    
-                    if (completedTask == timeoutTask)
-                    {
-                        // 超时
-                        logger.LogDebug("图标请求超时，继续显示通知：{AppPackage}", message.AppPackage);
-                    }
-                    else
-                    {
-                        // 图标请求完成
-                        logger.LogDebug("图标请求完成，显示通知：{AppPackage}", message.AppPackage);
-                    }
-                    
-                    // 清理请求状态
-                    if (requestKey != null)
-                    {
-                        pendingIconRequests.Remove(requestKey);
-                    }
+                    if (requestKey != null) pendingIconRequests.Remove(requestKey);
                 }
 
                 await dispatcher.EnqueueAsync(async () =>
                         {
-                            await EnsureNotificationsLoadedAsync(device);
-                            var notifications = GetOrCreateNotificationCollection(device);
+                            // 检查是否存在内容相同的现有通知
+                            var existingNotification = activeNotifications.FirstOrDefault(n => 
+                                n.AppPackage == message.AppPackage &&
+                                n.Title == message.Title &&
+                                n.Text == message.Text &&
+                                n.Type == message.NotificationType);
                             
-                            // 先创建一个临时notification对象，仅用于检查是否存在相同内容的通知
-                            var tempNotification = new Notification
-                            {
-                                AppPackage = message.AppPackage,
-                                Title = message.Title,
-                                Text = message.Text,
-                                Type = NotificationType.New
-                            };
-                            
-                            // 检查是否存在内容相同的现有通知（跨设备聚合）
-                            var contentMatchNotification = activeNotifications.FirstOrDefault(n => 
-                                n.AppPackage == tempNotification.AppPackage &&
-                                n.Title == tempNotification.Title &&
-                                n.Text == tempNotification.Text &&
-                                n.Type == tempNotification.Type);
-                            
-                            // 只有当通知是新的（即之前没有相同内容的通知）时，才会发送到Windows通知中心
-                            bool shouldSendNotification = contentMatchNotification is null;
-                            
-                            // 创建正式notification对象并加载图标（仅当需要发送到Windows通知中心时）
-                            Notification? notification = null;
-                            if (shouldSendNotification || message.NotificationType != NotificationType.New)
-                            {
-                                notification = await Notification.FromMessage(message);
-                                notification.AddSourceDevice(device.Id, device.Name);
-                                
-                                // 确保图标路径和图标正确设置，无论设备是否活跃
-                                if (!string.IsNullOrEmpty(message.AppPackage))
-                                {
-                                    string iconPath = IconUtils.GetAppIconPath(message.AppPackage);
-                                    notification.IconPath = iconPath;
-                                    
-                                    // 确保图标文件存在
-                                    if (IconUtils.AppIconExists(message.AppPackage))
-                                    {
-                                        // 立即同步加载图标，确保通知能显示图标
-                                        await notification.LoadIconAsync();
-                                    }
-                                }
-                            }
-                            
-                            bool shouldSaveNotification = true;
-                            
-                            if (message.NotificationType == NotificationType.New && filter == NotificationFilter.ToastFeed)
-                            {
-                                if (contentMatchNotification is not null)
-                                {
-                                    // 聚合通知：添加设备到现有通知的来源设备列表
-                                    contentMatchNotification.AddSourceDevice(device.Id, device.Name);
-                                    
-                                    // 更新设备本地通知集合中的对应通知
-                                    Notification? existingNotification;
-                                    lock (notifications)
-                                    {
-                                        existingNotification = notifications.FirstOrDefault(n => n.Key == contentMatchNotification.Key);
-                                    }
-                                    if (existingNotification is not null)
-                                    {
-                                        lock (notifications)
-                                        {
-                                            var index = notifications.IndexOf(existingNotification);
-                                            notifications[index] = contentMatchNotification;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        lock (notifications)
-                                        {
-                                            notifications.Insert(0, contentMatchNotification);
-                                        }
-                                    }
-                                    // 使用已存在通知的tag和groupKey
-                                    message.NotificationKey = contentMatchNotification.Key;
-                                    message.Tag = contentMatchNotification.Tag;
-                                    message.GroupKey = contentMatchNotification.GroupKey;
-                                    
-                                    // 只更新本地存储，不发送到Windows通知中心
+                            bool isNewToUser = existingNotification is null;
+                            Notification notification;
 
-                                }
-                                else
-                                {
-                                    // 确保notification对象已创建
-                                    if (notification == null)
-                                    {
-                                        notification = await Notification.FromMessage(message);
-                                        notification.AddSourceDevice(device.Id, device.Name);
-                                    }
-                                    
-                                    // 检查设备本地是否已有相同Key的通知
-                                    Notification? existingNotification;
-                                    lock (notifications)
-                                    {
-                                        existingNotification = notifications.FirstOrDefault(n => n.Key == notification.Key);
-                                    }
-
-                                    if (existingNotification is not null)
-                                    {
-                                        // 更新现有通知
-                                        if (existingNotification.Pinned)
-                                        {
-                                            notification.Pinned = true;
-                                        }
-                                        lock (notifications)
-                                        {
-                                            var index = notifications.IndexOf(existingNotification);
-                                            notifications[index] = notification;
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // 添加新通知
-                                        lock (notifications)
-                                        {
-                                            notifications.Insert(0, notification);
-                                        }
-                                    }
-                                    
-                                    // 如果是新通知，使用内容生成唯一的tag和groupKey
-                                    string contentHash = $"{notification.AppPackage}|{notification.Title}|{notification.Text}";
-                                    message.Tag = contentHash;
-                                    message.GroupKey = contentHash;
-                                }
-                            }
-                            else if ((message.NotificationType is NotificationType.Active || message.NotificationType is NotificationType.New)
-                                && (filter is NotificationFilter.Feed || filter is NotificationFilter.ToastFeed))
+                            if (existingNotification != null)
                             {
-                                // 确保notification对象已创建
-                                if (notification == null)
+                                notification = existingNotification;
+                                // 避免重复添加同一设备
+                                if (!notification.SourceDevices.Any(sd => sd.DeviceId == device.Id))
                                 {
-                                    notification = await Notification.FromMessage(message);
                                     notification.AddSourceDevice(device.Id, device.Name);
                                 }
-                                lock (notifications)
+                                
+                                if (notification.Icon == null && !string.IsNullOrEmpty(message.AppPackage))
                                 {
-                                    notifications.Add(notification);
+                                    notification.IconPath = IconUtils.GetAppIconPath(message.AppPackage);
+                                    if (IconUtils.AppIconExists(message.AppPackage)) await notification.LoadIconAsync();
                                 }
-
                             }
                             else
                             {
-                                shouldSaveNotification = false;
+                                notification = await Notification.FromMessage(message);
+                                notification.AddSourceDevice(device.Id, device.Name);
+                                if (!string.IsNullOrEmpty(message.AppPackage))
+                                {
+                                    notification.IconPath = IconUtils.GetAppIconPath(message.AppPackage);
+                                    if (IconUtils.AppIconExists(message.AppPackage)) await notification.LoadIconAsync();
+                                }
+                                activeNotifications.Add(notification);
                             }
                             
-                            if (shouldSaveNotification && notification != null)
+                            // 更新数据库
+                            bool shouldSave = true;
+                            if (message.NotificationType != NotificationType.New && filter != NotificationFilter.ToastFeed && filter != NotificationFilter.Feed)
+                            {
+                                shouldSave = false;
+                            }
+                            
+                            if (shouldSave)
                             {
                                 notificationRepository.UpsertNotification(device.Id, message, notification.Pinned);
-                                
-                                SortNotifications(device.Id);
-                                
-                                // Update all notifications
-                                UpdateActiveNotifications();
-                                
-                                #if WINDOWS
-                                // Check if the app is active before showing the notification
-                                if (device.DeviceSettings.IgnoreWindowsApps && await IsAppActiveAsync(message.AppName!)) return;
-                                #endif
-                                
-                                // 只有当通知是新的时，才会发送到Windows通知中心
-                                if (shouldSendNotification)
+                            }
+
+                            UpdateActiveNotifications();
+                            
+                            #if WINDOWS
+                            if (device.DeviceSettings.IgnoreWindowsApps && await IsAppActiveAsync(message.AppName!)) return;
+                            #endif
+                            
+                            // 只有当通知是新的时，才会发送到Windows通知中心
+                            if (isNewToUser && message.NotificationType == NotificationType.New)
+                            {
+                                bool tcpSentSuccessfully = false;
+                                try
                                 {
-                                    // 尝试通过TCP发送通知到本地小部件
-                                    bool tcpSentSuccessfully = false;
-                                    try
+                                    string? iconUrl = null;
+                                    if (!string.IsNullOrEmpty(message.AppPackage))
                                     {
-                                        // 将图标编码为data URL
-                                        string? iconUrl = null;
-                                        if (!string.IsNullOrEmpty(message.AppPackage))
+                                        try
                                         {
-                                            try
+                                            string iconFilePath = IconUtils.GetAppIconFilePath(message.AppPackage);
+                                            if (System.IO.File.Exists(iconFilePath))
                                             {
-                                                // 使用IconUtils.GetAppIconFilePath获取实际的文件系统路径
-                                                string iconFilePath = IconUtils.GetAppIconFilePath(message.AppPackage);
-                                                if (System.IO.File.Exists(iconFilePath))
+                                                var bytes = System.IO.File.ReadAllBytes(iconFilePath);
+                                                var ext = System.IO.Path.GetExtension(iconFilePath).ToLowerInvariant();
+                                                string contentType = ext switch
                                                 {
-                                                    var bytes = System.IO.File.ReadAllBytes(iconFilePath);
-                                                    var ext = System.IO.Path.GetExtension(iconFilePath).ToLowerInvariant();
-                                                    string contentType = ext switch
-                                                    {
-                                                        ".png" => "image/png",
-                                                        ".jpg" or ".jpeg" => "image/jpeg",
-                                                        ".gif" => "image/gif",
-                                                        ".webp" => "image/webp",
-                                                        ".svg" => "image/svg+xml",
-                                                        _ => "application/octet-stream",
-                                                    };
-                                                    var b64 = Convert.ToBase64String(bytes);
-                                                    iconUrl = $"data:{contentType};base64,{b64}";
-                                                }
-                                            }
-                                            catch (Exception ex)
-                                            {
-                                                logger.LogError(ex, "将图标编码为data URL失败");
+                                                    ".png" => "image/png",
+                                                    ".jpg" or ".jpeg" => "image/jpeg",
+                                                    ".gif" => "image/gif",
+                                                    ".webp" => "image/webp",
+                                                    ".svg" => "image/svg+xml",
+                                                    _ => "application/octet-stream",
+                                                };
+                                                var b64 = Convert.ToBase64String(bytes);
+                                                iconUrl = $"data:{contentType};base64,{b64}";
                                             }
                                         }
-                                        
-                                        // 发送TCP通知
-                                        tcpSentSuccessfully = await LocalSocketRelayServer.SendNotificationAsync(
-                                            message.AppName!, 
-                                            message.AppPackage!, 
-                                            message.Title!, 
-                                            message.Text ?? string.Empty, 
-                                            iconUrl);
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        logger.LogError(ex, "发送TCP通知失败");
+                                        catch (Exception ex)
+                                        {
+                                            logger.LogError(ex, "将图标编码为data URL失败");
+                                        }
                                     }
                                     
-                                    // 如果TCP通知发送成功，则跳过Windows系统通知
-                                    if (!tcpSentSuccessfully)
-                                    {
-                                        // 发送通知到Windows通知中心
-                                        await platformNotificationHandler.ShowRemoteNotification(message, device.Id);
-                                    }
-                                    else
-                                    {
-                                        logger.LogDebug("TCP通知发送成功，跳过Windows系统通知");
-                                    }
+                                    tcpSentSuccessfully = await LocalSocketRelayServer.SendNotificationAsync(
+                                        message.AppName!, 
+                                        message.AppPackage!, 
+                                        message.Title!, 
+                                        message.Text ?? string.Empty, 
+                                        iconUrl);
+                                }
+                                catch (Exception ex)
+                                {
+                                    logger.LogError(ex, "发送TCP通知失败");
+                                }
+                                
+                                if (!tcpSentSuccessfully)
+                                {
+                                    await platformNotificationHandler.ShowRemoteNotification(message, device.Id);
+                                }
+                                else
+                                {
+                                    logger.LogDebug("TCP通知发送成功，跳过Windows系统通知");
                                 }
                             }
                         });
-            }
-            else if (message.NotificationType == NotificationType.Removed)
-            {
-                if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
-                
-                // 查找匹配的通知（基于内容匹配，因为可能是聚合通知）
-                string notificationKey = message.NotificationKey;
-                string? appPackage = message.AppPackage;
-                string? title = message.Title;
-                string? text = message.Text;
-                
-                await dispatcher.EnqueueAsync(async () =>
-                {
-                    Notification? notification;
-                    lock (notifications)
-                    {
-                        notification = notifications.FirstOrDefault(n => 
-                            n.Key == notificationKey ||
-                            (n.AppPackage == appPackage && 
-                             n.Title == title && 
-                             n.Text == text));
-                    }
-                    
-                    if (notification is not null && !notification.Pinned)
-                    {
-                        lock (notifications)
-                        {
-                            notifications.Remove(notification);
-                        }
-                        notificationRepository.DeleteNotification(device.Id, notificationKey);
-                        // Update all notifications
-                        UpdateActiveNotifications();
-                    }
-                });
             }
         }
         catch (Exception ex)
@@ -496,40 +302,28 @@ public class NotificationService(
             {
                 _ = dispatcher.EnqueueAsync(() => 
                 {
-                    // 从所有设备的通知列表中移除匹配的通知
-                    List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
-                    lock (deviceNotificationsLock)
+                    // Remove from activeNotifications
+                    if (activeNotifications.Contains(notification))
                     {
-                        deviceNotificationsSnapshot = deviceNotifications.ToList();
+                        activeNotifications.Remove(notification);
+                    }
+                    else
+                    {
+                         var match = activeNotifications.FirstOrDefault(n => n.Key == notification.Key);
+                         if (match != null) activeNotifications.Remove(match);
                     }
 
-                    foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
+                    // Remove from DB for all source devices
+                    foreach (var source in notification.SourceDevices)
                     {
-                        Notification? notificationToRemove;
-                        lock (notifications)
-                        {
-                            notificationToRemove = notifications.FirstOrDefault(n => 
-                                n.Key == notification.Key ||
-                                (n.AppPackage == notification.AppPackage && 
-                                 n.Title == notification.Title && 
-                                 n.Text == notification.Text));
-                        }
-                        
-                        if (notificationToRemove != null)
-                        {
-                            lock (notifications)
-                            {
-                                notifications.Remove(notificationToRemove);
-                            }
-                            logger.LogDebug("已从设备 {DeviceId} 移除通知：{NotificationKey}", deviceId, notification.Key);
-
-                            notificationRepository.DeleteNotification(deviceId, notificationToRemove.Key);
-                        }
+                        notificationRepository.DeleteNotification(source.DeviceId, notification.Key);
                     }
+                    
+                    // Also try to delete for the passed device if not in source (just in case)
+                    notificationRepository.DeleteNotification(device.Id, notification.Key);
 
                     platformNotificationHandler.RemoveNotificationsByTagAndGroup(notification.Tag, notification.GroupKey);
 
-                    // Always update the aggregated notifications after a removal
                     UpdateActiveNotifications();
                 });
             }
@@ -544,32 +338,14 @@ public class NotificationService(
     {
             _ = dispatcher.EnqueueAsync(() =>
         {
-            if (!deviceNotifications.TryGetValue(device.Id, out var notifications)) return;
-            
             notification.Pinned = !notification.Pinned;
-            // Update existing notification: try to find by reference first, then by Key
-            int index;
-            lock (notifications)
+            
+            // Update in DB for all source devices
+            foreach (var source in notification.SourceDevices)
             {
-                index = notifications.IndexOf(notification);
-                if (index < 0)
-                {
-                    index = notifications.ToList().FindIndex(n => n.Key == notification.Key);
-                }
-                if (index >= 0)
-                {
-                    notifications[index] = notification;
-                }
-                else
-                {
-                    // If not found, insert at the front
-                    notifications.Insert(0, notification);
-                }
+                notificationRepository.UpdatePinned(source.DeviceId, notification.Key, notification.Pinned);
             }
-            SortNotifications(device.Id);
-            notificationRepository.UpdatePinned(device.Id, notification.Key, notification.Pinned);
                 
-            // Always update the aggregated notifications after pin/unpin
             UpdateActiveNotifications();
         });
     }
@@ -595,29 +371,14 @@ public class NotificationService(
         {
             try
             {
-                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
-                lock (deviceNotificationsLock)
+                // Remove all non-pinned from activeNotifications
+                var toRemove = activeNotifications.Where(n => !n.Pinned).ToList();
+                foreach (var n in toRemove)
                 {
-                    deviceNotificationsSnapshot = deviceNotifications.ToList();
+                    activeNotifications.Remove(n);
                 }
 
-                // 清除所有设备的通知集合
-                foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
-                {
-                    lock (notifications)
-                    {
-                        // 移除集合中所有未置顶的通知，保留置顶
-                        for (int i = notifications.Count - 1; i >= 0; i--)
-                        {
-                            if (!notifications[i].Pinned)
-                            {
-                                notifications.RemoveAt(i);
-                            }
-                        }
-                    }
-                }
-
-                // 清除所有设备的未置顶通知历史（保留置顶）
+                // Clear DB for all devices
                 foreach (var device in deviceManager.PairedDevices)
                 {
                     notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
@@ -625,7 +386,6 @@ public class NotificationService(
                 
                 ClearBadge();
                 
-                // 更新活跃通知列表，确保UI反映最新状态
                 UpdateActiveNotifications();
             }
             catch (Exception ex)
@@ -644,32 +404,17 @@ public class NotificationService(
         {
             try
             {
-                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
-                lock (deviceNotificationsLock)
+                var toRemove = activeNotifications.Where(n => !n.Pinned && n.AppPackage == appPackage).ToList();
+                foreach (var n in toRemove)
                 {
-                    deviceNotificationsSnapshot = deviceNotifications.ToList();
-                }
-
-                // 遍历所有设备的通知列表
-                foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
-                {
-                    lock (notifications)
+                    activeNotifications.Remove(n);
+                    // Delete from DB for all sources
+                    foreach (var source in n.SourceDevices)
                     {
-                        // 移除该设备上所有匹配包名的未置顶通知
-                        for (int i = notifications.Count - 1; i >= 0; i--)
-                        {
-                            var notification = notifications[i];
-                            if (!notification.Pinned && notification.AppPackage == appPackage)
-                            {
-                                notifications.RemoveAt(i);
-                                // 从数据库中删除该通知
-                                notificationRepository.DeleteNotification(deviceId, notification.Key);
-                            }
-                        }
+                        notificationRepository.DeleteNotification(source.DeviceId, n.Key);
                     }
                 }
                 
-                // 更新活跃通知列表，确保UI反映最新状态
                 UpdateActiveNotifications();
             }
             catch (Exception ex)
@@ -685,25 +430,26 @@ public class NotificationService(
         {
             try
             {
-                if (deviceNotifications.TryGetValue(device.Id, out var notifications))
+                // Iterate activeNotifications (backwards or copy)
+                for (int i = activeNotifications.Count - 1; i >= 0; i--)
                 {
-                    lock (notifications)
+                    var n = activeNotifications[i];
+                    if (n.Pinned) continue;
+                    
+                    var source = n.SourceDevices.FirstOrDefault(sd => sd.DeviceId == device.Id);
+                    if (source != null)
                     {
-                        // 移除未置顶的通知，保留置顶
-                        for (int i = notifications.Count - 1; i >= 0; i--)
+                        n.SourceDevices.Remove(source);
+                        if (n.SourceDevices.Count == 0)
                         {
-                            if (!notifications[i].Pinned)
-                            {
-                                notifications.RemoveAt(i);
-                            }
+                            activeNotifications.RemoveAt(i);
                         }
                     }
-                    ClearBadge();
                 }
-                // 只清除数据库中未置顶的通知
+
+                ClearBadge();
                 notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
                 
-                // 更新活跃通知列表，确保UI反映最新状态
                 UpdateActiveNotifications();
             }
             catch (Exception ex)
@@ -713,34 +459,7 @@ public class NotificationService(
         });
     }
 
-    private void SortNotifications(string deviceId)
-    {
-        dispatcher.EnqueueAsync(() =>
-        {
-            if (!deviceNotifications.TryGetValue(deviceId, out var notifications)) return;
 
-            List<Notification> sorted;
-            lock (notifications)
-            {
-                sorted = notifications.OrderByDescending(n => n.Pinned)
-                    .ThenByDescending(n => n.TimeStamp)
-                    .ToList();
-            }
-
-            for (int i = 0; i < sorted.Count; i++)
-            {
-                int currentIndex;
-                lock (notifications)
-                {
-                    currentIndex = notifications.IndexOf(sorted[i]);
-                    if (currentIndex != i)
-                    {
-                        notifications.Move(currentIndex, i);
-                    }
-                }
-            }
-        });
-    }
 
     private void UpdateActiveNotifications(PairedDevice? activeDevice = null)
     {
@@ -753,123 +472,27 @@ public class NotificationService(
                 existingGroupStates[existingGroup.Id] = (existingGroup.IsCollapsed, existingGroup.EarliestTime, existingGroup.LatestTime);
             }
 
+            // 排序 activeNotifications
+            var sortedNotifications = activeNotifications.OrderByDescending(n => n.TimeStamp).ToList();
             activeNotifications.Clear();
+            foreach(var n in sortedNotifications) activeNotifications.Add(n);
+
             groupedNotifications.Clear();
 
-            // 聚合所有设备的通知，相同内容的通知只保留一个，添加多个设备来源
-            Dictionary<string, Notification> aggregatedNotifications = [];
-            int totalNotifications = 0;
-
-            // 使用快照避免在遍历时集合被修改
-            List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
-            lock (deviceNotificationsLock)
-            {
-                deviceNotificationsSnapshot = deviceNotifications.ToList();
-            }
-
-            // 遍历所有设备的通知
-            foreach (var (deviceId, notifications) in deviceNotificationsSnapshot)
-            {
-                // 检查notifications是否为null
-                if (notifications == null) continue;
-                
-                Notification[] notificationsSnapshot;
-                lock (notifications)
-                {
-                    notificationsSnapshot = notifications.ToArray();
-                }
-
-                totalNotifications += notificationsSnapshot.Length;
-                
-                // 遍历每个设备的通知（使用快照防止枚举时集合被修改）
-                foreach (var notification in notificationsSnapshot)
-                {
-                    // 检查notification是否为null
-                    if (notification == null) continue;
-                    
-                    // 使用 AppPackage + Title + Text 作为聚合键
-                    string aggregationKey = $"{notification.AppPackage}|{notification.Title}|{notification.Text}|{notification.Type}";
-                    
-                    if (aggregatedNotifications.TryGetValue(aggregationKey, out var existingNotification))
-                    {
-                        // 如果已存在相同内容的通知，合并设备来源
-                        foreach (var sourceDevice in notification.SourceDevices)
-                        {
-                            existingNotification.AddSourceDevice(sourceDevice.DeviceId, sourceDevice.DeviceName);
-                        }
-                        
-                        // 确保现有通知有图标，如果新通知有图标而现有通知没有
-                        if (existingNotification.Icon == null && notification.Icon != null)
-                        {
-                            existingNotification.Icon = notification.Icon;
-                            existingNotification.IconPath = notification.IconPath;
-                        }
-                        // 如果现有通知没有图标路径，从新通知获取
-                        if (string.IsNullOrEmpty(existingNotification.IconPath) && !string.IsNullOrEmpty(notification.IconPath))
-                        {
-                            existingNotification.IconPath = notification.IconPath;
-                            // 尝试加载图标
-                            _ = existingNotification.LoadIconAsync();
-                        }
-                    }
-                    else
-                    {
-                        // 如果不存在，添加到聚合字典中
-                        aggregatedNotifications[aggregationKey] = notification;
-                    }
-                }
-            }
-
-            // 确保所有聚合后的通知都能正确加载图标
-            foreach (var notification in aggregatedNotifications.Values)
-            {
-                if (notification.Icon == null && !string.IsNullOrEmpty(notification.AppPackage))
-                {
-                    // 确保图标路径正确
-                    notification.IconPath = IconUtils.GetAppIconPath(notification.AppPackage);
-                    // 检查图标文件是否存在，如果存在则尝试加载图标
-                    if (IconUtils.AppIconExists(notification.AppPackage))
-                    {
-                        // 异步加载图标，不阻塞主线程
-                        _ = notification.LoadIconAsync();
-                    }
-                }
-            }
-
-            // 将聚合后的通知添加到活跃通知列表
-            activeNotifications.AddRange(aggregatedNotifications.Values);
-
-            // Update badge if there's an active device and it has badge enabled
+            // Update badge
+            int totalNotifications = activeNotifications.Count;
             if (activeDevice?.DeviceSettings.ShowBadge == true)
             {
-                // Get the blank badge XML payload for a badge number
-                XmlDocument badgeXml =
-                    BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-
-                // Set the value of the badge in the XML to our number
+                XmlDocument badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
                 XmlElement badgeElement = badgeXml.SelectSingleNode("/badge") as XmlElement;
                 badgeElement.SetAttribute("value", totalNotifications.ToString());
-
-                // Create the badge notification
                 BadgeNotification badge = new(badgeXml);
-
-                // Create the badge updater for the application
-                BadgeUpdater badgeUpdater =
-                    BadgeUpdateManager.CreateBadgeUpdaterForApplication();
-
-                // And update the badge
+                BadgeUpdater badgeUpdater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
                 badgeUpdater.Update(badge);
             }
 
-            // Sort all notifications by timestamp (newest first)
-            var sortedNotifications = activeNotifications.OrderByDescending(n => n.TimeStamp).ToList();
-            activeNotifications.Clear();
-            activeNotifications.AddRange(sortedNotifications);
-
-            // Group notifications by app package, but exclude pinned notifications and single notifications
+            // Group notifications
             Dictionary<string, List<Notification>> appNotificationsDict = [];
-            
-            // First, separate pinned notifications and collect app notifications
             List<Notification> pinnedNotifications = [];
             
             foreach (var notification in activeNotifications)
@@ -890,7 +513,6 @@ public class NotificationService(
                 }
             }
             
-            // Now create grouped notifications for remaining notifications
             Dictionary<string, GroupedNotification> groupedNotificationsDict = [];
             List<Notification> singleNotifications = [];
             
@@ -898,12 +520,10 @@ public class NotificationService(
             {
                 if (notificationsList.Count == 1)
                 {
-                    // Single notification, add to single notifications list
                     singleNotifications.Add(notificationsList[0]);
                 }
                 else
                 {
-                    // Multiple notifications, create a group
                     var notificationTime = ParseNotificationTime(notificationsList[0]);
                     var group = new GroupedNotification
                     {
@@ -912,14 +532,9 @@ public class NotificationService(
                         LatestTime = notificationTime
                     };
                     
-                    // 先添加所有通知，让AddNotification方法处理应用信息和图标的设置
-                    // 这样可以确保即使第一条通知没有图标，也能从后续通知获取
-                    
-                    // 恢复现有分组的展开/折叠状态和时间信息
                     if (existingGroupStates.TryGetValue(groupKey, out var groupState))
                     {
                         group.IsCollapsed = groupState.IsCollapsed;
-                        // 如果分组是展开状态，保留原有的时间信息，避免移除最新通知导致排序改变
                         if (!groupState.IsCollapsed)
                         {
                             group.EarliestTime = groupState.EarliestTime;
@@ -936,46 +551,22 @@ public class NotificationService(
                 }
             }
             
-            // Combine all notifications: pinned first, then mixed sorted non-pinned notifications
             var finalNotifications = new List<object>();
-            
-            // Add pinned notifications first (sorted by time)
             finalNotifications.AddRange(pinnedNotifications.OrderByDescending(n => n.TimeStamp));
             
-            // Create a list of all non-pinned notifications (both single and grouped)
             var nonPinnedNotifications = new List<object>();
+            foreach (var notification in singleNotifications) nonPinnedNotifications.Add(notification);
+            nonPinnedNotifications.AddRange(groupedNotificationsDict.Values);
             
-            // Add single notifications as grouped notifications for consistent processing
-            foreach (var notification in singleNotifications)
-            {
-                nonPinnedNotifications.Add(notification);
-            }
-            
-            // Add grouped notifications
-            var groupsToKeep = groupedNotificationsDict.Values.ToList();
-            nonPinnedNotifications.AddRange(groupsToKeep);
-            
-            // Sort non-pinned notifications by timestamp (newest first)
             var sortedNonPinnedNotifications = nonPinnedNotifications.OrderByDescending(item => 
             {
-                if (item is Notification notification)
-                {
-                    // Single notification - use its own timestamp
-                    return ParseNotificationTime(notification);
-                }
-                else if (item is GroupedNotification group)
-                {
-                    // Grouped notification - use the latest timestamp in the group
-                    return group.LatestTime;
-                }
+                if (item is Notification notification) return ParseNotificationTime(notification);
+                else if (item is GroupedNotification group) return group.LatestTime;
                 return DateTime.MinValue;
             }).ToList();
             
-            // Add sorted non-pinned notifications
             finalNotifications.AddRange(sortedNonPinnedNotifications);
             
-            // Now populate the groupedNotifications collection with all types of notifications
-            groupedNotifications.Clear();
             foreach (var item in finalNotifications)
             {
                 if (item is GroupedNotification group)
@@ -984,7 +575,6 @@ public class NotificationService(
                 }
                 else if (item is Notification notification)
                 {
-                    // Create a wrapper GroupedNotification for single notifications to maintain consistency
                     var singleGroup = new GroupedNotification
                     {
                         Id = notification.Key,
@@ -995,7 +585,6 @@ public class NotificationService(
                 }
             }
             
-            // 触发分组通知变化事件
             OnGroupedNotificationsChanged(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
         });
     }
@@ -1009,28 +598,17 @@ public class NotificationService(
         return DateTime.Now;
     }
 
-    private async Task EnsureNotificationsLoadedAsync(PairedDevice device)
+    public async Task LoadAllNotificationsAsync()
     {
         try
         {
-            var stored = notificationRepository.GetDeviceNotifications(device.Id);
+            var allNotifications = new List<Notification>();
             
-            var notifications = GetOrCreateNotificationCollection(device);
-            
-            // 如果通知数量为0，或者存储的通知数量大于内存中的通知数量，说明需要重新加载
-            if (stored.Count == 0 && notifications.Count == 0)
+            // Gather all notifications from all devices
+            foreach (var device in deviceManager.PairedDevices)
             {
-                loadedDeviceIds.Add(device.Id);
-                return;
-            }
-            
-            // 清空现有集合，准备重新加载
-            lock (notifications)
-            {
-                notifications.Clear();
-            }
-
-            foreach (var entity in stored)
+                var stored = await Task.Run(() => notificationRepository.GetDeviceNotifications(device.Id));
+                foreach (var entity in stored)
                 {
                     var msg = SocketMessageSerializer.DeserializeMessage(entity.MessageJson) as NotificationMessage;
                     if (msg is null) continue;
@@ -1038,19 +616,15 @@ public class NotificationService(
                     var notif = await Notification.FromMessage(msg);
                     notif.Pinned = entity.Pinned;
                     
-                    // 解析设备ID和名称列表
                     try
                     {
                         var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds) ?? [];
                         var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
                         
-                        // 添加所有设备信息到通知
                         for (int i = 0; i < deviceIds.Count; i++)
                         {
                             var deviceId = deviceIds[i];
-                            // 获取正确的设备名称，优先使用DeviceManager中的设备名称，否则使用存储的名称
                             var storedDeviceName = i < deviceNames.Count ? deviceNames[i] : deviceId;
-                            // 从设备管理器中查找设备，获取正确的设备名称
                             var pairedDevice = deviceManager.FindDeviceById(deviceId);
                             var deviceName = pairedDevice?.Name ?? storedDeviceName;
                             
@@ -1060,49 +634,62 @@ public class NotificationService(
                     catch (Exception ex)
                     {
                         logger.LogError(ex, "解析通知 {Id} 的设备信息失败", entity.Id);
-                        // 如果解析失败，至少添加当前设备
                         notif.AddSourceDevice(device.Id, device.Name);
                     }
                     
-                    // 确保图标路径正确设置
                     if (!string.IsNullOrEmpty(msg.AppPackage))
                     {
-                        // 直接设置图标路径，确保所有设备的通知都能访问到正确的图标路径
                         string iconPath = IconUtils.GetAppIconPath(msg.AppPackage);
                         notif.IconPath = iconPath;
-                        
-                        // 确保图标文件存在
                         if (IconUtils.AppIconExists(msg.AppPackage))
                         {
-                            // 立即同步加载图标，确保历史通知能显示图标
-                            await notif.LoadIconAsync();
-                        }
-                        else
-                        {
-                            // 如果图标不存在，尝试异步请求图标
-                            logger.LogDebug("通知图标不存在，尝试请求图标: {AppPackage}", msg.AppPackage);
-                            // 发送图标请求
-                            remoteAppServiceFactory().SendIconRequest(device.Id, [msg.AppPackage]);
-                            // 延迟一段时间后再次尝试加载图标
-                            await Task.Delay(500);
                             await notif.LoadIconAsync();
                         }
                     }
                     
-                    lock (notifications)
-                    {
-                        notifications.Add(notif);
-                    }
+                    allNotifications.Add(notif);
                 }
+            }
 
-            loadedDeviceIds.Add(device.Id);
+            // Aggregate
+            var aggregated = new Dictionary<string, Notification>();
+            foreach (var n in allNotifications)
+            {
+                 string key = $"{n.AppPackage}|{n.Title}|{n.Text}|{n.Type}";
+                 if (aggregated.TryGetValue(key, out var existing))
+                 {
+                     foreach(var sd in n.SourceDevices) existing.AddSourceDevice(sd.DeviceId, sd.DeviceName);
+                     
+                     if (existing.Icon == null && n.Icon != null) existing.Icon = n.Icon;
+                     if (string.IsNullOrEmpty(existing.IconPath) && !string.IsNullOrEmpty(n.IconPath)) existing.IconPath = n.IconPath;
+                 }
+                 else
+                 {
+                     aggregated[key] = n;
+                 }
+            }
+            
+            foreach (var n in aggregated.Values)
+            {
+                 if (n.Icon == null && !string.IsNullOrEmpty(n.AppPackage) && IconUtils.AppIconExists(n.AppPackage))
+                 {
+                      await n.LoadIconAsync();
+                 }
+            }
 
-            // Update all notifications, not just for the active device
-            UpdateActiveNotifications();
+            await dispatcher.EnqueueAsync(() =>
+            {
+                activeNotifications.Clear();
+                foreach(var n in aggregated.Values.OrderByDescending(x => x.TimeStamp)) 
+                {
+                    activeNotifications.Add(n);
+                }
+                UpdateActiveNotifications();
+            });
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "加载设备 {DeviceId} 的通知时出错", device.Id);
+            logger.LogError(ex, "Failed to load all notifications");
         }
     }
 
@@ -1326,28 +913,12 @@ public class NotificationService(
             // 更新所有使用该包名的通知的图标
             dispatcher.EnqueueAsync(async () =>
             {
-                List<KeyValuePair<string, ObservableCollection<Notification>>> deviceNotificationsSnapshot;
-                lock (deviceNotificationsLock)
+                var notificationsToUpdate = activeNotifications.Where(n => n.AppPackage == packageName).ToList();
+                foreach (var notification in notificationsToUpdate)
                 {
-                    deviceNotificationsSnapshot = deviceNotifications.ToList();
-                }
-                // 遍历所有设备的通知
-                foreach (var (deviceIdKey, notifications) in deviceNotificationsSnapshot)
-                {
-                    Notification[] notificationsSnapshot;
-                    lock (notifications)
-                    {
-                        notificationsSnapshot = notifications.ToArray();
-                    }
-
-                    // 查找使用该包名的通知
-                    var notificationsToUpdate = notificationsSnapshot.Where(n => n.AppPackage == packageName).ToList();
-                    foreach (var notification in notificationsToUpdate)
-                    {
-                        // 更新图标路径和图标
-                        notification.IconPath = IconUtils.GetAppIconPath(packageName);
-                        await notification.LoadIconAsync();
-                    }
+                    // 更新图标路径和图标
+                    notification.IconPath = IconUtils.GetAppIconPath(packageName);
+                    await notification.LoadIconAsync();
                 }
                 
                 // 刷新所有通知
