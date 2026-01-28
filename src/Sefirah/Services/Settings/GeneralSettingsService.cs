@@ -176,4 +176,23 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
             Actions = actions;
         }
     }
+
+    // 显示器亮度同步设置
+    public string? ControlMyMonitorPath
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public bool EnableMonitorBrightnessSync
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public List<string> SelectedMonitors
+    {
+        get => Get<List<string>>([]);
+        set => Set(value);
+    }
 }

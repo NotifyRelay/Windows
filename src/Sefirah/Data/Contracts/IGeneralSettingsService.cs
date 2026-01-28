@@ -68,4 +68,19 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Removes an action from the settings.
     /// </summary>
     void RemoveAction(BaseAction action);
+
+    /// <summary>
+    /// Gets or sets the path for ControlMyMonitor.exe.
+    /// </summary>
+    string? ControlMyMonitorPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether monitor brightness sync is enabled.
+    /// </summary>
+    bool EnableMonitorBrightnessSync { get; set; }
+
+    /// <summary>
+    /// Gets or sets the list of selected monitors for brightness sync.
+    /// </summary>
+    List<string> SelectedMonitors { get; set; }
 }

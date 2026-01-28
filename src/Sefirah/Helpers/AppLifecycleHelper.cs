@@ -129,8 +129,30 @@ public static class AppLifecycleHelper
         );
         logger.LogInformation("步骤17：所有服务启动完成");
 
-        // 7. 完成初始化，关闭启动画面
-        logger.LogInformation("步骤18：初始化完成，关闭启动画面");
+        // 8. 初始化显示器亮度同步服务
+        logger.LogInformation("步骤18：初始化显示器亮度同步服务...");
+        try
+        {
+            var monitorBrightnessService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorBrightnessService>();
+            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+            
+            if (generalSettingsService.EnableMonitorBrightnessSync && !string.IsNullOrEmpty(generalSettingsService.ControlMyMonitorPath) && File.Exists(generalSettingsService.ControlMyMonitorPath))
+            {
+                monitorBrightnessService.StartSync();
+                logger.LogInformation("步骤18：显示器亮度同步服务启动成功");
+            }
+            else
+            {
+                logger.LogInformation("步骤18：显示器亮度同步服务未启用或配置不完整");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤18：初始化显示器亮度同步服务失败");
+        }
+
+        // 9. 完成初始化，关闭启动画面
+        logger.LogInformation("步骤19：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
     } 
@@ -235,6 +257,9 @@ public static class AppLifecycleHelper
                 
                 // 7. 注册IDiscoveryService，它依赖INetworkService
                 .AddSingleton<IDiscoveryService, DiscoveryService>()
+
+                // Monitor Brightness Service
+                .AddSingleton<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorBrightnessService>()
 
                 // ViewModels
                 .AddSingleton<MainPageViewModel>()
