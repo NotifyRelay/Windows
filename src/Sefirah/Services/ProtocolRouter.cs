@@ -188,6 +188,11 @@ public class ProtocolRouter
                     await clipboardService.Value.ProcessClipboardMessageAsync(device, decryptedPayload);
                     break;
                     
+                case "DATA_STATUS":
+                    // 处理状态响应消息
+                    await HandleStatusMessageAsync(device, decryptedPayload);
+                    break;
+                    
                 default:
                     logger.LogWarning("不支持的 DATA 消息类型: {messageType}", messageType);
                     break;
@@ -228,6 +233,117 @@ public class ProtocolRouter
         catch (Exception ex)
         {
             logger.LogError(ex, "处理图标请求时出错");
+        }
+    }
+    
+    /// <summary>
+    /// 处理状态响应消息
+    /// </summary>
+    private async Task HandleStatusMessageAsync(PairedDevice device, string decryptedPayload)
+    {
+        try
+        {
+            logger.LogDebug("处理DATA_STATUS消息: {decryptedPayload}", decryptedPayload.Length > 100 ? decryptedPayload[..100] + "..." : decryptedPayload);
+            
+            using (JsonDocument doc = JsonDocument.Parse(decryptedPayload))
+            {
+                var root = doc.RootElement;
+                
+                // 提取关键信息
+                var originalHeader = root.TryGetProperty("originalHeader", out var originalHeaderProp) ? originalHeaderProp.GetString() : string.Empty;
+                var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() : string.Empty;
+                var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() : string.Empty;
+                var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
+                
+                logger.LogDebug("DATA_STATUS消息详情: originalHeader={originalHeader}, result={result}, action={action}", originalHeader, result, action);
+                
+                // 处理不同类型的状态响应
+                switch (originalHeader)
+                {
+                    case "DATA_MEDIA_CONTROL":
+                        // 处理媒体控制响应
+                        await HandleMediaControlResponseAsync(device, root, result, errorMessage, action);
+                        break;
+                    case "DATA_FTP":
+                        // 处理FTP响应
+                        HandleFtpResponse(device, root, result, errorMessage, action);
+                        break;
+                    case "DATA_SUPERISLAND":
+                        // 处理超级岛响应
+                        HandleSuperIslandResponse(device, root, result, errorMessage, action);
+                        break;
+                    default:
+                        // 处理其他类型的状态响应
+                        logger.LogDebug("处理其他类型的状态响应: {originalHeader}", originalHeader);
+                        break;
+                }
+            }
+        }
+        catch (JsonException jsonEx)
+        {
+            logger.LogError(jsonEx, "解析DATA_STATUS消息时出错");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理DATA_STATUS消息时出错");
+        }
+    }
+    
+    /// <summary>
+    /// 处理媒体控制响应
+    /// </summary>
+    private async Task HandleMediaControlResponseAsync(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
+    {
+        try
+        {
+            logger.LogDebug("处理媒体控制响应: action={action}, result={result}", action, result);
+            
+            // 这里可以添加媒体控制响应的处理逻辑
+            // 例如：更新媒体控制状态、显示提示信息等
+            
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                logger.LogWarning("媒体控制响应错误: {errorMessage}", errorMessage);
+                // 可以添加错误处理逻辑
+            }
+            else if (result == "success")
+            {
+                logger.LogDebug("媒体控制操作成功: {action}", action);
+                // 可以添加成功处理逻辑
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理媒体控制响应时出错");
+        }
+    }
+    
+    /// <summary>
+    /// 处理FTP响应
+    /// </summary>
+    private void HandleFtpResponse(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
+    {
+        try
+        {
+            logger.LogDebug("处理FTP响应: action={action}, result={result}", action, result);
+            
+            // 这里可以添加FTP响应的处理逻辑
+            // 例如：更新FTP状态、显示提示信息等
+            
+            if (!string.IsNullOrEmpty(errorMessage))
+            {
+                logger.LogWarning("FTP响应错误: {errorMessage}", errorMessage);
+                // 可以添加错误处理逻辑
+            }
+            else if (result == "success")
+            {
+                logger.LogDebug("FTP操作成功: {action}", action);
+                // 可以添加成功处理逻辑
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理FTP响应时出错");
         }
     }
 }

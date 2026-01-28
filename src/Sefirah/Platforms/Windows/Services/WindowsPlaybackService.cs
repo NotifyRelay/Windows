@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using System.Text.Json.Serialization;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
 using NAudio.CoreAudioApi;
@@ -153,15 +154,28 @@ public class WindowsPlaybackService(
             }
         }
 
-        await ExecuteSessionActionAsync(session, mediaAction);
+        // 执行媒体操作并发送响应
+        bool success = await ExecuteSessionActionAsync(session, mediaAction);
+        
+        // 发送媒体操作响应
+        SendMediaControlResponse(mediaAction.Source, mediaAction.PlaybackActionType.ToString(), success);
     }
 
-    private async Task ExecuteSessionActionAsync(GlobalSystemMediaTransportControlsSession? session, PlaybackAction mediaAction)
+    private async Task<bool> ExecuteSessionActionAsync(GlobalSystemMediaTransportControlsSession? session, PlaybackAction mediaAction)
     {
+        bool success = false;
+        
         await dispatcher.EnqueueAsync(async () =>
         {
             try
             {
+                if (session == null)
+                {
+                    logger.LogWarning("没有活跃的媒体会话，无法执行操作：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                    success = false;
+                    return;
+                }
+                
                 switch (mediaAction.PlaybackActionType)
                 {
                     case PlaybackActionType.Play:
@@ -173,80 +187,98 @@ public class WindowsPlaybackService(
                             {
                                 if (playbackInfo.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
                                 {
-                                    await session?.TryPauseAsync();
+                                    var result = await session?.TryPauseAsync();
+                                    success = result == true;
                                 }
                                 else
                                 {
-                                    await session?.TryPlayAsync();
+                                    var result = await session?.TryPlayAsync();
+                                    success = result == true;
                                 }
                             }
                             else
                             {
                                 // 如果无法获取播放状态，默认尝试播放
-                                await session?.TryPlayAsync();
+                                var result = await session?.TryPlayAsync();
+                                success = result == true;
                             }
                         }
                         else
                         {
                             // 普通Play指令，直接播放
-                            await session?.TryPlayAsync();
+                            var result = await session?.TryPlayAsync();
+                            success = result == true;
                         }
                         break;
                     case PlaybackActionType.Pause:
-                        await session?.TryPauseAsync();
+                        var pauseResult = await session?.TryPauseAsync();
+                        success = pauseResult == true;
                         break;
                     case PlaybackActionType.Next:
-                        await session?.TrySkipNextAsync();
+                        var nextResult = await session?.TrySkipNextAsync();
+                        success = nextResult == true;
                         break;
                     case PlaybackActionType.Previous:
-                        await session?.TrySkipPreviousAsync();
+                        var prevResult = await session?.TrySkipPreviousAsync();
+                        success = prevResult == true;
                         break;
                     case PlaybackActionType.Seek:
                         if (mediaAction.Value.HasValue)
                         {
                             // We need to use Ticks here
                             TimeSpan position = TimeSpan.FromMilliseconds(mediaAction.Value.Value);
-                            await session?.TryChangePlaybackPositionAsync(position.Ticks);
+                            var seekResult = await session?.TryChangePlaybackPositionAsync(position.Ticks);
+                            success = seekResult == true;
                         }
                         break;
                     case PlaybackActionType.Shuffle:
-                        await session?.TryChangeShuffleActiveAsync(true);
+                        var shuffleResult = await session?.TryChangeShuffleActiveAsync(true);
+                        success = shuffleResult == true;
                         break;
                     case PlaybackActionType.Repeat:
                         if (mediaAction.Value.HasValue)
                         {
                             if (mediaAction.Value == 1.0)
                             {
-                                await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.Track);
+                                var repeatResult = await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.Track);
+                                success = repeatResult == true;
                             }
                             else if (mediaAction.Value == 2.0)
                             {
-                                await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.List);
+                                var repeatResult = await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.List);
+                                success = repeatResult == true;
                             }
                         }
                         break;
                     case PlaybackActionType.DefaultDevice:
                         SetDefaultAudioDevice(mediaAction.Source);
+                        success = true;
                         break;
                     case PlaybackActionType.VolumeUpdate:
                         if (mediaAction.Value.HasValue)
                         {
                             SetVolume(mediaAction.Source, Convert.ToSingle(mediaAction.Value.Value));
+                            success = true;
                         }
                         break;
                     case PlaybackActionType.ToggleMute:
                         ToggleMute(mediaAction.Source);
+                        success = true;
                         break;
                     default:
                         logger.LogWarning("未处理的媒体操作：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                        success = false;
                         break;
                 }
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "执行媒体操作时出错：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                success = false;
             }
         });
+        
+        return success;
     }
 
     private void SessionsChanged(GlobalSystemMediaTransportControlsSessionManager manager, SessionsChangedEventArgs args)
@@ -785,5 +817,61 @@ public class WindowsPlaybackService(
         };
         string requestJson = JsonSerializer.Serialize(requestObj);
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
+    }
+    
+    /// <summary>
+    /// 发送媒体控制响应
+    /// </summary>
+    /// <param name="source">源</param>
+    /// <param name="action">操作类型</param>
+    /// <param name="success">是否成功</param>
+    private void SendMediaControlResponse(string source, string action, bool success)
+    {
+        try
+        {
+            // 构造响应对象
+            var responseObj = new MediaControlResponse
+            {
+                OriginalHeader = "DATA_MEDIA_CONTROL",
+                Action = action,
+                Result = success ? "success" : "error",
+                ErrorMessage = success ? string.Empty : "媒体操作失败"
+            };
+            
+            string responseJson = JsonSerializer.Serialize(responseObj);
+            
+            // 发送响应消息
+            foreach (var device in deviceManager.PairedDevices)
+            {
+                if (device.ConnectionStatus)
+                {
+                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, responseJson, "DATA_STATUS");
+                }
+            }
+            
+            logger.LogDebug("发送媒体控制响应: action={action}, result={result}", action, success ? "success" : "error");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "发送媒体控制响应时出错");
+        }
+    }
+    
+    /// <summary>
+    /// 媒体控制响应类
+    /// </summary>
+    private class MediaControlResponse
+    {
+        [JsonPropertyName("originalHeader")]
+        public string OriginalHeader { get; set; }
+        
+        [JsonPropertyName("action")]
+        public string Action { get; set; }
+        
+        [JsonPropertyName("result")]
+        public string Result { get; set; }
+        
+        [JsonPropertyName("errorMessage")]
+        public string ErrorMessage { get; set; }
     }
 }

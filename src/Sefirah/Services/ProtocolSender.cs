@@ -50,6 +50,24 @@ public static class ProtocolSender
             logger.LogWarning(ex, "解析消息JSON以提取type失败，使用默认头DATA_JSON");
         }
 
+        await SendMessageAsync(logger, deviceManager, deviceId, messageJson, header);
+    }
+    
+    /// <summary>
+    /// 发送消息，指定协议头
+    /// </summary>
+    /// <param name="logger">日志记录器</param>
+    /// <param name="deviceManager">设备管理器</param>
+    /// <param name="deviceId">目标设备ID</param>
+    /// <param name="messageJson">消息JSON字符串</param>
+    /// <param name="header">协议头</param>
+    public static async Task SendMessageAsync(
+        ILogger logger,
+        IDeviceManager deviceManager,
+        string deviceId,
+        string messageJson,
+        string header)
+    {
         var device = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == deviceId);
         if (device is null)
         {
