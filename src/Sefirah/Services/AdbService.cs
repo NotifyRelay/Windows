@@ -430,6 +430,22 @@ public class AdbService(
             {
                 logger.LogTrace($"授予权限结果: {result}");
             }
+
+            // 尝试授予 AppOps READ_CLIPBOARD 权限 (允许后台读取剪贴板)
+            // 这可以解决 "Denying clipboard access" 错误
+            try 
+            {
+                string appOpsCommand = $"cmd appops set {packageName} READ_CLIPBOARD allow";
+                logger.LogTrace($"正在尝试授予 AppOps READ_CLIPBOARD 权限: {appOpsCommand}");
+                await adbClient.ExecuteShellCommandAsync(deviceData, appOpsCommand, receiver);
+                // 某些设备可能还需要 SYSTEM_ALERT_WINDOW 的 AppOp 确认
+                // string alertWindowCommand = $"cmd appops set {packageName} SYSTEM_ALERT_WINDOW allow";
+                // await adbClient.ExecuteShellCommandAsync(deviceData, alertWindowCommand, receiver);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning($"尝试授予 AppOps READ_CLIPBOARD 失败 (可能不支持此操作): {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
