@@ -1009,6 +1009,16 @@ public class NotificationService(
                 timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
             }
             
+            // 检查是否为结束包
+            var mediaType = root.TryGetProperty("mediaType", out JsonElement mediaTypeElement) && mediaTypeElement.ValueKind == JsonValueKind.String ? mediaTypeElement.GetString() : null;
+            var terminateValue = root.TryGetProperty("terminateValue", out JsonElement terminateValueElement) && terminateValueElement.ValueKind == JsonValueKind.String ? terminateValueElement.GetString() : null;
+            
+            // 如果terminateValue为__END__，则设置为结束包
+            if (terminateValue != null && terminateValue.Equals("__END__", StringComparison.OrdinalIgnoreCase))
+            {
+                mediaType = "END";
+            }
+            
             // 直接构造NotificationMessage对象
             var notificationMessage = new NotificationMessage
             {
@@ -1022,7 +1032,7 @@ public class NotificationService(
                 BigPicture = root.TryGetProperty("bigPicture", out JsonElement bigPictureElement) && bigPictureElement.ValueKind == JsonValueKind.String ? bigPictureElement.GetString() : null,
                 LargeIcon = root.TryGetProperty("largeIcon", out JsonElement largeIconElement) && largeIconElement.ValueKind == JsonValueKind.String ? largeIconElement.GetString() : null,
                 CoverUrl = root.TryGetProperty("coverUrl", out JsonElement coverUrlElement) && coverUrlElement.ValueKind == JsonValueKind.String ? coverUrlElement.GetString() : null,
-                MediaType = root.TryGetProperty("mediaType", out JsonElement mediaTypeElement) && mediaTypeElement.ValueKind == JsonValueKind.String ? mediaTypeElement.GetString() : null
+                MediaType = mediaType
             };
             
             await HandleMediaPlayNotification(device, notificationMessage);

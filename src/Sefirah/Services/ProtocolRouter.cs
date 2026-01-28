@@ -268,10 +268,6 @@ public class ProtocolRouter
                         // 处理FTP响应
                         HandleFtpResponse(device, root, result, errorMessage, action);
                         break;
-                    case "DATA_SUPERISLAND":
-                        // 处理超级岛响应
-                        HandleSuperIslandResponse(device, root, result, errorMessage, action);
-                        break;
                     default:
                         // 处理其他类型的状态响应
                         logger.LogDebug("处理其他类型的状态响应: {originalHeader}", originalHeader);
