@@ -1,8 +1,7 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Collections.Concurrent;
-using Microsoft.Extensions.Logging;
 
 namespace NotifyRelay.Services;
 
@@ -122,9 +121,9 @@ public static class LocalSocketRelayServer
                             logger?.LogWarning("本地Socket中继服务器: 客户端已关闭连接");
                             break;
                         }
-                        
+
                         // 处理接收到的数据
-                        try 
+                        try
                         {
                             string receivedData = Encoding.UTF8.GetString(buffer, 0, bytesRead);
                             // 可能包含多条指令，按换行符分割
@@ -193,16 +192,16 @@ public static class LocalSocketRelayServer
             var json = System.Text.Json.JsonSerializer.Serialize(notification);
             var payload = json + "\n";
             logger?.LogInformation("本地Socket中继服务器: 尝试向 {ClientCount} 个客户端发送通知", clients.Count);
-            
+
             var data = Encoding.UTF8.GetBytes(payload);
             bool sentToAnyClient = false;
             int sentCount = 0;
             int failedCount = 0;
-            
+
             // 创建一个临时列表，避免在迭代过程中修改原集合
             var clientList = clients.ToList();
             logger?.LogInformation("本地Socket中继服务器: 实际处理 {ClientListCount} 个客户端", clientList.Count);
-            
+
             foreach (var client in clientList)
             {
                 try
@@ -227,13 +226,13 @@ public static class LocalSocketRelayServer
                     try { client.Close(); } catch { }
                 }
             }
-            
-            logger?.LogInformation("本地Socket中继服务器: 通知发送结果 - 总数: {ClientListCount}, 成功: {SentCount}, 失败: {FailedCount}", 
+
+            logger?.LogInformation("本地Socket中继服务器: 通知发送结果 - 总数: {ClientListCount}, 成功: {SentCount}, 失败: {FailedCount}",
                 clientList.Count, sentCount, failedCount);
-            
+
             // 清理断开连接的客户端
             CleanupDisconnectedClients();
-            
+
             return sentToAnyClient;
         }
         catch (System.Text.Json.JsonException ex)
@@ -247,28 +246,28 @@ public static class LocalSocketRelayServer
             return false;
         }
     }
-    
+
     public static async Task<bool> SendMediaInfoAsync(string deviceId, string title, string artist, string coverUrl, bool isPlaying)
     {
         try
         {
-            var mediaInfo = new 
-            { 
+            var mediaInfo = new
+            {
                 type = "media_update",
                 deviceId,
-                title, 
-                artist, 
-                coverUrl, 
-                isPlaying 
+                title,
+                artist,
+                coverUrl,
+                isPlaying
             };
-            
+
             var json = System.Text.Json.JsonSerializer.Serialize(mediaInfo);
             var payload = json + "\n";
             var data = Encoding.UTF8.GetBytes(payload);
-            
+
             bool sentToAnyClient = false;
             var clientList = clients.ToList();
-            
+
             foreach (var client in clientList)
             {
                 try
@@ -283,7 +282,7 @@ public static class LocalSocketRelayServer
                 }
                 catch { }
             }
-            
+
             return sentToAnyClient;
         }
         catch (Exception ex)
@@ -292,7 +291,7 @@ public static class LocalSocketRelayServer
             return false;
         }
     }
-    
+
     /// <summary>
     /// 清理断开连接的客户端
     /// </summary>

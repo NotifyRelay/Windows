@@ -1,22 +1,12 @@
-using System;
-using System.Collections.Generic;
 using System.Collections.Concurrent;
-using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using System.Text.Json;
-using System.Threading;
-using CommunityToolkit.Mvvm.DependencyInjection;
 using CommunityToolkit.WinUI;
-using NetCoreServer;
-using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
-using NotifyRelay.Utils;
-using NotifyRelay.Utils.Serialization;
 using Uno.Logging;
 
 
@@ -46,7 +36,7 @@ public class NetworkService(
     private readonly TimeSpan heartbeatInterval = TimeSpan.FromSeconds(4);
     private readonly TimeSpan heartbeatTimeout = TimeSpan.FromSeconds(15);
     private readonly Lazy<IRemoteAppService> remoteAppService = new(remoteAppServiceFactory);
-    
+
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
 
     /// <summary>
@@ -335,7 +325,7 @@ public class NetworkService(
         {
             logger.Info($"设备 {device.Id} 已连接");
 
-            device = await deviceManager.UpdateOrAddDeviceAsync(device, connectedDevice  =>
+            device = await deviceManager.UpdateOrAddDeviceAsync(device, connectedDevice =>
             {
                 connectedDevice.ConnectionStatus = true;
                 connectedDevice.Session = session;
@@ -362,7 +352,7 @@ public class NetworkService(
             }
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
-            
+
             // 延迟请求应用列表，避免阻塞握手
             // 仅对新配对设备自动触发
             if (!isKnownDevice)
@@ -396,15 +386,15 @@ public class NetworkService(
                 {
                     // 提取设备UUID
                     var deviceUuid = message.Substring(heartbeatPrefix.Length, 36);
-                    
+
                     // 提取剩余部分
                     var suffix = message.Substring(heartbeatPrefix.Length + 36);
-                    
+
                     // 解析充电状态、电量和设备类型
                     var batteryLevel = 0;
                     var isCharging = false;
                     var deviceType = "unknown";
-                    
+
                     try
                     {
                         // 提取充电符号
@@ -412,7 +402,7 @@ public class NetworkService(
                         {
                             var chargeSign = suffix[0];
                             isCharging = chargeSign == '+';
-                            
+
                             // 查找逗号位置
                             var commaIndex = suffix.IndexOf(',');
                             if (commaIndex > 0)
@@ -423,7 +413,7 @@ public class NetworkService(
                                 {
                                     batteryLevel = Math.Clamp(parsedBattery, 0, 100);
                                 }
-                                
+
                                 // 提取设备类型
                                 deviceType = suffix.Substring(commaIndex + 1);
                             }
@@ -433,29 +423,29 @@ public class NetworkService(
                     {
                         logger.LogWarning("解析心跳包失败：{ex}", ex);
                     }
-                    
+
                     // 更新设备状态
                     var deviceStatus = new DeviceStatus
                     {
                         BatteryStatus = batteryLevel,
                         ChargingStatus = isCharging
                     };
-                    
+
                     // 调用设备管理器更新设备状态
                     deviceManager.UpdateDeviceStatus(device, deviceStatus);
                 }
-                
+
                 MarkDeviceAlive(device);
                 return;
             }
-            
+
             if (message.StartsWith("DATA_"))
             {
                 // 处理DATA_*加密业务消息
                 await ProcessDataMessageAsync(device, message);
                 return;
             }
-            
+
             logger.LogDebug("收到不支持的消息类型，按照要求直接不处理: {message}", message.Length > 50 ? message[..50] + "..." : message);
             return;
         }
@@ -464,7 +454,7 @@ public class NetworkService(
             logger.LogError(ex, "处理协议消息时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理DATA_*加密业务消息
     /// </summary>
@@ -474,7 +464,7 @@ public class NetworkService(
     {
         // 更新设备活跃时间
         MarkDeviceAlive(device);
-        
+
         // 使用协议路由器处理消息
         await protocolRouter.ProcessDataMessageAsync(device, message);
     }
@@ -485,7 +475,7 @@ public class NetworkService(
         {
             string remoteDeviceId;
             string remotePublicKey = string.Empty;
-            
+
             // 处理其他格式
             var parts = message.Split(':');
             if (parts.Length < 3) return null;
@@ -509,7 +499,7 @@ public class NetworkService(
 
             // 获取会话的远程IP地址
             var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
-            
+
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
                 device.Session = session;
@@ -518,7 +508,7 @@ public class NetworkService(
                 device.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretBytes(localPublicKey, remotePublicKey);
                 device.LastHeartbeat = DateTime.UtcNow;
                 deviceManager.ActiveDevice ??= device;
-                
+
                 // 更新设备IP地址
                 if (!string.IsNullOrEmpty(connectedSessionIpAddress))
                 {
@@ -527,13 +517,13 @@ public class NetworkService(
                     {
                         device.IpAddresses = new List<string>();
                     }
-                    
+
                     // 如果IP地址不存在，添加到列表中
                     if (!device.IpAddresses.Contains(connectedSessionIpAddress))
                     {
                         logger.LogInformation("添加设备 {deviceName} 的IP地址：{newIp}", device.Name, connectedSessionIpAddress);
                         logger.LogInformation("会话远程IP地址：{ipAddress}", connectedSessionIpAddress);
-                        
+
                         // 添加新的IP地址到列表中，保留旧的IP地址
                         device.IpAddresses.Add(connectedSessionIpAddress);
                     }
@@ -543,7 +533,7 @@ public class NetworkService(
             BindSession(device.Id, session);
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
-            
+
             return device;
         }
         catch (Exception ex)
@@ -561,7 +551,7 @@ public class NetworkService(
             {
                 // 等待几秒钟，确保连接稳定，且不阻塞主握手流程
                 await Task.Delay(3000);
-                
+
                 remoteAppService.Value.SendAppListRequest(deviceId);
                 logger.LogDebug("已自动触发设备 {deviceId} 的应用列表请求", deviceId);
             }
@@ -632,7 +622,7 @@ public class NetworkService(
             var batteryLevel = systemInfoService.GetSystemBatteryLevel(); // 接入系统电量API
             var isCharging = systemInfoService.GetSystemChargingStatus(); // 获取充电状态
             var chargeSign = isCharging ? "+" : "-";
-            
+
             // 心跳格式：HEARTBEAT:<deviceUuid><<+/->设备电量%>,<设备类型>
             var payload = $"HEARTBEAT:{localDeviceId}{chargeSign}{batteryLevel},pc";
             var bytes = Encoding.UTF8.GetBytes(payload);

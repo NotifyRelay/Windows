@@ -1,7 +1,4 @@
-using System.Diagnostics;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
 using NotifyRelay.Data.Models;
 using NotifyRelay.ViewModels;
 
@@ -21,10 +18,10 @@ public sealed partial class NotificationsListControl : UserControl
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
-        
+
         // 保存UI线程的DispatcherQueue，用于定时器回调
         dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-        
+
         // 初始化滚动定时器
         scrollTimer = new System.Threading.Timer(OnScrollTimerElapsed, null, System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
     }
@@ -35,7 +32,7 @@ public sealed partial class NotificationsListControl : UserControl
         if (ViewModel?.NotificationService != null)
         {
             ViewModel.NotificationService.GroupedNotificationsChanged += OnGroupedNotificationsChanged;
-            
+
             // 为所有现有分组订阅PropertyChanged事件
             foreach (var group in ViewModel.GroupedNotifications)
             {
@@ -51,13 +48,13 @@ public sealed partial class NotificationsListControl : UserControl
         {
             ViewModel.NotificationService.GroupedNotificationsChanged -= OnGroupedNotificationsChanged;
         }
-        
+
         // 取消订阅所有分组的PropertyChanged事件，避免内存泄漏
         foreach (var group in ViewModel?.GroupedNotifications ?? Enumerable.Empty<Data.Models.GroupedNotification>())
         {
             group.PropertyChanged -= OnGroupPropertyChanged;
         }
-        
+
         // 释放定时器资源
         scrollTimer?.Dispose();
         scrollTimer = null;
@@ -73,7 +70,7 @@ public sealed partial class NotificationsListControl : UserControl
                 // 保存当前滚动位置
                 var currentOffset = NotificationsScrollViewer.VerticalOffset;
                 var scrollableHeight = NotificationsScrollViewer.ScrollableHeight;
-                
+
                 // 检查是否接近底部 (例如在最后 20 像素内)，考虑到浮点数误差和可能的Padding影响
                 bool isAtBottom = scrollableHeight > 0 && currentOffset >= (scrollableHeight - 20);
 
@@ -84,8 +81,8 @@ public sealed partial class NotificationsListControl : UserControl
                     // 如果之前在底部，则更新后也保持在底部
                     if (isAtBottom)
                     {
-                         // 滚动到最新的底部
-                         NotificationsScrollViewer.ChangeView(null, NotificationsScrollViewer.ScrollableHeight, null, false);
+                        // 滚动到最新的底部
+                        NotificationsScrollViewer.ChangeView(null, NotificationsScrollViewer.ScrollableHeight, null, false);
                     }
                     // 否则，只有当不在顶部时才恢复位置
                     else if (currentOffset > SCROLL_THRESHOLD)
@@ -119,7 +116,7 @@ public sealed partial class NotificationsListControl : UserControl
             // 用户正在滚动，保存当前位置
             isScrolling = true;
             lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
-            
+
             // 重置滚动定时器
             scrollTimer?.Change(SCROLL_DEBOUNCE_MS, System.Threading.Timeout.Infinite);
         }
@@ -127,7 +124,7 @@ public sealed partial class NotificationsListControl : UserControl
         {
             // 滚动已完成，保存最终位置
             lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
-            
+
             // 使用定时器来处理滚动结束后的状态
             isScrolling = true;
             scrollTimer?.Change(SCROLL_DEBOUNCE_MS, System.Threading.Timeout.Infinite);
@@ -152,7 +149,7 @@ public sealed partial class NotificationsListControl : UserControl
             {
                 // 保存当前滚动位置
                 lastScrollOffset = NotificationsScrollViewer.VerticalOffset;
-                
+
                 // 延迟执行，确保UI已完成高度调整
                 var dispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
                 dispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () =>
@@ -190,7 +187,7 @@ public sealed partial class NotificationsListControl : UserControl
             timeStamp.Visibility = Visibility.Visible;
             closeButton.Opacity = 0;
             closeButton.IsHitTestVisible = false;
-            
+
             // 检查是否已置顶，如果已置顶则保持显示，否则隐藏
             if (pinIcon.Tag is bool isPinned && isPinned)
             {
@@ -287,7 +284,7 @@ public sealed partial class NotificationsListControl : UserControl
     private void ToggleNotificationPinClick(object sender, RoutedEventArgs e)
     {
         Notification? notification = null;
-        
+
         if (sender is MenuFlyoutItem menuItem)
         {
             notification = menuItem.DataContext as Notification;
@@ -296,7 +293,7 @@ public sealed partial class NotificationsListControl : UserControl
         {
             notification = button.DataContext as Notification;
         }
-        
+
         if (notification != null)
         {
             ViewModel.ToggleNotificationPin(notification);

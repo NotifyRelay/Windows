@@ -1,5 +1,4 @@
 using NotifyRelay.Data.Enums;
-using System.Text.Json.Serialization;
 
 namespace NotifyRelay.Data.Models;
 
@@ -220,10 +219,10 @@ public class NotificationMessage : SocketMessage
 
     [JsonPropertyName("largeIcon")]
     public string? LargeIcon { get; set; }
-    
+
     [JsonPropertyName("coverUrl")]
     public string? CoverUrl { get; set; }
-    
+
     [JsonPropertyName("mediaType")]
     public string? MediaType { get; set; }
 }
@@ -387,7 +386,7 @@ public class AudioDevice : SocketMessage
     [JsonPropertyName("volume")]
     public float Volume { get; set; }
 
-    [JsonPropertyName("isMuted")]   
+    [JsonPropertyName("isMuted")]
     public bool IsMuted { get; set; }
 
     [JsonPropertyName("isSelected")]

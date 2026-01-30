@@ -113,4 +113,4 @@ public sealed partial class GeneralPage : Page
         Frame.Navigate(typeof(ActionsPage), null, new SuppressNavigationTransitionInfo());
     }
 }
- 
+

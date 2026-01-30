@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Utils.Serialization;
@@ -15,6 +14,6 @@ internal abstract class BaseObservableJsonSettings : BaseJsonSettings, INotifyPr
 
         return true;
     }
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "") 
+    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

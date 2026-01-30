@@ -1,5 +1,4 @@
 using Windows.System;
-using static NotifyRelay.Constants;
 
 namespace NotifyRelay.Views.Onboarding;
 

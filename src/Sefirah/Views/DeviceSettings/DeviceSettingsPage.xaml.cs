@@ -12,13 +12,13 @@ public sealed partial class DeviceSettingsPage : Page
     public DeviceSettingsPage()
     {
         InitializeComponent();
-        
+
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        
+
         if (e.Parameter is PairedDevice device)
         {
             ViewModel = new DeviceSettingsViewModel(device);

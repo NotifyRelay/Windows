@@ -87,7 +87,7 @@ public partial class AdbDevice : ObservableObject
     }
 
     public string TypeDisplay => Type is DeviceType.WIFI ? "WiFi" : "USB";
-    
+
     public bool IsOnline => State is DeviceState.Online;
 
     private void UpdateDisplayName()

@@ -1,5 +1,3 @@
-using System.Diagnostics;
-
 namespace NotifyRelay.Utils;
 
 public static class UserInformation
@@ -105,15 +103,15 @@ public static class UserInformation
 #else
         // For other platforms (Linux/Skia, etc.)
         string username = Environment.UserName;
-        
+
         // On Linux, we can try to get a more friendly name from the USER or USERNAME env vars
         if (string.IsNullOrEmpty(username))
         {
-            username = Environment.GetEnvironmentVariable("USER") ?? 
+            username = Environment.GetEnvironmentVariable("USER") ??
                       Environment.GetEnvironmentVariable("USERNAME") ??
                       "User";
         }
-        
+
         // We don't have a way to get the avatar in other platforms
         return (username, null);
 #endif

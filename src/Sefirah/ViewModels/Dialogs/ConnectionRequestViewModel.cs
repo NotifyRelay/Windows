@@ -1,6 +1,5 @@
 using Microsoft.UI.Xaml.Media.Animation;
 using NotifyRelay.Views;
-using NotifyRelay.Views.Onboarding;
 
 namespace NotifyRelay.ViewModels.Dialogs;
 public partial class ConnectionRequestViewModel : ObservableObject

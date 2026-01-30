@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Platforms.Desktop.Services;
 
@@ -18,4 +17,4 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IftpService, DesktopftpService>();
         return services;
     }
-} 
+}

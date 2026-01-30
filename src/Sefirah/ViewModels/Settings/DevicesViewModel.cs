@@ -18,7 +18,7 @@ public partial class DevicesViewModel : ObservableObject
     private IftpService ftpService { get; } = Ioc.Default.GetRequiredService<IftpService>();
     private IAdbService AdbService { get; } = Ioc.Default.GetRequiredService<IAdbService>();
     #endregion
-    
+
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices => DiscoveryService.DiscoveredDevices;
 

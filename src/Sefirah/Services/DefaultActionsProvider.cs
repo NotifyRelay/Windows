@@ -17,4 +17,4 @@ public static class DefaultActionsProvider
         return DesktopDefaultActions.GetDefaultActions();
 #endif
     }
-} 
+}

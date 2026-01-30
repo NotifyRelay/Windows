@@ -1,7 +1,5 @@
-using System;
-using Microsoft.Extensions.Logging;
-using Windows.Devices.Power;
 using System.Runtime.InteropServices;
+using Windows.Devices.Power;
 
 namespace NotifyRelay.Services;
 
@@ -22,7 +20,7 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
         {
             // 使用Windows.Devices.Power API获取电量
             var batteryReport = Battery.AggregateBattery.GetReport();
-            
+
             // 检查电量信息是否可用
             if (batteryReport.RemainingCapacityInMilliwattHours.HasValue &&
                 batteryReport.FullChargeCapacityInMilliwattHours.HasValue &&
@@ -32,11 +30,11 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
                 var remainingCapacity = batteryReport.RemainingCapacityInMilliwattHours.Value;
                 var fullCapacity = batteryReport.FullChargeCapacityInMilliwattHours.Value;
                 var batteryLevel = (int)Math.Round((double)remainingCapacity / fullCapacity * 100);
-                
+
                 // 确保电量值在0-100之间
                 return Math.Clamp(batteryLevel, 0, 100);
             }
-            
+
             // 如果无法获取电量信息，返回默认值100%
             return 100;
         }
@@ -71,7 +69,7 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
             return false;
         }
     }
-    
+
     // Windows API结构体和函数声明
     [StructLayout(LayoutKind.Sequential)]
     private struct SYSTEM_POWER_STATUS
@@ -83,7 +81,7 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
         public uint BatteryLifeTime;       // 电池剩余时间（秒），0xFFFFFFFF=未知
         public uint BatteryFullLifeTime;   // 电池满电时间（秒），0xFFFFFFFF=未知
     }
-    
+
     [DllImport("kernel32.dll", CharSet = CharSet.Auto)]
     private static extern bool GetSystemPowerStatus(ref SYSTEM_POWER_STATUS lpSystemPowerStatus);
 }

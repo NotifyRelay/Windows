@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Data.Models.Actions;
-using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.Services;
 
@@ -40,4 +39,4 @@ public abstract class BaseActionService(
             processAction.ExecuteAsync();
         }
     }
-} 
+}

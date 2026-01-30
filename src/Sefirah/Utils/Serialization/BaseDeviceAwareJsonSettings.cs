@@ -1,6 +1,6 @@
+using System.Runtime.CompilerServices;
 using NotifyRelay.Data.EventArguments;
 using NotifyRelay.Utils.Serialization.Implementation;
-using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Utils.Serialization;
 
@@ -17,16 +17,16 @@ internal abstract class BaseDeviceAwareJsonSettings : BaseObservableJsonSettings
             throw new ArgumentException("Device ID cannot be null or whitespace", nameof(deviceId));
 
         _deviceId = deviceId;
-        
+
         // Initialize our own serializers and database for this device
         SettingsSerializer = new SettingsSerializer();
         JsonSettingsSerializer = new JsonSettingsSerializer();
-        
+
         // Create device-specific file path
         var deviceFileName = GetDeviceFileName(deviceId);
         var deviceFilePath = Path.Combine(
-            ApplicationData.Current.LocalFolder.Path, 
-            Constants.LocalSettings.SettingsFolderName, 
+            ApplicationData.Current.LocalFolder.Path,
+            Constants.LocalSettings.SettingsFolderName,
             "Devices",
             deviceFileName);
 
@@ -39,7 +39,7 @@ internal abstract class BaseDeviceAwareJsonSettings : BaseObservableJsonSettings
 
         // Initialize with device-specific file
         Initialize(deviceFilePath);
-        
+
         JsonSettingsDatabase = new CachingJsonSettingsDatabase(SettingsSerializer, JsonSettingsSerializer);
     }
 
@@ -53,7 +53,7 @@ internal abstract class BaseDeviceAwareJsonSettings : BaseObservableJsonSettings
         // Replace invalid filename characters with underscores
         var invalidChars = Path.GetInvalidFileNameChars();
         var safeDeviceId = string.Join("_", deviceId.Split(invalidChars, StringSplitOptions.RemoveEmptyEntries));
-        
+
         return $"device_{safeDeviceId}.json";
     }
 
@@ -78,4 +78,4 @@ internal abstract class BaseDeviceAwareJsonSettings : BaseObservableJsonSettings
 
         return false;
     }
-} 
+}

@@ -9,7 +9,7 @@ internal sealed class SettingsSerializer : ISettingsSerializer
         {
             // Ensure directory exists
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            
+
             _filePath = path;
             if (File.Exists(path))
             {
@@ -32,8 +32,8 @@ internal sealed class SettingsSerializer : ISettingsSerializer
 
         try
         {
-            return !File.Exists(_filePath) 
-                ? string.Empty 
+            return !File.Exists(_filePath)
+                ? string.Empty
                 : File.ReadAllText(_filePath);
         }
         catch (Exception)

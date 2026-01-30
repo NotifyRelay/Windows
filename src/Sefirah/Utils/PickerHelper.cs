@@ -33,7 +33,7 @@ public static class PickerHelper
                 {
                     picker.FileTypeFilter.Add(type);
                 }
-            } 
+            }
             else
             {
                 picker.FileTypeFilter.Add("*");

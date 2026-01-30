@@ -1,6 +1,4 @@
 using System.Text;
-using System.Text.Json;
-using System.Linq;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
@@ -27,10 +25,10 @@ public class ScreenMirrorService(
     private Dictionary<string, string> deviceIdToSerialMap = [];
     private CancellationTokenSource? cts;
     private readonly Microsoft.UI.Dispatching.DispatcherQueue? dispatcher = App.MainWindow?.DispatcherQueue;
-    
+
     // Password cache: deviceId -> (password, cachedTime, timeoutMinutes)
     private readonly Dictionary<string, (string Password, DateTime CachedAt, int TimeoutMinutes)> passwordCache = [];
-    
+
     public async Task<bool> StartScrcpy(PairedDevice device, string? customArgs = null, string? iconPath = null)
     {
         logger.LogDebug("[调试] StartScrcpy 请求: deviceId={DeviceId} customArgs={CustomArgs} iconPath={IconPath}", device?.Id, customArgs, iconPath);
@@ -145,11 +143,11 @@ public class ScreenMirrorService(
                                                 ?? pairedDevices.FirstOrDefault()?.Serial;
                         }
                         break;
-                            case ScrcpyDevicePreferenceType.AskEverytime:
-                                // 计算首选序列号：优先 USB 设备
-                                var preferred = pairedDevices.FirstOrDefault(d => d.Type == DeviceType.USB)?.Serial
-                                                ?? pairedDevices.FirstOrDefault()?.Serial;
-                                selectedDeviceSerial = await ShowDeviceSelectionDialog(pairedDevices, preferred);
+                    case ScrcpyDevicePreferenceType.AskEverytime:
+                        // 计算首选序列号：优先 USB 设备
+                        var preferred = pairedDevices.FirstOrDefault(d => d.Type == DeviceType.USB)?.Serial
+                                        ?? pairedDevices.FirstOrDefault()?.Serial;
+                        selectedDeviceSerial = await ShowDeviceSelectionDialog(pairedDevices, preferred);
                         if (string.IsNullOrEmpty(selectedDeviceSerial))
                         {
                             logger.LogWarning("未选择用于 scrcpy 的设备");
@@ -170,7 +168,7 @@ public class ScreenMirrorService(
                     // Check if any command contains password placeholder
                     var hasPasswordPlaceholder = commands.Any(c => c.Contains("%pwd%"));
                     string? password = null;
-                    
+
                     if (hasPasswordPlaceholder)
                     {
                         // Only use password caching if timeout is greater than 0
@@ -180,28 +178,28 @@ public class ScreenMirrorService(
                             // Try to get cached password first
                             password = GetCachedPassword(device.Id, timeoutSeconds);
                         }
-                        
+
                         // If no cached password or caching is disabled, ask user for password
                         if (password is null)
                         {
                             password = await ShowPasswordInputDialog();
                             if (password is null) return false;
-                            
+
                             // Only cache the password if timeout is greater than 0
                             if (timeoutSeconds > 0)
                             {
                                 CachePassword(device.Id, password, timeoutSeconds);
                             }
                         }
-                        
+
                         // Replace password placeholders with actual password
                         commands = commands.Select(c => c.Replace("%pwd%", password)).ToList();
                     }
-                    
+
                     adbService.UnlockDevice(adbDevice.DeviceData.Value, commands);
                 }
             }
-            else if(deviceSettings.AdbTcpipModeEnabled && device.Session != null)
+            else if (deviceSettings.AdbTcpipModeEnabled && device.Session != null)
             {
                 var connectedSessionIpAddress = device.Session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
                 if (await adbService.ConnectWireless(connectedSessionIpAddress))
@@ -236,17 +234,17 @@ public class ScreenMirrorService(
 
             // Validate that we have a selected device
             if (string.IsNullOrEmpty(selectedDeviceSerial)) return false;
-            
+
             argBuilder.Add($"-s {selectedDeviceSerial}");
 
             // Build arguments for scrcpy with the selected device
             var (args, deviceSerial) = BuildScrcpyArguments(argBuilder, selectedDeviceSerial!, deviceSettings);
-            
+
             cts?.Cancel();
             cts?.Dispose();
             processCts = new CancellationTokenSource();
             cts = processCts;
-            
+
             process = new Process
             {
                 StartInfo = new ProcessStartInfo
@@ -294,8 +292,8 @@ public class ScreenMirrorService(
             // 传递设备名称和仅音频模式标志给监控方法
             // 判断是否为仅音频模式：检查设置或自定义参数中是否包含--no-video
             // 检查完整的参数列表，包括自定义参数和构建的参数
-            var isAudioOnly = deviceSettings.DisableVideoForwarding || 
-                              (customArgs?.Contains("--no-video") ?? false) || 
+            var isAudioOnly = deviceSettings.DisableVideoForwarding ||
+                              (customArgs?.Contains("--no-video") ?? false) ||
                               args.Contains("--no-video");
             // 存储设备ID到序列号的映射
             deviceIdToSerialMap[device.Id] = deviceSerial;
@@ -319,13 +317,13 @@ public class ScreenMirrorService(
     private async Task StartProcessMonitoring(Process process, CancellationTokenSource processCts, string deviceSerial, string deviceName, bool isAudioOnly)
     {
         var errorOutput = new StringBuilder();
-        
-        process.OutputDataReceived += (_, e) => 
+
+        process.OutputDataReceived += (_, e) =>
         {
             if (!string.IsNullOrEmpty(e.Data))
                 logger.LogInformation($"scrcpy：{e.Data}");
         };
-        
+
         process.ErrorDataReceived += (_, e) =>
         {
             if (!string.IsNullOrEmpty(e.Data))
@@ -337,12 +335,12 @@ public class ScreenMirrorService(
                 }
             }
         };
-        
-        process.Exited += (_, _) => 
+
+        process.Exited += (_, _) =>
         {
             logger.LogInformation("scrcpy 进程已终止");
         };
-        
+
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
         logger.LogInformation("scrcpy 进程已启动（pid：{pid}）", process.Id);
@@ -356,7 +354,7 @@ public class ScreenMirrorService(
             {
                 await process.WaitForExitAsync(processCts.Token);
                 logger.LogInformation("scrcpy 进程退出，代码：{exitCode}", process.ExitCode);
-                
+
                 // 仅当退出码不是0、2或-1时显示错误
                 // 0: 正常退出
                 // 2: 用户主动关闭窗口
@@ -384,7 +382,7 @@ public class ScreenMirrorService(
                                 TextWrapping = TextWrapping.Wrap
                             }
                         };
-                        
+
                         var errorDialog = new ContentDialog
                         {
                             XamlRoot = App.MainWindow.Content!.XamlRoot,
@@ -393,7 +391,7 @@ public class ScreenMirrorService(
                             CloseButtonText = "Dismiss".GetLocalizedResource(),
                             SecondaryButtonText = "CopyError".GetLocalizedResource()
                         };
-                        
+
                         var result = await errorDialog.ShowAsync();
                         if (result is ContentDialogResult.Secondary)
                         {
@@ -439,7 +437,7 @@ public class ScreenMirrorService(
     private async Task<string?> ShowDeviceSelectionDialog(List<AdbDevice> onlineDevices, string? preferredSerial = null)
     {
         string? selectedDeviceSerial = null;
-        
+
         await dispatcher!.EnqueueAsync(async () =>
         {
             var deviceOptions = new List<ComboBoxItem>();
@@ -469,7 +467,7 @@ public class ScreenMirrorService(
                     if ((deviceOptions[i].Tag as string) == preferredSerial)
                     {
                         deviceSelector.SelectedIndex = i;
-                            logger.LogDebug("[调试] 在设备选择弹窗中预选设备：{Serial}", preferredSerial);
+                        logger.LogDebug("[调试] 在设备选择弹窗中预选设备：{Serial}", preferredSerial);
                         break;
                     }
                 }
@@ -500,7 +498,7 @@ public class ScreenMirrorService(
     {
         // Check if this is audio-only mode (either from settings or custom args)
         var isAudioOnlyMode = settings.DisableVideoForwarding || args.Any(arg => arg.Contains("--no-video"));
-        
+
         if (isAudioOnlyMode)
         {
             // For audio-only mode, build minimal command
@@ -512,7 +510,7 @@ public class ScreenMirrorService(
                 "--audio-source=playback",
                 "--audio-dup"
             };
-            
+
             // Add optional audio settings
             if (!string.IsNullOrEmpty(settings.AudioBitrate))
             {
@@ -528,14 +526,14 @@ public class ScreenMirrorService(
             {
                 audioOnlyArgs.Add($"--audio-output-buffer={settings.AudioOutputBuffer}");
             }
-            
+
             // Join and log the final command for debugging
             var finalArgs = string.Join(" ", audioOnlyArgs);
             logger.LogDebug("[调试] 仅音频模式 scrcpy 命令：{FinalArgs}", finalArgs);
-            
+
             return (finalArgs, deviceSerial);
         }
-        
+
         // Normal mode - use all settings
         var preDefinedArgs = settings.CustomArguments;
 
@@ -543,44 +541,44 @@ public class ScreenMirrorService(
         {
             args.Add(preDefinedArgs);
         }
-        
+
         // General settings
         if (settings.ScreenOff)
         {
             args.Add("--turn-screen-off");
         }
-        
+
         if (settings.PhysicalKeyboard)
         {
             args.Add("--keyboard=uhid");
         }
-        
+
         // Video settings
         if (settings.VideoCodec != 0)
         {
             args.Add($"{adbService.VideoCodecOptions[settings.VideoCodec].Command}");
-        }   
-        
+        }
+
         if (!string.IsNullOrEmpty(settings.VideoResolution))
         {
             args.Add($"--max-size={settings.VideoResolution}");
         }
-        
+
         if (!string.IsNullOrEmpty(settings.VideoBitrate))
         {
             args.Add($"--video-bit-rate={settings.VideoBitrate}");
         }
-        
+
         if (!string.IsNullOrEmpty(settings.VideoBuffer))
         {
             args.Add($"--video-buffer={settings.VideoBuffer}");
         }
-        
+
         if (!string.IsNullOrEmpty(settings.FrameRate))
         {
             args.Add($"--max-fps={settings.FrameRate}");
         }
-        
+
         if (!string.IsNullOrEmpty(settings.Crop))
         {
             args.Add($"--crop={settings.Crop}");
@@ -590,7 +588,7 @@ public class ScreenMirrorService(
         {
             args.Add($"--orientation={adbService.DisplayOrientationOptions[settings.DisplayOrientation].Command}");
         }
-        
+
         if (!string.IsNullOrEmpty(settings.Display))
         {
             args.Add($"--display-id={settings.Display}");
@@ -611,7 +609,7 @@ public class ScreenMirrorService(
         {
             args.Add($"--audio-output-buffer={settings.AudioOutputBuffer}");
         }
-        
+
         if (settings.ForwardMicrophone)
         {
             args.Add("--audio-source=mic");
@@ -632,7 +630,7 @@ public class ScreenMirrorService(
             args.Add($"{adbService.AudioCodecOptions[settings.AudioCodec].Command}");
         }
 
-        if (args[0].StartsWith ("--start-app"))
+        if (args[0].StartsWith("--start-app"))
         {
             if (!string.IsNullOrEmpty(settings.VirtualDisplaySize) && settings.IsVirtualDisplayEnabled)
             {
@@ -683,7 +681,7 @@ public class ScreenMirrorService(
     private async Task<string?> ShowPasswordInputDialog()
     {
         string? password = null;
-        
+
         await dispatcher!.EnqueueAsync(async () =>
         {
             var dialog = new PasswordInputDialog
@@ -713,7 +711,7 @@ public class ScreenMirrorService(
             }
             passwordCache.Remove(deviceId);
         }
-        
+
         return null;
     }
 
@@ -752,10 +750,10 @@ public class ScreenMirrorService(
     public bool IsAudioOnlyRunning(string deviceId)
     {
         // 检查设备是否有仅音频模式的scrcpy进程运行
-        return deviceIdToAudioOnlyMap.TryGetValue(deviceId, out var isAudioOnly) && 
-               isAudioOnly && 
-               deviceIdToSerialMap.TryGetValue(deviceId, out var deviceSerial) && 
-               scrcpyProcesses.TryGetValue(deviceSerial, out var process) && 
+        return deviceIdToAudioOnlyMap.TryGetValue(deviceId, out var isAudioOnly) &&
+               isAudioOnly &&
+               deviceIdToSerialMap.TryGetValue(deviceId, out var deviceSerial) &&
+               scrcpyProcesses.TryGetValue(deviceSerial, out var process) &&
                !process.HasExited;
     }
 
@@ -766,10 +764,10 @@ public class ScreenMirrorService(
         {
             // 构建仅音频转发的 scrcpy 参数
             string customArgs = "--no-video --no-control";
-            
+
             // 启动 scrcpy 仅音频转发
             bool success = await StartScrcpy(device, customArgs);
-            
+
             // 构造响应
             var response = new
             {
@@ -778,16 +776,16 @@ public class ScreenMirrorService(
                 result = success ? "accepted" : "rejected"
             };
             string responseJson = JsonSerializer.Serialize(response);
-            
+
             // 发送响应
             networkServiceFactory().SendMessage(device.Id, responseJson);
-            
+
             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "处理音频转发请求时出错");
-            
+
             // 发送拒绝响应
             var errorResponse = new
             {
@@ -796,7 +794,7 @@ public class ScreenMirrorService(
                 result = "rejected"
             };
             string errorResponseJson = JsonSerializer.Serialize(errorResponse);
-            
+
             networkServiceFactory().SendMessage(device.Id, errorResponseJson);
         }
     }

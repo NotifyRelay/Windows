@@ -18,7 +18,7 @@ public sealed partial class NotificationSettingsPage : Page
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        
+
         if (e.Parameter is DeviceSettingsViewModel viewModel)
         {
             ViewModel = viewModel;

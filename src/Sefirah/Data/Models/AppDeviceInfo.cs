@@ -10,7 +10,7 @@ public partial class AppDeviceInfo(string deviceId, NotificationFilter filter) :
         get => deviceId;
         set => SetProperty(ref deviceId, value);
     }
-    
+
     private bool pinned = false;
     public bool Pinned
     {

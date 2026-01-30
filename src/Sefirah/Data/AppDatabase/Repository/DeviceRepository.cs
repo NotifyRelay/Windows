@@ -86,4 +86,4 @@ public class DeviceRepository(DatabaseContext context, ILogger logger)
         return context.Database.Table<RemoteDeviceEntity>().SelectMany(d => d.IpAddresses).ToList();
     }
 }
- 
+

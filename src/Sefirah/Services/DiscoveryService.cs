@@ -10,8 +10,6 @@ using NotifyRelay.Data.EventArguments;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
-using NotifyRelay.Utils;
-using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.Services;
 public class DiscoveryService(
@@ -21,17 +19,17 @@ public class DiscoveryService(
     Func<INetworkService> networkServiceFactory
     ) : IDiscoveryService, IUdpClientProvider
 {
-    private MulticastClient? udpClient; 
+    private MulticastClient? udpClient;
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private const string DEFAULT_BROADCAST = "255.255.255.255";
     private LocalDeviceEntity? localDevice;
     private readonly int port = 23334;
-    
+
     /// <summary>
     /// 可发现设备列表
     /// </summary>
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
-    
+
     public List<DiscoveredMdnsServiceArgs> DiscoveredMdnsServices { get; } = [];
     private List<IPEndPoint> broadcastEndpoints = [];
     private const int DiscoveryPort = 23334;
@@ -49,22 +47,22 @@ public class DiscoveryService(
                 DiscoveredMdnsServices.Clear();
                 logger.LogInformation("设备列表已清理");
             });
-            
+
             // 2. 确保localDevice完全初始化
             localDevice = await deviceManager.GetLocalDeviceAsync();
             logger.LogInformation("本地设备初始化完成：{deviceId}, {deviceName}", localDevice.DeviceId, localDevice.DeviceName);
-            
+
             // 3. 设置事件处理程序，但此时isInitialized仍为false，不会添加设备
             mdnsService.DiscoveredMdnsService += OnDiscoveredMdnsService;
             mdnsService.ServiceInstanceShutdown += OnServiceInstanceShutdown;
             deviceManager.LocalDeviceNameChanged += OnLocalDeviceNameChanged;
             logger.LogInformation("事件处理程序已设置");
-            
+
             // 4. 获取本地地址和构建设备发现消息
             var localAddresses = NetworkHelper.GetAllValidAddresses();
             logger.LogInformation($"将广播的地址：{string.Join(", ", localAddresses)}");
             var discoverMessage = BuildDiscoverMessage(localDevice.DeviceName);
-            
+
             // 5. 构建广播端点列表
             broadcastEndpoints = [.. localAddresses.Select(ipInfo =>
             {
@@ -75,12 +73,12 @@ public class DiscoveryService(
                     ? new IPEndPoint(ipInfo.Gateway, DiscoveryPort)
                     : new IPEndPoint(broadcastAddress, DiscoveryPort);
             }).Distinct()];
-            
+
             broadcastEndpoints.Add(new IPEndPoint(IPAddress.Parse(DEFAULT_BROADCAST), DiscoveryPort));
             var ipAddresses = deviceManager.GetRemoteDeviceIpAddresses();
             broadcastEndpoints.AddRange(ipAddresses.Select(ip => new IPEndPoint(IPAddress.Parse(ip), DiscoveryPort)));
             logger.LogInformation("当前广播端点：{endpoints}", string.Join(", ", broadcastEndpoints));
-            
+
             // 6. 初始化UDP客户端
             udpClient = new MulticastClient("0.0.0.0", port, this, logger)
             {
@@ -89,7 +87,7 @@ public class DiscoveryService(
                 OptionReuseAddress = true,
             };
             udpClient.SetupMulticast(true);
-            
+
             if (udpClient.Connect())
             {
                 udpClient.Socket.EnableBroadcast = true;
@@ -99,7 +97,7 @@ public class DiscoveryService(
             {
                 logger.LogError("UDP 客户端连接失败");
             }
-            
+
             // 7. 立即发布mDNS服务广告
             var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
@@ -113,14 +111,14 @@ public class DiscoveryService(
             };
             mdnsService.AdvertiseService(udpBroadcast, serverPort);
             logger.LogInformation("mDNS服务广告已发布");
-            
+
             // 8. 最后设置初始化标志为true，允许添加设备
             isInitialized = true;
             logger.LogInformation("发现服务初始化标志已设置为true，开始接受设备发现事件");
-            
+
             // 9. 开始广播设备信息
             BroadcastDeviceInfoAsync(discoverMessage);
-            
+
             logger.LogInformation("发现服务已完全初始化，开始接受设备发现事件");
 
         }
@@ -129,7 +127,7 @@ public class DiscoveryService(
             logger.LogError(ex, "启动发现服务时出错");
             // 出错时确保初始化标志为false
             isInitialized = false;
-            
+
             // 出错时清理设备列表
             await dispatcher.EnqueueAsync(() =>
             {
@@ -138,7 +136,7 @@ public class DiscoveryService(
             });
         }
     }
-    
+
     /// <summary>
     /// 构建设备发现消息
     /// </summary>
@@ -149,7 +147,7 @@ public class DiscoveryService(
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
         return $"NOTIFYRELAY_DISCOVER:{localDevice.DeviceId}:{encodedName}:{serverPort}";
     }
-    
+
     /// <summary>
     /// 处理本地设备名更改事件
     /// </summary>
@@ -161,7 +159,7 @@ public class DiscoveryService(
             localDevice.DeviceName = newName;
             var discoverMessage = BuildDiscoverMessage(newName);
             BroadcastDeviceInfoAsync(discoverMessage);
-            
+
             // 重新发布mDNS服务广告
             mdnsService.UnAdvertiseService();
             var networkService = networkServiceFactory();
@@ -237,11 +235,11 @@ public class DiscoveryService(
     {
         // 跳过本机设备
         if (service.DeviceId == localDevice?.DeviceId) return;
-        
+
         if (DiscoveredMdnsServices.Any(s => s.DeviceId == service.DeviceId)) return;
 
         DiscoveredMdnsServices.Add(service);
-        
+
         logger.LogInformation("发现服务实例：{deviceId}，{deviceName}", service.DeviceId, service.DeviceName);
 
         DiscoveredDevice device = new(
@@ -256,10 +254,10 @@ public class DiscoveryService(
         {
             // 确保服务已初始化
             if (!isInitialized) return;
-            
+
             // 最终检查：确保不是本机设备
             if (device.DeviceId == localDevice?.DeviceId) return;
-            
+
             var existing = DiscoveredDevices.FirstOrDefault(d => d.DeviceId == device.DeviceId);
             if (existing is not null)
             {
@@ -281,7 +279,7 @@ public class DiscoveryService(
         {
             // Remove from MDNS services list
             DiscoveredMdnsServices.RemoveAll(s => s.DeviceId == deviceId);
-            
+
             // Remove from discovered devices
             try
             {
@@ -310,19 +308,19 @@ public class DiscoveryService(
         try
         {
             var message = Encoding.UTF8.GetString(buffer, (int)offset, (int)size);
-            
+
             // 处理心跳消息
             if (message.StartsWith("HEARTBEAT:"))
             {
                 //logger.LogDebug("收到 UDP 心跳消息: {message} 来自 {endpoint}");
-                
+
                 // 心跳格式：HEARTBEAT:<deviceUuid><设备电量%>
                 const string heartbeatPrefix = "HEARTBEAT:";
                 if (message.Length > heartbeatPrefix.Length + 36 && endpoint is IPEndPoint heartbeatIpEndPoint)
                 {
                     // 提取设备UUID
                     var deviceUuid = message.Substring(heartbeatPrefix.Length, 36);
-                    
+
                     // 查找已配对的设备
                     var device = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == deviceUuid);
                     if (device is not null)
@@ -334,7 +332,7 @@ public class DiscoveryService(
                 }
                 return;
             }
-            
+
             // 处理设备发现消息
             if (!message.StartsWith("NOTIFYRELAY_DISCOVER:")) return;
 
@@ -342,7 +340,7 @@ public class DiscoveryService(
             if (parts.Length < 4) return;
 
             var deviceId = parts[1];
-            
+
             // 1. 首先检查消息发送设备是否为本机，使用本地设备ID直接比较
             if (deviceId == localDevice?.DeviceId)
             {
@@ -387,14 +385,14 @@ public class DiscoveryService(
                     logger.LogDebug("发现服务未初始化，忽略设备添加");
                     return;
                 }
-                
+
                 // 3. 再次检查，确保不是本机设备
                 if (discovered.DeviceId == localDevice?.DeviceId)
                 {
                     logger.LogDebug("尝试添加本机设备，忽略");
                     return;
                 }
-                
+
                 // 4. 检查设备是否已经存在
                 var existingDevice = DiscoveredDevices.FirstOrDefault(d => d.DeviceId == discovered.DeviceId);
                 if (existingDevice is not null)
@@ -420,14 +418,14 @@ public class DiscoveryService(
 
     private DispatcherQueueTimer? _cleanupTimer;
     private readonly Lock _timerLock = new();
-    
+
     public void OnDisconnected()
     {
         try
         {
             logger.LogInformation("UDP 客户端已断开连接，重新启动广播");
             isBroadcasting = false;
-            
+
             // 重新启动广播
             var discoverMessage = BuildDiscoverMessage(localDevice.DeviceName);
             BroadcastDeviceInfoAsync(discoverMessage);
@@ -437,7 +435,7 @@ public class DiscoveryService(
             logger.LogError(ex, "处理 UDP 客户端断开连接时出错");
         }
     }
-    
+
     private void StartCleanupTimer()
     {
         lock (_timerLock)
@@ -502,7 +500,7 @@ public class DiscoveryService(
             udpClient = null;
             mdnsService.UnAdvertiseService();
             deviceManager.LocalDeviceNameChanged -= OnLocalDeviceNameChanged;
-            
+
             // 清理设备列表，确保下次启动发现时不会显示旧设备
             dispatcher.TryEnqueue(() =>
             {

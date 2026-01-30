@@ -4,8 +4,6 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
-using System.ComponentModel;
-using System.Diagnostics;
 
 namespace NotifyRelay.ViewModels;
 public sealed partial class MainPageViewModel : BaseViewModel
@@ -26,29 +24,29 @@ public sealed partial class MainPageViewModel : BaseViewModel
     public ObservableCollection<PairedDevice> PairedDevices => DeviceManager.PairedDevices;
     public ReadOnlyObservableCollection<Notification> Notifications => NotificationService.NotificationHistory;
     public ReadOnlyObservableCollection<GroupedNotification> GroupedNotifications => NotificationService.GroupedNotificationHistory;
-    
+
     // 合并后的仪表盘项目集合（包含媒体块和通知）
     public ObservableCollection<object> DashboardItems { get; } = new ObservableCollection<object>();
-    
+
     // 混合集合，包含所有通知（分组和单个）
     public ObservableCollection<object> MixedNotifications
     {
         get
         {
             var mixed = new ObservableCollection<object>();
-            
+
             // 获取所有分组通知
             var grouped = GroupedNotifications.ToList();
-            
+
             // 获取所有分组使用的应用包名
             var groupedPackageNames = new HashSet<string>(grouped.Select(g => g.AppPackage ?? "UnknownApp"));
-            
+
             // 添加所有分组通知
             foreach (var group in grouped)
             {
                 mixed.Add(group);
             }
-            
+
             // 添加未分组的单个通知
             foreach (var notification in Notifications)
             {
@@ -58,12 +56,12 @@ public sealed partial class MainPageViewModel : BaseViewModel
                     mixed.Add(notification);
                 }
             }
-            
+
             return mixed;
         }
     }
     public PairedDevice? Device => DeviceManager.ActiveDevice;
-    
+
     /// <summary>
     /// 当前显示的音乐媒体块列表（支持多个设备同时显示）
     /// </summary>
@@ -73,7 +71,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     public partial bool LoadingScrcpy { get; set; } = false;
 
     public bool IsUpdateAvailable => UpdateService.IsUpdateAvailable;
-    
+
     /// <summary>
     /// 当前设备是否正在运行仅音频模式的 scrcpy
     /// </summary>
@@ -86,7 +84,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
             return ScreenMirrorService.IsAudioOnlyRunning(Device.Id);
         }
     }
-    
+
     /// <summary>
     /// 获取当前音频状态的图标
     /// </summary>
@@ -97,7 +95,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
             return IsAudioOnlyRunning ? "\uE995" : "\uE74F";
         }
     }
-    
+
     /// <summary>
     /// 获取当前音频状态的文本描述
     /// </summary>
@@ -117,23 +115,23 @@ public sealed partial class MainPageViewModel : BaseViewModel
         get
         {
             var connectionTypes = new List<string>();
-            
+
             if (Device == null || !Device.HasAdbConnection || Device.ConnectedAdbDevices.Count == 0)
             {
                 return connectionTypes;
             }
-            
+
             // 检查所有连接的ADB设备，添加所有连接类型
             if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 connectionTypes.Add("USB");
             }
-            
+
             if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 connectionTypes.Add("WiFi");
             }
-            
+
             return connectionTypes;
         }
     }
@@ -146,25 +144,25 @@ public sealed partial class MainPageViewModel : BaseViewModel
         get
         {
             var deviceInfo = new List<string>();
-            
+
             // 设备名称
             if (!string.IsNullOrEmpty(Device?.Name))
             {
                 deviceInfo.Add(Device.Name);
             }
-            
+
             // 设备型号
             if (!string.IsNullOrEmpty(Device?.Model))
             {
                 deviceInfo.Add(Device.Model);
             }
-            
+
             // IP地址
             if (Device?.IpAddresses != null && Device.IpAddresses.Count > 0)
             {
                 deviceInfo.Add(string.Join(", ", Device.IpAddresses));
             }
-            
+
             // 确保至少返回一个默认值，便于调试
             if (deviceInfo.Count == 0)
             {
@@ -178,7 +176,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
                     deviceInfo.Add("ConnectedAdbDevices为空");
                 }
             }
-            
+
             return string.Join("\n", deviceInfo);
         }
     }
@@ -191,24 +189,24 @@ public sealed partial class MainPageViewModel : BaseViewModel
         get
         {
             var icons = new List<string>();
-            
+
             if (Device == null || !Device.HasAdbConnection || Device.ConnectedAdbDevices.Count == 0)
             {
                 return icons;
             }
-            
+
             // 添加USB图标
             if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
             {
                 icons.Add("\uE89E"); // USB图标
             }
-            
+
             // 添加WiFi图标
             if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
             {
                 icons.Add("\uE927"); // WiFi图标
             }
-            
+
             return icons;
         }
     }
@@ -218,7 +216,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     {
         // 用于存储之前的设备，以便移除事件监听
         PairedDevice? previousDevice = null;
-        
+
         // 当 DeviceManager.ActiveDevice 变化时，让 x:Bind 的 Device 属性重新求值
         if (DeviceManager is INotifyPropertyChanged npc)
         {
@@ -235,7 +233,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
                     {
                         previousDevice.ConnectedAdbDevices.CollectionChanged -= OnAdbDevicesCollectionChanged;
                     }
-                    
+
                     OnPropertyChanged(nameof(Device));
                     OnPropertyChanged(nameof(IsAudioOnlyRunning));
                     OnPropertyChanged(nameof(AudioStatusIcon));
@@ -243,7 +241,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
                     OnPropertyChanged(nameof(AdbConnectionTypes));
                     OnPropertyChanged(nameof(AdbStatusIcons));
                     OnPropertyChanged(nameof(AdbDeviceInfo));
-                    
+
                     // 添加新设备的事件监听
                     previousDevice = Device;
                     if (previousDevice is INotifyPropertyChanged newNpc)
@@ -257,7 +255,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
                 }
             };
         }
-        
+
         // 监听 NotificationService 的 PropertyChanged 事件，当 MediaBlocks 列表变化时触发 UI 更新（集合自身变更由集合通知）
         if (NotificationService is INotifyPropertyChanged npc2)
         {
@@ -275,18 +273,18 @@ public sealed partial class MainPageViewModel : BaseViewModel
         // 初始化 DashboardItems 并监听集合变化
         InitializeDashboardItems();
     }
-    
+
     private void InitializeDashboardItems()
     {
         // 初始填充
         UpdateDashboardItems();
-        
+
         // 监听 GroupedNotifications 的变化
         if (GroupedNotifications is System.Collections.Specialized.INotifyCollectionChanged groupedNcc)
         {
             groupedNcc.CollectionChanged += (s, e) => UpdateDashboardItems();
         }
-        
+
         // 注意：CurrentMusicMediaBlocks 是 ReadOnlyObservableCollection，我们需要监听其内部集合的变化
         // 这里简化处理：如果在 NotificationService 中 CurrentMusicMediaBlocks 的实例被替换，我们在上面的 PropertyChanged 中处理
         // 如果只是内容变化，我们也需要监听。
@@ -306,20 +304,20 @@ public sealed partial class MainPageViewModel : BaseViewModel
     {
         // 如果是在非 UI 线程调用，可能需要 Dispatcher，但通常 ViewModel 的 PropertyChanged 会由 UI 框架处理
         // 这里假设是在 UI 线程或框架能处理 ObservableCollection 的跨线程操作（WinUI 3 通常需要 DispatcherQueue，但这里先直接操作）
-        
+
         // 简单策略：清空并重新添加。为了减少闪烁，可以比较差异。
         // 但 ItemsRepeater 处理 Clear + Add 可能会导致滚动位置丢失。
         // 优化策略：
         // 1. 确保 MediaBlocks 在最前
         // 2. 确保 Notifications 在后
-        
+
         // 由于 MediaBlocks 很少变动，Notifications 变动频繁，我们分别处理。
-        
+
         // 现在的简单实现：完全重建。
         // TODO: 后续优化为增量更新以保持滚动位置和性能
-        
+
         // 实际上，为了避免 ItemsRepeater 闪烁，我们应该尽量复用现有的集合
-        
+
         var newItems = new List<object>();
         if (CurrentMusicMediaBlocks != null)
         {
@@ -329,9 +327,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
         {
             newItems.AddRange(GroupedNotifications);
         }
-        
+
         // 简单的 Diff 算法：如果数量差距不大，且大部分元素相同
-        
+
         // 如果 DashboardItems 为空，直接添加
         if (DashboardItems.Count == 0)
         {
@@ -346,17 +344,17 @@ public sealed partial class MainPageViewModel : BaseViewModel
         // 1. 移除多余的
         // 2. 添加新增的
         // 3. 移动顺序不对的（这里暂不处理顺序移动，假设顺序相对稳定）
-        
+
         // 为了简单起见，我们使用一个临时列表来同步
         // 注意：这种同步在大量数据下可能效率不高，但在通知列表场景下（通常几十条）是可以接受的
-        
+
         DashboardItems.Clear();
         foreach (var item in newItems)
         {
             DashboardItems.Add(item);
         }
     }
-    
+
     /// <summary>
     /// 手动刷新音频状态属性，用于UI更新
     /// </summary>
@@ -372,9 +370,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
     /// </summary>
     private void OnDevicePropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(PairedDevice.HasAdbConnection) || 
-            e.PropertyName == nameof(PairedDevice.Name) || 
-            e.PropertyName == nameof(PairedDevice.Model) || 
+        if (e.PropertyName == nameof(PairedDevice.HasAdbConnection) ||
+            e.PropertyName == nameof(PairedDevice.Name) ||
+            e.PropertyName == nameof(PairedDevice.Model) ||
             e.PropertyName == nameof(PairedDevice.IpAddresses))
         {
             OnPropertyChanged(nameof(AdbConnectionTypes));
@@ -483,7 +481,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
                 ScreenMirrorService.StopScrcpyByDeviceId(Device!.Id);
             }
             // 不再发送铃声模式消息到设备
-            
+
             // 刷新音频状态属性，更新UI
             RefreshAudioStatus();
         }
@@ -506,7 +504,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     {
         NotificationService.RemoveNotification(Device!, notification);
     }
-    
+
     [RelayCommand]
     public void ClearAllNotifications(string appPackage)
     {
@@ -520,17 +518,17 @@ public sealed partial class MainPageViewModel : BaseViewModel
         {
             return;
         }
-        
+
         // 解析参数：格式为 "deviceId:action"
         var parts = mediaControlParam.Split(':');
         if (parts.Length != 2)
         {
             return;
         }
-        
+
         string deviceId = parts[0];
         string action = parts[1];
-        
+
         // 发送媒体控制请求到指定设备
         PlaybackService.SendMediaControlRequest(deviceId, action);
     }

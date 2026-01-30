@@ -25,7 +25,7 @@ public sealed partial class ActionsPage : Page
     {
         var items = BreadcrumbBar.ItemsSource as ObservableCollection<BreadcrumbBarItemModel>;
         var clickedItem = items?[args.Index];
-        
+
         if (clickedItem?.PageType != null && clickedItem.PageType != typeof(ActionsPage))
         {
             // Navigate back to general page
@@ -35,4 +35,4 @@ public sealed partial class ActionsPage : Page
             }
         }
     }
-} 
+}

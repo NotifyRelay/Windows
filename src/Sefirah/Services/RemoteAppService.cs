@@ -1,8 +1,6 @@
-using System.Text.Json;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Services.Socket;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -21,15 +19,15 @@ public class RemoteAppService(
                 logger.LogWarning("跳过非 JSON 应用列表响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
                 return;
             }
-            
+
             // 首先尝试解析JSON
             using var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
-            
+
             logger.LogDebug("处理APP_LIST_RESPONSE消息");
-            
+
             var appList = new ApplicationList { AppList = new List<ApplicationInfoMessage>() };
-            
+
             if (root.TryGetProperty("apps", out var appsArray))
             {
                 foreach (var appElement in appsArray.EnumerateArray())
@@ -45,10 +43,10 @@ public class RemoteAppService(
                         }
                     }
                 }
-                
+
                 remoteAppRepository.UpdateApplicationList(device, appList);
                 logger.LogDebug("已更新应用列表，共 {Count} 个应用", appList.AppList.Count);
-                
+
                 // 收集所有没有图标的应用的包名
                 var packageNamesWithoutIcons = new List<string>();
                 foreach (var appInfo in appList.AppList)
@@ -58,7 +56,7 @@ public class RemoteAppService(
                         packageNamesWithoutIcons.Add(appInfo.PackageName);
                     }
                 }
-                
+
                 // 发送批量图标请求
                 if (packageNamesWithoutIcons.Count > 0)
                 {
@@ -85,14 +83,14 @@ public class RemoteAppService(
     {
         // 构建应用列表请求对象
         var request = new ApplicationListRequest();
-        
+
         // 序列化为 JSON
         string requestJson = JsonSerializer.Serialize(request);
-        
+
         // 调用通用发送方法
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
     }
-    
+
     /// <summary>
     /// 发送图标请求
     /// </summary>
@@ -112,10 +110,10 @@ public class RemoteAppService(
         {
             request.PackageNames = packageNames;
         }
-        
+
         // 序列化为 JSON
         string requestJson = JsonSerializer.Serialize(request);
-        
+
         // 调用通用发送方法
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
     }

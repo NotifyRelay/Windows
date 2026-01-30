@@ -1,9 +1,8 @@
 using System.Collections.Concurrent;
-using System.Text.Json;
 
 namespace NotifyRelay.Utils.Serialization.Implementation;
 internal class JsonSettingsDatabase(
-    ISettingsSerializer settingsSerializer, 
+    ISettingsSerializer settingsSerializer,
     IJsonSettingsSerializer jsonSettingsSerializer
 ) : IJsonSettingsDatabase
 {

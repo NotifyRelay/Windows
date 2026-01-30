@@ -1,6 +1,5 @@
 using System.Collections.Specialized;
 using CommunityToolkit.WinUI;
-using Microsoft.Extensions.Logging;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
@@ -31,7 +30,7 @@ public partial class PairedDevice : ObservableObject
     }
 
     private bool connectionStatus;
-    public bool ConnectionStatus 
+    public bool ConnectionStatus
     {
         get => connectionStatus;
         set
@@ -42,10 +41,10 @@ public partial class PairedDevice : ObservableObject
                 // 移除连接状态未变化的调试日志
                 return;
             }
-            
+
             var wasConnected = connectionStatus;
             logger.LogDebug("连接状态设置：值={value}, 之前已连接={wasConnected}, 当前连接状态={connectionStatus}", value, wasConnected, connectionStatus);
-            
+
             if (value)
             {
                 // 如果设置为true，取消任何挂起的断开连接操作
@@ -53,24 +52,24 @@ public partial class PairedDevice : ObservableObject
                 disconnectDebounceTimer?.Dispose();
                 disconnectDebounceTimer = null;
                 pendingDisconnect = false;
-                
+
                 SetProperty(ref connectionStatus, true);
                 logger.LogDebug("连接状态已更新为：True");
-                
+
                 // 如果设备之前未连接，并且已经发送过ftp请求，启动自动ftp请求计时器
                 if (!wasConnected)
                 {
                     logger.LogDebug("设备 {Name} ({Id}) 已连接，检查HasSentftpRequest属性", Name, Id);
-                    
+
                     // 只有当HasSentftpRequest为true时才启动计时器
                     if (HasSentftpRequest)
                     {
                         logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器", Name, Id);
-                        
+
                         // 确保之前的计时器已被释放
                         autoftpTimer?.Stop();
                         autoftpTimer?.Dispose();
-                        
+
                         // 启动5秒自动ftp请求计时器
                         autoftpTimer = new System.Timers.Timer(5000);
                         autoftpTimer.AutoReset = false; // 只触发一次
@@ -85,7 +84,7 @@ public partial class PairedDevice : ObservableObject
                                     if (ConnectionStatus && HasSentftpRequest)
                                     {
                                         logger.LogDebug("设备仍然连接且HasSentftpRequest为true，发送ftp命令");
-                                        
+
                                         // 从DI获取messageHandler并发送ftp命令
                                         var messageHandler = Ioc.Default.GetRequiredService<IMessageHandler>();
                                         messageHandler.SendftpCommand(this, "start");
@@ -243,38 +242,38 @@ public partial class PairedDevice : ObservableObject
                 {
                     return false;
                 }
-                
+
                 // 添加日志，便于调试
                 var pairedDeviceId = Id;
                 var pairedDeviceModel = Model;
                 var adbDevicesCount = adbService.AdbDevices.Count;
-                
+
                 logger.LogDebug("检查 ADB 连接：已配对设备 ID='{pairedDeviceId}'，型号='{pairedDeviceModel}'", pairedDeviceId, pairedDeviceModel);
                 logger.LogDebug("当前 ADB 设备数量：{adbDevicesCount}", adbDevicesCount);
-                
+
                 foreach (var adbDevice in adbService.AdbDevices)
                 {
                     logger.LogDebug("ADB 设备：序列号='{adbDevice.Serial}'，型号='{adbDevice.Model}'，Android ID='{adbDevice.AndroidId}'，在线状态='{adbDevice.IsOnline}'", adbDevice.Serial, adbDevice.Model, adbDevice.AndroidId, adbDevice.IsOnline);
-                    
+
                     // 检查匹配条件
                     var isOnline = adbDevice.IsOnline;
                     var androidIdMatch = !string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == pairedDeviceId;
-                    var modelMatch = string.IsNullOrEmpty(adbDevice.AndroidId) && 
-                                     !string.IsNullOrEmpty(adbDevice.Model) && 
+                    var modelMatch = string.IsNullOrEmpty(adbDevice.AndroidId) &&
+                                     !string.IsNullOrEmpty(adbDevice.Model) &&
                                      !string.IsNullOrEmpty(pairedDeviceModel) &&
                                      (pairedDeviceModel.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
                                       pairedDeviceModel.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
                                       adbDevice.Model.Contains(pairedDeviceModel, StringComparison.OrdinalIgnoreCase));
-                    
+
                     logger.LogDebug("  - 在线：{isOnline}，Android ID 匹配：{androidIdMatch}，型号匹配：{modelMatch}", isOnline, androidIdMatch, modelMatch);
-                    
+
                     if (isOnline && (androidIdMatch || modelMatch))
                     {
                         logger.LogDebug("  - 设备匹配成功！");
                         return true;
                     }
                 }
-                
+
                 logger.LogDebug("  - 未找到匹配的 ADB 设备");
                 return false;
             }
@@ -302,11 +301,11 @@ public partial class PairedDevice : ObservableObject
                 ConnectedAdbDevices.Clear();
 
                 var devices = adbService.AdbDevices
-                    .Where(adbDevice => adbDevice.IsOnline && 
+                    .Where(adbDevice => adbDevice.IsOnline &&
                         (
                             (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == Id) ||
-                            (string.IsNullOrEmpty(adbDevice.AndroidId) && 
-                                !string.IsNullOrEmpty(adbDevice.Model) && 
+                            (string.IsNullOrEmpty(adbDevice.AndroidId) &&
+                                !string.IsNullOrEmpty(adbDevice.Model) &&
                                 !string.IsNullOrEmpty(Model) &&
                                 (Model.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
                                 Model.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||

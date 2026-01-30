@@ -37,14 +37,14 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         ApplyTheme(App.MainWindow, null, Theme);
     }
 
-    public StartupOptions StartupOption 
-    { 
+    public StartupOptions StartupOption
+    {
         get => Get(StartupOptions.InTray);
         set => Set(value);
     }
 
-    public Theme Theme 
-    { 
+    public Theme Theme
+    {
         get => Get(Theme.Default);
         set
         {

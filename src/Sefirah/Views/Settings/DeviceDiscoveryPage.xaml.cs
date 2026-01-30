@@ -28,7 +28,7 @@ public sealed partial class DeviceDiscoveryPage : Page
     {
         var items = BreadcrumbBar.ItemsSource as ObservableCollection<BreadcrumbBarItemModel>;
         var clickedItem = items?[args.Index];
-        
+
         if (clickedItem?.PageType != null && clickedItem.PageType != typeof(DeviceDiscoveryPage))
         {
             // Navigate back to devices page

@@ -1,9 +1,7 @@
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Utils.Serialization;
 using static NotifyRelay.Utils.IconUtils;
 
 namespace NotifyRelay.ViewModels;
@@ -153,7 +151,7 @@ public sealed partial class AppsViewModel : BaseViewModel
     public AppsViewModel()
     {
         LoadApps();
-        
+
         RemoteAppsRepository.ApplicationListUpdated += OnApplicationListUpdated;
         ((INotifyPropertyChanged)DeviceManager).PropertyChanged += (s, e) =>
         {

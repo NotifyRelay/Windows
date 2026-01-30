@@ -15,4 +15,4 @@ public class DesktopDefaultActions
             new ProcessAction { Id = "shutdown", Name = "Shutdown", Path = "shutdown", Arguments = "-h now" },
         ];
     }
-} 
+}

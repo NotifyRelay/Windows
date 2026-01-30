@@ -10,25 +10,25 @@ public class DesktopftpService(ILogger<DesktopftpService> logger) : IftpService
 
     public async Task InitializeAsync(PairedDevice device, ftpServerInfo info)
     {
-        logger.LogInformation("正在为设备 {DeviceName} 初始化 ftp 服务，IP：{IpAddress}，端口：{Port}", 
+        logger.LogInformation("正在为设备 {DeviceName} 初始化 ftp 服务，IP：{IpAddress}，端口：{Port}",
             device.Name, info.IpAddress, info.Port);
 
         // 使用匿名登录构建ftpUri
         var ftpUri = $"ftp://{info.IpAddress}:{info.Port}/";
-        
+
         logger.LogInformation("正在为设备 {DeviceName} 挂载 ftp", device.Name);
 
         ProcessExecutor.ExecuteProcess("gio", $"mount -s \"{ftpUri}\"");
 
         // 使用匿名登录，不需要密码
         var (exitCode, errorOutput) = await ExecuteProcessWithPasswordAsync("gio", $"mount \"{ftpUri}\"", string.Empty);
-        
+
         if (exitCode != 0)
         {
             logger.LogError("为设备 {DeviceName} 挂载 ftp 失败：{Error}", device.Name, errorOutput);
             return;
         }
-        
+
         _mountedDevices[device.Id] = ftpUri;
         logger.LogInformation("为设备 {DeviceName} 成功挂载 ftp", device.Name);
     }
@@ -58,7 +58,7 @@ public class DesktopftpService(ILogger<DesktopftpService> logger) : IftpService
 
         await process.WaitForExitAsync();
         var errorOutput = await process.StandardError.ReadToEndAsync();
-        
+
         return (process.ExitCode, errorOutput);
     }
 
@@ -69,7 +69,7 @@ public class DesktopftpService(ILogger<DesktopftpService> logger) : IftpService
             logger.LogDebug("设备 {DeviceId} 未挂载", deviceId);
             return;
         }
-        
+
         logger.LogInformation("正在卸载设备 {DeviceId} 的 ftp 挂载", deviceId);
         ProcessExecutor.ExecuteProcess("gio", $"mount -u \"{ftpUri}\"");
         _mountedDevices.Remove(deviceId);

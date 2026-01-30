@@ -4,9 +4,9 @@ using NotifyRelay.Services;
 namespace NotifyRelay.Platforms.Desktop.Services;
 
 public class DesktopActionService(
-    IGeneralSettingsService generalSettingsService, 
+    IGeneralSettingsService generalSettingsService,
     IUserSettingsService userSettingsService,
-    ISessionManager sessionManager, 
+    ISessionManager sessionManager,
     ILogger<DesktopActionService> logger) : BaseActionService(generalSettingsService, userSettingsService, sessionManager, logger)
 {
 }

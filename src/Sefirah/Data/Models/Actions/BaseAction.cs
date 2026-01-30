@@ -8,4 +8,4 @@ public abstract class BaseAction : ObservableObject
 
     [JsonPropertyName("Name")]
     public string Name { get; set; } = string.Empty;
-} 
+}

@@ -90,7 +90,7 @@ public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
             {
                 // Ignore our own service instance
                 if (serviceProfile is not null && args.ServiceInstanceName == serviceProfile.FullyQualifiedName) return;
-                
+
                 // Only process _NotifyRelay._udp services
                 if (!args.ServiceInstanceName.ToCanonical().ToString().Contains("_NotifyRelay._udp")) return;
 
@@ -102,7 +102,8 @@ public class MdnsService(ILogger<MdnsService> logger) : IMdnsService
             };
 
             // Add handler for answers
-            multicastService.AnswerReceived += (sender, args) => {
+            multicastService.AnswerReceived += (sender, args) =>
+            {
                 var txtRecords = args.Message.Answers.OfType<TXTRecord>();
                 foreach (var txtRecord in txtRecords)
                 {

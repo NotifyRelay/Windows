@@ -29,7 +29,7 @@ public class CertificateHelper
 
         // Ensure the certificate is exportable
         byte[] exportedData = certificate.Export(X509ContentType.Pfx);
-        certificate = X509CertificateLoader.LoadPkcs12(exportedData, null, 
+        certificate = X509CertificateLoader.LoadPkcs12(exportedData, null,
             X509KeyStorageFlags.Exportable | X509KeyStorageFlags.PersistKeySet);
 
         string certPath = Path.Combine(
@@ -37,7 +37,7 @@ public class CertificateHelper
             CertificateFileName);
 
         await File.WriteAllBytesAsync(certPath, exportedData);
-        
+
         return certificate;
     }
 

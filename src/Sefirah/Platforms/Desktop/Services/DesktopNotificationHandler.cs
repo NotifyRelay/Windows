@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Extensions;
-using NotifyRelay.Utils;
 using Tmds.DBus.Protocol;
 
 namespace NotifyRelay.Platforms.Desktop.Services;
@@ -48,7 +47,7 @@ public class DesktopNotificationHandler(
 
             // Test if the notification service is available
             var serverInfo = await _notifications.GetServerInformationAsync();
-            logger.LogDebug("通知服务器：{Name} {Version}，厂商：{Vendor}", 
+            logger.LogDebug("通知服务器：{Name} {Version}，厂商：{Vendor}",
                 serverInfo.Name, serverInfo.Version, serverInfo.Vendor);
 
             // Set up action watching
@@ -76,8 +75,8 @@ public class DesktopNotificationHandler(
             var categoryHint = NotificationHints.Category("device.added");
             var urgencyHint = NotificationHints.NormalUrgency();
             var soundHint = NotificationHints.SuppressSound(false);
-            var soundNameHint = NotificationHints.SoundName("message-new-instant"); 
-            
+            var soundNameHint = NotificationHints.SoundName("message-new-instant");
+
             hints.Add(categoryHint.Key, categoryHint.Value);
             hints.Add(urgencyHint.Key, urgencyHint.Value);
             hints.Add(soundHint.Key, soundHint.Value);
@@ -115,7 +114,7 @@ public class DesktopNotificationHandler(
                 _notificationActions[notificationId] = actionData;
             }
 
-            logger.LogDebug("已发送远程通知：ID：{NotificationId}，动作数：{ActionCount}", 
+            logger.LogDebug("已发送远程通知：ID：{NotificationId}，动作数：{ActionCount}",
                 notificationId, actionData.Actions.Count);
         }
         catch (Exception ex)
@@ -135,7 +134,7 @@ public class DesktopNotificationHandler(
             var categoryHint = NotificationHints.Category("");
             var urgencyHint = NotificationHints.NormalUrgency();
             var soundHint = NotificationHints.SuppressSound(false);
-            
+
             hints.Add(categoryHint.Key, categoryHint.Value);
             hints.Add(urgencyHint.Key, urgencyHint.Value);
             hints.Add(soundHint.Key, soundHint.Value);
@@ -177,7 +176,7 @@ public class DesktopNotificationHandler(
             var categoryHint = NotificationHints.Category("clipboard.action");
             var urgencyHint = NotificationHints.NormalUrgency();
             var soundHint = NotificationHints.SuppressSound(false);
-            
+
             hints.Add(categoryHint.Key, categoryHint.Value);
             hints.Add(urgencyHint.Key, urgencyHint.Value);
             hints.Add(soundHint.Key, soundHint.Value);
@@ -207,12 +206,12 @@ public class DesktopNotificationHandler(
             var notificationId = await _notifications.NotifyAsync(
                 appName: "Sefirah",
                 replacesId: 0,
-                appIcon: "edit-copy", 
+                appIcon: "edit-copy",
                 summary: title,
                 body: text,
-                actions: actions.ToArray(), 
+                actions: actions.ToArray(),
                 hints: hints,
-                expireTimeout: 4000 
+                expireTimeout: 4000
             );
 
             // Store action data for this notification
@@ -221,7 +220,7 @@ public class DesktopNotificationHandler(
                 _notificationActions[notificationId] = notificationActionData;
             }
 
-            logger.LogDebug("已发送剪贴板通知：ID：{NotificationId}，动作数：{ActionCount}", 
+            logger.LogDebug("已发送剪贴板通知：ID：{NotificationId}，动作数：{ActionCount}",
                 notificationId, notificationActionData.Actions.Count);
         }
         catch (Exception ex)
@@ -241,7 +240,7 @@ public class DesktopNotificationHandler(
             var categoryHint = NotificationHints.Category("transfer.complete");
             var urgencyHint = NotificationHints.NormalUrgency();
             var soundHint = NotificationHints.SuppressSound(false);
-            
+
             hints.Add(categoryHint.Key, categoryHint.Value);
             hints.Add(urgencyHint.Key, urgencyHint.Value);
             hints.Add(soundHint.Key, soundHint.Value);
@@ -252,7 +251,7 @@ public class DesktopNotificationHandler(
                 appIcon: "folder-download",
                 summary: "FileTransferNotification.Completed".GetLocalizedResource(),
                 body: subtitle,
-                actions: [], 
+                actions: [],
                 hints: hints,
                 expireTimeout: 6000 // 6 seconds
             );
@@ -363,11 +362,11 @@ public class DesktopNotificationHandler(
                 case "RemoteNotification":
                     await HandleRemoteNotificationAction(actionData, action);
                     break;
-                
+
                 case "Clipboard":
                     await HandleClipboardAction(action);
                     break;
-                
+
                 default:
                     logger.LogWarning("未处理的通知类型：{NotificationType}", actionData.NotificationType);
                     break;

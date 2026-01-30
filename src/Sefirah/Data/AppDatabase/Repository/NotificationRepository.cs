@@ -1,4 +1,3 @@
-using System.Text.Json;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils.Serialization;
@@ -32,8 +31,8 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                 .OrderByDescending(n => n.CreatedAt)
                 .Take(take)
                 .ToList();
-            
-            return allNotifications.Where(n => 
+
+            return allNotifications.Where(n =>
             {
                 try
                 {
@@ -60,10 +59,10 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
             // 生成聚合键作为主键
             var aggregationKey = $"{message.AppPackage}|{message.Title}|{message.Text}|{message.NotificationType}";
             var entity = context.Database.Find<NotificationEntity>(aggregationKey);
-            
+
             List<string> deviceIds = [];
             List<string> deviceNames = [];
-            
+
             if (entity is not null)
             {
                 // 如果通知已存在，解析现有的设备ID和名称
@@ -78,7 +77,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                     deviceNames = [];
                 }
             }
-            
+
             // 添加新设备ID和名称（如果不存在）
             if (!deviceIds.Contains(deviceId))
             {
@@ -86,7 +85,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                 // 使用设备ID作为名称占位符，后续会更新
                 deviceNames.Add(deviceId);
             }
-            
+
             // 更新或创建通知实体
             var updatedEntity = new NotificationEntity
             {
@@ -113,7 +112,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         {
             // 查找所有包含该通知键的通知
             var allNotifications = context.Database.Table<NotificationEntity>().ToList();
-            
+
             foreach (var entity in allNotifications)
             {
                 try
@@ -131,7 +130,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                             // 否则，从设备列表中移除该设备
                             var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
                             var index = deviceIds.IndexOf(deviceId);
-                            
+
                             if (index >= 0)
                             {
                                 deviceIds.RemoveAt(index);
@@ -139,7 +138,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                                 {
                                     deviceNames.RemoveAt(index);
                                 }
-                                
+
                                 entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
                                 entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
                                 context.Database.InsertOrReplace(entity);
@@ -164,7 +163,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         try
         {
             var allNotifications = context.Database.Table<NotificationEntity>().ToList();
-            
+
             foreach (var entity in allNotifications)
             {
                 try
@@ -182,7 +181,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                             // 否则，从设备列表中移除该设备
                             var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
                             var index = deviceIds.IndexOf(deviceId);
-                            
+
                             if (index >= 0)
                             {
                                 deviceIds.RemoveAt(index);
@@ -190,7 +189,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                                 {
                                     deviceNames.RemoveAt(index);
                                 }
-                                
+
                                 entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
                                 entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
                                 context.Database.InsertOrReplace(entity);
@@ -215,7 +214,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         try
         {
             var allNotifications = context.Database.Table<NotificationEntity>().Where(n => !n.Pinned).ToList();
-            
+
             foreach (var entity in allNotifications)
             {
                 try
@@ -233,7 +232,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                             // 否则，从设备列表中移除该设备
                             var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
                             var index = deviceIds.IndexOf(deviceId);
-                            
+
                             if (index >= 0)
                             {
                                 deviceIds.RemoveAt(index);
@@ -241,7 +240,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                                 {
                                     deviceNames.RemoveAt(index);
                                 }
-                                
+
                                 entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
                                 entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
                                 context.Database.InsertOrReplace(entity);
@@ -267,7 +266,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         {
             // 查找所有包含该通知键的通知
             var allNotifications = context.Database.Table<NotificationEntity>().ToList();
-            
+
             foreach (var entity in allNotifications)
             {
                 try

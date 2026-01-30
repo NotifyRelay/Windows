@@ -1,5 +1,5 @@
-using NotifyRelay.Data.EventArguments;
 using System.Runtime.CompilerServices;
+using NotifyRelay.Data.EventArguments;
 
 namespace NotifyRelay.Utils.Serialization;
 

@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using Windows.Storage.Streams;
 
 namespace NotifyRelay.Utils;
@@ -63,7 +62,7 @@ public static class IconUtils
         {
             return new Uri(NotifyRelayAppIconPath);
         }
-        
+
         try
         {
             var appIconsFolder = await GetAppIconsFolderAsync();
@@ -94,7 +93,7 @@ public static class IconUtils
         {
             return NotifyRelayAppIconPath;
         }
-        
+
         return $@"{ApplicationData.Current.LocalFolder.Path}\{AppIconsFolderName}\{packageName}.png";
     }
 
@@ -105,7 +104,7 @@ public static class IconUtils
         {
             return NotifyRelayAppIconPath;
         }
-        
+
         return $"ms-appdata:///local/{AppIconsFolderName}/{packageName}.png";
     }
 
@@ -121,7 +120,7 @@ public static class IconUtils
         {
             return true;
         }
-        
+
         try
         {
             string iconFilePath = GetAppIconFilePath(packageName);
@@ -146,11 +145,11 @@ public static class IconUtils
         {
             return;
         }
-        
+
         try
         {
             if (string.IsNullOrEmpty(appIconBase64)) return;
-            
+
             // 处理 base64 编码的图标数据
             byte[] bytes;
             try
@@ -162,14 +161,14 @@ public static class IconUtils
                 // 忽略无效的 base64 字符串
                 return;
             }
-            
+
             var appIconsFolder = await GetAppIconsFolderAsync();
-            
+
             // 尝试保存文件，最多重试3次，每次间隔100ms
             int retryCount = 0;
             const int maxRetries = 3;
             const int retryDelayMs = 100;
-            
+
             while (retryCount < maxRetries)
             {
                 try
@@ -203,7 +202,7 @@ public static class IconUtils
             // 忽略保存错误
         }
     }
-    
+
     /// <summary>
     /// 构建图标请求对象
     /// </summary>
@@ -217,7 +216,7 @@ public static class IconUtils
             packageName = packageName,
             time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
-        
+
         return JsonSerializer.Serialize(requestObj);
     }
-} 
+}

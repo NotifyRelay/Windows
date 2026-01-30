@@ -14,7 +14,7 @@ public interface IPlatformNotificationHandler
     /// <param name="deviceId">The ID of the device that sent the notification</param>
     /// <returns>Task that completes when the notification is displayed</returns>
     Task ShowRemoteNotification(NotificationMessage message, string deviceId);
-    
+
     /// <summary>
     /// Shows a simple notification with title and text
     /// </summary>
@@ -23,7 +23,7 @@ public interface IPlatformNotificationHandler
     /// <param name="iconPath">Optional path to icon file</param>
     /// <returns>Task that completes when the notification is displayed</returns>
     void ShowClipboardNotification(string title, string text, string? iconPath = null);
-    
+
     /// <summary>
     /// Shows a clipboard notification with optional action button
     /// </summary>
@@ -33,7 +33,7 @@ public interface IPlatformNotificationHandler
     /// <param name="actionData">Data to pass with action (optional)</param>
     /// <returns>Task that completes when the notification is displayed</returns>
     void ShowClipboardNotificationWithActions(string title, string text, string? actionLabel = null, string? actionData = null);
-    
+
     /// <summary>
     /// Shows a file transfer notification
     /// </summary>
@@ -49,13 +49,13 @@ public interface IPlatformNotificationHandler
     /// Registers for platform-specific notification events
     /// </summary>
     Task RegisterForNotifications();
-    
+
     /// <summary>
     /// Removes a notification by its tag/key
     /// </summary>
     /// <param name="notificationKey">The key of the notification to remove</param>
     Task RemoveNotificationByTag(string? notificationKey);
-    
+
     /// <summary>
     /// Removes all notifications for a specific group
     /// </summary>
@@ -68,4 +68,4 @@ public interface IPlatformNotificationHandler
     /// Clears all notifications
     /// </summary>
     Task ClearAllNotifications();
-} 
+}

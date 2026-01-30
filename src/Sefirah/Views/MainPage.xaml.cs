@@ -1,11 +1,8 @@
-using System.Diagnostics;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
-using NotifyRelay.Data.Models;
 using NotifyRelay.ViewModels;
 using NotifyRelay.ViewModels.Settings;
 using Windows.ApplicationModel.DataTransfer;
-using Windows.System;
 
 namespace NotifyRelay.Views;
 public sealed partial class MainPage : Page
@@ -19,7 +16,7 @@ public sealed partial class MainPage : Page
         ViewModel = Ioc.Default.GetRequiredService<MainPageViewModel>();
         DevicesViewModel = Ioc.Default.GetRequiredService<DevicesViewModel>();
         DataContext = ViewModel;
-        
+
         // 默认导航到应用列表页
         ContentFrame.Navigate(typeof(AppsPage));
     }
@@ -38,14 +35,14 @@ public sealed partial class MainPage : Page
     {
         // Get the wheel delta - positive for scrolling up, negative for scrolling down
         var pointerPoint = e.GetCurrentPoint(PhoneFrameGrid);
-        int wheelDelta = pointerPoint.Properties.MouseWheelDelta;        
+        int wheelDelta = pointerPoint.Properties.MouseWheelDelta;
         ViewModel.SwitchToNextDevice(wheelDelta);
         e.Handled = true;
     }
 
     private void NavigationView_SelectionChanged(NavigationView _, NavigationViewSelectionChangedEventArgs args)
     {
-        if (args.SelectedItem is NavigationViewItem selectedItem && 
+        if (args.SelectedItem is NavigationViewItem selectedItem &&
             selectedItem.Tag?.ToString() is string tag &&
             Pages.TryGetValue(tag, out Type? pageType))
         {
@@ -79,9 +76,9 @@ public sealed partial class MainPage : Page
         {
             currentOverlayAnimation = FadeOutStoryboard;
             FadeOutStoryboard.Begin();
-            
+
             // Hide overlay after animation completes
-            FadeOutStoryboard.Completed += (s, args) => 
+            FadeOutStoryboard.Completed += (s, args) =>
             {
                 overlay.Visibility = Visibility.Collapsed;
                 currentOverlayAnimation = null;

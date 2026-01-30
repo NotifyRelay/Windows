@@ -1,17 +1,14 @@
-using System.Text.Json;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Services;
-using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.Data.AppDatabase.Repository;
 
 public class RemoteAppRepository(DatabaseContext context, ILogger logger)
 {
     public ObservableCollection<ApplicationInfo> Applications { get; set; } = [];
-    
+
     public event EventHandler<string>? ApplicationListUpdated;
 
     public async Task LoadApplicationsFromDevice(string deviceId)
@@ -59,7 +56,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
                 deviceInfoList.Add(new AppDeviceInfo(deviceId, NotificationFilter.ToastFeed));
                 existingApp.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
             }
-            
+
             context.Database.Update(existingApp);
 
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
@@ -148,7 +145,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
             var deviceInfoList = app.AppDeviceInfoList;
             deviceInfoList.RemoveAll(d => d.DeviceId == deviceId);
             app.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
-            
+
             if (deviceInfoList.Count == 0)
             {
                 // No more devices have this app, delete it
@@ -193,7 +190,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
             }
 
             await LoadApplicationsFromDevice(pairedDevice.Id);
-            
+
             // 确保在UI线程上触发事件，避免COMException
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
@@ -217,7 +214,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
                 var deviceInfoList = app.AppDeviceInfoList;
                 deviceInfoList.RemoveAll(d => d.DeviceId == deviceId);
                 app.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
-                
+
                 if (deviceInfoList.Count == 0)
                 {
                     appsToDelete.Add(app);
@@ -228,7 +225,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
                 }
             }
         }
-        
+
         // Delete apps that no longer have any devices
         foreach (var app in appsToDelete)
         {
@@ -253,7 +250,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         app.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
         context.Database.Update(app);
     }
-    
+
     #region Helpers
     private static bool HasDevice(ApplicationInfoEntity entity, string deviceId)
     {
@@ -263,10 +260,10 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
     private static bool HasDevice(ApplicationInfoEntity entity, string deviceId, out AppDeviceInfo? deviceInfo)
     {
         deviceInfo = null;
-        
+
         if (string.IsNullOrEmpty(entity.AppDeviceInfoJson))
             return false;
-            
+
         try
         {
             var deviceInfoList = entity.AppDeviceInfoList;

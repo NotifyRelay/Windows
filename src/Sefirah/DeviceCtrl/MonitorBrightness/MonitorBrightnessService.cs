@@ -1,10 +1,6 @@
-using Microsoft.Extensions.Logging;
-using NotifyRelay.Data.Contracts;
-using NotifyRelay.Services.Settings;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.Management;
 using System.Text;
+using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.DeviceCtrl.MonitorBrightness;
 
@@ -50,12 +46,12 @@ public class MonitorBrightnessService
         {
             LoadMonitors();
             StartBrightnessWatcher();
-            
+
             // 启动时强制同步一次亮度，确保初始状态正确
             uint initialBrightness = GetCurrentSystemBrightness();
             _logger.LogInformation($"启动时强制同步亮度，初始亮度: {initialBrightness}%");
             SyncBrightness(initialBrightness);
-            
+
             _isRunning = true;
             _generalSettingsService.EnableMonitorBrightnessSync = true;
             _logger.LogInformation("显示器亮度同步已启动");
@@ -137,7 +133,7 @@ public class MonitorBrightnessService
                 // 尝试使用显式的 ManagementScope
                 var scope = new ManagementScope("root\\WMI");
                 scope.Connect();
-                
+
                 var query = new WqlEventQuery("SELECT * FROM WmiMonitorBrightnessEvent");
                 _brightnessWatcher = new ManagementEventWatcher(scope, query);
                 _brightnessWatcher.EventArrived += OnBrightnessChanged;
@@ -227,13 +223,13 @@ public class MonitorBrightnessService
                     brightness = byteBrightness;
                 }
             }
-            
+
             // 如果事件中没有获取到亮度值，则查询系统亮度
             if (brightness == 0)
             {
                 brightness = GetCurrentSystemBrightness();
             }
-            
+
             _logger.LogInformation($"亮度已更改为 {brightness}%");
             SyncBrightness(brightness);
         }
@@ -250,7 +246,7 @@ public class MonitorBrightnessService
             using var searcher = new ManagementObjectSearcher("root\\WMI", "SELECT * FROM WmiMonitorBrightness");
             using var collection = searcher.Get();
             _logger.LogInformation($"WmiMonitorBrightness 结果数量: {collection.Count}");
-            
+
             foreach (var obj in collection)
             {
                 try
@@ -302,7 +298,7 @@ public class MonitorBrightnessService
         {
             var selectedMonitors = _generalSettingsService.SelectedMonitors;
             List<MonitorInfo> targetMonitors = [];
-            
+
             if (!selectedMonitors.Any() || selectedMonitors.Contains("All"))
             {
                 // 同步到所有显示器
@@ -322,7 +318,7 @@ public class MonitorBrightnessService
                     }
                 }
             }
-            
+
             // 构建复合命令，一次性执行所有亮度设置
             if (targetMonitors.Any())
             {
@@ -332,7 +328,7 @@ public class MonitorBrightnessService
                     _logger.LogInformation($"同步亮度到显示器 {monitor.Name}: {brightness}%");
                     commandBuilder.Append($" /SetValue \"{monitor.DeviceName}\" 10 {brightness}");
                 }
-                
+
                 string combinedArguments = commandBuilder.ToString().Trim();
                 RunControlMyMonitor(combinedArguments);
             }
@@ -358,7 +354,7 @@ public class MonitorBrightnessService
                 _logger.LogInformation($"读取显示器列表文件: {tempFile}");
                 var content = File.ReadAllText(tempFile);
                 _logger.LogInformation($"显示器列表文件内容: {content}");
-                
+
                 var monitorSections = content.Split("\r\n\r\n", StringSplitOptions.RemoveEmptyEntries);
                 _logger.LogInformation($"解析出 {monitorSections.Length} 个显示器部分");
 

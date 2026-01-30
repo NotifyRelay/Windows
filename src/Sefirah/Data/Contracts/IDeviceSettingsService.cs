@@ -23,7 +23,7 @@ public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyC
     /// Gets or sets a value indicating whether links should be opened in the browser.
     /// </summary>
     bool OpenLinksInBrowser { get; set; }
-    
+
     /// <summary>
     /// Gets or sets a value indicating whether notification synchronization is enabled.
     /// </summary>
@@ -102,7 +102,7 @@ public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyC
     /// <summary>
     /// Gets or sets the video bitrate.
     /// </summary>
-    string? VideoBitrate { get; set; }  
+    string? VideoBitrate { get; set; }
 
     /// <summary>
     /// Gets or sets the video resolution.
@@ -117,13 +117,13 @@ public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyC
     /// <summary>
     /// Gets or sets the audio bitrate.
     /// </summary>
-    string? AudioBitrate { get; set; }  
+    string? AudioBitrate { get; set; }
 
     /// <summary>
     /// Gets or sets the audio buffer.
     /// </summary>
     string? AudioBuffer { get; set; }
-    
+
     /// <summary>
     /// Gets or sets custom command-line arguments for scrcpy.
     /// </summary>
@@ -228,4 +228,4 @@ public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyC
     /// Gets or sets a value indicating whether to automatically connect via ADB.
     /// </summary>
     bool AdbAutoConnect { get; set; }
-} 
+}

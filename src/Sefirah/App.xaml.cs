@@ -1,19 +1,18 @@
+using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
+using H.NotifyIcon;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Windows.AppLifecycle;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Enums;
+using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 using NotifyRelay.Views;
 using NotifyRelay.Views.Onboarding;
 using Windows.ApplicationModel.Activation;
-using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
-using H.NotifyIcon;
-using NotifyRelay.Data.Contracts;
-using System.Runtime.InteropServices;
-using NotifyRelay.Extensions;
-using NotifyRelay.Data.Enums;
-using Microsoft.UI.Windowing;
 using WinRT.Interop;
-using Uno.UI.HotDesign;
+using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Helpers;
@@ -99,9 +98,10 @@ public partial class App : Application
                         MainWindow.Activate();
                         MainWindow.AppWindow.Show();
                         break;
-                };
+                }
+                ;
             }
-            else 
+            else
             {
                 MainWindow.Activate();
                 // Wait for the Window to initialize

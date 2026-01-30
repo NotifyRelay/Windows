@@ -17,4 +17,4 @@ public sealed partial class PasswordInputDialog : ContentDialog
     {
         base.Hide();
     }
-} 
+}

@@ -1,12 +1,6 @@
-using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Extensions;
-using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
-using System.Collections.ObjectModel;
-using System.Net.Http;
-using Windows.Storage;
 using Windows.Storage.Streams;
 
 namespace NotifyRelay.Data.Models;
@@ -16,7 +10,7 @@ public class SourceDevice
 {
     public string DeviceId { get; set; }
     public string DeviceName { get; set; }
-    
+
     public SourceDevice(string deviceId, string deviceName)
     {
         DeviceId = deviceId;
@@ -27,10 +21,10 @@ public class SourceDevice
 public partial class Notification : ObservableObject
 {
     public string Key { get; set; } = string.Empty;
-    
+
     [ObservableProperty]
     private bool pinned = false;
-    
+
     public string? TimeStamp { get; set; }
     public NotificationType Type { get; set; }
     public string? AppName { get; set; }
@@ -41,17 +35,17 @@ public partial class Notification : ObservableObject
     public bool HasGroupedMessages => GroupedMessages?.Count > 0;
     public string? Tag { get; set; }
     public string? GroupKey { get; set; }
-    
-    
+
+
     [ObservableProperty]
     private BitmapImage? icon;
-    
+
     [ObservableProperty]
     private string? iconPath;
-    
+
     // 存储通知来自的设备列表，用于聚合相同内容的通知
     public ObservableCollection<SourceDevice> SourceDevices { get; set; } = new ObservableCollection<SourceDevice>();
-    
+
     // 为了兼容现有代码，保留DeviceId和DeviceName属性，但它们现在返回第一个设备的信息
     public string? DeviceId
     {
@@ -64,7 +58,7 @@ public partial class Notification : ObservableObject
             }
         }
     }
-    
+
     public string? DeviceName
     {
         get => SourceDevices.FirstOrDefault()?.DeviceName;
@@ -76,7 +70,7 @@ public partial class Notification : ObservableObject
             }
         }
     }
-    
+
     // 添加设备到通知的来源设备列表
     public void AddSourceDevice(string deviceId, string deviceName)
     {
@@ -135,7 +129,7 @@ public partial class Notification : ObservableObject
     public async Task LoadIconAsync()
     {
         if (string.IsNullOrEmpty(IconPath)) return;
-        
+
         try
         {
             // 尝试从本地加载图标
@@ -149,7 +143,7 @@ public partial class Notification : ObservableObject
             // 忽略加载错误
         }
     }
-    
+
     /// <summary>
     /// 获取URI对应的流
     /// </summary>

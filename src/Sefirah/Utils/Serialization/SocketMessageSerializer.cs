@@ -12,13 +12,13 @@ public static class SocketMessageSerializer
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
-    public static string Serialize(object message) => 
+    public static string Serialize(object message) =>
         JsonSerializer.Serialize(message, options);
 
-    public static T? Deserialize<T>(string json) => 
+    public static T? Deserialize<T>(string json) =>
         JsonSerializer.Deserialize<T>(json, options);
 
-    public static SocketMessage? DeserializeMessage(string json) 
+    public static SocketMessage? DeserializeMessage(string json)
     {
         try
         {
@@ -32,7 +32,7 @@ public static class SocketMessageSerializer
             {
                 using JsonDocument doc = JsonDocument.Parse(json);
                 JsonElement root = doc.RootElement;
-                
+
                 // 提取必要的字段，只使用最基本的字段
                 string notificationKey = Guid.NewGuid().ToString();
                 string timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
@@ -40,7 +40,7 @@ public static class SocketMessageSerializer
                 string? appName = root.TryGetProperty("appName", out JsonElement appNameElement) ? appNameElement.GetString() : null;
                 string? title = root.TryGetProperty("title", out JsonElement titleElement) ? titleElement.GetString() : null;
                 string? text = root.TryGetProperty("text", out JsonElement textElement) ? textElement.GetString() : null;
-                
+
                 // 提取封面URL，尝试多种可能的字段名
                 string? coverUrl = null;
                 if (root.TryGetProperty("coverUrl", out JsonElement coverUrlElement))
@@ -51,7 +51,7 @@ public static class SocketMessageSerializer
                     coverUrl = largeIconElement.GetString();
                 else if (root.TryGetProperty("icon", out JsonElement iconElement))
                     coverUrl = iconElement.GetString();
-                
+
                 // 创建NotificationMessage对象，只设置必要的字段
                 return new NotificationMessage
                 {

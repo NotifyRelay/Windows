@@ -1,3 +1,4 @@
+using System.Text;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
@@ -6,8 +7,6 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
 using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
-using System.Text;
-using Windows.Storage;
 
 namespace NotifyRelay.Services;
 
@@ -72,7 +71,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     public Task<RemoteDeviceEntity> GetDeviceInfoAsync(string deviceId)
     {
         throw new NotImplementedException();
-    }   
+    }
 
     public List<string> GetRemoteDeviceIpAddresses()
     {
@@ -265,7 +264,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         {
             var existingDevice = repository.GetLocalDevice();
             repository.AddOrUpdateLocalDevice(device);
-            
+
             // 检查设备名是否更改
             if (existingDevice != null && existingDevice.DeviceName != device.DeviceName)
             {
@@ -281,14 +280,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     public async Task Initialize()
     {
         var pairedDevicesList = await repository.GetPairedDevices();
-        
+
         // 清空现有集合，然后逐个添加设备，确保CollectionChanged事件被触发
         PairedDevices.Clear();
         foreach (var device in pairedDevicesList)
         {
             PairedDevices.Add(device);
         }
-        
+
         ActiveDevice = PairedDevices.FirstOrDefault();
     }
 }

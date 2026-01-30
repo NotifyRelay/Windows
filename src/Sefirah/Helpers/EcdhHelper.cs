@@ -59,13 +59,13 @@ public class EcdhHelper
     {
         var hmac = new Org.BouncyCastle.Crypto.Macs.HMac(new Sha256Digest());
         hmac.Init(new KeyParameter(sharedSecret));
-        
+
         var nonceBytes = Convert.FromBase64String(nonce);
         hmac.BlockUpdate(nonceBytes, 0, nonceBytes.Length);
-        
+
         var proof = new byte[hmac.GetMacSize()];
         hmac.DoFinal(proof, 0);
-        
+
         return Convert.ToBase64String(proof);
     }
 
@@ -85,7 +85,7 @@ public class EcdhHelper
                                     "abcdefghijklmnopqrstuvwxyz" +
                                     "0123456789" +
                                     "!@#$%^&*";
-        
+
         return new string(Enumerable.Range(1, 12)
             .Select(_ => allowedChars[Random.Shared.Next(allowedChars.Length)])
             .ToArray());

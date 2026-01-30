@@ -31,7 +31,7 @@ public sealed partial class ActionsViewModel : BaseViewModel
             return;
         }
         isDragging = true;
-        
+
         SaveActions();
     }
 
@@ -39,7 +39,7 @@ public sealed partial class ActionsViewModel : BaseViewModel
     {
         isBulkOperation = true;
         Actions.Clear();
-        
+
         var customActions = userSettingsService.GeneralSettingsService.Actions;
         foreach (var action in customActions)
         {
@@ -105,4 +105,4 @@ public sealed partial class ActionsViewModel : BaseViewModel
             SaveActions();
         }
     }
-} 
+}

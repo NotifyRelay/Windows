@@ -20,7 +20,7 @@ public class AdbService(
     private CancellationTokenSource? cts;
     private DeviceMonitor? deviceMonitor;
     private readonly AdbClient adbClient = new();
-    
+
     public ObservableCollection<AdbDevice> AdbDevices { get; } = [];
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
 
@@ -74,7 +74,7 @@ public class AdbService(
     }
 
 
-    
+
     public async Task StartAsync()
     {
         try
@@ -87,21 +87,21 @@ public class AdbService(
             // Start the ADB server if it's not running
             StartServerResult startServerResult = await AdbServer.Instance.StartServerAsync(adbPath, false, cts.Token);
             logger.LogTrace($"ADB 服务启动结果：{startServerResult}");
-            
+
             // Create and configure the device monitor
             deviceMonitor = new DeviceMonitor(new AdbSocket(new IPEndPoint(IPAddress.Loopback, AdbClient.AdbServerPort)));
-            
+
             deviceMonitor.DeviceConnected += DeviceConnected;
             deviceMonitor.DeviceDisconnected += DeviceDisconnected;
             deviceMonitor.DeviceChanged += DeviceChanged;
 
             await Task.Delay(50);
-            
+
             await deviceMonitor.StartAsync();
-            
+
             // Get initial list of devices
             await RefreshDevicesAsync();
-            
+
             logger.LogTrace("ADB 设备监控已成功启动");
         }
         catch (Exception ex)
@@ -110,7 +110,7 @@ public class AdbService(
             logger.LogError("启动 ADB 设备监控失败：{ex}", ex);
         }
     }
-    
+
     public async Task StopAsync()
     {
         if (!IsMonitoring)
@@ -118,11 +118,11 @@ public class AdbService(
             logger.LogWarning("ADB 监控未在运行");
             return;
         }
-        
+
         await CleanupAsync();
         logger.LogInformation("ADB 设备监控已停止");
     }
-    
+
     private async Task CleanupAsync()
     {
         if (deviceMonitor != null)
@@ -130,11 +130,11 @@ public class AdbService(
             deviceMonitor.DeviceConnected -= DeviceConnected;
             deviceMonitor.DeviceDisconnected -= DeviceDisconnected;
             deviceMonitor.DeviceChanged -= DeviceChanged;
-            
+
             await deviceMonitor.DisposeAsync();
             deviceMonitor = null;
         }
-        
+
         if (cts != null)
         {
             cts.Cancel();
@@ -142,7 +142,7 @@ public class AdbService(
             cts = null;
         }
     }
-    
+
     private async void DeviceConnected(object? sender, DeviceDataEventArgs e)
     {
         try
@@ -172,13 +172,13 @@ public class AdbService(
                 });
                 return;
             }
-            
+
             // Refresh the full device information
             var connectedDevice = await GetFullDeviceInfoAsync(e.Device);
-            
+
             // Check and grant permissions
             await CheckAndGrantLogPermissionAsync(e.Device);
-            
+
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
                 AdbDevices.Add(connectedDevice);
@@ -190,7 +190,7 @@ public class AdbService(
             logger.LogError($"处理设备连接时出错 {e.Device.Serial}：{ex.Message}", ex);
         }
     }
-    
+
     private async void DeviceDisconnected(object? sender, DeviceDataEventArgs e)
     {
         logger.LogTrace($"设备已断开：{e.Device.Serial}");
@@ -207,17 +207,17 @@ public class AdbService(
             });
         }
     }
-    
+
     private async void DeviceChanged(object? sender, DeviceDataChangeEventArgs e)
     {
 
         logger.LogTrace($"设备状态已更改：{e.Device.Serial} {e.OldState} -> {e.NewState}");
         var existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
-            
+
         if (e.NewState == DeviceState.Online)
         {
             var deviceInfo = await GetFullDeviceInfoAsync(e.Device);
-                
+
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
             {
                 if (existingDevice != null)
@@ -237,7 +237,7 @@ public class AdbService(
                     logger.LogDebug($"设备已添加：{deviceInfo.Model} ({deviceInfo.Serial})");
                 }
             });
-                
+
             logger.LogDebug($"设备已连接：{deviceInfo.Model} ({deviceInfo.Serial})");
         }
         else
@@ -257,7 +257,7 @@ public class AdbService(
             }
         }
     }
-    
+
     private async Task RefreshDevicesAsync()
     {
         var devices = await adbClient.GetDevicesAsync();
@@ -271,7 +271,7 @@ public class AdbService(
             return;
         }
 
-        await App.MainWindow.DispatcherQueue.EnqueueAsync(async() =>
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
         {
             var adbDevices = new List<AdbDevice>();
             foreach (var device in devices)
@@ -299,7 +299,7 @@ public class AdbService(
             }
         });
     }
-    
+
     private async Task<AdbDevice> GetFullDeviceInfoAsync(DeviceData deviceData)
     {
         try
@@ -345,9 +345,9 @@ public class AdbService(
 
                 var pairedDevices = deviceManager.PairedDevices;
                 logger.LogTrace($"当前已配对设备数量：{pairedDevices.Count}");
-                
+
                 // (略) 不再逐条输出已配对设备，避免重复日志
-                
+
                 var matchingDevice = pairedDevices.FirstOrDefault(pd =>
                     !string.IsNullOrEmpty(pd.Model) &&
                     (pd.Model.Equals(deviceModel, StringComparison.OrdinalIgnoreCase) ||
@@ -375,17 +375,17 @@ public class AdbService(
                 Type = fullDeviceData.Serial.Contains(':') || fullDeviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
                 DeviceData = fullDeviceData
             };
-            
+
             // 添加日志，便于调试
             logger.LogTrace($"生成 ADB 设备对象：序列号='{device.Serial}'，型号='{device.Model}'，Android ID='{device.AndroidId}'，在线状态='{device.IsOnline}'");
-            
+
             // 检查是否有已配对设备匹配此 ADB 设备
             var allPairedDevices = deviceManager.PairedDevices;
             foreach (var pd in allPairedDevices)
             {
                 logger.LogTrace($"检查已配对设备：ID='{pd.Id}'，型号='{pd.Model}'，是否匹配 ADB 设备：{pd.HasAdbConnection}");
             }
-            
+
             return device;
         }
         catch (Exception ex)
@@ -401,7 +401,7 @@ public class AdbService(
                 Type = deviceData.Serial.Contains(':') || deviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
                 DeviceData = deviceData
             };
-            
+
             return device;
         }
     }
@@ -412,15 +412,15 @@ public class AdbService(
         {
             string packageName = "com.xzyht.notifyrelay";
             string permission = "android.permission.READ_LOGS";
-            
+
             logger.LogTrace($"正在检查并授予设备 {deviceData.Serial} 的 {permission} 权限");
-            
+
             // 直接尝试授予权限，pm grant 是幂等的
             string grantCommand = $"pm grant {packageName} {permission}";
             var receiver = new ConsoleOutputReceiver();
-            
+
             await adbClient.ExecuteShellCommandAsync(deviceData, grantCommand, receiver);
-            
+
             string result = receiver.ToString().Trim();
             if (string.IsNullOrEmpty(result))
             {
@@ -433,7 +433,7 @@ public class AdbService(
 
             // 尝试授予 AppOps READ_CLIPBOARD 权限 (允许后台读取剪贴板)
             // 这可以解决 "Denying clipboard access" 错误
-            try 
+            try
             {
                 string appOpsCommand = $"cmd appops set {packageName} READ_CLIPBOARD allow";
                 logger.LogTrace($"正在尝试授予 AppOps READ_CLIPBOARD 权限: {appOpsCommand}");
@@ -453,7 +453,7 @@ public class AdbService(
         }
     }
 
-    public async Task<bool> ConnectWireless(string? host, int port=5555)
+    public async Task<bool> ConnectWireless(string? host, int port = 5555)
     {
         if (string.IsNullOrEmpty(host)) return false;
 
@@ -473,7 +473,7 @@ public class AdbService(
         }
     }
 
-    public async Task<bool> Pair(AdbDevice device, string pairingCode, string host, int port=5555)
+    public async Task<bool> Pair(AdbDevice device, string pairingCode, string host, int port = 5555)
     {
         if (string.IsNullOrEmpty(host)) return false;
         try
@@ -526,7 +526,7 @@ public class AdbService(
 
         var adbDevice = AdbDevices.FirstOrDefault(d => d.AndroidId == deviceId);
         if (adbDevice?.DeviceData == null) return;
-        
+
         var deviceData = adbDevice.DeviceData.Value;
         await adbClient.UninstallPackageAsync(deviceData, appPackage);
     }

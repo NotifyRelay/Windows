@@ -6,7 +6,7 @@ namespace NotifyRelay.Views.DeviceSettings;
 
 public sealed partial class ScreenMirrorSettingsPage : Page
 {
-    public DeviceSettingsViewModel ViewModel 
+    public DeviceSettingsViewModel ViewModel
     {
         get => (DeviceSettingsViewModel)DataContext;
         private set => DataContext = value;
@@ -22,7 +22,7 @@ public sealed partial class ScreenMirrorSettingsPage : Page
         base.OnNavigatedTo(e);
 
         if (e.Parameter is DeviceSettingsViewModel deviceSettingsViewModel)
-        {   
+        {
             ViewModel = deviceSettingsViewModel;
         }
     }

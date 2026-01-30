@@ -1,4 +1,3 @@
-using System.Threading.Tasks;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Data.Contracts;

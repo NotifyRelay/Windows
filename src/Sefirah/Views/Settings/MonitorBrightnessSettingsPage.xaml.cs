@@ -1,17 +1,7 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Media.Animation;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.MonitorBrightness;
-using NotifyRelay.Extensions;
-using NotifyRelay.Services.Settings;
-using System.Collections.Generic;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
 using Windows.Storage.Pickers;
-using System.Linq;
 
 namespace NotifyRelay.Views.Settings;
 

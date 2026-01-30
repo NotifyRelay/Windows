@@ -1,4 +1,3 @@
-using System.Text.Json;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using SQLite;
@@ -27,7 +26,7 @@ public partial class RemoteDeviceEntity
 
     [Column("IpAddresses")]
     public string? IpAddressesJson { get; set; }
-    
+
     [Ignore]
     public List<string> IpAddresses
     {

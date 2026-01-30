@@ -7,6 +7,6 @@ public interface INetworkService
     Task<bool> StartServerAsync();
     int ServerPort { get; }
     void SendMessage(string deviceId, string message);
-    
+
     Task ProcessProtocolMessageAsync(PairedDevice device, string message);
 }

@@ -1,5 +1,4 @@
 using NotifyRelay.Data.Models;
-using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Data.Contracts;
 public interface ISessionManager

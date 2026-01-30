@@ -1,5 +1,3 @@
-using Uno.Logging;
-
 namespace NotifyRelay.Utils;
 
 public static class ProcessExecutor
@@ -23,4 +21,4 @@ public static class ProcessExecutor
             ExecuteProcess(fileName, arguments);
         });
     }
-} 
+}

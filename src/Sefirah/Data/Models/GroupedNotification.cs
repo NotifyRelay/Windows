@@ -1,9 +1,4 @@
-using CommunityToolkit.WinUI;
 using Microsoft.UI.Xaml.Media.Imaging;
-using NotifyRelay.Data.Enums;
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Data.Models;
 
@@ -20,7 +15,7 @@ public partial class GroupedNotification : ObservableObject
     private DateTime _latestTime;
 
     public string Id { get; set; } = string.Empty;
-    
+
     public string? AppName
     {
         get => _appName;
@@ -113,24 +108,24 @@ public partial class GroupedNotification : ObservableObject
             {
                 return Notifications;
             }
-            
+
             var collapsedList = new ObservableCollection<Notification>();
             for (int i = 0; i < 3; i++)
             {
                 collapsedList.Add(Notifications[i]);
             }
-            
+
             HasExtra = true;
             CollapsedExtraText = $"+{Notifications.Count - 3} 更多通知";
-            
+
             return collapsedList;
         }
     }
 
     public string DisplayApp => AppName ?? AppPackage ?? "未知应用";
-    
+
     public string NotificationCountText => $"{Notifications.Count} 条通知";
-    
+
     public string FormattedEarliestTime => EarliestTime.ToString("MM-dd HH:mm");
 
     public void ToggleCollapse()
@@ -141,13 +136,13 @@ public partial class GroupedNotification : ObservableObject
     public void AddNotification(Notification notification)
     {
         Notifications.Add(notification);
-        
+
         // 监听通知的PropertyChanged事件，以便在Icon属性变化时更新分组图标
         if (notification is INotifyPropertyChanged notifyPropertyChanged)
         {
             notifyPropertyChanged.PropertyChanged += OnNotificationPropertyChanged;
         }
-        
+
         // 更新时间信息
         if (notification.TimeStamp != null)
         {
@@ -161,7 +156,7 @@ public partial class GroupedNotification : ObservableObject
                 LatestTime = notificationTime;
             }
         }
-        
+
         // 更新应用信息
         if (string.IsNullOrEmpty(AppName))
         {
@@ -185,7 +180,7 @@ public partial class GroupedNotification : ObservableObject
             }
         }
     }
-    
+
     /// <summary>
     /// 监听通知的属性变化，当Icon属性变化时更新分组图标
     /// </summary>
@@ -201,7 +196,7 @@ public partial class GroupedNotification : ObservableObject
             }
         }
     }
-    
+
     public static implicit operator Notification(GroupedNotification group)
     {
         // 仅用于单条通知的情况，返回第一条通知

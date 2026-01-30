@@ -1,4 +1,3 @@
-using System.Text.Json;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils;
@@ -26,7 +25,7 @@ public partial class ApplicationInfoEntity
     #region Helpers
     internal ApplicationInfo ToApplicationInfo(string deviceId)
     {
-        var deviceInfo =  AppDeviceInfoList.FirstOrDefault(d => d.DeviceId == deviceId) ?? new AppDeviceInfo(deviceId, NotificationFilter.ToastFeed);
+        var deviceInfo = AppDeviceInfoList.FirstOrDefault(d => d.DeviceId == deviceId) ?? new AppDeviceInfo(deviceId, NotificationFilter.ToastFeed);
         return new ApplicationInfo(PackageName, AppName, IconUtils.GetAppIconPath(PackageName), deviceInfo);
     }
 

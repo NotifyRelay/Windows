@@ -1,6 +1,5 @@
 using Microsoft.UI.Windowing;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Data.Models;
 using NotifyRelay.Data.Models.Actions;
 
 namespace NotifyRelay.Data.Contracts;
@@ -10,7 +9,7 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets the startup option for the application.
     /// </summary>
     StartupOptions StartupOption { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the theme for the application.
     /// </summary>

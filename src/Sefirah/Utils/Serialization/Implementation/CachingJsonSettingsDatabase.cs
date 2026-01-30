@@ -1,8 +1,6 @@
-using System.Collections;
-
 namespace NotifyRelay.Utils.Serialization.Implementation;
 internal sealed class CachingJsonSettingsDatabase(
-    ISettingsSerializer settingsSerializer, 
+    ISettingsSerializer settingsSerializer,
     IJsonSettingsSerializer jsonSettingsSerializer
 ) : JsonSettingsDatabase(settingsSerializer, jsonSettingsSerializer)
 {

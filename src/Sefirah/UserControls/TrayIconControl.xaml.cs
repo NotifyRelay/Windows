@@ -6,9 +6,6 @@ using NotifyRelay.Data.Models;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
 #endif
-using System.Diagnostics;
-using System.Diagnostics.CodeAnalysis;
-using System.Windows.Input;
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.UserControls;

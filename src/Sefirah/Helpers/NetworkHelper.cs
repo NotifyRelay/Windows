@@ -9,7 +9,7 @@ public static class NetworkHelper
     public static List<IPAddressInfo> GetAllValidAddresses()
     {
         var addresses = new List<IPAddressInfo>();
-        
+
         foreach (NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces())
         {
             if (ni.NetworkInterfaceType is NetworkInterfaceType.Wireless80211 or NetworkInterfaceType.Ethernet &&
@@ -20,7 +20,7 @@ public static class NetworkHelper
 
                 foreach (UnicastIPAddressInformation ip in ni.GetIPProperties().UnicastAddresses)
                 {
-                    if (ip.Address.AddressFamily is AddressFamily.InterNetwork && 
+                    if (ip.Address.AddressFamily is AddressFamily.InterNetwork &&
                         !IPAddress.IsLoopback(ip.Address))
                     {
                         addresses.Add(new IPAddressInfo(
@@ -32,7 +32,7 @@ public static class NetworkHelper
                 }
             }
         }
-        
+
         return addresses;
     }
 

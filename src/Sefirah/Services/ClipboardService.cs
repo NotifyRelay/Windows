@@ -3,7 +3,6 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Extensions;
-using NotifyRelay.Utils.Serialization;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
@@ -37,7 +36,7 @@ public class ClipboardService : IClipboardService
         ["heif"] = "image/heic",
         [".apng"] = "image/apng"
     };
-    
+
     private bool isInternalUpdate; // To track if the clipboard change came from the remote device
 
     public ClipboardService(
@@ -69,7 +68,7 @@ public class ClipboardService : IClipboardService
 
         fileTransferService.FileReceived += async (sender, args) =>
         {
-           await SetContentAsync(args.data, args.device);
+            await SetContentAsync(args.data, args.device);
         };
     }
 
@@ -86,15 +85,15 @@ public class ClipboardService : IClipboardService
             try
             {
                 logger.LogDebug("剪贴板内容已更改，开始处理");
-                
+
                 // 记录所有配对设备的状态
                 logger.LogDebug("配对设备总数：{count}", deviceManager.PairedDevices.Count);
                 foreach (var device in deviceManager.PairedDevices)
                 {
-                    logger.LogDebug("设备 {name} (ID: {id}): ConnectionStatus={status}, ClipboardSyncEnabled={clipboardSync}", 
+                    logger.LogDebug("设备 {name} (ID: {id}): ConnectionStatus={status}, ClipboardSyncEnabled={clipboardSync}",
                         device.Name, device.Id, device.ConnectionStatus, device.DeviceSettings?.ClipboardSyncEnabled);
                 }
-                
+
                 // Check if any connected devices have clipboard sync enabled
                 var devicesWithClipboardSync = deviceManager.PairedDevices
                     .Where(device => device.ConnectionStatus &&
@@ -102,8 +101,8 @@ public class ClipboardService : IClipboardService
                     .ToList();
 
                 logger.LogDebug("符合条件的设备数量：{count}", devicesWithClipboardSync.Count);
-                
-                if (devicesWithClipboardSync.Count == 0) 
+
+                if (devicesWithClipboardSync.Count == 0)
                 {
                     logger.LogDebug("没有符合条件的设备，跳过剪贴板发送");
                     return;
@@ -124,7 +123,7 @@ public class ClipboardService : IClipboardService
                     .Where(d => d.DeviceSettings?.ImageToClipboardEnabled == true)
                     .ToList();
 
-                if (devicesWithImageSync.Count !=0)
+                if (devicesWithImageSync.Count != 0)
                 {
                     if (dataPackageView.Contains(StandardDataFormats.StorageItems))
                     {
@@ -157,7 +156,7 @@ public class ClipboardService : IClipboardService
 
                     if (dataPackageView.Contains(StandardDataFormats.Bitmap))
                     {
-                        var bitmapRef = await dataPackageView.GetBitmapAsync();  
+                        var bitmapRef = await dataPackageView.GetBitmapAsync();
                         var bitmap = await bitmapRef.OpenReadAsync();
 #if WINDOWS
                         var stream = new MemoryStream();
@@ -180,7 +179,7 @@ public class ClipboardService : IClipboardService
             }
         });
     }
-    
+
 
     private async Task TryHandleTextContent(DataPackageView dataPackageView, List<PairedDevice> devices)
     {
@@ -191,7 +190,7 @@ public class ClipboardService : IClipboardService
 
         // Convert Windows CRLF to Unix LF 
         text = text.Replace("\r\n", "\n");
-        
+
         // 创建剪贴板消息内容
         var clipboardContent = new ClipboardMessage
         {
@@ -225,7 +224,7 @@ public class ClipboardService : IClipboardService
             FileSize = (long)(await file.GetBasicPropertiesAsync()).Size
         };
 
-        await Task.Run(async() =>
+        await Task.Run(async () =>
         {
             foreach (var device in devices)
             {
@@ -413,8 +412,8 @@ public class ClipboardService : IClipboardService
 
     public static bool IsValidWebUrl(Uri? uri)
     {
-        return uri != null && 
-               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) && 
+        return uri != null &&
+               (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
                !string.IsNullOrWhiteSpace(uri.Host) &&
                uri.Host.Contains('.');
     }

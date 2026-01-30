@@ -1,13 +1,7 @@
-using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
-using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
-using NotifyRelay.Utils;
-using NotifyRelay.Utils.Serialization;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
 #endif
@@ -106,45 +100,45 @@ public class ProtocolRouter
                     // 应用列表请求
                     await HandleAppListRequestAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_ICON_REQUEST":
                     // 图标请求
                     await HandleIconRequestAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_NOTIFICATION":
                     // 普通通知
                     await notificationService.Value.ProcessNotificationMessageAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_MEDIAPLAY":
                     // 媒体播放信息
                     await notificationService.Value.ProcessMediaPlayMessageAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_APP_LIST_RESPONSE":
                     // 应用列表响应
                     await remoteAppService.Value.ProcessAppListResponseAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_ICON_RESPONSE":
                     // 图标响应
                     await notificationService.Value.ProcessIconResponseAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_AUDIO_REQUEST":
                     // 音频请求
                     await notificationService.Value.ProcessNotificationMessageAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_SUPERISLAND":
                     // 超级岛通知，直接忽略
                     break;
-                    
+
                 case "DATA_MEDIA_CONTROL":
                     // 媒体控制指令，解析后分发
                     logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {decryptedPayload}", decryptedPayload);
-                    try 
+                    try
                     {
                         using (JsonDocument doc = JsonDocument.Parse(decryptedPayload))
                         {
@@ -187,12 +181,12 @@ public class ProtocolRouter
                 case "DATA_CLIPBOARD":
                     await clipboardService.Value.ProcessClipboardMessageAsync(device, decryptedPayload);
                     break;
-                    
+
                 case "DATA_STATUS":
                     // 处理状态响应消息
                     await HandleStatusMessageAsync(device, decryptedPayload);
                     break;
-                    
+
                 default:
                     logger.LogWarning("不支持的 DATA 消息类型: {messageType}", messageType);
                     break;
@@ -235,7 +229,7 @@ public class ProtocolRouter
             logger.LogError(ex, "处理图标请求时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理状态响应消息
     /// </summary>
@@ -244,19 +238,19 @@ public class ProtocolRouter
         try
         {
             logger.LogDebug("处理DATA_STATUS消息: {decryptedPayload}", decryptedPayload.Length > 100 ? decryptedPayload[..100] + "..." : decryptedPayload);
-            
+
             using (JsonDocument doc = JsonDocument.Parse(decryptedPayload))
             {
                 var root = doc.RootElement;
-                
+
                 // 提取关键信息
                 var originalHeader = root.TryGetProperty("originalHeader", out var originalHeaderProp) ? originalHeaderProp.GetString() : string.Empty;
                 var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() : string.Empty;
                 var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() : string.Empty;
                 var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
-                
+
                 logger.LogDebug("DATA_STATUS消息详情: originalHeader={originalHeader}, result={result}, action={action}", originalHeader, result, action);
-                
+
                 // 处理不同类型的状态响应
                 switch (originalHeader)
                 {
@@ -284,7 +278,7 @@ public class ProtocolRouter
             logger.LogError(ex, "处理DATA_STATUS消息时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理媒体控制响应
     /// </summary>
@@ -293,10 +287,10 @@ public class ProtocolRouter
         try
         {
             logger.LogDebug("处理媒体控制响应: action={action}, result={result}", action, result);
-            
+
             // 这里可以添加媒体控制响应的处理逻辑
             // 例如：更新媒体控制状态、显示提示信息等
-            
+
             if (!string.IsNullOrEmpty(errorMessage))
             {
                 logger.LogWarning("媒体控制响应错误: {errorMessage}", errorMessage);
@@ -313,7 +307,7 @@ public class ProtocolRouter
             logger.LogError(ex, "处理媒体控制响应时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理FTP响应
     /// </summary>
@@ -322,10 +316,10 @@ public class ProtocolRouter
         try
         {
             logger.LogDebug("处理FTP响应: action={action}, result={result}", action, result);
-            
+
             // 这里可以添加FTP响应的处理逻辑
             // 例如：更新FTP状态、显示提示信息等
-            
+
             if (!string.IsNullOrEmpty(errorMessage))
             {
                 logger.LogWarning("FTP响应错误: {errorMessage}", errorMessage);

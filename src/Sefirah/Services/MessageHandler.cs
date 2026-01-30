@@ -1,11 +1,8 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -16,7 +13,7 @@ public class MessageHandler(
     Func<IRemoteAppService> remoteAppServiceFactory,
     INotificationService notificationService,
     IClipboardService clipboardService,
-    
+
     IFileTransferService fileTransferService,
     IPlaybackService playbackService,
     IActionService actionService,
@@ -133,7 +130,7 @@ public class MessageHandler(
             logger.LogError(ex, "处理消息时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理 JSON 格式的消息（Notify-Relay-pc 格式）
     /// </summary>
@@ -153,16 +150,16 @@ public class MessageHandler(
 
             using var doc = JsonDocument.Parse(jsonPayload);
             var root = doc.RootElement;
-            
+
             string messageType = string.Empty;
-            
+
             // 检查消息类型
             if (root.TryGetProperty("type", out var typeProp))
             {
                 messageType = typeProp.GetString() ?? string.Empty;
                 logger.LogDebug("识别到 JSON 消息类型：{messageType}", messageType);
             }
-            
+
             switch (messageType)
             {
                 case "APP_LIST_RESPONSE":
@@ -202,13 +199,13 @@ public class MessageHandler(
             logger.LogError(ex, "处理 JSON 消息时出错：{jsonPayload}", jsonPayload.Length > 100 ? jsonPayload[..100] + "..." : jsonPayload);
         }
     }
-    
+
     /// <summary>
     /// 处理应用列表响应
     /// </summary>
     /// <param name="device">设备</param>
     /// <param name="root">JSON 根元素</param>
-        private Task HandleAppListResponseAsync(PairedDevice device, JsonElement root)
+    private Task HandleAppListResponseAsync(PairedDevice device, JsonElement root)
     {
         try
         {
@@ -216,40 +213,40 @@ public class MessageHandler(
             if (!root.TryGetProperty("apps", out var appsArray))
             {
                 logger.LogWarning("APP_LIST_RESPONSE 缺少 apps 数组");
-                    return Task.CompletedTask;
+                return Task.CompletedTask;
             }
-            
+
             // 解析应用列表
             var apps = new List<ApplicationInfoMessage>();
             foreach (var appElement in appsArray.EnumerateArray())
             {
                 if (!appElement.TryGetProperty("packageName", out var packageProp))
                     continue;
-                
+
                 var packageName = packageProp.GetString();
                 if (string.IsNullOrEmpty(packageName))
                     continue;
-                
+
                 var appName = appElement.TryGetProperty("appName", out var appNameProp) ? appNameProp.GetString() ?? packageName : packageName;
-                
+
                 // 创建应用信息实体
                 var appInfo = new ApplicationInfoMessage
                 {
                     PackageName = packageName,
                     AppName = appName
                 };
-                
+
                 apps.Add(appInfo);
             }
-            
+
             // 更新应用列表
             var applicationList = new ApplicationList
             {
                 AppList = apps
             };
-            
+
             remoteAppRepository.UpdateApplicationList(device, applicationList);
-            
+
             // 收集所有没有图标的应用的包名
             var packageNamesWithoutIcons = new List<string>();
             foreach (var appInfo in apps)
@@ -260,7 +257,7 @@ public class MessageHandler(
                     packageNamesWithoutIcons.Add(appInfo.PackageName);
                 }
             }
-            
+
             // 发送批量图标请求
             if (packageNamesWithoutIcons.Count > 0)
             {
@@ -275,7 +272,7 @@ public class MessageHandler(
             return Task.CompletedTask;
         }
     }
-    
+
     /// <summary>
     /// 处理图标响应（支持单个或批量）
     /// </summary>
@@ -298,32 +295,32 @@ public class MessageHandler(
                         logger.LogWarning("批量 ICON_RESPONSE 中的图标缺少 packageName 属性");
                         continue;
                     }
-                    
+
                     var packageName = packageProp.GetString();
                     if (string.IsNullOrEmpty(packageName))
                     {
                         logger.LogWarning("批量 ICON_RESPONSE 中的图标 packageName 为空");
                         continue;
                     }
-                    
+
                     // 获取图标数据
                     if (!iconElement.TryGetProperty("iconData", out var iconDataProp))
                     {
                         logger.LogWarning("批量 ICON_RESPONSE 中的图标缺少 iconData 属性");
                         continue;
                     }
-                    
+
                     var iconData = iconDataProp.GetString();
                     if (string.IsNullOrEmpty(iconData))
                     {
                         logger.LogWarning("批量 ICON_RESPONSE 中的图标 iconData 为空");
                         continue;
                     }
-                    
+
                     // 保存图标
                     await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
                     savedCount++;
-                    
+
                     // 通知等待的图标请求任务
                     notificationService.HandleIconResponse(device.Id, packageName);
                 }
@@ -338,32 +335,32 @@ public class MessageHandler(
                     logger.LogWarning("ICON_RESPONSE 缺少 packageName 属性");
                     return;
                 }
-                
+
                 var packageName = packageProp.GetString();
                 if (string.IsNullOrEmpty(packageName))
                 {
                     logger.LogWarning("ICON_RESPONSE 的 packageName 为空");
                     return;
                 }
-                
+
                 // 获取图标数据
                 if (!root.TryGetProperty("iconData", out var iconDataProp))
                 {
                     logger.LogWarning("ICON_RESPONSE 缺少 iconData 属性");
                     return;
                 }
-                
+
                 var iconData = iconDataProp.GetString();
                 if (string.IsNullOrEmpty(iconData))
                 {
                     logger.LogWarning("ICON_RESPONSE 的 iconData 为空");
                     return;
                 }
-                
+
                 // 保存图标
                 await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
                 logger.LogDebug("已保存应用 {packageName} 的图标", packageName);
-                
+
                 // 通知等待的图标请求任务
                 notificationService.HandleIconResponse(device.Id, packageName);
             }
@@ -373,7 +370,7 @@ public class MessageHandler(
             logger.LogError(ex, "处理 ICON_RESPONSE 时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理媒体控制消息，包括音频转发请求和媒体播放控制
     /// </summary>
@@ -389,10 +386,10 @@ public class MessageHandler(
                 logger.LogWarning("MEDIA_CONTROL 消息缺少 action 属性");
                 return;
             }
-            
+
             var action = actionProp.GetString() ?? string.Empty;
             logger.LogDebug("处理 MEDIA_CONTROL action：{action}", action);
-            
+
             switch (action)
             {
                 case "audioRequest":
@@ -400,23 +397,23 @@ public class MessageHandler(
                     break;
                 case "playPause":
                     // 直接调用 Play 操作，与 Android 端保持一致
-                    await playbackService.HandleMediaActionAsync(new PlaybackAction 
-                    { 
-                        PlaybackActionType = PlaybackActionType.Play, 
+                    await playbackService.HandleMediaActionAsync(new PlaybackAction
+                    {
+                        PlaybackActionType = PlaybackActionType.Play,
                         Source = "MediaControl"
                     });
                     break;
                 case "next":
-                    await playbackService.HandleMediaActionAsync(new PlaybackAction 
-                    { 
-                        PlaybackActionType = PlaybackActionType.Next, 
+                    await playbackService.HandleMediaActionAsync(new PlaybackAction
+                    {
+                        PlaybackActionType = PlaybackActionType.Next,
                         Source = "MediaControl"
                     });
                     break;
                 case "previous":
-                    await playbackService.HandleMediaActionAsync(new PlaybackAction 
-                    { 
-                        PlaybackActionType = PlaybackActionType.Previous, 
+                    await playbackService.HandleMediaActionAsync(new PlaybackAction
+                    {
+                        PlaybackActionType = PlaybackActionType.Previous,
                         Source = "MediaControl"
                     });
                     break;
@@ -430,7 +427,7 @@ public class MessageHandler(
             logger.LogError(ex, "处理 MEDIA_CONTROL 消息时出错");
         }
     }
-    
+
     /// <summary>
     /// 处理音频转发请求
     /// </summary>
@@ -447,27 +444,27 @@ public class MessageHandler(
         try
         {
             logger.LogDebug("收到音频转发请求，设备：{deviceName}", device.Name);
-            
+
             // 构建仅音频转发的 scrcpy 参数
             string customArgs = "--no-video --no-control";
-            
+
             // 启动 scrcpy 仅音频转发
             bool success = await screenMirrorService.StartScrcpy(device, customArgs);
-            
+
             // 发送响应，使用新的 MEDIA_CONTROL 格式
             string response = success
                 ? "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"accepted\"}"
                 : "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
-            
+
             // 通过 networkService 发送响应
             networkServiceFactory().SendMessage(device.Id, response);
-            
+
             logger.LogDebug("音频转发请求处理完成，结果：{result}", success ? "accepted" : "rejected");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "处理音频转发请求时出错");
-            
+
             // 发送拒绝响应，使用新的 MEDIA_CONTROL 格式
             string errorResponse = "{\"type\":\"MEDIA_CONTROL\",\"action\":\"audioResponse\",\"result\":\"rejected\"}";
             networkServiceFactory().SendMessage(device.Id, errorResponse);

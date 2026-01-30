@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Data.Models;
@@ -24,8 +23,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _deviceId;
         set
-        { 
-            _deviceId = value; 
+        {
+            _deviceId = value;
             OnPropertyChanged();
         }
     }
@@ -37,8 +36,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _deviceName;
         set
-        { 
-            _deviceName = value; 
+        {
+            _deviceName = value;
             OnPropertyChanged();
         }
     }
@@ -50,8 +49,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _title;
         set
-        { 
-            _title = value; 
+        {
+            _title = value;
             OnPropertyChanged();
         }
     }
@@ -63,8 +62,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _text;
         set
-        { 
-            _text = value; 
+        {
+            _text = value;
             OnPropertyChanged();
         }
     }
@@ -76,8 +75,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _coverUrl;
         set
-        { 
-            _coverUrl = value; 
+        {
+            _coverUrl = value;
             OnPropertyChanged();
         }
     }
@@ -89,8 +88,8 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _lastUpdateTime;
         set
-        { 
-            _lastUpdateTime = value; 
+        {
+            _lastUpdateTime = value;
             OnPropertyChanged();
         }
     }
@@ -102,22 +101,22 @@ public class MusicMediaBlock : INotifyPropertyChanged
     {
         get => _isVisible;
         set
-        { 
-            _isVisible = value; 
+        {
+            _isVisible = value;
             OnPropertyChanged();
         }
     }
-    
+
     /// <summary>
     /// 前一首命令参数
     /// </summary>
     public string PreviousCommandParameter => $"{DeviceId}:previous";
-    
+
     /// <summary>
     /// 播放/暂停命令参数
     /// </summary>
     public string PlayPauseCommandParameter => $"{DeviceId}:playPause";
-    
+
     /// <summary>
     /// 下一首命令参数
     /// </summary>

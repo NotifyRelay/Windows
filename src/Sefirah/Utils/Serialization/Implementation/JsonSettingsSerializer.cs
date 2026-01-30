@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace NotifyRelay.Utils.Serialization.Implementation;
 internal sealed class JsonSettingsSerializer : IJsonSettingsSerializer
 {

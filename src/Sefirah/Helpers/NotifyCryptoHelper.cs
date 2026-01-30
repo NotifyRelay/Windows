@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
-using System.IO;
 
 namespace NotifyRelay.Helpers;
 
@@ -146,7 +145,7 @@ public static class NotifyCryptoHelper
         }
     }
 
-    
+
 
     public static (string Username, string Password) DeriveftpCredentials(byte[] sharedSecret)
     {

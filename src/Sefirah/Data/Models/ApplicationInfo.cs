@@ -6,33 +6,33 @@ namespace NotifyRelay.Data.Models;
 public partial class ApplicationInfo(string packageName, string appName, string? iconPath, AppDeviceInfo deviceInfo) : ObservableObject
 {
     private string packageName = packageName;
-    public string PackageName 
-    { 
+    public string PackageName
+    {
         get => packageName;
         set => SetProperty(ref packageName, value);
     }
-    
+
     private string appName = appName;
-    public string AppName 
-    { 
+    public string AppName
+    {
         get => appName;
         set => SetProperty(ref appName, value);
     }
-    
+
     private string? iconPath = iconPath;
     public string? IconPath
     {
         get => iconPath;
         set => SetProperty(ref iconPath, value);
     }
-    
+
     private AppDeviceInfo deviceInfo = deviceInfo;
-    public AppDeviceInfo DeviceInfo 
-    { 
+    public AppDeviceInfo DeviceInfo
+    {
         get => deviceInfo;
         set => SetProperty(ref deviceInfo, value);
     }
-    
+
     private bool isLoading;
     public bool IsLoading
     {

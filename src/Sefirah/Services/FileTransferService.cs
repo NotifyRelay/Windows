@@ -1,7 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
-using NetCoreServer;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
@@ -71,7 +70,7 @@ public class FileTransferService(
 
             client = new Client(serverInfo.IpAddress, serverInfo.Port, this);
 
-            if (!client.ConnectAsync()) 
+            if (!client.ConnectAsync())
                 throw new IOException("Failed to connect to file transfer server");
 
             // Adding a small delay for the android to open a read channel
@@ -168,7 +167,7 @@ public class FileTransferService(
             {
                 await transferCompletionSource.Task;
             }
-            
+
             // Create transfer context for single file
             currentTransfer = new TransferContext(
                 device.Name,
@@ -188,10 +187,10 @@ public class FileTransferService(
                 throw new IOException("Failed to connect to file transfer server");
 
             notificationHandler.ShowFileTransferNotification(
-                string.Format("FileTransferNotification.Receiving".GetLocalizedResource(), currentTransfer.Device), 
-                currentFileMetadata.FileName, 
+                string.Format("FileTransferNotification.Receiving".GetLocalizedResource(), currentTransfer.Device),
+                currentFileMetadata.FileName,
                 currentTransfer.TransferId,
-                notificationSequence++, 
+                notificationSequence++,
                 0);
 
             // Adding a small delay for the android to open a read channel
@@ -208,8 +207,8 @@ public class FileTransferService(
             }
 
             notificationHandler.ShowCompletedFileTransferNotification(
-                string.Format("FileTransferNotification.CompletedSingle".GetLocalizedResource(), currentFileMetadata.FileName, currentTransfer.Device), 
-                currentTransfer.TransferId, 
+                string.Format("FileTransferNotification.CompletedSingle".GetLocalizedResource(), currentFileMetadata.FileName, currentTransfer.Device),
+                currentTransfer.TransferId,
                 fullPath);
         }
         catch (Exception ex)
@@ -267,7 +266,7 @@ public class FileTransferService(
             currentTransfer.BytesTransferred += size;
 
             var progress = (double)currentTransfer.BytesTransferred / currentTransfer.TotalBytes * 100;
-            
+
             notificationHandler.ShowFileTransferNotification(
                 string.Format("FileTransferNotification.Receiving".GetLocalizedResource(), currentTransfer.Device),
                 currentFileMetadata.FileName,

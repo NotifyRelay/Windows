@@ -1,5 +1,3 @@
-using System.Diagnostics;
-using System.Text.Json;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils.Serialization;
@@ -46,7 +44,7 @@ public class DatabaseContext : IDisposable
             var hasModelColumn = remoteDeviceColumns.Any(col => col.Name.Equals("Model", StringComparison.OrdinalIgnoreCase));
             var hasPublicKeyColumn = remoteDeviceColumns.Any(col => col.Name.Equals("PublicKey", StringComparison.OrdinalIgnoreCase));
             var hasSentftpRequestColumn = remoteDeviceColumns.Any(col => col.Name.Equals("HasSentftpRequest", StringComparison.OrdinalIgnoreCase));
-            
+
             if (!hasModelColumn)
             {
                 try
@@ -70,7 +68,7 @@ public class DatabaseContext : IDisposable
                     Debug.WriteLine($"Migration warning: Could not add PublicKey column: {ex.Message}");
                 }
             }
-            
+
             if (!hasSentftpRequestColumn)
             {
                 try
@@ -104,7 +102,7 @@ public class DatabaseContext : IDisposable
             Console.WriteLine("NotificationEntity表已存在，检查是否需要迁移...");
             // 检查是否需要迁移（旧表使用deviceId|notificationKey作为主键，新表使用内容哈希作为主键）
             bool needMigration = true;
-            
+
             try
             {
                 Console.WriteLine("尝试使用新的主键设计插入测试记录...");
@@ -127,7 +125,7 @@ public class DatabaseContext : IDisposable
                 Console.WriteLine("测试记录插入失败，需要进行表迁移");
                 // 插入失败，需要迁移
             }
-            
+
             if (needMigration)
             {
                 try
@@ -137,17 +135,17 @@ public class DatabaseContext : IDisposable
                     Console.WriteLine("查询旧表数据...");
                     var oldNotifications = db.Query<dynamic>("SELECT * FROM NotificationEntity");
                     Console.WriteLine($"查询到{oldNotifications.Count}条旧记录");
-                    
+
                     // 2. 删除旧表
                     Console.WriteLine("删除旧表...");
                     db.Execute("DROP TABLE IF EXISTS NotificationEntity");
                     Console.WriteLine("旧表删除成功");
-                    
+
                     // 3. 创建新表（使用新的主键设计）
                     Console.WriteLine("创建新表...");
                     db.CreateTable<NotificationEntity>();
                     Console.WriteLine("新表创建成功");
-                    
+
                     // 4. 恢复数据到新表
                     Console.WriteLine("开始恢复数据到新表...");
                     int migratedCount = 0;
@@ -161,19 +159,19 @@ public class DatabaseContext : IDisposable
                             var messageJson = oldRecord.MessageJson as string ?? string.Empty;
                             var pinned = (bool)(oldRecord.Pinned ?? false);
                             var createdAt = (long)(oldRecord.CreatedAt ?? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                            
+
                             // 从旧Id中提取设备ID (旧Id格式：deviceId|notificationKey)
                             var deviceId = oldId.Split('|')[0];
-                            
+
                             // 反序列化消息
                             Console.WriteLine($"反序列化消息... record {migratedCount + 1}");
                             var message = SocketMessageSerializer.DeserializeMessage(messageJson) as NotificationMessage;
-                            
+
                             if (message != null)
                             {
                                 // 生成新的主键
                                 var newId = $"{message.AppPackage}|{message.Title}|{message.Text}|{message.NotificationType}";
-                                
+
                                 // 创建新实体，为DeviceIds和DeviceNames设置正确的JSON格式
                                 // 使用设备ID作为名称占位符，后续在EnsureNotificationsLoadedAsync中会更新为正确的设备名称
                                 var newEntity = new NotificationEntity
@@ -186,7 +184,7 @@ public class DatabaseContext : IDisposable
                                     Pinned = pinned,
                                     CreatedAt = createdAt
                                 };
-                                
+
                                 // 保存到新表
                                 db.Insert(newEntity);
                                 migratedCount++;
@@ -199,7 +197,7 @@ public class DatabaseContext : IDisposable
                             // 跳过有问题的记录，继续迁移其他记录
                         }
                     }
-                    
+
                     Console.WriteLine($"NotificationEntity表迁移成功，共迁移{migratedCount}条记录");
                 }
                 catch (Exception ex)

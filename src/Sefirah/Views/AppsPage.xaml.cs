@@ -29,7 +29,7 @@ public sealed partial class AppsPage : Page
                 .ToList();
 
             sender.ItemsSource = suggestions;
-            
+
         }
     }
 
@@ -48,7 +48,7 @@ public sealed partial class AppsPage : Page
             sender.Text = string.Empty;
             sender.ItemsSource = null;
 
-            await ViewModel.OpenApp(selectedApp);   
+            await ViewModel.OpenApp(selectedApp);
         }
     }
 

@@ -158,7 +158,7 @@ public sealed partial class GeneralViewModel : BaseViewModel
         }
     }
     #endregion
-    
+
     public GeneralViewModel()
     {
         selectedThemeType = ThemeTypes[CurrentTheme];

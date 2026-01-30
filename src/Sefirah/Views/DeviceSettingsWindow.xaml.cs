@@ -4,7 +4,6 @@ using Microsoft.UI.Windowing;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Views.DevicePreferences;
-using Uno.UI.HotDesign;
 using Rect = Windows.Foundation.Rect;
 
 namespace NotifyRelay.Views;
@@ -15,7 +14,7 @@ public sealed partial class DeviceSettingsWindow : Window
     public DeviceSettingsWindow(PairedDevice device)
     {
         Device = device ?? throw new ArgumentNullException(nameof(device));
-        
+
         this.InitializeComponent();
         Title = device.Name;
         this.SetWindowIcon();
