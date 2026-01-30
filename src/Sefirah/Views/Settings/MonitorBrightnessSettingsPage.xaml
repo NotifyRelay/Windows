@@ -6,6 +6,7 @@
     xmlns:helpers="using:NotifyRelay.Helpers"
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
+    xmlns:dev="using:NotifyRelay.DeviceCtrl.MonitorBrightness"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
@@ -81,18 +82,21 @@
                     <FontIcon Glyph="&#xE7F0;" />
                 </wuc:SettingsCard.HeaderIcon>
                 <StackPanel Spacing="8">
-                    <ListView
-                        x:Name="MonitorsListView"
-                        Height="120"
-                        ItemsSource="{x:Bind ViewModel.AvailableMonitors, Mode=OneWay}"
-                        SelectionMode="Multiple"
-                        SelectionChanged="MonitorsListView_SelectionChanged">
-                        <ListView.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}" />
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
+                    <Button x:Name="MonitorsDropdownButton" HorizontalAlignment="Left" Width="240">
+                        <Button.Flyout>
+                            <Flyout x:Name="MonitorsFlyout" Opened="MonitorsFlyout_Opened">
+                                <ScrollViewer MaxHeight="200">
+                                    <ItemsControl x:Name="MonitorsItemsControl" ItemsSource="{x:Bind ViewModel.AvailableMonitors, Mode=OneWay}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="dev:MonitorInfo">
+                                                <CheckBox Content="{x:Bind Name}" Tag="{x:Bind Id}" Checked="MonitorCheckBox_Checked" Unchecked="MonitorCheckBox_Unchecked"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
             </wuc:SettingsCard>
 

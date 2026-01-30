@@ -7,6 +7,7 @@ using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.MonitorBrightness;
 using NotifyRelay.Extensions;
 using NotifyRelay.Services.Settings;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Windows.Storage.Pickers;
@@ -93,25 +94,78 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
     private void InitializeMonitorSelections()
     {
-        MonitorsListView.SelectionChanged -= MonitorsListView_SelectionChanged;
-        MonitorsListView.SelectedItems.Clear();
-        foreach (var monitor in ViewModel.AvailableMonitors)
-        {
-            if (ViewModel.SelectedMonitors.Contains(monitor.Id))
-            {
-                MonitorsListView.SelectedItems.Add(monitor);
-            }
-        }
-        MonitorsListView.SelectionChanged += MonitorsListView_SelectionChanged;
+        UpdateMonitorsButtonContent();
     }
 
-    private void MonitorsListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void MonitorsFlyout_Opened(object sender, object e)
     {
-        var selectedIds = MonitorsListView.SelectedItems
-            .OfType<MonitorInfo>()
-            .Select(m => m.Id)
+        // Initialize checkbox states when flyout opens
+        var selected = ViewModel.SelectedMonitors ?? new List<string>();
+        bool treatAll = !selected.Any() || selected.Contains("All");
+
+        foreach (var cb in FindVisualChildren<CheckBox>(MonitorsItemsControl))
+        {
+            if (cb.Tag is string id)
+            {
+                cb.IsChecked = treatAll || selected.Contains(id);
+            }
+        }
+    }
+
+    private void MonitorCheckBox_Checked(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox cb && cb.Tag is string id)
+        {
+            var list = ViewModel.SelectedMonitors?.ToList() ?? new List<string>();
+            if (!list.Contains(id)) list.Add(id);
+            ViewModel.SelectedMonitors = list;
+            UpdateMonitorsButtonContent();
+        }
+    }
+
+    private void MonitorCheckBox_Unchecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox cb && cb.Tag is string id)
+        {
+            var list = ViewModel.SelectedMonitors?.ToList() ?? new List<string>();
+            if (list.Contains(id)) list.Remove(id);
+            ViewModel.SelectedMonitors = list;
+            UpdateMonitorsButtonContent();
+        }
+    }
+
+    private void UpdateMonitorsButtonContent()
+    {
+        var selected = ViewModel.SelectedMonitors ?? new List<string>();
+        if (!selected.Any() || selected.Contains("All") || selected.Count == ViewModel.AvailableMonitors.Count)
+        {
+            MonitorsDropdownButton.Content = "All";
+            return;
+        }
+
+        var names = ViewModel.AvailableMonitors
+            .Where(m => selected.Contains(m.Id))
+            .Select(m => m.Name)
             .ToList();
-        ViewModel.SelectedMonitors = selectedIds;
+        MonitorsDropdownButton.Content = names.Any() ? string.Join(", ", names) : "All";
+    }
+
+    private static IEnumerable<T> FindVisualChildren<T>(DependencyObject root) where T : DependencyObject
+    {
+        if (root == null) yield break;
+        var queue = new Queue<DependencyObject>();
+        queue.Enqueue(root);
+        while (queue.Count > 0)
+        {
+            var current = queue.Dequeue();
+            var count = VisualTreeHelper.GetChildrenCount(current);
+            for (int i = 0; i < count; i++)
+            {
+                var child = VisualTreeHelper.GetChild(current, i);
+                if (child is T t) yield return t;
+                queue.Enqueue(child);
+            }
+        }
     }
 }
 
