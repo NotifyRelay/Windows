@@ -167,7 +167,7 @@ public class MessageHandler(
                     await HandleAppListResponseAsync(device, root);
                     break;
                 case "ICON_RESPONSE":
-                    logger.LogDebug("处理 ICON_RESPONSE 消息");
+                    logger.LogInformation("处理 ICON_RESPONSE 消息");
                     await HandleIconResponseAsync(device, root);
                     break;
                 case "MEDIA_CONTROL":
@@ -282,10 +282,13 @@ public class MessageHandler(
     {
         try
         {
+            logger.LogInformation("开始处理 ICON_RESPONSE 消息，设备：{deviceName}", device.Name);
+            
             // 检查是否为批量图标响应
             if (root.TryGetProperty("icons", out var iconsArray))
             {
                 // 处理批量图标响应
+                logger.LogInformation("接收到批量图标响应，包含 {count} 个图标", iconsArray.GetArrayLength());
                 int savedCount = 0;
                 foreach (var iconElement in iconsArray.EnumerateArray())
                 {
@@ -317,6 +320,7 @@ public class MessageHandler(
                         continue;
                     }
 
+                    logger.LogInformation("正在保存应用 {packageName} 的图标，数据长度：{length}", packageName, iconData.Length);
                     // 保存图标
                     await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
                     savedCount++;
@@ -324,7 +328,7 @@ public class MessageHandler(
                     // 通知等待的图标请求任务
                     notificationService.HandleIconResponse(device.Id, packageName);
                 }
-                logger.LogDebug("已保存 {savedCount} 个应用图标", savedCount);
+                logger.LogInformation("批量图标响应处理完成，已保存 {savedCount} 个应用图标", savedCount);
             }
             else
             {
@@ -357,13 +361,15 @@ public class MessageHandler(
                     return;
                 }
 
+                logger.LogInformation("正在保存应用 {packageName} 的图标，数据长度：{length}", packageName, iconData.Length);
                 // 保存图标
                 await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
-                logger.LogDebug("已保存应用 {packageName} 的图标", packageName);
+                logger.LogInformation("已保存应用 {packageName} 的图标", packageName);
 
                 // 通知等待的图标请求任务
                 notificationService.HandleIconResponse(device.Id, packageName);
             }
+            logger.LogInformation("ICON_RESPONSE 消息处理完成");
         }
         catch (Exception ex)
         {
