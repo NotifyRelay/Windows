@@ -138,14 +138,22 @@ public class DiscoveryService(
     }
 
     /// <summary>
-    /// 构建设备发现消息
+    /// 构建设备发现消息（心跳格式）
     /// </summary>
     private string BuildDiscoverMessage(string deviceName)
     {
         var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
         var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
-        return $"NOTIFYRELAY_DISCOVER:{localDevice.DeviceId}:{encodedName}:{serverPort}";
+        
+        // 获取系统电量和充电状态
+        var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
+        var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
+        var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
+        var chargeSign = isCharging ? "+" : "-";
+        
+        // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
+        return $"{localDevice.DeviceId}:{encodedName}:{serverPort}:{chargeSign}{batteryLevel}:pc";
     }
 
     /// <summary>
@@ -309,37 +317,11 @@ public class DiscoveryService(
         {
             var message = Encoding.UTF8.GetString(buffer, (int)offset, (int)size);
 
-            // 处理心跳消息
-            if (message.StartsWith("HEARTBEAT:"))
-            {
-                //logger.LogDebug("收到 UDP 心跳消息: {message} 来自 {endpoint}");
-
-                // 心跳格式：HEARTBEAT:<deviceUuid><设备电量%>
-                const string heartbeatPrefix = "HEARTBEAT:";
-                if (message.Length > heartbeatPrefix.Length + 36 && endpoint is IPEndPoint heartbeatIpEndPoint)
-                {
-                    // 提取设备UUID
-                    var deviceUuid = message.Substring(heartbeatPrefix.Length, 36);
-
-                    // 查找已配对的设备
-                    var device = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == deviceUuid);
-                    if (device is not null)
-                    {
-                        // 直接调用NetworkService的ProcessProtocolMessageAsync方法处理心跳
-                        var networkService = networkServiceFactory();
-                        _ = networkService.ProcessProtocolMessageAsync(device, message);
-                    }
-                }
-                return;
-            }
-
-            // 处理设备发现消息
-            if (!message.StartsWith("NOTIFYRELAY_DISCOVER:")) return;
-
+            // 处理设备发现消息（心跳格式）
             var parts = message.Split(':');
-            if (parts.Length < 4) return;
+            if (parts.Length < 5) return;
 
-            var deviceId = parts[1];
+            var deviceId = parts[0];
 
             // 1. 首先检查消息发送设备是否为本机，使用本地设备ID直接比较
             if (deviceId == localDevice?.DeviceId)
@@ -351,14 +333,14 @@ public class DiscoveryService(
             string decodedName;
             try
             {
-                decodedName = Encoding.UTF8.GetString(Convert.FromBase64String(parts[2]));
+                decodedName = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
             }
             catch
             {
-                decodedName = parts[2];
+                decodedName = parts[1];
             }
 
-            int devicePort = int.TryParse(parts[3], out var parsedPort) ? parsedPort : 23333;
+            int devicePort = int.TryParse(parts[2], out var parsedPort) ? parsedPort : 23333;
 
             if (endpoint is IPEndPoint ipEndPoint)
             {

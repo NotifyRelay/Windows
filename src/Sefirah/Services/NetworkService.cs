@@ -375,54 +375,19 @@ public class NetworkService(
     {
         try
         {
-            // 根据报文头类型进行分流处理
-            if (message.StartsWith("HEARTBEAT:"))
+            // 处理心跳包（新格式）
+            var parts = message.Split(':');
+            if (parts.Length >= 5 && parts[0] == device.Id)
             {
-                // 处理心跳包
-                // 心跳格式：HEARTBEAT:<deviceUuid><<+/->设备电量%>,<设备类型>
-                // UUID固定为36个字符（8-4-4-4-12格式）
-                const string heartbeatPrefix = "HEARTBEAT:";
-                if (message.Length > heartbeatPrefix.Length + 36)
+                // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
+                try
                 {
-                    // 提取设备UUID
-                    var deviceUuid = message.Substring(heartbeatPrefix.Length, 36);
-
-                    // 提取剩余部分
-                    var suffix = message.Substring(heartbeatPrefix.Length + 36);
-
-                    // 解析充电状态、电量和设备类型
-                    var batteryLevel = 0;
-                    var isCharging = false;
-                    var deviceType = "unknown";
-
-                    try
-                    {
-                        // 提取充电符号
-                        if (suffix.Length > 0)
-                        {
-                            var chargeSign = suffix[0];
-                            isCharging = chargeSign == '+';
-
-                            // 查找逗号位置
-                            var commaIndex = suffix.IndexOf(',');
-                            if (commaIndex > 0)
-                            {
-                                // 提取电量部分
-                                var batteryPart = suffix.Substring(1, commaIndex - 1);
-                                if (int.TryParse(batteryPart, out var parsedBattery))
-                                {
-                                    batteryLevel = Math.Clamp(parsedBattery, 0, 100);
-                                }
-
-                                // 提取设备类型
-                                deviceType = suffix.Substring(commaIndex + 1);
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning("解析心跳包失败：{ex}", ex);
-                    }
+                    // 解析充电状态和电量
+                    var batteryPart = parts[3];
+                    var chargeSign = batteryPart[0];
+                    var isCharging = chargeSign == '+';
+                    var batteryLevelStr = batteryPart.Substring(1);
+                    var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
 
                     // 更新设备状态
                     var deviceStatus = new DeviceStatus
@@ -433,6 +398,10 @@ public class NetworkService(
 
                     // 调用设备管理器更新设备状态
                     deviceManager.UpdateDeviceStatus(device, deviceStatus);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning("解析心跳包失败：{ex}", ex);
                 }
 
                 MarkDeviceAlive(device);
@@ -623,29 +592,42 @@ public class NetworkService(
             var isCharging = systemInfoService.GetSystemChargingStatus(); // 获取充电状态
             var chargeSign = isCharging ? "+" : "-";
 
-            // 心跳格式：HEARTBEAT:<deviceUuid><<+/->设备电量%>,<设备类型>
-            var payload = $"HEARTBEAT:{localDeviceId}{chargeSign}{batteryLevel},pc";
+            // 获取本地设备名称
+            var localDevice = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == localDeviceId);
+            var deviceName = localDevice?.Name ?? "PC";
+            var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
+
+            // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
+            var payload = $"{localDeviceId}:{encodedName}:{ServerPort}:{chargeSign}{batteryLevel}:pc";
             var bytes = Encoding.UTF8.GetBytes(payload);
             const int udpPort = 23334; // 使用与Android端相同的UDP端口
 
-            // 使用UDP发送心跳到所有已配对设备
+            // 使用UDP广播发送心跳
             using var udpClient = new System.Net.Sockets.UdpClient();
-            foreach (var device in PairedDevices)
+            udpClient.EnableBroadcast = true;
+            
+            // 获取本地网络的广播地址
+            var localAddresses = NetworkHelper.GetAllValidAddresses();
+            var broadcastEndpoints = localAddresses.Select(ipInfo =>
             {
-                if (device.IpAddresses is not null && device.IpAddresses.Count > 0)
+                var network = new Data.Models.IPNetwork(ipInfo.Address, ipInfo.SubnetMask);
+                var broadcastAddress = network.BroadcastAddress;
+                return new IPEndPoint(broadcastAddress, udpPort);
+            }).Distinct().ToList();
+            
+            // 添加全局广播地址
+            broadcastEndpoints.Add(new IPEndPoint(IPAddress.Broadcast, udpPort));
+
+            // 发送广播心跳
+            foreach (var endPoint in broadcastEndpoints)
+            {
+                try
                 {
-                    foreach (var ipAddress in device.IpAddresses)
-                    {
-                        try
-                        {
-                            var endPoint = new IPEndPoint(IPAddress.Parse(ipAddress), udpPort);
-                            udpClient.Send(bytes, bytes.Length, endPoint);
-                        }
-                        catch
-                        {
-                            // best-effort UDP heartbeat send
-                        }
-                    }
+                    udpClient.Send(bytes, bytes.Length, endPoint);
+                }
+                catch
+                {
+                    // best-effort UDP heartbeat send
                 }
             }
 
