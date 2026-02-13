@@ -12,7 +12,6 @@ using Uno.Logging;
 
 namespace NotifyRelay.Services;
 public class NetworkService(
-    Func<IMessageHandler> messageHandlerFactory,
     ILogger<NetworkService> logger,
     IDeviceManager deviceManager,
     IAdbService adbService,
@@ -25,7 +24,7 @@ public class NetworkService(
     public int ServerPort { get; private set; } = 23333;
     private bool isRunning;
 
-    private readonly Lazy<IMessageHandler> messageHandler = new(messageHandlerFactory);
+
     private readonly ConcurrentDictionary<Guid, string> sessionBuffers = new();
     private readonly Dictionary<string, ServerSession> deviceSessions = new();
     private readonly Dictionary<Guid, string> sessionDeviceMap = new();

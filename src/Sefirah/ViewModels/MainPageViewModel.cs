@@ -5,6 +5,10 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
 
+#if WINDOWS
+using NotifyRelay.Platforms.Windows.Services;
+#endif
+
 namespace NotifyRelay.ViewModels;
 public sealed partial class MainPageViewModel : BaseViewModel
 {
@@ -16,7 +20,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
     private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
     private IUpdateService UpdateService { get; } = Ioc.Default.GetRequiredService<IUpdateService>();
     private IFileTransferService FileTransferService { get; } = Ioc.Default.GetRequiredService<IFileTransferService>();
-    private IMessageHandler MessageHandler { get; } = Ioc.Default.GetRequiredService<IMessageHandler>();
+#if WINDOWS
+    private NetworkDriveMapper NetworkDriveMapper { get; } = Ioc.Default.GetRequiredService<NetworkDriveMapper>();
+#endif
     private IPlaybackService PlaybackService { get; } = Ioc.Default.GetRequiredService<IPlaybackService>();
     #endregion
 
@@ -540,7 +546,9 @@ public sealed partial class MainPageViewModel : BaseViewModel
         {
             // 设置手动发送过ftp请求的标记
             Device.HasSentftpRequest = true;
-            MessageHandler.SendftpCommand(Device, "start");
+#if WINDOWS
+            NetworkDriveMapper.SendftpCommand(Device, "start");
+#endif
         }
     }
 

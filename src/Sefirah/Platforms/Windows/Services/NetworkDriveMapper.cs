@@ -3,7 +3,11 @@ using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Services;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -205,6 +209,48 @@ public class NetworkDriveMapper
         catch (JsonException ex)
         {
             _logger.LogError(ex, "解析ftp消息失败: {payload}", payload);
+        }
+    }
+
+    /// <summary>
+    /// 发送 FTP 控制命令到 Android 设备
+    /// </summary>
+    /// <param name="device">目标设备</param>
+    /// <param name="action">操作类型：start 或 stop</param>
+    /// <param name="username">用户名（仅 start 时需要）</param>
+    /// <param name="password">密码（仅 start 时需要）</param>
+    public void SendftpCommand(PairedDevice device, string action, string? username = null, string? password = null)
+    {
+        const string DeviceTypeAndroid = "android";
+        
+        bool IsRemoteDeviceAndroid(PairedDevice? device)
+        {
+            return device != null && (device.RemoteDeviceType?.Equals(DeviceTypeAndroid, StringComparison.OrdinalIgnoreCase) ?? true);
+        }
+
+        if (!IsRemoteDeviceAndroid(device))
+        {
+            _logger.LogWarning("FTP 命令被忽略：非 Android 设备 ({deviceType})", device.RemoteDeviceType);
+            return;
+        }
+
+        try
+        {
+            var command = new FtpCommand
+            {
+                Action = action,
+                Username = action == "start" ? username : null,
+                Password = action == "start" ? password : null
+            };
+
+            var message = JsonSerializer.Serialize(command);
+            var networkService = Ioc.Default.GetRequiredService<INetworkService>();
+            networkService.SendMessage(device.Id, message);
+            _logger.LogDebug("已发送 FTP 命令：action={action}, device={deviceName}", action, device.Name);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送 FTP 命令失败：{deviceName}", device.Name);
         }
     }
 }

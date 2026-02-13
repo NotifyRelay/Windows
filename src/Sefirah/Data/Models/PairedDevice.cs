@@ -5,6 +5,10 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Socket;
 
+#if WINDOWS
+using NotifyRelay.Platforms.Windows.Services;
+#endif
+
 namespace NotifyRelay.Data.Models;
 
 public partial class PairedDevice : ObservableObject
@@ -85,9 +89,11 @@ public partial class PairedDevice : ObservableObject
                                     {
                                         logger.LogDebug("设备仍然连接且HasSentftpRequest为true，发送ftp命令");
 
-                                        // 从DI获取messageHandler并发送ftp命令
-                                        var messageHandler = Ioc.Default.GetRequiredService<IMessageHandler>();
-                                        messageHandler.SendftpCommand(this, "start");
+#if WINDOWS
+                                        // 从DI获取networkDriveMapper并发送ftp命令
+                                        var networkDriveMapper = Ioc.Default.GetRequiredService<NetworkDriveMapper>();
+                                        networkDriveMapper.SendftpCommand(this, "start");
+#endif
                                         logger.LogDebug("ftp命令发送成功");
                                     }
                                     else

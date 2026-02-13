@@ -227,11 +227,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<IClipboardService, ClipboardService>()
                 .AddSingleton<IRemoteAppService, RemoteAppService>()
 
-                // 2. 注册IMessageHandler，它依赖RemoteAppRepository，而RemoteAppRepository依赖Func<INetworkService>
-                .AddSingleton<IMessageHandler, MessageHandler>()
-                .AddSingleton<Func<IMessageHandler>>(sp => () => sp.GetRequiredService<IMessageHandler>())
-
-                // 3. 注册ProtocolRouter，它依赖IMessageHandler
+                // 3. 注册ProtocolRouter
 #if WINDOWS
                 // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
                 .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())

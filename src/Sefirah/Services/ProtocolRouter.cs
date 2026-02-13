@@ -19,7 +19,6 @@ namespace NotifyRelay.Services;
 public class ProtocolRouter
 {
     private const string DeviceTypeAndroid = "android";
-    private readonly Lazy<IMessageHandler> messageHandler;
     private readonly ILogger<ProtocolRouter> logger;
     private readonly IDeviceManager deviceManager;
     private readonly IScreenMirrorService screenMirrorService;
@@ -32,7 +31,6 @@ public class ProtocolRouter
 #endif
 
     public ProtocolRouter(
-        Func<IMessageHandler> messageHandlerFactory,
         ILogger<ProtocolRouter> logger,
         IDeviceManager deviceManager,
         IScreenMirrorService screenMirrorService,
@@ -45,7 +43,6 @@ public class ProtocolRouter
 #endif
         )
     {
-        this.messageHandler = new Lazy<IMessageHandler>(messageHandlerFactory);
         this.logger = logger;
         this.deviceManager = deviceManager;
         this.screenMirrorService = screenMirrorService;
