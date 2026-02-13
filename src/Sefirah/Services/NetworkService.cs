@@ -111,6 +111,59 @@ public class NetworkService(
         }
     }
 
+    /// <summary>
+    /// 通过UDP心跳包更新设备状态
+    /// </summary>
+    /// <param name="deviceId">设备ID</param>
+    /// <param name="message">UDP心跳包消息内容</param>
+    public void UpdateDeviceStatusFromUdp(string deviceId, string message = null)
+    {
+        var device = PairedDevices.FirstOrDefault(d => d.Id == deviceId);
+        if (device != null)
+        {
+            // logger.LogInformation("通过UDP心跳包更新设备状态：{0} ({1})", device.Name, device.Id);
+            
+            // 解析UDP心跳包中的电量信息
+            if (!string.IsNullOrEmpty(message))
+            {
+                var parts = message.Split(':');
+                if (parts.Length >= 5)
+                {
+                    try
+                    {
+                        // 解析充电状态和电量
+                        var batteryPart = parts[3];
+                        var chargeSign = batteryPart[0];
+                        var isCharging = chargeSign == '+';
+                        var batteryLevelStr = batteryPart.Substring(1);
+                        var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
+
+                        // 更新设备状态
+                        var deviceStatus = new DeviceStatus
+                        {
+                            BatteryStatus = batteryLevel,
+                            ChargingStatus = isCharging
+                        };
+
+                        // 调用设备管理器更新设备状态
+                        deviceManager.UpdateDeviceStatus(device, deviceStatus);
+                        // logger.LogDebug("UDP心跳包更新设备电量：{0} ({1})，电量={2}%，充电={3}", device.Name, device.Id, batteryLevel, isCharging);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning("解析UDP心跳包电量信息失败：{0}", ex);
+                    }
+                }
+            }
+            
+            MarkDeviceAlive(device);
+        }
+        else
+        {
+            // logger.LogDebug("UDP心跳包未找到已配对设备：{0}", deviceId);
+        }
+    }
+
     private bool TryGetSession(string deviceId, out ServerSession? session)
     {
         lock (sessionLock)
@@ -376,35 +429,44 @@ public class NetworkService(
         {
             // 处理心跳包（新格式）
             var parts = message.Split(':');
-            if (parts.Length >= 5 && parts[0] == device.Id)
+            if (parts.Length >= 5)
             {
-                // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
-                try
+                // 获取心跳包中的设备ID
+                var heartbeatDeviceId = parts[0];
+                
+                // 查找与心跳包设备ID匹配的设备
+                var targetDevice = PairedDevices.FirstOrDefault(d => d.Id == heartbeatDeviceId);
+                
+                if (targetDevice != null)
                 {
-                    // 解析充电状态和电量
-                    var batteryPart = parts[3];
-                    var chargeSign = batteryPart[0];
-                    var isCharging = chargeSign == '+';
-                    var batteryLevelStr = batteryPart.Substring(1);
-                    var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
-
-                    // 更新设备状态
-                    var deviceStatus = new DeviceStatus
+                    // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
+                    try
                     {
-                        BatteryStatus = batteryLevel,
-                        ChargingStatus = isCharging
-                    };
+                        // 解析充电状态和电量
+                        var batteryPart = parts[3];
+                        var chargeSign = batteryPart[0];
+                        var isCharging = chargeSign == '+';
+                        var batteryLevelStr = batteryPart.Substring(1);
+                        var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
 
-                    // 调用设备管理器更新设备状态
-                    deviceManager.UpdateDeviceStatus(device, deviceStatus);
-                }
-                catch (Exception ex)
-                {
-                    logger.LogWarning("解析心跳包失败：{ex}", ex);
-                }
+                        // 更新设备状态
+                        var deviceStatus = new DeviceStatus
+                        {
+                            BatteryStatus = batteryLevel,
+                            ChargingStatus = isCharging
+                        };
 
-                MarkDeviceAlive(device);
-                return;
+                        // 调用设备管理器更新设备状态
+                        deviceManager.UpdateDeviceStatus(targetDevice, deviceStatus);
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning("解析心跳包失败：{ex}", ex);
+                    }
+
+                    MarkDeviceAlive(targetDevice);
+                    return;
+                }
             }
 
             if (message.StartsWith("DATA_"))

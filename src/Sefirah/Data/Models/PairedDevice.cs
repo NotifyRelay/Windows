@@ -47,7 +47,7 @@ public partial class PairedDevice : ObservableObject
             }
 
             var wasConnected = connectionStatus;
-            logger.LogDebug("连接状态设置：值={value}, 之前已连接={wasConnected}, 当前连接状态={connectionStatus}", value, wasConnected, connectionStatus);
+            logger.LogInformation("设备 {0} ({1}) 在线状态变更：之前={2}, 现在={3}", Name, Id, wasConnected, value);
 
             if (value)
             {
@@ -58,12 +58,12 @@ public partial class PairedDevice : ObservableObject
                 pendingDisconnect = false;
 
                 SetProperty(ref connectionStatus, true);
-                logger.LogDebug("连接状态已更新为：True");
+                logger.LogInformation("设备 {0} ({1}) 已上线", Name, Id);
 
                 // 如果设备之前未连接，并且已经发送过ftp请求，启动自动ftp请求计时器
                 if (!wasConnected)
                 {
-                    logger.LogDebug("设备 {Name} ({Id}) 已连接，检查HasSentftpRequest属性", Name, Id);
+                    logger.LogDebug("设备 {0} ({1}) 已连接，检查HasSentftpRequest属性", Name, Id);
 
                     // 只有当HasSentftpRequest为true时才启动计时器
                     if (HasSentftpRequest)
@@ -79,7 +79,7 @@ public partial class PairedDevice : ObservableObject
                         autoftpTimer.AutoReset = false; // 只触发一次
                         autoftpTimer.Elapsed += (s, e) =>
                         {
-                            logger.LogDebug("设备 {Name} ({Id}) 的自动ftp计时器已触发", Name, Id);
+                            logger.LogDebug("设备 {0} ({1}) 的自动ftp计时器已触发", Name, Id);
                             App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
                             {
                                 try
@@ -103,7 +103,7 @@ public partial class PairedDevice : ObservableObject
                                 }
                                 catch (Exception ex)
                                 {
-                                    logger.LogError(ex, "设备 {Name} ({Id}) 的自动ftp请求失败", Name, Id);
+                                    logger.LogError(ex, "设备 {0} ({1}) 的自动ftp请求失败", Name, Id);
                                 }
                                 finally
                                 {
@@ -114,7 +114,7 @@ public partial class PairedDevice : ObservableObject
                             });
                         };
                         autoftpTimer.Start();
-                        logger.LogDebug("设备 {Name} ({Id}) 的自动ftp计时器已启动", Name, Id);
+                        logger.LogDebug("设备 {0} ({1}) 的自动ftp计时器已启动", Name, Id);
                     }
                     else
                     {
@@ -129,6 +129,8 @@ public partial class PairedDevice : ObservableObject
                 disconnectDebounceTimer?.Stop();
                 disconnectDebounceTimer?.Dispose();
                 disconnectDebounceTimer = new System.Timers.Timer(5000); // 5 second debounce
+                var deviceName = Name;
+                var deviceId = Id;
                 disconnectDebounceTimer.Elapsed += (s, e) =>
                 {
                     App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
@@ -137,6 +139,7 @@ public partial class PairedDevice : ObservableObject
                         {
                             SetProperty(ref connectionStatus, false);
                             pendingDisconnect = false;
+                            logger.LogInformation("设备 {0} ({1}) 已离线", deviceName, deviceId);
                         }
                         disconnectDebounceTimer?.Dispose();
                         disconnectDebounceTimer = null;
@@ -249,19 +252,11 @@ public partial class PairedDevice : ObservableObject
                     return false;
                 }
 
-                // 添加日志，便于调试
                 var pairedDeviceId = Id;
                 var pairedDeviceModel = Model;
-                var adbDevicesCount = adbService.AdbDevices.Count;
-
-                logger.LogDebug("检查 ADB 连接：已配对设备 ID='{pairedDeviceId}'，型号='{pairedDeviceModel}'", pairedDeviceId, pairedDeviceModel);
-                logger.LogDebug("当前 ADB 设备数量：{adbDevicesCount}", adbDevicesCount);
 
                 foreach (var adbDevice in adbService.AdbDevices)
                 {
-                    logger.LogDebug("ADB 设备：序列号='{adbDevice.Serial}'，型号='{adbDevice.Model}'，Android ID='{adbDevice.AndroidId}'，在线状态='{adbDevice.IsOnline}'", adbDevice.Serial, adbDevice.Model, adbDevice.AndroidId, adbDevice.IsOnline);
-
-                    // 检查匹配条件
                     var isOnline = adbDevice.IsOnline;
                     var androidIdMatch = !string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == pairedDeviceId;
                     var modelMatch = string.IsNullOrEmpty(adbDevice.AndroidId) &&
@@ -271,16 +266,12 @@ public partial class PairedDevice : ObservableObject
                                       pairedDeviceModel.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
                                       adbDevice.Model.Contains(pairedDeviceModel, StringComparison.OrdinalIgnoreCase));
 
-                    logger.LogDebug("  - 在线：{isOnline}，Android ID 匹配：{androidIdMatch}，型号匹配：{modelMatch}", isOnline, androidIdMatch, modelMatch);
-
                     if (isOnline && (androidIdMatch || modelMatch))
                     {
-                        logger.LogDebug("  - 设备匹配成功！");
                         return true;
                     }
                 }
 
-                logger.LogDebug("  - 未找到匹配的 ADB 设备");
                 return false;
             }
             catch (Exception ex)

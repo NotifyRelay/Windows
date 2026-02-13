@@ -326,9 +326,11 @@ public class DiscoveryService(
             // 1. 首先检查消息发送设备是否为本机，使用本地设备ID直接比较
             if (deviceId == localDevice?.DeviceId)
             {
-                //logger.LogDebug("收到来自本机的UDP发现消息，忽略");
+                // 收到来自本机的UDP发现消息，忽略，不打印日志
                 return;
             }
+            // logger.LogInformation("收到UDP心跳包：{0}", message);
+            // logger.LogInformation("UDP心跳包设备ID：{0}", deviceId);
 
             string decodedName;
             try
@@ -364,14 +366,14 @@ public class DiscoveryService(
                 // 2. 确保服务已初始化
                 if (!isInitialized)
                 {
-                    logger.LogDebug("发现服务未初始化，忽略设备添加");
+                    logger.LogWarning("发现服务未初始化，忽略设备添加");
                     return;
                 }
 
                 // 3. 再次检查，确保不是本机设备
                 if (discovered.DeviceId == localDevice?.DeviceId)
                 {
-                    logger.LogDebug("尝试添加本机设备，忽略");
+                    // 尝试添加本机设备，忽略，不打印日志
                     return;
                 }
 
@@ -382,19 +384,32 @@ public class DiscoveryService(
                     // 更新现有设备
                     var index = DiscoveredDevices.IndexOf(existingDevice);
                     DiscoveredDevices[index] = discovered;
+                    // logger.LogInformation("更新UDP发现的设备：{0} ({1})");
                 }
                 else
                 {
                     // 添加新设备
                     DiscoveredDevices.Add(discovered);
+                    // logger.LogInformation("添加新的UDP发现设备：{0} ({1})");
                 }
             });
+
+            // 尝试更新已配对设备的在线状态
+            var pairedDevice = deviceManager.FindDeviceById(deviceId);
+            if (pairedDevice != null)
+            {
+                // logger.LogInformation("UDP心跳包更新已配对设备状态：{0} ({1})", pairedDevice.Name, deviceId);
+                // 更新设备的最后心跳时间
+                var networkService = networkServiceFactory();
+                networkService.UpdateDeviceStatusFromUdp(deviceId, message);
+                // logger.LogInformation("已调用NetworkService更新设备状态");
+            }
 
             StartCleanupTimer();
         }
         catch (Exception ex)
         {
-            logger.LogWarning("处理 UDP 消息时出错：{message}", ex.Message);
+            logger.LogWarning("处理 UDP 消息时出错：{0}", ex.Message);
         }
     }
 
