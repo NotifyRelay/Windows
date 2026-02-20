@@ -654,8 +654,8 @@ public class NetworkService(
             var chargeSign = isCharging ? "+" : "-";
 
             // 获取本地设备名称
-            var localDevice = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == localDeviceId);
-            var deviceName = localDevice?.Name ?? "PC";
+            var localDevice = deviceManager.GetLocalDeviceAsync().Result;
+            var deviceName = localDevice?.DeviceName ?? "PC";
             var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
 
             // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
