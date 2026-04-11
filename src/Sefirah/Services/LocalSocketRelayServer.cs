@@ -247,7 +247,7 @@ public static class LocalSocketRelayServer
         }
     }
 
-    public static async Task<bool> SendMediaInfoAsync(string deviceId, string title, string artist, string coverUrl, bool isPlaying)
+    public static async Task<bool> SendMediaInfoAsync(string deviceId, string deviceName, string title, string artist, string coverUrl, bool isPlaying)
     {
         try
         {
@@ -255,6 +255,7 @@ public static class LocalSocketRelayServer
             {
                 type = "media_update",
                 deviceId,
+                deviceName,
                 title,
                 artist,
                 coverUrl,

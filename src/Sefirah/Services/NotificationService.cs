@@ -788,7 +788,7 @@ public class NotificationService(
                         {
                             _currentMusicMediaBlocks.Remove(existingBlock);
                             // logger.LogDebug("已移除设备：{deviceId}的媒体块", device.Id);
-                            _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, "", "", "", false);
+                            _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, "", "", "", false);
                         }
                     }
                     catch (Exception ex)
@@ -849,7 +849,7 @@ public class NotificationService(
                         );
                         _currentMusicMediaBlocks.Add(newBlock);
                         // logger.LogDebug("新音乐媒体块已加入集合");
-                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, title, text, coverUrl ?? "", true);
+                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, title, text, coverUrl ?? "", true);
                     }
                     else
                     {
@@ -880,7 +880,7 @@ public class NotificationService(
                         // 直接更新音乐媒体块的属性
                         existingBlock.Update(updatedTitle, updatedText, updatedCoverUrl);
                         // logger.LogDebug("音乐媒体块更新完成");
-                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, updatedTitle, updatedText, updatedCoverUrl ?? "", true);
+                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, updatedTitle, updatedText, updatedCoverUrl ?? "", true);
                     }
 
                     // logger.LogDebug("媒体播放通知处理完成");
@@ -917,7 +917,7 @@ public class NotificationService(
                     logger.LogError(ex, "移除超时的音乐媒体块时出错，设备：{deviceId}", b.DeviceId);
                 }
 
-                _ = LocalSocketRelayServer.SendMediaInfoAsync(b.DeviceId, "", "", "", false);
+                _ = LocalSocketRelayServer.SendMediaInfoAsync(b.DeviceId, b.DeviceName, "", "", "", false);
             }
         });
     }
