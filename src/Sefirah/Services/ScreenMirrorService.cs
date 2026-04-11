@@ -207,29 +207,70 @@ public class ScreenMirrorService(
                     selectedDeviceSerial = $"{connectedSessionIpAddress}:5555";
                 }
             }
-            else if (devices.Any(d => d.IsOnline && !string.IsNullOrEmpty(d.Serial)))
-            {
-                // If no paired devices found, show dialog to select from online devices
-                var online = devices.Where(d => d.IsOnline).ToList();
-                var preferred = online.FirstOrDefault(d => d.Type == DeviceType.USB)?.Serial
-                                ?? online.FirstOrDefault()?.Serial;
-                selectedDeviceSerial = await ShowDeviceSelectionDialog(online, preferred);
-            }
             else
             {
-                logger.LogWarning("未在 adb 中找到在线设备");
-                _ = dispatcher?.EnqueueAsync(async () =>
+                logger.LogWarning("未找到匹配的ADB设备，尝试自动重连");
+
+                // 尝试自动重连到设备的5555端口
+                var reconnected = await adbService.TryAutoReconnectAsync(device);
+
+                if (reconnected)
                 {
-                    var dialog = new ContentDialog
+                    // 等待设备列表更新
+                    await Task.Delay(500);
+
+                    // 重新尝试匹配ADB设备
+                    var reconnectedAdbDevices = devices.Where(d => d.IsOnline).ToList();
+                    var rematchedDevices = reconnectedAdbDevices.Where(d => !string.IsNullOrEmpty(d.AndroidId) && d.AndroidId == device.Id).ToList();
+
+                    if (rematchedDevices.Count == 0 && !string.IsNullOrEmpty(device.Model))
                     {
-                        XamlRoot = App.MainWindow.Content!.XamlRoot,
-                        Title = "AdbDeviceOffline".GetLocalizedResource(),
-                        Content = "AdbDeviceOfflineDescription".GetLocalizedResource(),
-                        CloseButtonText = "Dismiss".GetLocalizedResource()
-                    };
-                    await dialog.ShowAsync();
-                });
-                return false;
+                        rematchedDevices = reconnectedAdbDevices.Where(d => string.IsNullOrEmpty(d.AndroidId) &&
+                            !string.IsNullOrEmpty(d.Model) &&
+                            (device.Model.Equals(d.Model, StringComparison.OrdinalIgnoreCase) ||
+                             device.Model.Contains(d.Model, StringComparison.OrdinalIgnoreCase) ||
+                             d.Model.Contains(device.Model, StringComparison.OrdinalIgnoreCase)))
+                            .ToList();
+                    }
+
+                    if (rematchedDevices.Count > 0)
+                    {
+                        var preferred = rematchedDevices.FirstOrDefault(d => d.Type == DeviceType.USB)?.Serial
+                                        ?? rematchedDevices.FirstOrDefault()?.Serial;
+                        selectedDeviceSerial = await ShowDeviceSelectionDialog(rematchedDevices, preferred);
+                    }
+                    else
+                    {
+                        logger.LogWarning("自动重连后仍未找到匹配的ADB设备");
+                        _ = dispatcher?.EnqueueAsync(async () =>
+                        {
+                            var dialog = new ContentDialog
+                            {
+                                XamlRoot = App.MainWindow.Content!.XamlRoot,
+                                Title = "AdbDeviceOffline".GetLocalizedResource(),
+                                Content = "AdbDeviceOfflineDescription".GetLocalizedResource(),
+                                CloseButtonText = "Dismiss".GetLocalizedResource()
+                            };
+                            await dialog.ShowAsync();
+                        });
+                        return false;
+                    }
+                }
+                else
+                {
+                    _ = dispatcher?.EnqueueAsync(async () =>
+                    {
+                        var dialog = new ContentDialog
+                        {
+                            XamlRoot = App.MainWindow.Content!.XamlRoot,
+                            Title = "AdbDeviceOffline".GetLocalizedResource(),
+                            Content = "AdbDeviceOfflineDescription".GetLocalizedResource(),
+                            CloseButtonText = "Dismiss".GetLocalizedResource()
+                        };
+                        await dialog.ShowAsync();
+                    });
+                    return false;
+                }
             }
 
             // Validate that we have a selected device

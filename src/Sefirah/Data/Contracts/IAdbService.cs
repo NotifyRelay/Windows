@@ -20,4 +20,5 @@ public interface IAdbService
     void TryConnectTcp(string host);
 
     Task<bool> IsLocked(DeviceData deviceData);
+    Task<bool> TryAutoReconnectAsync(PairedDevice device);
 }

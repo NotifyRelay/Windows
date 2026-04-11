@@ -222,11 +222,12 @@ public class AdbService(
             {
                 if (existingDevice != null)
                 {
-                    // Update existing device
+                    // Update existing device using Remove + Add to trigger CollectionChanged
                     var index = AdbDevices.IndexOf(existingDevice);
                     if (index != -1)
                     {
-                        AdbDevices[index] = deviceInfo;
+                        AdbDevices.RemoveAt(index);
+                        AdbDevices.Insert(index, deviceInfo);
                         logger.LogDebug($"设备已更新：{deviceInfo.Model} ({deviceInfo.Serial})");
                     }
                 }
@@ -250,8 +251,10 @@ public class AdbService(
                     var index = AdbDevices.IndexOf(existingDevice);
                     if (index != -1)
                     {
+                        // Update using Remove + Insert to trigger CollectionChanged
                         existingDevice.State = e.NewState;
-                        AdbDevices[index] = existingDevice;
+                        AdbDevices.RemoveAt(index);
+                        AdbDevices.Insert(index, existingDevice);
                     }
                 });
             }
@@ -686,6 +689,110 @@ public class AdbService(
         {
             logger.LogError(ex, "尝试连接 {Host} 时发生错误", host);
             return;
+        }
+    }
+
+    public async Task<bool> TryAutoReconnectAsync(PairedDevice device)
+    {
+        try
+        {
+            logger.LogInformation("尝试自动重连设备 {DeviceName} ({DeviceId})", device.Name, device.Id);
+
+            // 检查当前设备是否已经有对应的ADB连接
+            var hasConnection = AdbDevices.Any(adbDevice => 
+                adbDevice.IsOnline && 
+                (
+                    (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == device.Id) ||
+                    (string.IsNullOrEmpty(adbDevice.AndroidId) &&
+                        !string.IsNullOrEmpty(adbDevice.Model) &&
+                        !string.IsNullOrEmpty(device.Model) &&
+                        (device.Model.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                         device.Model.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                         adbDevice.Model.Contains(device.Model, StringComparison.OrdinalIgnoreCase)))
+                ));
+
+            if (hasConnection)
+            {
+                logger.LogDebug("设备 {DeviceName} 已有对应的ADB连接，跳过自动重连", device.Name);
+                return true;
+            }
+
+            // 尝试从多个来源获取IP地址
+            List<string> possibleIps = [];
+
+            // 1. 从Session获取IP地址
+            if (device.Session?.Socket?.RemoteEndPoint != null)
+            {
+                var sessionIp = device.Session.Socket.RemoteEndPoint.ToString()?.Split(':')[0];
+                if (!string.IsNullOrEmpty(sessionIp))
+                {
+                    possibleIps.Add(sessionIp);
+                    logger.LogDebug("从Session获取到IP地址: {Ip}", sessionIp);
+                }
+            }
+
+            // 2. 从RemoteIpAddress获取
+            if (!string.IsNullOrEmpty(device.RemoteIpAddress))
+            {
+                possibleIps.Add(device.RemoteIpAddress);
+                logger.LogDebug("从RemoteIpAddress获取到IP地址: {Ip}", device.RemoteIpAddress);
+            }
+
+            // 3. 从IpAddresses列表获取
+            if (device.IpAddresses != null && device.IpAddresses.Count > 0)
+            {
+                possibleIps.AddRange(device.IpAddresses);
+                logger.LogDebug("从IpAddresses列表获取到 {Count} 个IP地址", device.IpAddresses.Count);
+            }
+
+            // 去重
+            possibleIps = possibleIps.Distinct().ToList();
+
+            if (possibleIps.Count == 0)
+            {
+                logger.LogWarning("设备 {DeviceName} 没有可用的IP地址，无法自动重连", device.Name);
+                return false;
+            }
+
+            logger.LogInformation("找到 {Count} 个可能的IP地址，尝试连接5555端口", possibleIps.Count);
+
+            // 尝试连接每个IP地址的5555端口
+            foreach (var ip in possibleIps)
+            {
+                logger.LogDebug("尝试连接 {Ip}:5555", ip);
+                var connected = await ConnectWireless(ip, 5555);
+                if (connected)
+                {
+                    logger.LogInformation("成功自动重连到设备 {DeviceName}，IP: {Ip}:5555", device.Name, ip);
+
+                    // 等待设备出现在ADB设备列表中
+                    var maxWaitTime = TimeSpan.FromSeconds(5);
+                    var startTime = DateTime.Now;
+                    var deviceSerial = $"{ip}:5555";
+
+                    while (DateTime.Now - startTime < maxWaitTime)
+                    {
+                        var newDevice = AdbDevices.FirstOrDefault(d => d.Serial == deviceSerial && d.IsOnline);
+                        if (newDevice != null)
+                        {
+                            logger.LogDebug("设备 {Serial} 已出现在ADB设备列表中", deviceSerial);
+                            return true;
+                        }
+                        await Task.Delay(100);
+                    }
+
+                    logger.LogWarning("设备 {Serial} 连接成功但未在预期时间内出现在设备列表中", deviceSerial);
+                    return true;
+                }
+            }
+
+            logger.LogWarning("尝试了所有IP地址，自动重连失败");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "自动重连设备 {DeviceName} 时发生错误", device.Name);
+            return false;
         }
     }
 }
