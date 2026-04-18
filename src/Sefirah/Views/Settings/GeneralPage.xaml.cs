@@ -76,38 +76,6 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    public async void SelectScrcpyLocation_Click(object sender, RoutedEventArgs e)
-    {
-        var file = await PickerHelper.PickFileAsync();
-        if (file?.Path is string path)
-        {
-            ViewModel.ScrcpyPath = path;
-            TrySetCompanionTool(path, "adb.exe", p => ViewModel.AdbPath = p);
-        }
-    }
-
-    private async void SelectAdbLocation_Click(object sender, RoutedEventArgs e)
-    {
-        var file = await PickerHelper.PickFileAsync();
-        if (file?.Path is string path)
-        {
-            ViewModel.AdbPath = path;
-            TrySetCompanionTool(path, "scrcpy.exe", p => ViewModel.ScrcpyPath = p);
-        }
-    }
-
-    public static void TrySetCompanionTool(string selectedPath, string companionName, Action<string> setPath)
-    {
-        var directory = Path.GetDirectoryName(selectedPath);
-        if (string.IsNullOrEmpty(directory)) return;
-
-        var companionPath = Path.GetFullPath(Path.Combine(directory, companionName));
-        if (File.Exists(companionPath))
-        {
-            setPath(companionPath);
-        }
-    }
-
     private void OpenActionsSettings(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(ActionsPage), null, new SuppressNavigationTransitionInfo());

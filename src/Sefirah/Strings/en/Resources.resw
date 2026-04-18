@@ -359,6 +359,21 @@ page.</value>
   <data name="ScreenMirror" xml:space="preserve">
     <value>Screen mirror</value>
   </data>
+  <data name="ScrcpyAdbSettings" xml:space="preserve">
+    <value>Scrcpy &amp; ADB</value>
+  </data>
+  <data name="ReceiveMediaMessages" xml:space="preserve">
+    <value>Receive media messages</value>
+  </data>
+  <data name="ReceiveMediaMessagesOn" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="ReceiveMediaMessagesOff" xml:space="preserve">
+    <value>Off</value>
+  </data>
+  <data name="ReceiveMediaMessagesAudioOnly" xml:space="preserve">
+    <value>Audio-only</value>
+  </data>
   <data name="VideoSettings" xml:space="preserve">
     <value>Video settings</value>
   </data>

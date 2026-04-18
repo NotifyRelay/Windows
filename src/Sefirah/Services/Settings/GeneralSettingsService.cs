@@ -141,6 +141,12 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    public MediaMessageReceiveMode MediaMessageReceiveMode
+    {
+        get => Get(MediaMessageReceiveMode.AudioOnly);
+        set => Set(value);
+    }
+
     public List<BaseAction> Actions
     {
         get => Get<List<BaseAction>>([]);

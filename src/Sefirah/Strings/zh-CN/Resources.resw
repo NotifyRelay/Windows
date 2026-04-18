@@ -359,6 +359,21 @@
   <data name="ScreenMirror" xml:space="preserve">
     <value>屏幕镜像</value>
   </data>
+  <data name="ScrcpyAdbSettings" xml:space="preserve">
+    <value>Scrcpy 与 ADB</value>
+  </data>
+  <data name="ReceiveMediaMessages" xml:space="preserve">
+    <value>接收媒体消息</value>
+  </data>
+  <data name="ReceiveMediaMessagesOn" xml:space="preserve">
+    <value>开</value>
+  </data>
+  <data name="ReceiveMediaMessagesOff" xml:space="preserve">
+    <value>关</value>
+  </data>
+  <data name="ReceiveMediaMessagesAudioOnly" xml:space="preserve">
+    <value>仅音频时开</value>
+  </data>
   <data name="VideoSettings" xml:space="preserve">
     <value>视频设置</value>
   </data>

@@ -22,6 +22,7 @@ public class ProtocolRouter
     private readonly ILogger<ProtocolRouter> logger;
     private readonly IDeviceManager deviceManager;
     private readonly IScreenMirrorService screenMirrorService;
+    private readonly IGeneralSettingsService generalSettingsService;
     private readonly Lazy<INotificationService> notificationService;
     private readonly Lazy<IClipboardService> clipboardService;
     private readonly Lazy<IRemoteAppService> remoteAppService;
@@ -34,6 +35,7 @@ public class ProtocolRouter
         ILogger<ProtocolRouter> logger,
         IDeviceManager deviceManager,
         IScreenMirrorService screenMirrorService,
+        IGeneralSettingsService generalSettingsService,
         Func<INotificationService> notificationServiceFactory,
         Func<IClipboardService> clipboardServiceFactory,
         Func<IRemoteAppService> remoteAppServiceFactory,
@@ -46,6 +48,7 @@ public class ProtocolRouter
         this.logger = logger;
         this.deviceManager = deviceManager;
         this.screenMirrorService = screenMirrorService;
+        this.generalSettingsService = generalSettingsService;
         this.notificationService = new Lazy<INotificationService>(notificationServiceFactory);
         this.clipboardService = new Lazy<IClipboardService>(clipboardServiceFactory);
         this.remoteAppService = new Lazy<IRemoteAppService>(remoteAppServiceFactory);
@@ -110,6 +113,11 @@ public class ProtocolRouter
 
                 case "DATA_MEDIAPLAY":
                     // 媒体播放信息
+                    if (!ShouldProcessMediaMessage(device))
+                    {
+                        logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
+                        break;
+                    }
                     await notificationService.Value.ProcessMediaPlayMessageAsync(device, decryptedPayload);
                     break;
 
@@ -193,6 +201,17 @@ public class ProtocolRouter
         {
             logger.LogError(ex, "处理DATA消息时出错");
         }
+    }
+
+    private bool ShouldProcessMediaMessage(PairedDevice device)
+    {
+        return generalSettingsService.MediaMessageReceiveMode switch
+        {
+            MediaMessageReceiveMode.On => true,
+            MediaMessageReceiveMode.Off => false,
+            MediaMessageReceiveMode.AudioOnly => screenMirrorService.IsAudioOnlyRunning(device.Id),
+            _ => true
+        };
     }
 
     /// <summary>

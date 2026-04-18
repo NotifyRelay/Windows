@@ -17,6 +17,9 @@ public sealed partial class SettingsPage : Page
             case "DevicesPage":
                 SettingsContentFrame.Navigate(typeof(Settings.DevicesPage));
                 break;
+            case "ScrcpyAdbSettingsPage":
+                SettingsContentFrame.Navigate(typeof(Settings.ScrcpyAdbSettingsPage));
+                break;
             case "MonitorBrightnessSettingsPage":
                 SettingsContentFrame.Navigate(typeof(Settings.MonitorBrightnessSettingsPage));
                 break;

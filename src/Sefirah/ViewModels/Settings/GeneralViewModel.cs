@@ -129,6 +129,39 @@ public sealed partial class GeneralViewModel : BaseViewModel
         }
     }
 
+    public MediaMessageReceiveMode MediaMessageReceiveMode
+    {
+        get => UserSettingsService.GeneralSettingsService.MediaMessageReceiveMode;
+        set
+        {
+            if (value != UserSettingsService.GeneralSettingsService.MediaMessageReceiveMode)
+            {
+                UserSettingsService.GeneralSettingsService.MediaMessageReceiveMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public Dictionary<MediaMessageReceiveMode, string> MediaMessageReceiveModes { get; } = new()
+    {
+        { MediaMessageReceiveMode.On, "ReceiveMediaMessagesOn".GetLocalizedResource() },
+        { MediaMessageReceiveMode.Off, "ReceiveMediaMessagesOff".GetLocalizedResource() },
+        { MediaMessageReceiveMode.AudioOnly, "ReceiveMediaMessagesAudioOnly".GetLocalizedResource() }
+    };
+
+    private string selectedMediaMessageReceiveMode;
+    public string SelectedMediaMessageReceiveMode
+    {
+        get => selectedMediaMessageReceiveMode;
+        set
+        {
+            if (SetProperty(ref selectedMediaMessageReceiveMode, value))
+            {
+                MediaMessageReceiveMode = MediaMessageReceiveModes.First(t => t.Value == value).Key;
+            }
+        }
+    }
+
     public string ReceivedFilesPath
     {
         get => UserSettingsService.GeneralSettingsService.ReceivedFilesPath;
@@ -163,6 +196,7 @@ public sealed partial class GeneralViewModel : BaseViewModel
     {
         selectedThemeType = ThemeTypes[CurrentTheme];
         selectedStartupType = StartupTypes[StartupOption];
+        selectedMediaMessageReceiveMode = MediaMessageReceiveModes[MediaMessageReceiveMode];
 
         // Load initial local device name
         LoadLocalDeviceName();

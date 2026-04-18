@@ -39,6 +39,11 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     string AdbPath { get; set; }
 
     /// <summary>
+    /// Gets or sets the receive mode for media control messages.
+    /// </summary>
+    MediaMessageReceiveMode MediaMessageReceiveMode { get; set; }
+
+    /// <summary>
     /// Gets or sets the path for remote storage.
     /// </summary>
     string RemoteStoragePath { get; set; }

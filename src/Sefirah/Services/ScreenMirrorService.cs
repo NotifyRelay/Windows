@@ -6,7 +6,6 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
 using NotifyRelay.Extensions;
 using NotifyRelay.Utils;
-using NotifyRelay.Views.Settings;
 using Uno.Logging;
 using Windows.ApplicationModel.DataTransfer;
 
@@ -712,7 +711,7 @@ public class ScreenMirrorService(
         if (file?.Path is string path)
         {
             userSettingsService.GeneralSettingsService.ScrcpyPath = path;
-            GeneralPage.TrySetCompanionTool(path, "adb.exe", p => userSettingsService.GeneralSettingsService.AdbPath = p);
+            ToolPathHelper.TrySetCompanionTool(path, "adb.exe", p => userSettingsService.GeneralSettingsService.AdbPath = p);
             await adbService.StartAsync();
             return path;
         }

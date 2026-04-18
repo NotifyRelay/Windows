@@ -36,6 +36,13 @@ public enum AudioOutputModeType
     Both
 }
 
+public enum MediaMessageReceiveMode
+{
+    On,
+    Off,
+    AudioOnly
+}
+
 public enum ScrcpyDevicePreferenceType
 {
     Auto,

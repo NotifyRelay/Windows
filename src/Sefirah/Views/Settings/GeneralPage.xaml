@@ -58,22 +58,6 @@
                     SelectedItem="{x:Bind ViewModel.SelectedThemeType, Mode=TwoWay}" />
             </wuc:SettingsCard>
 
-            <!--  Scrcpy location  -->
-            <wuc:SettingsCard Description="{x:Bind ViewModel.ScrcpyPath, Mode=OneWay}" Header="{helpers:ResourceString Name=ScreenMirror}">
-                <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xEC15;" />
-                </wuc:SettingsCard.HeaderIcon>
-                <Button Click="SelectScrcpyLocation_Click" Content="{helpers:ResourceString Name=SelectLocation}" />
-            </wuc:SettingsCard>
-
-            <!--  Adb Settings  -->
-            <wuc:SettingsCard Description="{x:Bind ViewModel.AdbPath, Mode=OneWay}" Header="{helpers:ResourceString Name=AdbSettings}">
-                <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xEC7A;" />
-                </wuc:SettingsCard.HeaderIcon>
-                <Button Click="SelectAdbLocation_Click" Content="{helpers:ResourceString Name=SelectLocation}" />
-            </wuc:SettingsCard>
-
             <!--  Save Location  -->
             <wuc:SettingsCard Description="{x:Bind ViewModel.ReceivedFilesPath, Mode=OneWay}" Header="{helpers:ResourceString Name=SaveLocation}">
                 <wuc:SettingsCard.HeaderIcon>
