@@ -293,6 +293,58 @@ public static class LocalSocketRelayServer
         }
     }
 
+    public static async Task<bool> SendSuperIslandAsync(
+        string deviceId,
+        string deviceName,
+        string sourceId,
+        bool isEnd,
+        object? state,
+        string rawPayload)
+    {
+        try
+        {
+            var message = new
+            {
+                type = "superisland_update",
+                deviceId,
+                deviceName,
+                sourceId,
+                isEnd,
+                state,
+                payload = rawPayload
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(message);
+            var payload = json + "\n";
+            var data = Encoding.UTF8.GetBytes(payload);
+
+            bool sentToAnyClient = false;
+            var clientList = clients.ToList();
+
+            foreach (var client in clientList)
+            {
+                try
+                {
+                    if (client.Connected)
+                    {
+                        var stream = client.GetStream();
+                        await stream.WriteAsync(data, 0, data.Length);
+                        await stream.FlushAsync();
+                        sentToAnyClient = true;
+                    }
+                }
+                catch { }
+            }
+
+            return sentToAnyClient;
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "本地Socket中继服务器: 发送超级岛消息失败");
+            return false;
+        }
+    }
+
     /// <summary>
     /// 清理断开连接的客户端
     /// </summary>

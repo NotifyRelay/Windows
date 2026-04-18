@@ -129,7 +129,7 @@ public class ProtocolRouter
                     break;
 
                 case "DATA_SUPERISLAND":
-                    // 超级岛通知，直接忽略
+                    await HandleSuperIslandAsync(device, decryptedPayload);
                     break;
 
                 case "DATA_MEDIA_CONTROL":
@@ -274,6 +274,126 @@ public class ProtocolRouter
         {
             logger.LogError(ex, "处理DATA_STATUS消息时出错");
         }
+    }
+
+    private async Task HandleSuperIslandAsync(PairedDevice device, string decryptedPayload)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(decryptedPayload);
+            var root = doc.RootElement;
+
+            var type = TryGetString(root, "type");
+            if (string.Equals(type, "SI_ACK", StringComparison.OrdinalIgnoreCase))
+            {
+                logger.LogDebug("收到超级岛ACK，忽略转发: deviceId={DeviceId}", device.Id);
+                return;
+            }
+
+            var packageName = TryGetString(root, "packageName");
+            var title = TryGetString(root, "title");
+            var text = TryGetString(root, "text");
+            var paramV2Raw = TryGetString(root, "param_v2_raw");
+            var featureKeyValue = TryGetString(root, "featureKeyValue");
+            if (string.IsNullOrWhiteSpace(featureKeyValue))
+            {
+                featureKeyValue = SuperIslandProtocol.ComputeFeatureId(packageName, paramV2Raw, title, text);
+            }
+
+            var sourceId = BuildSuperIslandSourceId(device.Id, packageName, featureKeyValue);
+            var terminateValue = TryGetString(root, "terminateValue");
+            var isEnd = string.Equals(terminateValue, SuperIslandProtocol.TerminateValue, StringComparison.Ordinal);
+            var state = BuildSuperIslandState(root, title, text, paramV2Raw);
+            var hasChanges = root.TryGetProperty("changes", out _);
+
+            logger.LogInformation(
+                "收到超级岛包: deviceId={DeviceId}, packageName={PackageName}, sourceId={SourceId}, isEnd={IsEnd}, hasChanges={HasChanges}",
+                device.Id,
+                packageName,
+                sourceId,
+                isEnd,
+                hasChanges);
+
+            var sent = await LocalSocketRelayServer.SendSuperIslandAsync(
+                device.Id,
+                device.Name,
+                sourceId,
+                isEnd,
+                state,
+                root.GetRawText());
+
+            if (!sent)
+            {
+                logger.LogInformation("超级岛未找到Gamebar客户端，已忽略: deviceId={DeviceId}, sourceId={SourceId}", device.Id, sourceId);
+            }
+        }
+        catch (JsonException ex)
+        {
+            logger.LogWarning(ex, "解析超级岛消息失败");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理超级岛消息时出错");
+        }
+    }
+
+    private static string? TryGetString(JsonElement root, string propertyName)
+    {
+        if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String)
+        {
+            return prop.GetString();
+        }
+        return null;
+    }
+
+    private static string BuildSuperIslandSourceId(string deviceId, string? packageName, string? featureId)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(deviceId)) parts.Add(deviceId);
+        if (!string.IsNullOrWhiteSpace(packageName)) parts.Add(packageName);
+        if (!string.IsNullOrWhiteSpace(featureId)) parts.Add(featureId);
+        return string.Join("|", parts);
+    }
+
+    private static Dictionary<string, object?>? BuildSuperIslandState(
+        JsonElement root,
+        string? title,
+        string? text,
+        string? paramV2Raw)
+    {
+        var state = new Dictionary<string, object?>();
+        if (!string.IsNullOrWhiteSpace(title)) state["title"] = title;
+        if (!string.IsNullOrWhiteSpace(text)) state["text"] = text;
+        if (!string.IsNullOrWhiteSpace(paramV2Raw)) state["param_v2_raw"] = paramV2Raw;
+
+        var pics = ParsePics(root);
+        if (pics != null && pics.Count > 0) state["pics"] = pics;
+
+        return state.Count > 0 ? state : null;
+    }
+
+    private static Dictionary<string, string>? ParsePics(JsonElement root)
+    {
+        if (!root.TryGetProperty("pics", out var picsProp) || picsProp.ValueKind != JsonValueKind.Object)
+        {
+            return null;
+        }
+
+        var pics = new Dictionary<string, string>();
+        foreach (var item in picsProp.EnumerateObject())
+        {
+            if (item.Value.ValueKind != JsonValueKind.String)
+            {
+                continue;
+            }
+            var value = item.Value.GetString();
+            if (!string.IsNullOrWhiteSpace(value))
+            {
+                pics[item.Name] = value;
+            }
+        }
+
+        return pics.Count > 0 ? pics : null;
     }
 
     /// <summary>
