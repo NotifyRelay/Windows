@@ -116,6 +116,12 @@ public class ProtocolRouter
                     if (!ShouldProcessMediaMessage(device))
                     {
                         logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
+                        await notificationService.Value.HandleMediaPlayNotification(device, new NotificationMessage
+                        {
+                            NotificationKey = Guid.NewGuid().ToString(),
+                            NotificationType = NotificationType.New,
+                            MediaType = "END"
+                        });
                         break;
                     }
                     await notificationService.Value.ProcessMediaPlayMessageAsync(device, decryptedPayload);

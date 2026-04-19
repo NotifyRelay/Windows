@@ -293,7 +293,8 @@ public class NotificationService(
                                         message.AppPackage!,
                                         message.Title!,
                                         message.Text ?? string.Empty,
-                                        iconUrl);
+                                        iconUrl,
+                                        device.Name);
                                 }
                                 catch (Exception ex)
                                 {

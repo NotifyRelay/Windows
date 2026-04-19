@@ -182,12 +182,12 @@ public static class LocalSocketRelayServer
         }
     }
 
-    public static async Task<bool> SendNotificationAsync(string appName, string packageName, string title, string body, string? iconUrl = null)
+    public static async Task<bool> SendNotificationAsync(string appName, string packageName, string title, string body, string? iconUrl = null, string? deviceName = null)
     {
         try
         {
             // 创建通知对象
-            var notification = new { appName, packageName, title, body, iconUrl };
+            var notification = new { appName, packageName, title, body, iconUrl, deviceName };
             // 序列化JSON，确保正确处理特殊字符
             var json = System.Text.Json.JsonSerializer.Serialize(notification);
             var payload = json + "\n";
