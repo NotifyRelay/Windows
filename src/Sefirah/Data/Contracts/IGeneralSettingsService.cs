@@ -87,4 +87,24 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets the list of selected monitors for brightness sync.
     /// </summary>
     List<string> SelectedMonitors { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DeepSeek API token for balance monitoring.
+    /// </summary>
+    string? DeepSeekApiToken { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether DeepSeek balance monitoring is enabled.
+    /// </summary>
+    bool EnableDeepSeekBalanceMonitor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DeepSeek balance polling interval in milliseconds.
+    /// </summary>
+    int DeepSeekBalancePollingInterval { get; set; }
+
+    /// <summary>
+    /// Gets or sets the DeepSeek balance history as JSON string.
+    /// </summary>
+    string? DeepSeekBalanceHistoryJson { get; set; }
 }

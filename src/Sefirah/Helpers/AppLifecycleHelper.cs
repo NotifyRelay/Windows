@@ -151,7 +151,29 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤18：初始化显示器亮度同步服务失败");
         }
 
-        // 9. 完成初始化，关闭启动画面
+        // 9. 初始化 DeepSeek 余额监控服务
+        logger.LogInformation("步骤19：初始化 DeepSeek 余额监控服务...");
+        try
+        {
+            var deepSeekBalanceService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>();
+            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+
+            if (generalSettingsService.EnableDeepSeekBalanceMonitor && !string.IsNullOrEmpty(generalSettingsService.DeepSeekApiToken))
+            {
+                deepSeekBalanceService.StartPolling();
+                logger.LogInformation("步骤19：DeepSeek 余额监控服务启动成功");
+            }
+            else
+            {
+                logger.LogInformation("步骤19：DeepSeek 余额监控服务未启用或未配置 Token");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤19：初始化 DeepSeek 余额监控服务失败");
+        }
+
+        // 10. 完成初始化，关闭启动画面
         logger.LogInformation("步骤19：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
@@ -256,6 +278,9 @@ public static class AppLifecycleHelper
 
                 // Monitor Brightness Service
                 .AddSingleton<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorBrightnessService>()
+
+                // DeepSeek Balance Service
+                .AddSingleton<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>()
 
                 // ViewModels
                 .AddSingleton<MainPageViewModel>()

@@ -3,6 +3,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.DeviceCtrl.DeepSeekBalance;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
 #endif
@@ -14,16 +15,43 @@ public sealed partial class TrayIconControl : UserControl
     private readonly UISettings uiSettings = new();
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
+    private DeepSeekBalanceService DeepSeekBalanceService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
+    private IGeneralSettingsService GeneralSettingsService { get; } = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
+
     public TrayIconControl()
     {
         InitializeComponent();
 
-        // Set initial icon
         UpdateTrayIcon(uiSettings);
-
-        // Monitor system theme changes
         uiSettings.ColorValuesChanged += UpdateTrayIcon;
+
+        DeepSeekBalanceService.BalanceUpdated += OnBalanceUpdated;
+        UpdateTrayTooltip();
+    }
+
+    private void OnBalanceUpdated(object? sender, BalanceHistoryItem e)
+    {
+        UpdateTrayTooltip();
+    }
+
+    private void UpdateTrayTooltip()
+    {
+        try
+        {
+            var tooltip = "NotifyRelay";
+
+            if (DeepSeekBalanceService.IsPolling && DeepSeekBalanceService.CurrentBalance > 0)
+            {
+                tooltip = $"NotifyRelay\nDeepSeek 余额: ¥{DeepSeekBalanceService.CurrentBalance:F2}";
+            }
+
+            _ = DispatcherQueue.EnqueueAsync(() => TrayIcon.ToolTipText = tooltip);
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"更新托盘提示失败：{ex.Message}");
+        }
     }
 
     [RelayCommand]

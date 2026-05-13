@@ -201,4 +201,28 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         get => Get<List<string>>([]);
         set => Set(value);
     }
+
+    public string? DeepSeekApiToken
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public bool EnableDeepSeekBalanceMonitor
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public int DeepSeekBalancePollingInterval
+    {
+        get => Get(60000);
+        set => Set(value);
+    }
+
+    public string? DeepSeekBalanceHistoryJson
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
 }

@@ -23,6 +23,9 @@ public sealed partial class SettingsPage : Page
             case "MonitorBrightnessSettingsPage":
                 SettingsContentFrame.Navigate(typeof(Settings.MonitorBrightnessSettingsPage));
                 break;
+            case "DeepSeekBalanceSettingsPage":
+                SettingsContentFrame.Navigate(typeof(Settings.DeepSeekBalanceSettingsPage));
+                break;
             case "AboutPage":
                 SettingsContentFrame.Navigate(typeof(Settings.AboutPage));
                 break;
