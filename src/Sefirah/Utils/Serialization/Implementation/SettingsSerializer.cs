@@ -1,4 +1,5 @@
 namespace NotifyRelay.Utils.Serialization.Implementation;
+
 internal sealed class SettingsSerializer : ISettingsSerializer
 {
     private string? _filePath;

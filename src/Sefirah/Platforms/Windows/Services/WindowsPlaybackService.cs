@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using System.Text.Json.Serialization;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
 using NAudio.CoreAudioApi;
@@ -11,14 +10,11 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Platforms.Windows.Interop;
 using NotifyRelay.Services;
-using NotifyRelay.Utils.Serialization;
 using Windows.Media;
 using Windows.Media.Control;
-using Windows.Media.Core;
-using Windows.Media.Playback;
-using Windows.Storage.Streams;
 
 namespace NotifyRelay.Platforms.Windows.Services;
+
 public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
     ISessionManager sessionManager,
@@ -27,20 +23,20 @@ public class WindowsPlaybackService(
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
     private GlobalSystemMediaTransportControlsSessionManager? manager;
-    
+
     // Local SMTC for remote media display
     private string? _currentRemoteDeviceId;
-    
+
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
 
     private readonly Dictionary<string, double> lastTimelinePosition = [];
     private readonly Dictionary<string, DateTime> lastSessionUpdateTime = [];
     private const int MinUpdateIntervalMs = 5000; // 最小更新间隔，5秒
-    
+
     // 媒体播放状态跟踪，用于实现差异包发送
     private readonly Dictionary<string, MediaPlayState> lastMediaState = [];
-    
+
     // 媒体播放状态数据类，用于跟踪上次发送的媒体状态
     private class MediaPlayState
     {
@@ -73,16 +69,16 @@ public class WindowsPlaybackService(
             {
                 //if (args.IsConnected && args.Device.DeviceSettings?.MediaSessionSyncEnabled == true)
                 //{
-                    //foreach (var session in activeSessions.Values)
-                    //{
-                    //    await UpdatePlaybackDataAsync(session);
-                    //}
-                    //foreach (var device in AudioDevices)
-                    //{
-                    //    device.AudioDeviceType = AudioMessageType.New;
-                    //    string jsonMessage = SocketMessageSerializer.Serialize(device);
-                    //    sessionManager.SendMessage(args.Device.Id, jsonMessage);
-                    // }
+                //foreach (var session in activeSessions.Values)
+                //{
+                //    await UpdatePlaybackDataAsync(session);
+                //}
+                //foreach (var device in AudioDevices)
+                //{
+                //    device.AudioDeviceType = AudioMessageType.New;
+                //    string jsonMessage = SocketMessageSerializer.Serialize(device);
+                //    sessionManager.SendMessage(args.Device.Id, jsonMessage);
+                // }
                 //}
             };
 
@@ -131,7 +127,7 @@ public class WindowsPlaybackService(
     {
         // 尝试根据Source字段查找对应的媒体会话
         var session = activeSessions.Values.FirstOrDefault(s => s.SourceAppUserModelId == mediaAction.Source);
-        
+
         // 如果找不到匹配的会话，或者Source是"MediaControl"（来自外部设备的控制指令），则使用当前活动的媒体会话
         if (session == null || mediaAction.Source == "MediaControl")
         {
@@ -143,10 +139,10 @@ public class WindowsPlaybackService(
         {
             // 获取当前进程的名称，用于识别本应用的媒体会话
             string currentProcessName = System.Diagnostics.Process.GetCurrentProcess().ProcessName;
-            
+
             // 检查媒体会话的SourceAppUserModelId是否包含当前进程名称
             // 如果包含则认为是本应用自身的媒体会话，不执行控制指令
-            if (!string.IsNullOrEmpty(session.SourceAppUserModelId) && 
+            if (!string.IsNullOrEmpty(session.SourceAppUserModelId) &&
                 session.SourceAppUserModelId.Contains(currentProcessName, StringComparison.OrdinalIgnoreCase))
             {
                 logger.LogDebug("忽略对本应用自身媒体会话的控制指令");
@@ -156,7 +152,7 @@ public class WindowsPlaybackService(
 
         // 执行媒体操作并发送响应
         bool success = await ExecuteSessionActionAsync(session, mediaAction);
-        
+
         // 发送媒体操作响应
         SendMediaControlResponse(mediaAction.Source, mediaAction.PlaybackActionType.ToString(), success);
     }
@@ -164,7 +160,7 @@ public class WindowsPlaybackService(
     private async Task<bool> ExecuteSessionActionAsync(GlobalSystemMediaTransportControlsSession? session, PlaybackAction mediaAction)
     {
         bool success = false;
-        
+
         await dispatcher.EnqueueAsync(async () =>
         {
             try
@@ -175,7 +171,7 @@ public class WindowsPlaybackService(
                     success = false;
                     return;
                 }
-                
+
                 switch (mediaAction.PlaybackActionType)
                 {
                     case PlaybackActionType.Play:
@@ -277,7 +273,7 @@ public class WindowsPlaybackService(
                 success = false;
             }
         });
-        
+
         return success;
     }
 
@@ -418,10 +414,10 @@ public class WindowsPlaybackService(
                     FeatureKeyName = "si_feature_id",
                     FeatureKeyValue = "media_island_global"
                 };
-                
+
                 // 序列化为JSON字符串
                 string endPayloadJson = JsonSerializer.Serialize(endPayload);
-                
+
                 // 使用 ProtocolSender 发送媒体结束包
                 _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, endPayloadJson);
             }
@@ -491,7 +487,7 @@ public class WindowsPlaybackService(
             // 只获取Android端需要的媒体字段
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
             var timelineProperties = session.GetTimelineProperties();
-            
+
             lastTimelinePosition[session.SourceAppUserModelId] = timelineProperties.Position.TotalMilliseconds;
 
             var playbackSession = new PlaybackSession
@@ -527,7 +523,7 @@ public class WindowsPlaybackService(
         {
             // 生成唯一键，用于区分不同会话的不同消息类型
             string key = $"{playbackSession.Source}|{playbackSession.SessionType}";
-            
+
             // 检查是否需要节流
             if (lastSessionUpdateTime.TryGetValue(key, out var lastTime))
             {
@@ -538,13 +534,13 @@ public class WindowsPlaybackService(
                     return;
                 }
             }
-            
+
             // 更新最后发送时间
             lastSessionUpdateTime[key] = DateTime.Now;
-            
+
             // 获取NetworkService，用于发送与Android兼容的媒体会话
             var networkService = Ioc.Default.GetRequiredService<INetworkService>();
-            
+
             // 构造当前媒体状态
             var currentState = new MediaPlayState
             {
@@ -553,25 +549,25 @@ public class WindowsPlaybackService(
                 Thumbnail = playbackSession.Thumbnail,
                 SentTime = DateTime.Now
             };
-            
+
             // 获取上次发送的媒体状态
             bool sendFullPayload = true;
             string title = playbackSession.TrackTitle ?? string.Empty;
             string artist = playbackSession.Artist ?? string.Empty;
             string text = string.Empty;
             string coverUrl = playbackSession.Thumbnail ?? string.Empty;
-            
+
             if (lastMediaState.TryGetValue(playbackSession.Source, out var oldState))
             {
                 // 计算差异
                 bool titleChanged = oldState.Title != currentState.Title;
                 bool artistChanged = oldState.Artist != currentState.Artist;
                 bool coverChanged = oldState.Thumbnail != currentState.Thumbnail;
-                
+
                 // 判断是否需要发送全量包：首次发送、封面变化或超过15秒
                 var now = DateTime.Now;
                 sendFullPayload = coverChanged || (now - oldState.SentTime).TotalSeconds > 15;
-                
+
                 // 如果只发送差异包，只包含变化的字段
                 if (!sendFullPayload)
                 {
@@ -590,10 +586,10 @@ public class WindowsPlaybackService(
                     }
                 }
             }
-            
+
             // 更新上次发送的媒体状态
             lastMediaState[playbackSession.Source] = currentState;
-            
+
             // 构建文本内容
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artist))
             {
@@ -607,10 +603,10 @@ public class WindowsPlaybackService(
             {
                 text = artist;
             }
-            
+
             // 修复appName提取逻辑：如果Source是"QQMusic.exe"，则整个作为appName
             string appName = playbackSession.Source ?? "Unknown App";
-            
+
             foreach (var device in deviceManager.PairedDevices)
             {
                 if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
@@ -724,7 +720,7 @@ public class WindowsPlaybackService(
         try
         {
             Type? policyConfigType = Type.GetTypeFromCLSID(new Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9"));
-            if (policyConfigType is null) return; 
+            if (policyConfigType is null) return;
 
             policyConfigObject = Activator.CreateInstance(policyConfigType);
             if (policyConfigObject is null) return;
@@ -818,7 +814,7 @@ public class WindowsPlaybackService(
         string requestJson = JsonSerializer.Serialize(requestObj);
         _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
     }
-    
+
     /// <summary>
     /// 发送媒体控制响应
     /// </summary>
@@ -837,9 +833,9 @@ public class WindowsPlaybackService(
                 Result = success ? "success" : "error",
                 ErrorMessage = success ? string.Empty : "媒体操作失败"
             };
-            
+
             string responseJson = JsonSerializer.Serialize(responseObj);
-            
+
             // 发送响应消息
             foreach (var device in deviceManager.PairedDevices)
             {
@@ -848,7 +844,7 @@ public class WindowsPlaybackService(
                     _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, responseJson, "DATA_STATUS");
                 }
             }
-            
+
             logger.LogDebug("发送媒体控制响应: action={action}, result={result}", action, success ? "success" : "error");
         }
         catch (Exception ex)
@@ -856,7 +852,7 @@ public class WindowsPlaybackService(
             logger.LogError(ex, "发送媒体控制响应时出错");
         }
     }
-    
+
     /// <summary>
     /// 媒体控制响应类
     /// </summary>
@@ -864,13 +860,13 @@ public class WindowsPlaybackService(
     {
         [JsonPropertyName("originalHeader")]
         public string OriginalHeader { get; set; }
-        
+
         [JsonPropertyName("action")]
         public string Action { get; set; }
-        
+
         [JsonPropertyName("result")]
         public string Result { get; set; }
-        
+
         [JsonPropertyName("errorMessage")]
         public string ErrorMessage { get; set; }
     }

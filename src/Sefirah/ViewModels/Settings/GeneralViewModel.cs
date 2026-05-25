@@ -6,6 +6,7 @@ using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 
 namespace NotifyRelay.ViewModels.Settings;
+
 public sealed partial class GeneralViewModel : BaseViewModel
 {
     #region Services

@@ -1,6 +1,3 @@
-using System.Collections.ObjectModel;
-using System.Net.Http;
-using System.Text.Json;
 using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.DeviceCtrl.DeepSeekBalance;
@@ -157,7 +154,7 @@ public class DeepSeekBalanceService
             var json = await response.Content.ReadAsStringAsync();
             using var doc = JsonDocument.Parse(json);
 
-            if (doc.RootElement.TryGetProperty("is_available", out var isAvailable) && 
+            if (doc.RootElement.TryGetProperty("is_available", out var isAvailable) &&
                 isAvailable.ValueKind == JsonValueKind.False)
             {
                 _logger.LogWarning("DeepSeek账户当前没有可用余额");
@@ -170,7 +167,7 @@ public class DeepSeekBalanceService
             {
                 foreach (var balanceInfo in balanceInfos.EnumerateArray())
                 {
-                    if (balanceInfo.TryGetProperty("currency", out var currency) && 
+                    if (balanceInfo.TryGetProperty("currency", out var currency) &&
                         currency.GetString() == "CNY")
                     {
                         if (balanceInfo.TryGetProperty("total_balance", out var totalBalance))
@@ -219,7 +216,7 @@ public class DeepSeekBalanceService
         App.MainWindow.DispatcherQueue.TryEnqueue(() =>
         {
             var last = BalanceHistory.LastOrDefault();
-            
+
             if (last != null && Math.Abs(last.Balance - item.Balance) < 0.0001)
             {
                 last.Time = item.Time;

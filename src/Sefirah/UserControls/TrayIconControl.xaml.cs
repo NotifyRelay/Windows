@@ -10,6 +10,7 @@ using NotifyRelay.Platforms.Windows.Interop;
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.UserControls;
+
 public sealed partial class TrayIconControl : UserControl
 {
     private readonly UISettings uiSettings = new();

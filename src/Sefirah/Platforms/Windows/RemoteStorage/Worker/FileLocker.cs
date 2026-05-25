@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using NotifyRelay.Platforms.Windows.Helpers;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public sealed class FileLocker(ILogger logger) : IDisposable
 {
     private readonly Dictionary<string, SemaphoreQueue> _lockers = [];

@@ -1,6 +1,7 @@
 using NotifyRelay.Data.EventArguments;
 
 namespace NotifyRelay.Data.Contracts;
+
 public interface IUserSettingsService : IBaseSettingsService
 {
     event EventHandler<SettingChangedEventArgs> OnSettingChangedEvent;

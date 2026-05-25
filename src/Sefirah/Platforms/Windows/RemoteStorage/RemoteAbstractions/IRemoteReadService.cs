@@ -1,4 +1,5 @@
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+
 public interface IRemoteReadService
 {
     IEnumerable<RemoteDirectoryInfo> EnumerateDirectories(string relativeDirectory);

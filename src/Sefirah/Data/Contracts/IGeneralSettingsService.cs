@@ -3,6 +3,7 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
 
 namespace NotifyRelay.Data.Contracts;
+
 public interface IGeneralSettingsService : IBaseSettingsService, INotifyPropertyChanged
 {
     /// <summary>

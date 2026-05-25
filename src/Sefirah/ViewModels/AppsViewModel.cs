@@ -5,6 +5,7 @@ using NotifyRelay.Data.Models;
 using static NotifyRelay.Utils.IconUtils;
 
 namespace NotifyRelay.ViewModels;
+
 public sealed partial class AppsViewModel : BaseViewModel
 {
     #region Services

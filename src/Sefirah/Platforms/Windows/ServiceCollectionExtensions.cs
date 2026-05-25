@@ -1,11 +1,9 @@
 using System.Threading.Channels;
 using Microsoft.Extensions.Configuration;
-using Renci.SshNet;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Remote;
-using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
@@ -109,4 +107,4 @@ public static class ServiceCollectionExtensions
             .AddScoped<RemoteWatcher>();
 }
 
-    
+

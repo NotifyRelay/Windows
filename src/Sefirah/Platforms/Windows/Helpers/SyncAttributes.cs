@@ -1,6 +1,7 @@
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.Helpers;
+
 public static class SyncAttributes
 {
     public const int OFFLINE = 4096;

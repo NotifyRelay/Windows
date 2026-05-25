@@ -15,4 +15,4 @@ public class WindowsDefaultActions
             new ProcessAction { Id = "shutdown", Name = "Shutdown", Path = "shutdown", Arguments = "/s /t 0" },
         ];
     }
-} 
+}

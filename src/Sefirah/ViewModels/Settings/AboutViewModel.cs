@@ -3,6 +3,7 @@ using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
 namespace NotifyRelay.ViewModels.Settings;
+
 public partial class AboutViewModel : ObservableObject
 {
     [ObservableProperty]

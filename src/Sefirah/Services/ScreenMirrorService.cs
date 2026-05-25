@@ -10,6 +10,7 @@ using Uno.Logging;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace NotifyRelay.Services;
+
 public class ScreenMirrorService(
     ILogger<ScreenMirrorService> logger,
     IUserSettingsService userSettingsService,

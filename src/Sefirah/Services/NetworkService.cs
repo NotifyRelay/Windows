@@ -11,6 +11,7 @@ using Uno.Logging;
 
 
 namespace NotifyRelay.Services;
+
 public class NetworkService(
     ILogger<NetworkService> logger,
     IDeviceManager deviceManager,
@@ -122,7 +123,7 @@ public class NetworkService(
         if (device != null)
         {
             // logger.LogInformation("通过UDP心跳包更新设备状态：{0} ({1})", device.Name, device.Id);
-            
+
             // 解析UDP心跳包中的电量信息
             if (!string.IsNullOrEmpty(message))
             {
@@ -155,7 +156,7 @@ public class NetworkService(
                     }
                 }
             }
-            
+
             MarkDeviceAlive(device);
         }
         else
@@ -433,10 +434,10 @@ public class NetworkService(
             {
                 // 获取心跳包中的设备ID
                 var heartbeatDeviceId = parts[0];
-                
+
                 // 查找与心跳包设备ID匹配的设备
                 var targetDevice = PairedDevices.FirstOrDefault(d => d.Id == heartbeatDeviceId);
-                
+
                 if (targetDevice != null)
                 {
                     // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
@@ -666,7 +667,7 @@ public class NetworkService(
             // 使用UDP广播发送心跳
             using var udpClient = new System.Net.Sockets.UdpClient();
             udpClient.EnableBroadcast = true;
-            
+
             // 获取本地网络的广播地址
             var localAddresses = NetworkHelper.GetAllValidAddresses();
             var broadcastEndpoints = localAddresses.Select(ipInfo =>
@@ -675,7 +676,7 @@ public class NetworkService(
                 var broadcastAddress = network.BroadcastAddress;
                 return new IPEndPoint(broadcastAddress, udpPort);
             }).Distinct().ToList();
-            
+
             // 添加全局广播地址
             broadcastEndpoints.Add(new IPEndPoint(IPAddress.Broadcast, udpPort));
 

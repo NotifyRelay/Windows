@@ -1,4 +1,5 @@
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
+
 public interface IRemoteWatcher : IDisposable
 {
     void Start(CancellationToken stoppingToken = default);

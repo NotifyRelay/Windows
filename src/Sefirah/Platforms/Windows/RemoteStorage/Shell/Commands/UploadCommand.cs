@@ -11,9 +11,10 @@ using static Vanara.PInvoke.Shell32;
 using static Vanara.PInvoke.ShlwApi;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Commands;
+
 [ComVisible(true), Guid("4a3c9b56-f075-4499-b4ee-ba4b88d1fe05")]
 public class UploadCommand(
-    ChannelWriter<ShellCommand> commandWriter, 
+    ChannelWriter<ShellCommand> commandWriter,
     ILogger logger) : IExplorerCommand, IExplorerCommandState, IObjectWithSite
 {
     public HRESULT GetTitle(IShellItemArray psiItemArray, out string? ppszName)

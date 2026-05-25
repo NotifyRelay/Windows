@@ -1,4 +1,5 @@
 namespace NotifyRelay.Utils.Serialization.Implementation;
+
 internal sealed class JsonSettingsSerializer : IJsonSettingsSerializer
 {
     public static readonly JsonSerializerOptions Options = new()

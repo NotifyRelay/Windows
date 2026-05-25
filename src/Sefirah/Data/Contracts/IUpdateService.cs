@@ -1,4 +1,5 @@
 namespace NotifyRelay.Data.Contracts;
+
 public interface IUpdateService
 {
     /// <summary>

@@ -7,6 +7,7 @@ using static Vanara.PInvoke.CldApi;
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public sealed class ShellCommandQueue(
     ISyncProviderContextAccessor contextAccessor,
     ChannelReader<ShellCommand> taskReader,
@@ -35,7 +36,7 @@ public sealed class ShellCommandQueue(
                         continue;
                     }
 
-                    var state = CloudFilter.GetPlaceholderState(shellCommand.FullPath);                    
+                    var state = CloudFilter.GetPlaceholderState(shellCommand.FullPath);
                     // Broken upload, state is just "No State"
                     logger.LogInformation("占位符状态：{state}", state);
                     if (state == CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_NO_STATES ||
@@ -45,7 +46,7 @@ public sealed class ShellCommandQueue(
                         var isDirectory = File.GetAttributes(shellCommand.FullPath).HasFlag(FileAttributes.Directory);
                         var relativePath = PathMapper.GetRelativePath(shellCommand.FullPath, _rootDirectory);
                         using var locker = await fileLocker.Lock(relativePath);
-                        
+
                         if (isDirectory)
                         {
                             await placeholderService.CreateOrUpdateDirectory(relativePath);
@@ -61,7 +62,7 @@ public sealed class ShellCommandQueue(
                             {
                                 await remoteService.CreateFile(fileInfo, relativePath);
                             }
-                            
+
                             // Add explicit sync state setting here
                             try
                             {

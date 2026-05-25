@@ -7,6 +7,7 @@ using static Vanara.PInvoke.Gdi32;
 using static Vanara.PInvoke.Shell32;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
+
 [ComVisible(true), Guid("703e61b4-f4a4-4803-b824-9d23dad651bc")]
 public class LocalThumbnailProvider(
     ILogger logger,
@@ -34,7 +35,7 @@ public class LocalThumbnailProvider(
 
             var remotePath = PathMapper.ReplaceStart(clientPath, rootDirectory, "");
             logger.LogDebug("映射的远程路径：{remotePath}", remotePath);
-            
+
             _serverItem = SHCreateItemFromParsingName<IShellItem2>(remotePath);
 
         }

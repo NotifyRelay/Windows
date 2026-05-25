@@ -3,6 +3,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Extensions;
 
 namespace NotifyRelay.Dialogs;
+
 public static class DeviceSelector
 {
     public static async Task<PairedDevice?> ShowDeviceSelectionDialog(List<PairedDevice> onlineDevices)

@@ -1,5 +1,3 @@
-using System.IO;
-
 namespace NotifyRelay.Utils;
 
 public static class ToolPathHelper

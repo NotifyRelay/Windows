@@ -699,8 +699,8 @@ public class AdbService(
             logger.LogInformation("尝试自动重连设备 {DeviceName} ({DeviceId})", device.Name, device.Id);
 
             // 检查当前设备是否已经有对应的ADB连接
-            var hasConnection = AdbDevices.Any(adbDevice => 
-                adbDevice.IsOnline && 
+            var hasConnection = AdbDevices.Any(adbDevice =>
+                adbDevice.IsOnline &&
                 (
                     (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == device.Id) ||
                     (string.IsNullOrEmpty(adbDevice.AndroidId) &&

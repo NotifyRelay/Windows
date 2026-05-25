@@ -3,6 +3,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.ViewModels;
 
 namespace NotifyRelay.UserControls;
+
 public sealed partial class NotificationsListControl : UserControl
 {
     public MainPageViewModel ViewModel { get; set; }

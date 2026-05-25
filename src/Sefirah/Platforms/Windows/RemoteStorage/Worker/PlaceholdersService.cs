@@ -3,10 +3,10 @@ using NotifyRelay.Platforms.Windows.Interop;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
 using Vanara.PInvoke;
-using System.ComponentModel;
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public class PlaceholdersService(
     ISyncProviderContextAccessor contextAccessor,
     IRemoteReadWriteService remoteService,
@@ -156,11 +156,11 @@ public class PlaceholdersService(
             ? await FileHelper.WaitUntilUnlocked(() => CloudFilter.CreateHFileWithOplock(clientFile, FileAccess.Write), logger)
             : CloudFilter.CreateHFile(clientFile, FileAccess.Write);
         var placeholderState = CloudFilter.GetPlaceholderState(hfile);
-        
+
         // 检查文件是否已经是占位符，如果不是，尝试复用现有文件而不是强制转换
         bool isPlaceholder = placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER);
         bool canConvertToPlaceholder = true;
-        
+
         if (!isPlaceholder)
         {
             // 尝试转换为占位符，但如果失败，我们将继续使用现有文件
@@ -236,7 +236,7 @@ public class PlaceholdersService(
 
         // Check if the directory is hydrated 
         bool isHydrated = !File.GetAttributes(clientDirectory).HasAnySyncFlag(SyncAttributes.OFFLINE);
-        
+
         // Only update placeholder state if directory is a hydrated directory
         if (isHydrated)
         {
@@ -259,7 +259,7 @@ public class PlaceholdersService(
                 }
                 return Task.CompletedTask;
             }
-            
+
             try
             {
                 CloudFilter.SetInSyncState(clientDirectory);

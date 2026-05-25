@@ -5,6 +5,7 @@ using NotifyRelay.Platforms.Windows.Interop;
 using AppInstance = Microsoft.Windows.AppLifecycle.AppInstance;
 
 namespace NotifyRelay.Platforms.Windows;
+
 internal class Program
 {
     [STAThread]

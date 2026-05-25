@@ -1,6 +1,7 @@
 using Vanara.PInvoke;
 
 namespace NotifyRelay.Platforms.Windows.Interop;
+
 public abstract class SafeMetaHFILE : IDisposable
 {
     public abstract HFILE FileHandle { get; }

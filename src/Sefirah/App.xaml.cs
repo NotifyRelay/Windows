@@ -19,6 +19,7 @@ using NotifyRelay.Platforms.Windows.Helpers;
 #endif
 
 namespace NotifyRelay;
+
 public partial class App : Application
 {
     public static TaskCompletionSource? SplashScreenLoadingTCS { get; private set; }
@@ -212,7 +213,7 @@ public partial class App : Application
             args.WindowActivationState == WindowActivationState.PointerActivated)
             return;
 
-            ApplicationData.Current.LocalSettings.Values["INSTANCE_ACTIVE"] = -Environment.ProcessId;
+        ApplicationData.Current.LocalSettings.Values["INSTANCE_ACTIVE"] = -Environment.ProcessId;
     }
 
     public static async Task HandleShareTargetActivation(ShareTargetActivatedEventArgs args)

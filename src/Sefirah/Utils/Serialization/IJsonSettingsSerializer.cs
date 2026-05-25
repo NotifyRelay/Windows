@@ -1,4 +1,5 @@
 namespace NotifyRelay.Utils.Serialization;
+
 internal interface IJsonSettingsSerializer
 {
     string? SerializeToJson(object? obj);

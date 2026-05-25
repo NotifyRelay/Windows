@@ -367,15 +367,15 @@ public class ClipboardService : IClipboardService
         {
             // 解码 Base64 字符串
             byte[] imageBytes = Convert.FromBase64String(base64String);
-            
+
             // 创建内存流
             using var memoryStream = new MemoryStream(imageBytes);
-            
+
             // 创建随机访问流
             var randomAccessStream = new InMemoryRandomAccessStream();
             await memoryStream.CopyToAsync(randomAccessStream.AsStreamForWrite());
             randomAccessStream.Seek(0);
-            
+
             // 验证是否为有效的图片
             var decoder = await BitmapDecoder.CreateAsync(randomAccessStream);
             if (decoder == null)
@@ -383,7 +383,7 @@ public class ClipboardService : IClipboardService
                 logger.LogWarning("无法创建 BitmapDecoder，Base64 字符串可能不是有效的图片");
                 return null;
             }
-            
+
             // 返回随机访问流引用
             return RandomAccessStreamReference.CreateFromStream(randomAccessStream);
         }

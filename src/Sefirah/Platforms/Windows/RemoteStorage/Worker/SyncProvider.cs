@@ -1,11 +1,11 @@
 using NotifyRelay.Platforms.Windows.Async;
-using NotifyRelay.Platforms.Windows.Helpers;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
 using static Vanara.PInvoke.CldApi;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public class SyncProvider(
     ISyncProviderContextAccessor contextAccessor,
     TaskQueue taskQueue,
@@ -25,12 +25,12 @@ public class SyncProvider(
         // Hook up callback methods (in this class) for transferring files between client and server
         CF_CONNECTION_KEY connectionKey = default;
         bool connected = false;
-        
+
         try
         {
             connectionKey = syncProvider.Connect();
             connected = true;
-            
+
             // Create the placeholders in the client folder so the user sees something
             if (contextAccessor.Context.PopulationPolicy == PopulationPolicy.AlwaysFull)
             {
@@ -68,7 +68,7 @@ public class SyncProvider(
         {
             // 清理资源
             clientWatcher.Dispose();
-            
+
             // 只有在连接成功时才断开连接
             if (connected)
             {

@@ -4,6 +4,7 @@ using NotifyRelay.Data.Items;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Data.Contracts;
+
 public interface IAdbService
 {
     ObservableCollection<AdbDevice> AdbDevices { get; }

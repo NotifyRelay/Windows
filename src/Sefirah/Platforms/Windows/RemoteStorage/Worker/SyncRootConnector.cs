@@ -9,6 +9,7 @@ using static Vanara.PInvoke.CldApi;
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public sealed class SyncRootConnector(
     ISyncProviderContextAccessor contextAccessor,
     ChannelWriter<Func<Task>> taskWriter,
@@ -77,8 +78,8 @@ public sealed class SyncRootConnector(
 
     private void FetchPlaceholders(in CF_CALLBACK_INFO callbackInfo, in CF_CALLBACK_PARAMETERS callbackParameters)
     {
-        logger.LogDebug("获取占位符 '{path}' '{pattern}' 标志: {flags}", 
-            callbackInfo.NormalizedPath, 
+        logger.LogDebug("获取占位符 '{path}' '{pattern}' 标志: {flags}",
+            callbackInfo.NormalizedPath,
             callbackParameters.FetchPlaceholders.Pattern,
             callbackParameters.FetchPlaceholders.Flags);
 
@@ -98,7 +99,7 @@ public sealed class SyncRootConnector(
             logger.LogError(ex, "传输占位符时出错");
         }
     }
-    
+
     // Right now it just deletes the placeholders which was deleted in remote
     public void UpdatePlaceholders(string clientDirectory)
     {
@@ -119,7 +120,7 @@ public sealed class SyncRootConnector(
                 {
                     logger.LogError(ex, "删除本地文件失败：{path}，错误：{error}", clientRelativePath, ex.Message);
                 }
-            }            
+            }
         }
 
         // Check and delete directories recursively
@@ -128,9 +129,9 @@ public sealed class SyncRootConnector(
             // Skip system directories
             if (FileHelper.IsSystemDirectory(Path.GetFileName(clientDir)))
                 continue;
-                
+
             var clientRelativePath = PathMapper.GetRelativePath(clientDir, _rootDirectory);
-            
+
             if (!remoteService.Exists(clientRelativePath))
             {
                 logger.LogInformation("删除本地目录（远端不存在）：{path}", clientRelativePath);
@@ -148,7 +149,7 @@ public sealed class SyncRootConnector(
                 //  recursively check hydrated directories
                 var attributes = File.GetAttributes(clientDir);
                 bool isHydrated = !attributes.HasFlag(FileAttributes.Offline);
-                
+
                 if (isHydrated)
                 {
                     // Directory exists remotely and is hydrated, check its contents recursively

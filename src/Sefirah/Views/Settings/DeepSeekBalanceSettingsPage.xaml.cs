@@ -1,8 +1,3 @@
-using System.Collections.ObjectModel;
-using CommunityToolkit.WinUI;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.DeepSeekBalance;

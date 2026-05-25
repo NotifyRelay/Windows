@@ -1,4 +1,3 @@
-using Windows.ApplicationModel;
 using Windows.Foundation;
 using Windows.Storage.Provider;
 using Windows.UI;

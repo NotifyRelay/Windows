@@ -1,4 +1,5 @@
-﻿namespace NotifyRelay.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
+
 public class Disposable<T>(T source, Action<T> dispose) : Disposable(() => dispose(source))
 {
     public T Source => source;

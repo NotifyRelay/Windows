@@ -1,13 +1,5 @@
-using System;
-using System.ComponentModel;
-using System.IO;
-using System.Runtime.InteropServices;
-using System.Text;
-using System.Text.Json;
-using Microsoft.Extensions.DependencyInjection;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Services;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -48,7 +40,7 @@ public class NetworkDriveMapper
 
             // 构建FTP URL，使用匿名登录
             string ftpUrl = $"ftp://{serverInfo.IpAddress}:{serverInfo.Port}/";
-            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置(FTP匿名登录)，FTP URL: {FtpUrl}", 
+            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置(FTP匿名登录)，FTP URL: {FtpUrl}",
                 device.Name, ftpUrl);
 
             try
@@ -98,7 +90,7 @@ public class NetworkDriveMapper
 
                 if (process.ExitCode != 0)
                 {
-                    _logger.LogError("PowerShell命令执行失败，退出码: {ExitCode}, 输出: {Output}, 错误: {Error}", 
+                    _logger.LogError("PowerShell命令执行失败，退出码: {ExitCode}, 输出: {Output}, 错误: {Error}",
                         process.ExitCode, output, error);
                     return string.Empty;
                 }
@@ -115,7 +107,7 @@ public class NetworkDriveMapper
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "创建网络位置快捷方式失败，设备: {DeviceName}，FTP URL: {FtpUrl}", 
+                _logger.LogError(ex, "创建网络位置快捷方式失败，设备: {DeviceName}，FTP URL: {FtpUrl}",
                     device.Name, ftpUrl);
                 return string.Empty;
             }
@@ -181,7 +173,7 @@ public class NetworkDriveMapper
                             Port = port
                         };
 
-                        await Task.Run(() => 
+                        await Task.Run(() =>
                         {
                             try
                             {
@@ -222,7 +214,7 @@ public class NetworkDriveMapper
     public void SendftpCommand(PairedDevice device, string action, string? username = null, string? password = null)
     {
         const string DeviceTypeAndroid = "android";
-        
+
         bool IsRemoteDeviceAndroid(PairedDevice? device)
         {
             return device != null && (device.RemoteDeviceType?.Equals(DeviceTypeAndroid, StringComparison.OrdinalIgnoreCase) ?? true);

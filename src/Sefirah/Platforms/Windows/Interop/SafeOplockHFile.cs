@@ -1,6 +1,7 @@
 using Vanara.PInvoke;
 
 namespace NotifyRelay.Platforms.Windows.Interop;
+
 public class SafeOplockHFILE : IDisposable
 {
     private bool _isDisposed = false;

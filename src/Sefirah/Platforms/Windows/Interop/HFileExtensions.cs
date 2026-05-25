@@ -3,6 +3,7 @@ using NotifyRelay.Platforms.Windows.Interop.Extensions;
 using Vanara.PInvoke;
 
 namespace NotifyRelay.Platforms.Windows.Interop;
+
 public static class HFileExtensions
 {
     public static SafeMetaHFILE ToMeta(this Kernel32.SafeHFILE fileHandle) => new SafeMetaHFILE.Kernel32HFILE(fileHandle);
@@ -14,10 +15,10 @@ public static class HFileExtensions
         {
             return fileHandle;
         }
-        
+
         var lastError = Marshal.GetLastWin32Error();
         fileHandle.Dispose();
-        
+
         throw new HFileException($"为路径创建合法文件句柄失败：{path}", lastError, path);
     }
 }

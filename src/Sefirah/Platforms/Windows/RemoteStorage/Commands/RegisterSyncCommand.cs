@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
+
 [StructLayout(LayoutKind.Sequential)]
 public struct RegisterSyncRootCommand
 {

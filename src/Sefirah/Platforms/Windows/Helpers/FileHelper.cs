@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 
 namespace NotifyRelay.Platforms.Windows.Helpers;
+
 public static class FileHelper
 {
     private const int MAX_ATTEMPTS = 60;

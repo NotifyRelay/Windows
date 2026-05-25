@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml.Media.Animation;
 using NotifyRelay.Views;
 
 namespace NotifyRelay.ViewModels.Dialogs;
+
 public partial class ConnectionRequestViewModel : ObservableObject
 {
     private string deviceName = string.Empty;

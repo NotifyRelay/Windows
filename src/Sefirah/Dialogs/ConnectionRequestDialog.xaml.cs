@@ -1,6 +1,7 @@
 using NotifyRelay.ViewModels.Dialogs;
 
 namespace NotifyRelay.Dialogs;
+
 public sealed partial class ConnectionRequestDialog : ContentDialog
 {
     public ConnectionRequestViewModel ViewModel

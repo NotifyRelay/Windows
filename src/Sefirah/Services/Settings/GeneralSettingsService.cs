@@ -9,6 +9,7 @@ using Windows.UI;
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.Services.Settings;
+
 internal sealed partial class GeneralSettingsService : BaseObservableJsonSettings, IGeneralSettingsService
 {
     private readonly UISettings _uiSettings = new();

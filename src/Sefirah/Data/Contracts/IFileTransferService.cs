@@ -2,6 +2,7 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Data.Contracts;
+
 public interface IFileTransferService
 {
     /// <summary>

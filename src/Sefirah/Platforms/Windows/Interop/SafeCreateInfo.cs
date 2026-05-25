@@ -4,6 +4,7 @@ using Vanara.InteropServices;
 using Vanara.PInvoke;
 
 namespace NotifyRelay.Platforms.Windows.Interop;
+
 public sealed class SafeCreateInfo : IDisposable
 {
     private readonly SafeCoTaskMemString _relativePathPointer;
@@ -15,7 +16,7 @@ public sealed class SafeCreateInfo : IDisposable
         {
             throw new ArgumentException("Relative path cannot be null or empty", nameof(relativePath));
         }
-        
+
         try
         {
             _relativePathPointer = new SafeCoTaskMemString(relativePath);
@@ -52,7 +53,7 @@ public sealed class SafeCreateInfo : IDisposable
         {
             throw new ArgumentException("Relative path cannot be null or empty", nameof(relativePath));
         }
-        
+
         try
         {
             _relativePathPointer = new SafeCoTaskMemString(relativePath);

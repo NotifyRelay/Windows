@@ -1,9 +1,10 @@
+using System.Runtime.InteropServices;
 using NotifyRelay.Data.Contracts;
 using Windows.Services.Store;
 using WinRT.Interop;
-using System.Runtime.InteropServices;
 
 namespace NotifyRelay.Platforms.Windows.Services;
+
 public partial class WindowsUpdateService : ObservableObject, IUpdateService
 {
     private StoreContext? storeContext;
@@ -33,7 +34,7 @@ public partial class WindowsUpdateService : ObservableObject, IUpdateService
     public async Task DownloadUpdatesAsync()
     {
         var downloadOperation = storeContext?.RequestDownloadAndInstallStorePackageUpdatesAsync(updatePackages);
-        await downloadOperation.AsTask();            
+        await downloadOperation.AsTask();
     }
 
     private async Task GetUpdatePackagesAsync()

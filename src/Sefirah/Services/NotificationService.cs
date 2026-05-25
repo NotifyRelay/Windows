@@ -11,6 +11,7 @@ using Windows.UI.Notifications;
 using Notification = NotifyRelay.Data.Models.Notification;
 
 namespace NotifyRelay.Services;
+
 public class NotificationService(
     ILogger logger,
     ISessionManager sessionManager,
@@ -1061,7 +1062,7 @@ public class NotificationService(
             var root = doc.RootElement;
 
             logger.LogInformation("处理ICON_RESPONSE消息");
-            
+
             // 检查是否为批量图标响应
             if (root.TryGetProperty("icons", out var iconsArray))
             {

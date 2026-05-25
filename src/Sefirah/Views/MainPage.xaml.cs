@@ -5,6 +5,7 @@ using NotifyRelay.ViewModels.Settings;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace NotifyRelay.Views;
+
 public sealed partial class MainPage : Page
 {
     public MainPageViewModel ViewModel { get; }

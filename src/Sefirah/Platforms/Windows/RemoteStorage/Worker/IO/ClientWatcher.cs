@@ -4,12 +4,12 @@ using NotifyRelay.Platforms.Windows.Interop;
 using NotifyRelay.Platforms.Windows.Interop.Extensions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 using Vanara.PInvoke;
 using static Vanara.PInvoke.CldApi;
 using FileAttributes = System.IO.FileAttributes;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
+
 public class ClientWatcher : IDisposable
 {
     private readonly ISyncProviderContextAccessor _contextAccessor;
@@ -52,20 +52,21 @@ public class ClientWatcher : IDisposable
             InternalBufferSize = 64 * 1024,
         };
 
-        watcher.Changed += async (sender, e) => {
-            try 
+        watcher.Changed += async (sender, e) =>
+        {
+            try
             {
-                if (e.ChangeType != WatcherChangeTypes.Changed || 
-                    !Path.Exists(e.FullPath) || 
+                if (e.ChangeType != WatcherChangeTypes.Changed ||
+                    !Path.Exists(e.FullPath) ||
                     FileHelper.IsSystemFile(e.FullPath))
                 {
                     return;
                 }
 
                 var fileInfo = new FileInfo(e.FullPath);
-                
+
                 CF_PLACEHOLDER_STATE state;
-                try 
+                try
                 {
                     state = CloudFilter.GetPlaceholderState(e.FullPath);
                 }
@@ -85,14 +86,15 @@ public class ClientWatcher : IDisposable
                     state.HasFlag(CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER) ||
                     fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint) ||
                     fileInfo.LastWriteTime == fileInfo.LastAccessTime ||
-                    e.ChangeType == WatcherChangeTypes.Changed && 
-                    (state == CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_NO_STATES || 
+                    e.ChangeType == WatcherChangeTypes.Changed &&
+                    (state == CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_NO_STATES ||
                      state == (CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER | CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_IN_SYNC)))
                 {
                     return;
                 }
 
-                await _taskWriter.WriteAsync(async () => {
+                await _taskWriter.WriteAsync(async () =>
+                {
                     var relativePath = PathMapper.GetRelativePath(e.FullPath, _rootDirectory);
                     using var locker = await _fileLocker.Lock(relativePath);
 
@@ -164,7 +166,7 @@ public class ClientWatcher : IDisposable
                     {
                         await _remoteService.UpdateFile(fileInfo, relativePath);
                     }
-                    
+
                 });
             }
             catch (Exception ex)
@@ -173,7 +175,8 @@ public class ClientWatcher : IDisposable
             }
         };
 
-        watcher.Created += async (sender, e) => {
+        watcher.Created += async (sender, e) =>
+        {
 
             var state = CloudFilter.GetPlaceholderState(e.FullPath);
             if (state.HasFlag(CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_IN_SYNC))
@@ -181,7 +184,8 @@ public class ClientWatcher : IDisposable
                 return;
             }
 
-            await _taskWriter.WriteAsync(async () => {
+            await _taskWriter.WriteAsync(async () =>
+            {
                 var relativePath = PathMapper.GetRelativePath(e.FullPath, _rootDirectory);
                 using var locker = await _fileLocker.Lock(relativePath);
 
@@ -216,18 +220,18 @@ public class ClientWatcher : IDisposable
                         try
                         {
                             _logger.LogInformation("正在为新文件设置占位符状态：{path}", e.FullPath);
-                            
+
                             if (!CloudFilter.IsPlaceholder(e.FullPath))
                             {
                                 CloudFilter.ConvertToPlaceholder(e.FullPath);
                                 _logger.LogInformation("已转换为占位符并更新：{path}", e.FullPath);
-                                
+
                                 // Give time for the placeholder conversion to settle
                                 await Task.Delay(1000);
                             }
 
                             var stateAfterPlaceholder = CloudFilter.GetPlaceholderState(e.FullPath);
-                            _logger.LogInformation("占位符转换后状态：{state}，文件：{path}", 
+                            _logger.LogInformation("占位符转换后状态：{state}，文件：{path}",
                                 stateAfterPlaceholder, e.FullPath);
 
                             // Set sync state and wait for it to settle
@@ -235,7 +239,7 @@ public class ClientWatcher : IDisposable
                             await Task.Delay(1000);  // Wait for state change to complete
 
                             var finalState = CloudFilter.GetPlaceholderState(e.FullPath);
-                            _logger.LogInformation("同步完成后最终状态：{state}，文件：{path}", 
+                            _logger.LogInformation("同步完成后最终状态：{state}，文件：{path}",
                                 finalState, e.FullPath);
 
                             // One final check to ensure we don't trigger another upload
@@ -258,7 +262,8 @@ public class ClientWatcher : IDisposable
             });
         };
 
-        watcher.Error += (sender, e) => {
+        watcher.Error += (sender, e) =>
+        {
             var ex = e.GetException();
             _logger.LogError(ex, "客户端文件监视器错误");
         };

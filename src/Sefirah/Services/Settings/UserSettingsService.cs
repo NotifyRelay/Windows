@@ -3,6 +3,7 @@ using NotifyRelay.Utils.Serialization;
 using NotifyRelay.Utils.Serialization.Implementation;
 
 namespace NotifyRelay.Services.Settings;
+
 internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsService
 {
     private IGeneralSettingsService _generalSettingsService;

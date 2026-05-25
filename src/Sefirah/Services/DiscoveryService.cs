@@ -12,6 +12,7 @@ using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Services;
+
 public class DiscoveryService(
     ILogger logger,
     IMdnsService mdnsService,
@@ -145,13 +146,13 @@ public class DiscoveryService(
         var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
         var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
-        
+
         // 获取系统电量和充电状态
         var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
         var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
         var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
         var chargeSign = isCharging ? "+" : "-";
-        
+
         // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
         return $"{localDevice.DeviceId}:{encodedName}:{serverPort}:{chargeSign}{batteryLevel}:pc";
     }

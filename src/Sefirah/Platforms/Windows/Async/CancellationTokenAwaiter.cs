@@ -1,6 +1,7 @@
-﻿using System.Runtime.CompilerServices;
+using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Platforms.Windows.Async;
+
 public struct CancellationTokenAwaiter(CancellationToken cancellationToken) : INotifyCompletion, ICriticalNotifyCompletion
 {
     public void GetResult() { }

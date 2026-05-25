@@ -10,6 +10,7 @@ using NotifyRelay.Platforms.Windows.Services;
 #endif
 
 namespace NotifyRelay.ViewModels;
+
 public sealed partial class MainPageViewModel : BaseViewModel
 {
     #region Services

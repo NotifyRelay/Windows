@@ -13,7 +13,7 @@ public static class UserInformation
         {
             string name = string.Empty;
             string? avatarBase64 = null;
-            
+
             // Windows-specific code
             var users = await Windows.System.User.FindAllAsync();
             if (!users.Any())
@@ -61,7 +61,7 @@ public static class UserInformation
 
                 if (properties.Any())
                 {
-                    if (properties.TryGetValue("FirstName", out object? value) && 
+                    if (properties.TryGetValue("FirstName", out object? value) &&
                         value is string firstNameProperty &&
                         !string.IsNullOrEmpty(firstNameProperty))
                     {
@@ -86,13 +86,13 @@ public static class UserInformation
                     name = identityName.Split('\\').Last().Split(' ').First();
                 }
             }
-            
+
             // Last resort fallback
             if (string.IsNullOrEmpty(name))
             {
                 name = GetFallbackUserName();
             }
-            
+
             return (name, avatarBase64);
         }
         catch (Exception ex)

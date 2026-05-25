@@ -7,6 +7,7 @@ using NotifyRelay.Views.DevicePreferences;
 using Rect = Windows.Foundation.Rect;
 
 namespace NotifyRelay.Views;
+
 public sealed partial class DeviceSettingsWindow : Window
 {
     public PairedDevice Device { get; }
@@ -26,7 +27,7 @@ public sealed partial class DeviceSettingsWindow : Window
 #if WINDOWS
         ExtendsContentIntoTitleBar = true;
         SystemBackdrop = new MicaBackdrop();
-        
+
         // Setup for back button regions
         BackButton.Loaded += (s, e) => SetRegionsForCustomTitleBar();
 #endif

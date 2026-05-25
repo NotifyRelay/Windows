@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
+
 public record ProviderOptions
 {
     [Required]

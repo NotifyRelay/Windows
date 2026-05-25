@@ -1,6 +1,7 @@
 using Windows.Storage.Provider;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell;
+
 public delegate IStorageProviderStatusUISource CreateStatusUiSource<T>(string syncRootId) where T : IStorageProviderStatusUISource;
 
 /// <remarks>

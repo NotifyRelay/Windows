@@ -7,6 +7,7 @@ using Vanara.PInvoke;
 using Windows.Storage.Provider;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public class SyncProviderPool(
     IServiceScopeFactory scopeFactory,
     ILogger logger)
@@ -32,10 +33,11 @@ public class SyncProviderPool(
                 _threads.Remove(syncRootInfo.Id);
             }
 
-            var thread = new CancellableThread((cancellation) => 
+            var thread = new CancellableThread((cancellation) =>
                 Run(syncRootInfo, cancellation), logger);
-            
-            thread.Stopped += (sender, e) => {
+
+            thread.Stopped += (sender, e) =>
+            {
                 lock (_lock)
                 {
                     _threads.Remove(syncRootInfo.Id);
@@ -91,7 +93,7 @@ public class SyncProviderPool(
         {
             logger.LogDebug("正在加载应用");
             logger.LogDebug("正在将同步提供程序连接到 {rootDirectory}", syncRootInfo.Path.Path);
-            
+
             using var scope = scopeFactory.CreateScope();
             var contextAccessor = scope.ServiceProvider.GetRequiredService<SyncProviderContextAccessor>();
             contextAccessor.Context = new SyncProviderContext
@@ -100,20 +102,20 @@ public class SyncProviderPool(
                 RootDirectory = syncRootInfo.Path.Path,
                 PopulationPolicy = (PopulationPolicy)syncRootInfo.PopulationPolicy,
             };
-            
+
             // 验证远程上下文设置器
             var remoteContextSetters = scope.ServiceProvider.GetServices<IRemoteContextSetter>().ToList();
             logger.LogDebug("找到 {count} 个远程上下文设置器", remoteContextSetters.Count);
-            
+
             var remoteContextSetter = remoteContextSetters
                 .SingleOrDefault((setter) => setter.RemoteKind == contextAccessor.Context.RemoteKind);
-            
+
             if (remoteContextSetter == null)
             {
                 logger.LogError("未找到匹配的远程上下文设置器：{remoteKind}", contextAccessor.Context.RemoteKind);
                 return;
             }
-            
+
             remoteContextSetter.SetRemoteContext(syncRootInfo.Context.ToArray());
 
             var syncProvider = scope.ServiceProvider.GetRequiredService<SyncProvider>();
@@ -139,7 +141,8 @@ public class SyncProviderPool(
 
         public CancellableThread(Func<CancellationToken, Task> action, ILogger logger)
         {
-            _task = new Task(async () => {
+            _task = new Task(async () =>
+            {
                 try
                 {
                     await action(_cts.Token);

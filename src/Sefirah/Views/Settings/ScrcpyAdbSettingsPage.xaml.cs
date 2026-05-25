@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Items;
 using NotifyRelay.Extensions;
 using NotifyRelay.Utils;
-using System.Collections.ObjectModel;
 
 namespace NotifyRelay.Views.Settings;
 

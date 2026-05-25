@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using NotifyRelay.Data.Contracts;
@@ -7,11 +8,7 @@ using NotifyRelay.Services;
 using NotifyRelay.Utils;
 using Uno.Logging;
 using Windows.System;
-using Windows.Storage;
-using Windows.Storage.Streams;
 using static NotifyRelay.Constants;
-using System.IO;
-using System.Runtime.InteropServices;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -82,7 +79,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             {
                 var iconUri = await IconUtils.GetAppIconUriAsync(message.AppPackage);
                 var appIconExists = IconUtils.AppIconExists(message.AppPackage);
-                
+
 
                 if (iconUri is not null)
                 {
@@ -94,7 +91,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                             try
                             {
                                 var storageFile = await StorageFile.GetFileFromApplicationUriAsync(iconUri);
-                                
+
                                 // 创建临时图标目录并清理旧文件
                                 string tempIconsDirectory = GetTempIconsDirectory();
 
@@ -233,7 +230,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                     Title = fileName,
                     Value = progress.Value / 100,
                     ValueStringOverride = $"{progress.Value:F0}%",
-                    Status = subtitle 
+                    Status = subtitle
                 };
                 await AppNotificationManager.Default.UpdateAsync(progressData, transferId, Constants.Notification.FileTransferGroup);
             }
@@ -403,13 +400,13 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
             logger.LogInformation("通知被触发 - 参数：{Arguments}", string.Join(", ", args.Arguments.Select(x => $"{x.Key}={x.Value}")));
 
             if (!args.Arguments.TryGetValue("notificationType", out var notificationType)) return;
-            
+
             switch (notificationType)
             {
                 case ToastNotificationType.FileTransfer:
                     HandleFileTransferNotification(args);
                     break;
-                
+
                 case ToastNotificationType.RemoteNotification:
                     HandleMessageNotification(args);
                     break;
@@ -417,7 +414,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
                 case ToastNotificationType.Clipboard:
                     HandleClipboardNotification(args);
                     break;
-                
+
                 default:
                     logger.LogWarning("未处理的通知类型：{NotificationType}", notificationType);
                     break;
@@ -476,7 +473,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
     {
         if (!args.Arguments.TryGetValue("action", out var actionType))
             return;
-        
+
         if (!args.Arguments.TryGetValue("deviceId", out var deviceId))
             return;
 

@@ -1,4 +1,5 @@
-﻿namespace NotifyRelay.Platforms.Windows.Helpers;
+namespace NotifyRelay.Platforms.Windows.Helpers;
+
 public class Disposable(Action dispose) : IDisposable
 {
     private bool _disposed = false;

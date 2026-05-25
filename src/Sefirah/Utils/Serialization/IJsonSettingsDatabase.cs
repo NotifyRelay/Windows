@@ -1,4 +1,5 @@
 namespace NotifyRelay.Utils.Serialization;
+
 internal interface IJsonSettingsDatabase
 {
     TValue? GetValue<TValue>(string key, TValue? defaultValue = default);

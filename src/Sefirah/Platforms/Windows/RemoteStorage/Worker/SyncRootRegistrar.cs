@@ -9,6 +9,7 @@ using Windows.Security.Cryptography;
 using Windows.Storage.Provider;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
+
 public class SyncRootRegistrar(
     IOptions<ProviderOptions> providerOptions,
     ILogger logger
@@ -49,7 +50,7 @@ public class SyncRootRegistrar(
         }
 
         string iconPath = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "Assets\\Icons", "IconResource.dll"));
-        
+
         var info = new StorageProviderSyncRootInfo
         {
             Id = id,
@@ -60,7 +61,7 @@ public class SyncRootRegistrar(
             HydrationPolicyModifier = StorageProviderHydrationPolicyModifier.AutoDehydrationAllowed |
                                         StorageProviderHydrationPolicyModifier.ValidationRequired,
             PopulationPolicy = (StorageProviderPopulationPolicy)command.PopulationPolicy,
-            InSyncPolicy = StorageProviderInSyncPolicy.FileCreationTime | 
+            InSyncPolicy = StorageProviderInSyncPolicy.FileCreationTime |
                            StorageProviderInSyncPolicy.DirectoryCreationTime |
                            StorageProviderInSyncPolicy.FileLastWriteTime |
                            StorageProviderInSyncPolicy.DirectoryLastWriteTime |
@@ -72,7 +73,7 @@ public class SyncRootRegistrar(
             // RecycleBinUri = new Uri(""),
             Context = CryptographicBuffer.CreateFromByteArray(contextBytes),
         };
-         //info.StorageProviderItemPropertyDefinitions.Add()
+        //info.StorageProviderItemPropertyDefinitions.Add()
 
         logger.LogDebug("注册同步根：{syncRootId}", id);
         StorageProviderSyncRootManager.Register(info);

@@ -2,6 +2,7 @@ using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Data.AppDatabase.Repository;
+
 public class DeviceRepository(DatabaseContext context, ILogger logger)
 {
     public LocalDeviceEntity? GetLocalDevice()

@@ -1,6 +1,7 @@
 using System.Net;
 
 namespace NotifyRelay.Data.Models;
+
 public class IPNetwork(IPAddress address, IPAddress mask)
 {
     public IPAddress Address { get; } = address;

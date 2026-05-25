@@ -8,6 +8,7 @@ using Vanara.InteropServices;
 using Vanara.PInvoke;
 
 namespace NotifyRelay.Platforms.Windows.Interop;
+
 public static class CloudFilter
 {
     public static CldApi.CF_CALLBACK_REGISTRATION[] ConnectSyncRoot(
@@ -211,7 +212,7 @@ public static class CloudFilter
             dwCreationDisposition: FileMode.Open,
             dwFlagsAndAttributes: FileFlagsAndAttributes.FILE_FLAG_BACKUP_SEMANTICS
         ).ToMeta();
-        
+
         return handle.ThrowIfInvalid(path);
     }
 
@@ -345,7 +346,8 @@ public static class CloudFilter
             // 常见错误包括：0x80073D54 (15700) - 该进程没有程序包标识符
             // 这在某些环境下可能是预期行为
             System.Diagnostics.Debug.WriteLine($"TransferData failed with hr={hr.Code} (0x{hr.Code:X8})");
-        };
+        }
+        ;
     }
 
     public static void ReportProgress(CldApi.CF_CALLBACK_INFO callbackInfo, long total, long completed) =>
@@ -426,8 +428,8 @@ public static class CloudFilter
         var policies = new CldApi.CF_SYNC_POLICIES
         {
             StructSize = (uint)Marshal.SizeOf<CldApi.CF_SYNC_POLICIES>(),
-            Hydration = new CldApi.CF_HYDRATION_POLICY 
-            { 
+            Hydration = new CldApi.CF_HYDRATION_POLICY
+            {
                 Primary = CldApi.CF_HYDRATION_POLICY_PRIMARY.CF_HYDRATION_POLICY_FULL,
                 Modifier = CldApi.CF_HYDRATION_POLICY_MODIFIER.CF_HYDRATION_POLICY_MODIFIER_AUTO_DEHYDRATION_ALLOWED
             },
@@ -435,7 +437,7 @@ public static class CloudFilter
             {
                 Primary = CldApi.CF_POPULATION_POLICY_PRIMARY.CF_POPULATION_POLICY_FULL
             },
-            InSync = CldApi.CF_INSYNC_POLICY.CF_INSYNC_POLICY_TRACK_FILE_CREATION_TIME | 
+            InSync = CldApi.CF_INSYNC_POLICY.CF_INSYNC_POLICY_TRACK_FILE_CREATION_TIME |
                      CldApi.CF_INSYNC_POLICY.CF_INSYNC_POLICY_TRACK_DIRECTORY_CREATION_TIME |
                      CldApi.CF_INSYNC_POLICY.CF_INSYNC_POLICY_TRACK_FILE_LAST_WRITE_TIME |
                      CldApi.CF_INSYNC_POLICY.CF_INSYNC_POLICY_TRACK_DIRECTORY_LAST_WRITE_TIME,

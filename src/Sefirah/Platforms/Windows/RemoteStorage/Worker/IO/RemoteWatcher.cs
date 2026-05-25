@@ -1,9 +1,9 @@
 using System.Threading.Channels;
 using NotifyRelay.Platforms.Windows.Helpers;
 using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;
-using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
+
 public sealed class RemoteWatcher(
     IRemoteReadService remoteReadService,
     IRemoteWatcher remoteWatcher,
@@ -28,7 +28,7 @@ public sealed class RemoteWatcher(
         await taskWriter.WriteAsync(async () =>
         {
             if (FileHelper.IsSystemDirectory(relativePath)) return;
-        
+
             using var locker = await fileLocker.Lock(relativePath);
             try
             {
@@ -43,7 +43,7 @@ public sealed class RemoteWatcher(
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "处理创建失败：{relativePath}",relativePath);
+                logger.LogError(ex, "处理创建失败：{relativePath}", relativePath);
             }
         });
     }
@@ -60,7 +60,7 @@ public sealed class RemoteWatcher(
                 if (remoteReadService.IsDirectory(relativePath))
                 {
                     await placeholderService.UpdateDirectory(relativePath);
-                    
+
                     var files = remoteReadService.EnumerateFiles(relativePath);
                     foreach (var file in files)
                     {

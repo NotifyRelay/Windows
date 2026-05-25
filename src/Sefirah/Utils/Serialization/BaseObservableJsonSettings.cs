@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 
 namespace NotifyRelay.Utils.Serialization;
+
 internal abstract class BaseObservableJsonSettings : BaseJsonSettings, INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
