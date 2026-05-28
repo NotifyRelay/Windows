@@ -108,4 +108,9 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets the DeepSeek balance history as JSON string.
     /// </summary>
     string? DeepSeekBalanceHistoryJson { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether DeepSeek balance history should be collapsed.
+    /// </summary>
+    bool DeepSeekBalanceHistoryCollapsed { get; set; }
 }

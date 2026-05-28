@@ -8,6 +8,7 @@ public class BalanceHistoryItem
     public double Balance { get; set; }
     public double Change { get; set; }
     public string ChangeType { get; set; } = string.Empty;
+    public int MergeCount { get; set; } = 1;
 }
 
 public class DeepSeekBalanceService
@@ -34,7 +35,7 @@ public class DeepSeekBalanceService
         _logger = logger;
         _generalSettingsService = generalSettingsService;
         _httpClient = new HttpClient();
-        LoadHistory();
+        _ = LoadHistoryAsync();
     }
 
     public void StartPolling()
@@ -238,12 +239,71 @@ public class DeepSeekBalanceService
 
             while (BalanceHistory.Count > MaxHistoryItems)
             {
-                BalanceHistory.RemoveAt(0);
+                MergeOldestConsecutiveItems();
             }
 
             SaveHistory();
             HistoryChanged?.Invoke(this, EventArgs.Empty);
         });
+    }
+
+    private void MergeOldestConsecutiveItems()
+    {
+        if (BalanceHistory.Count < 2)
+            return;
+
+        int mergeCount = BalanceHistory.Count - MaxHistoryItems + 1;
+        
+        int startIndex = 0;
+        while (startIndex < BalanceHistory.Count - 1 && mergeCount > 0)
+        {
+            int endIndex = startIndex;
+            string currentType = BalanceHistory[startIndex].ChangeType;
+            
+            while (endIndex < BalanceHistory.Count && 
+                   BalanceHistory[endIndex].ChangeType == currentType)
+            {
+                endIndex++;
+            }
+            
+            int consecutiveCount = endIndex - startIndex;
+            if (consecutiveCount >= 2)
+            {
+                double totalChange = 0;
+                int totalMergeCount = 0;
+                for (int i = startIndex; i < endIndex; i++)
+                {
+                    totalChange += BalanceHistory[i].Change;
+                    totalMergeCount += BalanceHistory[i].MergeCount;
+                }
+                
+                var mergedItem = new BalanceHistoryItem
+                {
+                    Time = BalanceHistory[endIndex - 1].Time,
+                    Balance = BalanceHistory[endIndex - 1].Balance,
+                    Change = totalChange,
+                    ChangeType = currentType,
+                    MergeCount = totalMergeCount
+                };
+                
+                for (int i = endIndex - 1; i >= startIndex; i--)
+                {
+                    BalanceHistory.RemoveAt(i);
+                }
+                BalanceHistory.Insert(startIndex, mergedItem);
+                
+                mergeCount -= consecutiveCount - 1;
+                if (mergeCount <= 0)
+                    break;
+            }
+            
+            startIndex++;
+        }
+        
+        if (mergeCount > 0 && BalanceHistory.Count > MaxHistoryItems)
+        {
+            BalanceHistory.RemoveAt(0);
+        }
     }
 
     public void ClearHistory()
@@ -256,20 +316,26 @@ public class DeepSeekBalanceService
         });
     }
 
-    private void LoadHistory()
+    private async Task LoadHistoryAsync()
     {
         try
         {
             var json = _generalSettingsService.DeepSeekBalanceHistoryJson;
             if (string.IsNullOrEmpty(json)) return;
 
-            var items = JsonSerializer.Deserialize<List<BalanceHistoryItem>>(json);
+            List<BalanceHistoryItem>? items = null;
+            await Task.Run(() =>
+            {
+                items = JsonSerializer.Deserialize<List<BalanceHistoryItem>>(json);
+            });
+
             if (items != null)
             {
+                var orderedItems = items.OrderBy(x => x.Time).ToList();
                 App.MainWindow.DispatcherQueue.TryEnqueue(() =>
                 {
                     BalanceHistory.Clear();
-                    foreach (var item in items.OrderBy(x => x.Time))
+                    foreach (var item in orderedItems)
                     {
                         BalanceHistory.Add(item);
                     }
@@ -277,6 +343,7 @@ public class DeepSeekBalanceService
                     {
                         CurrentBalance = BalanceHistory.Last().Balance;
                     }
+                    HistoryChanged?.Invoke(this, EventArgs.Empty);
                 });
             }
         }

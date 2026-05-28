@@ -82,47 +82,59 @@
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE8EF;" />
                 </wuc:SettingsCard.HeaderIcon>
-                <ScrollViewer Margin="0,10,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" MaxHeight="300">
-                    <ListView x:Name="HistoryListView" ItemsSource="{x:Bind ViewModel.BalanceHistory, Mode=OneWay}" IsItemClickEnabled="False" SelectionMode="None">
-                        <ListView.Header>
-                            <Grid Background="{ThemeResource SystemBaseLowColor}">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140" />
-                                    <ColumnDefinition Width="120" />
-                                    <ColumnDefinition Width="100" />
-                                    <ColumnDefinition Width="80" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="时间" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="1" Text="余额 (CNY)" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="2" Text="变化" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
-                                <TextBlock Grid.Column="3" Text="类型" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
-                            </Grid>
-                        </ListView.Header>
-                        <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="dev:BalanceHistoryItem">
-                                <Grid>
+                <StackPanel Spacing="8">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <TextBlock Margin="0,4" Text="折叠显示" />
+                        <ToggleSwitch x:Name="CollapseToggle" IsOn="{x:Bind ViewModel.IsCollapsed, Mode=TwoWay}" OnContent="是" OffContent="否" />
+                    </StackPanel>
+                    <ScrollViewer Margin="0,0,0,0" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
+                        <ListView x:Name="HistoryListView" ItemsSource="{x:Bind ViewModel.DisplayHistory, Mode=OneWay}" IsItemClickEnabled="False" SelectionMode="None">
+                            <ListView.Header>
+                                <Grid Background="{ThemeResource SystemBaseLowColor}">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="140" />
                                         <ColumnDefinition Width="120" />
                                         <ColumnDefinition Width="100" />
                                         <ColumnDefinition Width="80" />
+                                        <ColumnDefinition Width="80" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Grid.Column="0" Padding="8,4" FontSize="12">
-                                        <Run Text="{Binding Time}" />
-                                    </TextBlock>
-                                    <TextBlock Grid.Column="1" Padding="8,4" FontSize="12">
-                                        <Run Text="¥" />
-                                        <Run Text="{Binding Balance}" />
-                                    </TextBlock>
-                                    <TextBlock Grid.Column="2" Padding="8,4" FontSize="12">
-                                        <Run Text="{Binding Change}" />
-                                    </TextBlock>
-                                    <TextBlock Grid.Column="3" Text="{Binding ChangeType}" Padding="8,4" FontSize="12" />
+                                    <TextBlock Grid.Column="0" Text="时间" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="1" Text="余额 (CNY)" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="2" Text="变化" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="3" Text="类型" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Column="4" Text="数量" Padding="8,4" FontSize="12" FontWeight="SemiBold" />
                                 </Grid>
-                            </DataTemplate>
-                        </ListView.ItemTemplate>
-                    </ListView>
-                </ScrollViewer>
+                            </ListView.Header>
+                            <ListView.ItemTemplate>
+                                <DataTemplate x:DataType="dev:BalanceHistoryItem">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="120" />
+                                            <ColumnDefinition Width="100" />
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="80" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Padding="8,4" FontSize="12">
+                                            <Run Text="{Binding Time}" />
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="1" Padding="8,4" FontSize="12">
+                                            <Run Text="¥" />
+                                            <Run Text="{Binding Balance}" />
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="2" Padding="8,4" FontSize="12">
+                                            <Run Text="{Binding Change}" />
+                                        </TextBlock>
+                                        <TextBlock Grid.Column="3" Text="{Binding ChangeType}" Padding="8,4" FontSize="12" />
+                                        <TextBlock Grid.Column="4" Padding="8,4" FontSize="12">
+                                            <Run Text="{Binding MergeCount, Mode=OneWay}" />
+                                        </TextBlock>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </ScrollViewer>
+                </StackPanel>
             </wuc:SettingsCard>
 
         </StackPanel>

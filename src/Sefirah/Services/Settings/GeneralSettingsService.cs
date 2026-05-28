@@ -226,4 +226,10 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         get => Get<string?>(null);
         set => Set(value);
     }
+
+    public bool DeepSeekBalanceHistoryCollapsed
+    {
+        get => Get(false);
+        set => Set(value);
+    }
 }

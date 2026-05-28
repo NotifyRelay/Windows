@@ -116,6 +116,8 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     public ObservableCollection<BalanceHistoryItem> BalanceHistory => _balanceService.BalanceHistory;
 
+    public ObservableCollection<BalanceHistoryItem> DisplayHistory { get; } = new();
+
     [ObservableProperty]
     private string _apiToken = string.Empty;
 
@@ -134,10 +136,14 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     [ObservableProperty]
     private int _selectedIntervalIndex = 1;
 
+    [ObservableProperty]
+    private bool _isCollapsed;
+
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _balanceService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
+        _balanceService.HistoryChanged += OnHistoryChangedForDisplay;
     }
 
     public void Initialize()
@@ -145,8 +151,10 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
         ApiToken = _generalSettingsService.DeepSeekApiToken ?? string.Empty;
         IsEnabled = _balanceService.IsPolling;
         SelectedIntervalIndex = GetIntervalIndex(_generalSettingsService.DeepSeekBalancePollingInterval);
+        IsCollapsed = _generalSettingsService.DeepSeekBalanceHistoryCollapsed;
         UpdateCurrentBalanceText();
         UpdateHistoryCountText();
+        UpdateDisplayHistory();
     }
 
     private int GetIntervalIndex(int intervalMs)
@@ -248,5 +256,93 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     {
         var count = BalanceHistory.Count;
         HistoryCountText = count > 0 ? $"共 {count} 条记录" : "暂无历史数据";
+    }
+
+    private void OnHistoryChangedForDisplay(object? sender, EventArgs e)
+    {
+        UpdateDisplayHistory();
+    }
+
+    private async void UpdateDisplayHistory()
+    {
+        var currentItems = BalanceHistory.ToList();
+        bool isCollapsed = IsCollapsed;
+
+        List<BalanceHistoryItem> processedItems = await Task.Run(() =>
+        {
+            var result = new List<BalanceHistoryItem>();
+
+            if (!isCollapsed)
+            {
+                foreach (var item in currentItems)
+                {
+                    result.Add(new BalanceHistoryItem
+                    {
+                        Time = item.Time,
+                        Balance = item.Balance,
+                        Change = item.Change,
+                        ChangeType = item.ChangeType,
+                        MergeCount = 1
+                    });
+                }
+            }
+            else
+            {
+                BalanceHistoryItem? mergedItem = null;
+                foreach (var item in currentItems)
+                {
+                    if (mergedItem == null)
+                    {
+                        mergedItem = new BalanceHistoryItem
+                        {
+                            Time = item.Time,
+                            Balance = item.Balance,
+                            Change = item.Change,
+                            ChangeType = item.ChangeType,
+                            MergeCount = 1
+                        };
+                    }
+                    else if (mergedItem.ChangeType == item.ChangeType)
+                    {
+                        mergedItem.Time = item.Time;
+                        mergedItem.Balance = item.Balance;
+                        mergedItem.Change += item.Change;
+                        mergedItem.MergeCount++;
+                    }
+                    else
+                    {
+                        result.Add(mergedItem);
+                        mergedItem = new BalanceHistoryItem
+                        {
+                            Time = item.Time,
+                            Balance = item.Balance,
+                            Change = item.Change,
+                            ChangeType = item.ChangeType,
+                            MergeCount = 1
+                        };
+                    }
+                }
+                if (mergedItem != null)
+                {
+                    result.Add(mergedItem);
+                }
+            }
+            return result;
+        });
+
+        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        {
+            DisplayHistory.Clear();
+            foreach (var item in processedItems)
+            {
+                DisplayHistory.Add(item);
+            }
+        });
+    }
+
+    partial void OnIsCollapsedChanged(bool value)
+    {
+        _generalSettingsService.DeepSeekBalanceHistoryCollapsed = value;
+        UpdateDisplayHistory();
     }
 }
