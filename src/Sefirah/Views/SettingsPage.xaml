@@ -47,16 +47,7 @@
                     <FontIcon Glyph="&#xEC15;" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
-            <NavigationViewItem Content="显示器亮度" Tag="MonitorBrightnessSettingsPage">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE706;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
-            <NavigationViewItem Content="DeepSeek余额" Tag="DeepSeekBalanceSettingsPage">
-                <NavigationViewItem.Icon>
-                    <FontIcon Glyph="&#xE8BC;" />
-                </NavigationViewItem.Icon>
-            </NavigationViewItem>
+
             <NavigationViewItem Content="{helpers:ResourceString Name=About}" Tag="AboutPage">
                 <NavigationViewItem.Icon>
                     <FontIcon Glyph="&#xE946;" />

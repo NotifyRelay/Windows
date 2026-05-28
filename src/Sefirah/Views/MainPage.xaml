@@ -378,6 +378,16 @@
                                 <SymbolIcon Symbol="AllApps" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
+                        <NavigationViewItem Content="显示器亮度" Tag="MonitorBrightness">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE706;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem Content="DeepSeek余额" Tag="DeepSeekBalance">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8BC;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                     </NavigationView.MenuItems>
 
                     <Frame x:Name="ContentFrame" />

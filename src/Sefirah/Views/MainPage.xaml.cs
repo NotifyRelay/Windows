@@ -25,7 +25,9 @@ public sealed partial class MainPage : Page
     private readonly Dictionary<string, Type> Pages = new()
     {
         { "Settings", typeof(SettingsPage) },
-        { "Apps", typeof(AppsPage) }
+        { "Apps", typeof(AppsPage) },
+        { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
+        { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) }
     };
 
     // Track the current animation to prevent conflicts
