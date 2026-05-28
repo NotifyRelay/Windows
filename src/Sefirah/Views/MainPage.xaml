@@ -389,6 +389,11 @@
                                 <FontIcon Glyph="&#xE8BC;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
+                        <NavigationViewItem Content="壁纸层显示" Tag="WallpaperOverlay">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE7F0;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                     </NavigationView.MenuItems>
 
                     <Frame x:Name="ContentFrame" />

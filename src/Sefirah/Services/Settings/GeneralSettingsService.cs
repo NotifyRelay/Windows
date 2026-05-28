@@ -232,4 +232,64 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         get => Get(false);
         set => Set(value);
     }
+
+    public bool WallpaperOverlayEnabled
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public string? WallpaperOverlayText
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public int WallpaperOverlayFontSize
+    {
+        get => Get(24);
+        set => Set(value);
+    }
+
+    public string? WallpaperOverlayTextColor
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public string? WallpaperOverlayTextAlignment
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public bool WallpaperOverlayShowControlPanel
+    {
+        get => Get(true);
+        set => Set(value);
+    }
+
+    public int WallpaperOverlayX
+    {
+        get => Get(0);
+        set => Set(value);
+    }
+
+    public int WallpaperOverlayY
+    {
+        get => Get(0);
+        set => Set(value);
+    }
+
+    public int WallpaperOverlayWidth
+    {
+        get => Get(800);
+        set => Set(value);
+    }
+
+    public int WallpaperOverlayHeight
+    {
+        get => Get(600);
+        set => Set(value);
+    }
 }

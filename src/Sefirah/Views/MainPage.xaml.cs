@@ -27,7 +27,8 @@ public sealed partial class MainPage : Page
         { "Settings", typeof(SettingsPage) },
         { "Apps", typeof(AppsPage) },
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
-        { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) }
+        { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
+        { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) }
     };
 
     // Track the current animation to prevent conflicts

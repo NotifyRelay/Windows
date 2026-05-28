@@ -30,6 +30,28 @@ internal enum ERole
     eCommunications = 2
 }
 
+public enum GetWindowLongFlags
+{
+    GWL_STYLE = -16,
+    GWL_EXSTYLE = -20,
+    GWL_HWNDPARENT = -8
+}
+
+public enum WindowStyles
+{
+    WS_CHILD = 0x40000000,
+    WS_VISIBLE = 0x10000000,
+    WS_DISABLED = 0x08000000
+}
+
+public enum ExtendedWindowStyles
+{
+    WS_EX_LAYERED = 0x00080000,
+    WS_EX_TRANSPARENT = 0x00000020,
+    WS_EX_TOOLWINDOW = 0x00000080,
+    WS_EX_NOACTIVATE = 0x08000000
+}
+
 
 public static class InteropHelpers
 {
@@ -67,4 +89,124 @@ public static class InteropHelpers
 
     [DllImport("user32.dll")]
     public static extern void SetForegroundWindow(nint hWnd);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern nint GetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern nint SetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex, nint dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetLayeredWindowAttributes(nint hWnd, uint crKey, byte bAlpha, uint dwFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetParent(nint hWndChild, nint hWndNewParent);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern nint FindWindowEx(nint hWndParent, nint hWndChildAfter, [MarshalAs(UnmanagedType.LPWStr)] string lpszClass, [MarshalAs(UnmanagedType.LPWStr)] string lpszWindow);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern nint GetDesktopWindow();
+
+    public const uint LWA_COLORKEY = 0x00000001;
+    public const uint LWA_ALPHA = 0x00000002;
+
+    public const uint SWP_NOSIZE = 0x0001;
+    public const uint SWP_NOMOVE = 0x0002;
+    public const uint SWP_NOZORDER = 0x0004;
+    public const uint SWP_NOACTIVATE = 0x0010;
+
+    public const nint HWND_BOTTOM = 1;
+    public const nint HWND_TOP = 0;
+    public const nint HWND_TOPMOST = -1;
+    public const nint HWND_NOTOPMOST = -2;
+
+    public static nint GetWallpaperWindow()
+    {
+        nint progman = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Progman", null);
+        nint workerw = IntPtr.Zero;
+
+        if (progman != IntPtr.Zero)
+        {
+            workerw = FindWindowEx(IntPtr.Zero, progman, "WorkerW", null);
+            while (workerw != IntPtr.Zero)
+            {
+                nint ssheldwnd = FindWindowEx(workerw, IntPtr.Zero, "SHELLDLL_DefView", null);
+                if (ssheldwnd != IntPtr.Zero)
+                {
+                    workerw = FindWindowEx(IntPtr.Zero, workerw, "WorkerW", null);
+                    continue;
+                }
+                break;
+            }
+        }
+
+        return workerw != IntPtr.Zero ? workerw : progman;
+    }
+
+    public static void SetWindowToWallpaperLayer(nint hWnd)
+    {
+        nint progman = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "Progman", null);
+        nint wallpaperWorkerw = IntPtr.Zero;
+        nint iconsWorkerw = IntPtr.Zero;
+
+        if (progman != IntPtr.Zero)
+        {
+            SendMessageTimeout(progman, 0x052C, 0, 0, 0, 1000, out _);
+
+            nint currentWorkerw = FindWindowEx(IntPtr.Zero, IntPtr.Zero, "WorkerW", null);
+            while (currentWorkerw != IntPtr.Zero)
+            {
+                nint ssheldwnd = FindWindowEx(currentWorkerw, IntPtr.Zero, "SHELLDLL_DefView", null);
+                if (ssheldwnd != IntPtr.Zero)
+                {
+                    iconsWorkerw = currentWorkerw;
+                }
+                else
+                {
+                    wallpaperWorkerw = currentWorkerw;
+                }
+                currentWorkerw = FindWindowEx(IntPtr.Zero, currentWorkerw, "WorkerW", null);
+            }
+        }
+
+        nint targetParent = wallpaperWorkerw != IntPtr.Zero ? wallpaperWorkerw : progman;
+
+        if (targetParent == IntPtr.Zero)
+        {
+            return;
+        }
+
+        nint exStyle = GetWindowLongPtr(hWnd, GetWindowLongFlags.GWL_EXSTYLE);
+        exStyle |= (nint)(ExtendedWindowStyles.WS_EX_LAYERED | ExtendedWindowStyles.WS_EX_NOACTIVATE);
+        exStyle &= ~(nint)(ExtendedWindowStyles.WS_EX_TOOLWINDOW | ExtendedWindowStyles.WS_EX_TRANSPARENT);
+        SetWindowLongPtr(hWnd, GetWindowLongFlags.GWL_EXSTYLE, exStyle);
+
+        nint style = GetWindowLongPtr(hWnd, GetWindowLongFlags.GWL_STYLE);
+        style |= (nint)(WindowStyles.WS_CHILD | WindowStyles.WS_VISIBLE);
+        style &= ~(nint)WindowStyles.WS_DISABLED;
+        SetWindowLongPtr(hWnd, GetWindowLongFlags.GWL_STYLE, style);
+
+        SetParent(hWnd, targetParent);
+
+        SetLayeredWindowAttributes(hWnd, 0, 255, LWA_ALPHA);
+
+        if (iconsWorkerw != IntPtr.Zero)
+        {
+            SetWindowPos(hWnd, iconsWorkerw, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+        }
+        else
+        {
+            SetWindowPos(hWnd, HWND_TOP, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_NOACTIVATE);
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    public static extern nint SendMessageTimeout(nint hWnd, uint Msg, nint wParam, nint lParam, uint fuFlags, uint uTimeout, out nint lpdwResult);
 }

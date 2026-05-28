@@ -100,6 +100,7 @@
         <PackageReference Include="AdvancedSharpAdbClient" />
         <PackageReference Include="BouncyCastle.Cryptography" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+        <PackageReference Include="Markdig" />
         <PackageReference Include="CommunityToolkit.WinUI.Converters" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="H.NotifyIcon.Uno.WinUI" />

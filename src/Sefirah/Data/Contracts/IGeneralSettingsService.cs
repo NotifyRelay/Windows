@@ -113,4 +113,54 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets a value indicating whether DeepSeek balance history should be collapsed.
     /// </summary>
     bool DeepSeekBalanceHistoryCollapsed { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether wallpaper overlay is enabled.
+    /// </summary>
+    bool WallpaperOverlayEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the text to display on the wallpaper overlay.
+    /// </summary>
+    string? WallpaperOverlayText { get; set; }
+
+    /// <summary>
+    /// Gets or sets the font size for the wallpaper overlay text.
+    /// </summary>
+    int WallpaperOverlayFontSize { get; set; }
+
+    /// <summary>
+    /// Gets or sets the text color for the wallpaper overlay.
+    /// </summary>
+    string? WallpaperOverlayTextColor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the text alignment for the wallpaper overlay.
+    /// </summary>
+    string? WallpaperOverlayTextAlignment { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to show the control panel on the wallpaper overlay.
+    /// </summary>
+    bool WallpaperOverlayShowControlPanel { get; set; }
+
+    /// <summary>
+    /// Gets or sets the X position of the wallpaper overlay window.
+    /// </summary>
+    int WallpaperOverlayX { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Y position of the wallpaper overlay window.
+    /// </summary>
+    int WallpaperOverlayY { get; set; }
+
+    /// <summary>
+    /// Gets or sets the width of the wallpaper overlay window.
+    /// </summary>
+    int WallpaperOverlayWidth { get; set; }
+
+    /// <summary>
+    /// Gets or sets the height of the wallpaper overlay window.
+    /// </summary>
+    int WallpaperOverlayHeight { get; set; }
 }
