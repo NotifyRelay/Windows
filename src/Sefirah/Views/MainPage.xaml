@@ -34,6 +34,7 @@
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
         <converters:RingerModeToIconConverter x:Key="RingerModeToIconConverter" />
         <converters:BatteryStatusToIconConverter x:Key="BatteryStatusToIconConverter" />
+        <converters:BatteryStatusToColorConverter x:Key="BatteryStatusToColorConverter" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
@@ -231,7 +232,7 @@
                                 Orientation="Horizontal"
                                 Spacing="1"
                                 Visibility="{x:Bind ViewModel.Device.Status.BatteryStatus, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
-                                <FontIcon Margin="0,0,4,0" Glyph="{x:Bind ViewModel.Device.Status, Converter={StaticResource BatteryStatusToIconConverter}, Mode=OneWay}" />
+                                <FontIcon Margin="0,0,4,0" Glyph="{x:Bind ViewModel.Device.Status, Converter={StaticResource BatteryStatusToIconConverter}, Mode=OneWay}" Foreground="{x:Bind ViewModel.Device.Status, Converter={StaticResource BatteryStatusToColorConverter}, Mode=OneWay}" />
                                 <TextBlock FontWeight="SemiBold" Text="{x:Bind ViewModel.Device.Status.BatteryStatus, Mode=OneWay}" />
                                 <TextBlock FontWeight="SemiBold" Text="%" />
                             </StackPanel>

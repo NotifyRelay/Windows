@@ -295,7 +295,6 @@ internal sealed partial class BatteryStatusToIconConverter : IValueConverter
     {
         if (value is DeviceStatus deviceStatus)
         {
-            // Based on battery level and charging state, choose the appropriate icon
             if (deviceStatus.ChargingStatus)
             {
                 return deviceStatus.BatteryStatus switch
@@ -332,7 +331,35 @@ internal sealed partial class BatteryStatusToIconConverter : IValueConverter
             }
         }
 
-        return "\uE83F"; // Default icon
+        return "\uE83F";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class BatteryStatusToColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is DeviceStatus deviceStatus)
+        {
+            if (deviceStatus.ChargingStatus)
+            {
+                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+            }
+
+            return deviceStatus.BatteryStatus switch
+            {
+                < 20 => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red),
+                < 50 => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Yellow),
+                _ => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green)
+            };
+        }
+
+        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
