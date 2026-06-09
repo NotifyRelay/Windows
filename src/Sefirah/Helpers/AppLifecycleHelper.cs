@@ -173,8 +173,30 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤19：初始化 DeepSeek 余额监控服务失败");
         }
 
-        // 10. 完成初始化，关闭启动画面
-        logger.LogInformation("步骤19：初始化完成，关闭启动画面");
+        // 10. 初始化虚拟扬声器服务
+        logger.LogInformation("步骤20：初始化虚拟扬声器服务...");
+        try
+        {
+            var virtualSpeakerService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.VirtualSpeaker.VirtualSpeakerService>();
+            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+
+            if (generalSettingsService.EnableVirtualSpeaker && !string.IsNullOrEmpty(generalSettingsService.VirtualSpeakerTargetDeviceId))
+            {
+                await virtualSpeakerService.StartStreaming();
+                logger.LogInformation("步骤20：虚拟扬声器服务启动成功");
+            }
+            else
+            {
+                logger.LogInformation("步骤20：虚拟扬声器服务未启用或未配置目标设备");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤20：初始化虚拟扬声器服务失败");
+        }
+
+        // 11. 完成初始化，关闭启动画面
+        logger.LogInformation("步骤21：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
     }
@@ -281,6 +303,9 @@ public static class AppLifecycleHelper
 
                 // DeepSeek Balance Service
                 .AddSingleton<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>()
+
+                // Virtual Speaker Service
+                .AddSingleton<NotifyRelay.DeviceCtrl.VirtualSpeaker.VirtualSpeakerService>()
 
                 // ViewModels
                 .AddSingleton<MainPageViewModel>()

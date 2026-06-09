@@ -394,6 +394,11 @@
                                 <FontIcon Glyph="&#xE7F0;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
+                        <NavigationViewItem Content="虚拟扬声器" Tag="VirtualSpeaker">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE995;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                     </NavigationView.MenuItems>
 
                     <Frame x:Name="ContentFrame" />
