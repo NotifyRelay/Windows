@@ -758,4 +758,40 @@ input touchscreen swipe 540 1800 540 900</value>
   <data name="WallpaperOverlay.ShowControlPanel" xml:space="preserve">
     <value>显示控制面板</value>
   </data>
+  <data name="VirtualSpeaker/Title" xml:space="preserve">
+    <value>虚拟扬声器</value>
+  </data>
+  <data name="VirtualSpeaker/Description" xml:space="preserve">
+    <value>将电脑声音通过DLNA传输到其他设备</value>
+  </data>
+  <data name="VirtualSpeaker/Enable" xml:space="preserve">
+    <value>启用虚拟扬声器</value>
+  </data>
+  <data name="VirtualSpeaker/EnableDescription" xml:space="preserve">
+    <value>启动后系统音频将同时输出到DLNA设备</value>
+  </data>
+  <data name="VirtualSpeaker/MuteOnStart" xml:space="preserve">
+    <value>启动时静音系统声音</value>
+  </data>
+  <data name="VirtualSpeaker/MuteOnStartDescription" xml:space="preserve">
+    <value>启用虚拟扬声器时自动将系统设为静音</value>
+  </data>
+  <data name="VirtualSpeaker/ScanDevices" xml:space="preserve">
+    <value>扫描DLNA设备</value>
+  </data>
+  <data name="VirtualSpeaker/SelectDevice" xml:space="preserve">
+    <value>选择目标设备</value>
+  </data>
+  <data name="VirtualSpeaker/StatusRunning" xml:space="preserve">
+    <value>状态：运行中</value>
+  </data>
+  <data name="VirtualSpeaker/StatusStopped" xml:space="preserve">
+    <value>状态：未启动</value>
+  </data>
+  <data name="VirtualSpeaker/NoDevicesFound" xml:space="preserve">
+    <value>未发现DLNA设备</value>
+  </data>
+  <data name="VirtualSpeaker/TrayMenuTitle" xml:space="preserve">
+    <value>虚拟扬声器</value>
+  </data>
 </root>

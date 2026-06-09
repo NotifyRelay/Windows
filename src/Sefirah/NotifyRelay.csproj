@@ -113,6 +113,7 @@
         <PackageReference Include="SSH.NET" />
         <PackageReference Include="System.Management" />
         <PackageReference Include="Tmds.DBus" />
+        <PackageReference Include="UPnP" />
         <PackageReference Include="Vanara.PInvoke.CldApi" />
         <PackageReference Include="Vanara.PInvoke.Ole" />
         <PackageReference Include="Vanara.PInvoke.Shell32" />

@@ -150,6 +150,26 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     int WallpaperOverlayX { get; set; }
 
     /// <summary>
+    /// Gets or sets the target DLNA device ID for virtual speaker.
+    /// </summary>
+    string? VirtualSpeakerTargetDeviceId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target DLNA device name for virtual speaker.
+    /// </summary>
+    string? VirtualSpeakerTargetDeviceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether virtual speaker is enabled.
+    /// </summary>
+    bool EnableVirtualSpeaker { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to mute system sound when virtual speaker starts.
+    /// </summary>
+    bool VirtualSpeakerMuteOnStart { get; set; }
+
+    /// <summary>
     /// Gets or sets the Y position of the wallpaper overlay window.
     /// </summary>
     int WallpaperOverlayY { get; set; }

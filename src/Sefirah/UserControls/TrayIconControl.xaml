@@ -21,6 +21,18 @@
                 <MenuFlyoutItem Command="{x:Bind StartScrcpyCommand}" Text="Start screen mirroring" />
                 <MenuFlyoutItem Command="{x:Bind ShowHideWindowCommand}" Text="{helpers:ResourceString Name=ShowHideWindow}" />
                 <MenuFlyoutSeparator />
+                <MenuFlyoutSubItem Text="{helpers:ResourceString Name=VirtualSpeaker/TrayMenuTitle}">
+                    <ToggleMenuFlyoutItem
+                        IsChecked="{x:Bind IsVirtualSpeakerEnabled, Mode=OneWay}"
+                        Text="{helpers:ResourceString Name=VirtualSpeaker/Enable}"
+                        Command="{x:Bind ToggleVirtualSpeakerCommand}" />
+                    <MenuFlyoutSeparator />
+                    <ToggleMenuFlyoutItem
+                        IsChecked="{x:Bind IsMuteOnStartEnabled, Mode=OneWay}"
+                        Text="{helpers:ResourceString Name=VirtualSpeaker/MuteOnStart}"
+                        Command="{x:Bind ToggleMuteOnStartCommand}" />
+                </MenuFlyoutSubItem>
+                <MenuFlyoutSeparator />
                 <MenuFlyoutItem Command="{x:Bind ExitApplicationCommand}" Text="{helpers:ResourceString Name=Exit}" />
             </MenuFlyout>
         </tb:TaskbarIcon.ContextFlyout>
