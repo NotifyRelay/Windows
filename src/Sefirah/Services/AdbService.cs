@@ -530,7 +530,7 @@ public class AdbService(
         var adbDevice = AdbDevices.FirstOrDefault(d => d.AndroidId == deviceId);
         if (adbDevice?.DeviceData == null) return;
 
-        var deviceData = adbDevice.DeviceData.Value;
+        var deviceData = adbDevice.DeviceData;
         await adbClient.UninstallPackageAsync(deviceData, appPackage);
     }
 
