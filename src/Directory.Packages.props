@@ -16,14 +16,14 @@
     <PackageVersion Include="H.NotifyIcon.Uno.WinUI" Version="2.3.0" />
     <PackageVersion Include="Markdig" Version="0.37.0" />
     <PackageVersion Include="MeaMod.DNS" Version="1.0.71" />
-    <PackageVersion Include="NAudio" Version="2.2.1" />
+    <PackageVersion Include="NAudio" Version="2.3.0" />
     <PackageVersion Include="NetCoreServer" Version="8.0.7" />
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
-    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.11" />
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageVersion Include="SQLitePCLRaw.bundle_green" Version="2.1.11" />
-    <PackageVersion Include="SQLitePCLRaw.provider.sqlite3" Version="2.1.11" />
-    <PackageVersion Include="SSH.NET" Version="2025.0.0" />
-    <PackageVersion Include="System.Management" Version="10.0.2" />
+    <PackageVersion Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.3" />
+    <PackageVersion Include="SSH.NET" Version="2025.1.0" />
+    <PackageVersion Include="System.Management" Version="10.0.9" />
     <PackageVersion Include="Tmds.DBus" Version="0.21.2" />
     <PackageVersion Include="Uno.WinUI.Runtime.Skia.Linux.FrameBuffer" Version="5.6.91" />
     <PackageVersion Include="Uno.WinUI.Runtime.Skia.X11" Version="5.6.91" />
