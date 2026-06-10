@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Xml.Linq;
+using FFMpegCore;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NotifyRelay.Data.Contracts;
@@ -11,17 +13,30 @@ namespace NotifyRelay.DeviceCtrl.VirtualSpeaker;
 
 public class VirtualSpeakerService : IDisposable
 {
+    private const int MaxAacFrames = 30;
+
     private readonly ILogger<VirtualSpeakerService> _logger;
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly MMDeviceEnumerator _enumerator = new();
 
     private WasapiLoopbackCapture? _capture;
-    private BufferedWaveProvider? _audioBuffer;
     private CancellationTokenSource? _streamingCts;
     private TcpListener? _tcpListener;
     private Thread? _serverThread;
     private bool _isRunning;
     private bool _systemWasMuted;
+
+    private string? _currentDeviceId;
+    private string? _currentControlUrl;
+
+    private Process? _ffmpegProcess;
+    private Task? _ffmpegReadTask;
+    private int _sampleRate;
+    private int _channels;
+
+    private readonly List<byte[]> _aacFrames = [];
+    private readonly object _aacDataLock = new();
+    private int _framesTrimmed;
 
     private readonly List<DlnaRendererInfo> _discoveredRenderers = [];
     private readonly object _renderersLock = new();
@@ -65,7 +80,10 @@ public class VirtualSpeakerService : IDisposable
 
         try
         {
+            await EnsureFFmpegAvailableAsync();
+
             _streamingCts = new CancellationTokenSource();
+            var token = _streamingCts.Token;
 
             if (_generalSettingsService.VirtualSpeakerMuteOnStart)
             {
@@ -79,30 +97,37 @@ public class VirtualSpeakerService : IDisposable
             }
 
             _capture = new WasapiLoopbackCapture();
-            _audioBuffer = new BufferedWaveProvider(_capture.WaveFormat)
-            {
-                BufferDuration = TimeSpan.FromSeconds(2),
-                DiscardOnBufferOverflow = true
-            };
+            _sampleRate = _capture.WaveFormat.SampleRate;
+            _channels = _capture.WaveFormat.Channels;
+            _logger.LogInformation("音频捕获格式: {Rate}Hz {Channels}ch IEEE_FLOAT", _sampleRate, _channels);
+
+            StartFFmpeg(_sampleRate, _channels);
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
 
             StartHttpServer();
+            _ffmpegReadTask = Task.Run(() => ReadAacLoop(token), token);
             _capture.StartRecording();
 
             var localIp = GetLocalIpAddress();
-            var streamUrl = $"http://{localIp}:{Constants.VirtualSpeakerHttpPort}/audio.wav";
+            var streamUrl = $"http://{localIp}:{Constants.VirtualSpeakerHttpPort}/audio.mp3";
             _logger.LogInformation("DLNA流URL: {Url}", streamUrl);
+
+            var didlLite = string.Format(
+                "<DIDL-Lite xmlns=\"urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/\"><item id=\"0\" parentID=\"-1\" restricted=\"0\"><res protocolInfo=\"http-get:*:audio/mpeg:*\">{0}</res></item></DIDL-Lite>", streamUrl);
+            var escapedMetaData = System.Security.SecurityElement.Escape(didlLite);
 
             await SendAvTransportSoapAsync(controlUrl, "SetAVTransportURI",
                 "<InstanceID>0</InstanceID>" +
                 $"<CurrentURI>{streamUrl}</CurrentURI>" +
-                "<CurrentURIMetaData></CurrentURIMetaData>");
+                $"<CurrentURIMetaData>{escapedMetaData}</CurrentURIMetaData>");
 
             await SendAvTransportSoapAsync(controlUrl, "Play",
                 "<InstanceID>0</InstanceID>" +
                 "<Speed>1</Speed>");
 
+            _currentDeviceId = deviceId;
+            _currentControlUrl = controlUrl;
             _isRunning = true;
             _generalSettingsService.EnableVirtualSpeaker = true;
             _logger.LogInformation("虚拟扬声器已启动，目标: {Name}", deviceName ?? deviceId);
@@ -111,32 +136,58 @@ public class VirtualSpeakerService : IDisposable
         catch (Exception ex)
         {
             _logger.LogError(ex, "启动虚拟扬声器失败");
-            await StopStreaming();
+            _currentControlUrl = null;
+            _currentDeviceId = null;
+            await StopStreamingAsyncCore();
         }
     }
 
-    public Task StopStreaming()
+    public async Task StopStreamingAsync()
     {
-        if (!_isRunning) return Task.CompletedTask;
+        if (!_isRunning) return;
 
+        await StopStreamingAsyncCore();
+    }
+
+    private async Task StopStreamingAsyncCore()
+    {
         try
         {
             _streamingCts?.Cancel();
 
-            if (_systemWasMuted)
+            try
             {
-                var defaultDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-                if (defaultDevice != null)
+                if (!string.IsNullOrEmpty(_currentControlUrl))
                 {
-                    defaultDevice.AudioEndpointVolume.Mute = false;
-                    _systemWasMuted = false;
-                    _logger.LogInformation("已恢复系统声音");
+                    _logger.LogInformation("正在通知DLNA设备停止播放");
+                    await SendAvTransportSoapAsync(_currentControlUrl, "Stop",
+                        "<InstanceID>0</InstanceID>");
                 }
             }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "通知DLNA设备停止播放失败（不影响本地清理）");
+            }
 
+            RestoreSystemMute();
             CleanupCapture();
+            StopFFmpeg();
             StopHttpServer();
+
+            if (_ffmpegReadTask != null)
+            {
+                try { await _ffmpegReadTask; } catch { }
+                _ffmpegReadTask = null;
+            }
+
+            lock (_aacDataLock)
+            {
+                _aacFrames.Clear();
+            }
+
             _isRunning = false;
+            _currentControlUrl = null;
+            _currentDeviceId = null;
             _generalSettingsService.EnableVirtualSpeaker = false;
             _logger.LogInformation("虚拟扬声器已停止");
             StatusChanged?.Invoke(this, EventArgs.Empty);
@@ -145,11 +196,139 @@ public class VirtualSpeakerService : IDisposable
         {
             _logger.LogError(ex, "停止虚拟扬声器失败");
         }
-
-        return Task.CompletedTask;
     }
 
-    public List<DlnaRendererInfo> DiscoverRenderers(int timeoutMs = 4000)
+    private Task EnsureFFmpegAvailableAsync()
+    {
+        try
+        {
+            var path = GlobalFFOptions.GetFFMpegBinaryPath();
+            if (!string.IsNullOrEmpty(path) && File.Exists(path))
+                return Task.CompletedTask;
+        }
+        catch
+        {
+        }
+
+        var ffmpegDir = Path.Combine(AppContext.BaseDirectory, "ffmpeg");
+        var ffmpegExe = Path.Combine(ffmpegDir, "ffmpeg.exe");
+        if (File.Exists(ffmpegExe))
+        {
+            GlobalFFOptions.Configure(options => options.BinaryFolder = ffmpegDir);
+            _logger.LogInformation("从内置目录加载 FFmpeg: {Path}", ffmpegExe);
+            return Task.CompletedTask;
+        }
+
+        var message = $"找不到 FFmpeg，请在应用目录下创建 ffmpeg/ 文件夹并放入 ffmpeg.exe。预期路径: {ffmpegExe}";
+        _logger.LogError(message);
+        throw new FileNotFoundException(message);
+    }
+
+    private void StartFFmpeg(int sampleRate, int channels)
+    {
+        try
+        {
+            var ffmpegPath = GlobalFFOptions.GetFFMpegBinaryPath();
+            _logger.LogInformation("FFmpeg 路径: {Path}", ffmpegPath);
+
+            _ffmpegProcess = new Process();
+            _ffmpegProcess.StartInfo.FileName = ffmpegPath;
+            _ffmpegProcess.StartInfo.Arguments = $"-f f32le -ar {sampleRate} -ac {channels} " +
+                "-i pipe:0 -c:a mp3 -b:a 192k -fflags +nobuffer -flags +low_delay -f mp3 pipe:1";
+            _ffmpegProcess.StartInfo.RedirectStandardInput = true;
+            _ffmpegProcess.StartInfo.RedirectStandardOutput = true;
+            _ffmpegProcess.StartInfo.RedirectStandardError = false;
+            _ffmpegProcess.StartInfo.UseShellExecute = false;
+            _ffmpegProcess.StartInfo.CreateNoWindow = true;
+            _ffmpegProcess.Start();
+            _logger.LogInformation("FFmpeg 编码器已启动 (MP3 192kbps)");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "启动 FFmpeg 失败，请确保 ffmpeg 已安装并在系统 PATH 中");
+            throw;
+        }
+    }
+
+    private void StopFFmpeg()
+    {
+        try
+        {
+            if (_ffmpegProcess != null)
+            {
+                try { _ffmpegProcess.StandardInput.BaseStream.Close(); } catch { }
+                try { _ffmpegProcess.StandardOutput.BaseStream.Close(); } catch { }
+                if (!_ffmpegProcess.HasExited)
+                {
+                    try { _ffmpegProcess.Kill(); } catch { }
+                    try { _ffmpegProcess.WaitForExit(3000); } catch { }
+                }
+                _ffmpegProcess.Dispose();
+                _ffmpegProcess = null;
+                _logger.LogInformation("FFmpeg 编码器已停止");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止 FFmpeg 进程失败");
+        }
+    }
+
+    private async Task ReadAacLoop(CancellationToken token)
+    {
+        var buffer = new byte[65536];
+        try
+        {
+            while (!token.IsCancellationRequested)
+            {
+                var bytesRead = await _ffmpegProcess!.StandardOutput.BaseStream
+                    .ReadAsync(buffer, 0, buffer.Length, token);
+                if (bytesRead == 0) break;
+
+                var aacData = new byte[bytesRead];
+                Buffer.BlockCopy(buffer, 0, aacData, 0, bytesRead);
+
+                lock (_aacDataLock)
+                {
+                    _aacFrames.Add(aacData);
+                    if (_aacFrames.Count > MaxAacFrames)
+                    {
+                        var removeCount = _aacFrames.Count - MaxAacFrames;
+                        _aacFrames.RemoveRange(0, removeCount);
+                        _framesTrimmed += removeCount;
+                    }
+                    Monitor.PulseAll(_aacDataLock);
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "读取 FFmpeg 输出失败");
+        }
+    }
+
+    private void RestoreSystemMute()
+    {
+        if (!_systemWasMuted) return;
+
+        try
+        {
+            var defaultDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            if (defaultDevice != null)
+            {
+                defaultDevice.AudioEndpointVolume.Mute = false;
+                _systemWasMuted = false;
+                _logger.LogInformation("已恢复系统声音");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "恢复系统声音失败");
+        }
+    }
+
+    public async Task<List<DlnaRendererInfo>> DiscoverRenderersAsync(int timeoutMs = 4000)
     {
         lock (_renderersLock)
         {
@@ -160,20 +339,26 @@ public class VirtualSpeakerService : IDisposable
         var cp = new UPnPControlPoint();
         cp.OnSearch += OnSearchResponse;
 
+        using var cts = new CancellationTokenSource(timeoutMs);
         cp.FindDeviceAsync("urn:schemas-upnp-org:device:MediaRenderer:1");
-        Thread.Sleep(timeoutMs);
-        cp.OnSearch -= OnSearchResponse;
+
+        try
+        {
+            await Task.Delay(timeoutMs, cts.Token);
+        }
+        catch (TaskCanceledException)
+        {
+        }
+        finally
+        {
+            cp.OnSearch -= OnSearchResponse;
+        }
 
         lock (_renderersLock)
         {
             _logger.LogInformation("UPnP发现完成，找到 {Count} 个DLNA设备", _discoveredRenderers.Count);
             return [.. _discoveredRenderers];
         }
-    }
-
-    public Task<List<DlnaRendererInfo>> DiscoverRenderersAsync(int timeoutMs = 4000)
-    {
-        return Task.Run(() => DiscoverRenderers(timeoutMs));
     }
 
     private void OnSearchResponse(IPEndPoint from, IPEndPoint local, Uri descriptionLocation,
@@ -283,11 +468,13 @@ public class VirtualSpeakerService : IDisposable
                 $"</s:Envelope>\r\n";
 
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-            var content = new StringContent(soapBody, Encoding.UTF8, "text/xml");
-            content.Headers.Clear();
-            content.Headers.Add("SOAPACTION", $"\"urn:schemas-upnp-org:service:AVTransport:1#{action}\"");
+            using var request = new HttpRequestMessage(HttpMethod.Post, controlUrl)
+            {
+                Content = new StringContent(soapBody, Encoding.UTF8, "text/xml")
+            };
+            request.Headers.Add("SOAPACTION", $"\"urn:schemas-upnp-org:service:AVTransport:1#{action}\"");
 
-            var response = await client.PostAsync(controlUrl, content);
+            var response = await client.SendAsync(request);
             response.EnsureSuccessStatusCode();
             _logger.LogInformation("AVTransport.{Action} 调用成功", action);
         }
@@ -339,12 +526,11 @@ public class VirtualSpeakerService : IDisposable
     {
         try
         {
+            client.NoDelay = true;
+
             using (client)
             using (var stream = client.GetStream())
             {
-                client.ReceiveTimeout = 5000;
-                client.SendTimeout = 5000;
-
                 var headerBuf = new byte[4096];
                 var headerBytesRead = 0;
                 var headerEnd = false;
@@ -370,35 +556,52 @@ public class VirtualSpeakerService : IDisposable
                     return;
 
                 var responseHeader = "HTTP/1.1 200 OK\r\n" +
-                    "Content-Type: audio/wav\r\n" +
-                    "Cache-Control: no-cache\r\n" +
-                    "Connection: close\r\n" +
+                    "Content-Type: audio/mpeg\r\n" +
+                    "Transfer-Encoding: chunked\r\n" +
+                    "Cache-Control: no-cache, no-store\r\n" +
+                    "Connection: keep-alive\r\n" +
+                    "transferMode.dlna.org: Streaming\r\n" +
+                    "Content-Features: DLNA.ORG_OP=00;DLNA.ORG_CI=0;DLNA.ORG_FLAGS=01700000000000000000000000000000\r\n" +
                     "\r\n";
                 var headerBytes = Encoding.ASCII.GetBytes(responseHeader);
-                await stream.WriteAsync(headerBytes.AsMemory(0, headerBytes.Length), token);
+                await stream.WriteAsync(headerBytes.AsMemory(), token);
 
-                var format = _capture?.WaveFormat;
-                if (format == null) return;
-
-                var wavHeader = CreateWavHeader(format.SampleRate, format.BitsPerSample, format.Channels);
-                await stream.WriteAsync(wavHeader.AsMemory(0, wavHeader.Length), token);
-                await stream.FlushAsync(token);
-
-                var chunkSize = format.AverageBytesPerSecond / 50;
-                var buf = new byte[Math.Max(chunkSize, 1024)];
-
+                var framesConsumed = 0;
                 while (!token.IsCancellationRequested && client.Connected)
                 {
-                    var bytesRead = _audioBuffer?.Read(buf, 0, buf.Length) ?? 0;
-                    if (bytesRead > 0)
+                    byte[]? frame = null;
+                    lock (_aacDataLock)
                     {
-                        await stream.WriteAsync(buf.AsMemory(0, bytesRead), token);
-                        await stream.FlushAsync(token);
+                        var relativeIndex = framesConsumed - _framesTrimmed;
+                        if (relativeIndex < 0)
+                        {
+                            framesConsumed = _framesTrimmed;
+                            relativeIndex = 0;
+                        }
+
+                        if (relativeIndex < _aacFrames.Count)
+                        {
+                            frame = _aacFrames[relativeIndex];
+                            framesConsumed++;
+                        }
+                        else
+                        {
+                            Monitor.Wait(_aacDataLock, 10);
+                        }
                     }
-                    else
+
+                    if (frame != null)
                     {
-                        await Task.Delay(10, token);
+                        var chunkSizeHex = frame.Length.ToString("X");
+                        await stream.WriteAsync(Encoding.ASCII.GetBytes(chunkSizeHex + "\r\n"), token);
+                        await stream.WriteAsync(frame.AsMemory(), token);
+                        await stream.WriteAsync(new byte[] { (byte)'\r', (byte)'\n' }, token);
                     }
+                }
+
+                if (client.Connected)
+                {
+                    await stream.WriteAsync(Encoding.ASCII.GetBytes("0\r\n\r\n"), token);
                 }
             }
         }
@@ -411,29 +614,17 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
-    private static byte[] CreateWavHeader(int sampleRate, int bitsPerSample, int channels)
-    {
-        using var ms = new MemoryStream(44);
-        using var writer = new BinaryWriter(ms, Encoding.ASCII);
-        writer.Write("RIFF".ToCharArray());
-        writer.Write(int.MaxValue);
-        writer.Write("WAVE".ToCharArray());
-        writer.Write("fmt ".ToCharArray());
-        writer.Write(16);
-        writer.Write((short)1);
-        writer.Write((short)channels);
-        writer.Write(sampleRate);
-        writer.Write(sampleRate * channels * bitsPerSample / 8);
-        writer.Write((short)(channels * bitsPerSample / 8));
-        writer.Write((short)bitsPerSample);
-        writer.Write("data".ToCharArray());
-        writer.Write(int.MaxValue);
-        return ms.ToArray();
-    }
-
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
-        _audioBuffer?.AddSamples(e.Buffer, 0, e.BytesRecorded);
+        try
+        {
+            _ffmpegProcess?.StandardInput.BaseStream.Write(e.Buffer, 0, e.BytesRecorded);
+            _ffmpegProcess?.StandardInput.BaseStream.Flush();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "写入FFmpeg管道失败");
+        }
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -464,9 +655,21 @@ public class VirtualSpeakerService : IDisposable
 
     public void Dispose()
     {
-        _ = StopStreaming();
-        _capture?.Dispose();
-        _streamingCts?.Dispose();
-        StopHttpServer();
+        if (_isRunning)
+        {
+            RestoreSystemMute();
+            CleanupCapture();
+            StopFFmpeg();
+            StopHttpServer();
+            _streamingCts?.Cancel();
+            _streamingCts?.Dispose();
+            _isRunning = false;
+        }
+        else
+        {
+            _capture?.Dispose();
+            _streamingCts?.Dispose();
+            StopFFmpeg();
+        }
     }
 }
