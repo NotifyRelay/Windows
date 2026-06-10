@@ -158,7 +158,6 @@ public class ClipboardService : IClipboardService
                     {
                         var bitmapRef = await dataPackageView.GetBitmapAsync();
                         var bitmap = await bitmapRef.OpenReadAsync();
-#if WINDOWS
                         var stream = new MemoryStream();
                         var decoder = await BitmapDecoder.CreateAsync(bitmap);
                         var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
@@ -166,9 +165,6 @@ public class ClipboardService : IClipboardService
                         encoder.SetSoftwareBitmap(softwareBitmap);
                         await encoder.FlushAsync();
                         stream.Position = 0;
-#else
-                        var stream = bitmap.AsStream();
-#endif
                         await HandleSmallImageTransfer(stream, "image/png", devicesWithImageSync);
                     }
                 }
@@ -287,7 +283,6 @@ public class ClipboardService : IClipboardService
                         // 检查是否为图片类型的 Base64 编码
                         if (textContent.Length > 20 && textContent.IsBase64String())
                         {
-#if WINDOWS
                             // 尝试将 Base64 字符串转换为 Bitmap
                             var bitmap = await ConvertBase64ToBitmapAsync(textContent);
                             if (bitmap is not null)
@@ -302,11 +297,6 @@ public class ClipboardService : IClipboardService
                                 dataPackage.SetText(textContent);
                                 logger.LogWarning("无法将 Base64 字符串转换为图片，作为文本处理");
                             }
-#else
-                            // 在非 Windows 平台上，直接将 Base64 字符串作为文本处理
-                            dataPackage.SetText(textContent);
-                            logger.LogInformation("当前平台不支持图片剪贴板功能，将 Base64 字符串作为文本处理");
-#endif
                         }
                         else
                         {
@@ -360,7 +350,6 @@ public class ClipboardService : IClipboardService
     /// </summary>
     /// <param name="base64String">Base64 字符串</param>
     /// <returns>Bitmap 对象</returns>
-#if WINDOWS
     private async Task<RandomAccessStreamReference?> ConvertBase64ToBitmapAsync(string base64String)
     {
         try
@@ -393,22 +382,6 @@ public class ClipboardService : IClipboardService
             return null;
         }
     }
-#else
-    private async Task<object?> ConvertBase64ToBitmapAsync(string base64String)
-    {
-        try
-        {
-            // 在非 Windows 平台上，暂时不支持图片剪贴板功能
-            logger.LogInformation("当前平台不支持图片剪贴板功能");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "将 Base64 字符串转换为 Bitmap 时出错");
-            return null;
-        }
-    }
-#endif
 
     public static bool IsValidWebUrl(Uri? uri)
     {

@@ -2,12 +2,8 @@ using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models;
-#if WINDOWS
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
-#else
-using NotifyRelay.Platforms.Desktop;
-#endif
 using NotifyRelay.Services;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.Services.Socket;
@@ -221,11 +217,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<NotificationRepository>()
 
                 // Platform-specific services
-#if WINDOWS
                 .AddWindowsServices()
-#else
-                .AddDesktopServices()
-#endif
                 // Services
                 // 1. 首先注册基础服务
                 .AddSingleton<ISystemInfoService, SystemInfoService>()
