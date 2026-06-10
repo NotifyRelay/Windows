@@ -141,7 +141,7 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     {
         if (VirtualSpeakerService.IsRunning)
         {
-            await VirtualSpeakerService.StopStreaming();
+            await VirtualSpeakerService.StopStreamingAsync();
         }
         else
         {

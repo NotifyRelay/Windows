@@ -119,7 +119,7 @@ public class VirtualSpeakerViewModel
             }
             else if (!value && _virtualSpeakerService.IsRunning)
             {
-                _ = _virtualSpeakerService.StopStreaming();
+                _ = _virtualSpeakerService.StopStreamingAsync();
             }
         }
     }
