@@ -206,32 +206,20 @@ public static class AppLifecycleHelper
         return app.CreateBuilder(args)
             .Configure(host => host
 #if DEBUG
-                // Switch to Development environment when running in DEBUG
                 .UseEnvironment(Environments.Development)
 #endif
-                .UseLogging(configure: (context, logBuilder) =>
-                {
-                    // Configure log levels for different categories of logging
-                    logBuilder
-                        .SetMinimumLevel(
-                            context.HostingEnvironment.IsDevelopment() ?
-                                LogLevel.Debug :
-                                LogLevel.Warning)
-
-                        // Default filters for core Uno Platform namespaces
-                        .CoreLogLevel(LogLevel.Warning);
-
-                }, enableUnoLogging: true)
                 .UseSerilog(
                     consoleLoggingEnabled: true,
                     fileLoggingEnabled: true,
                     configureLogger: config =>
                     {
-                        config.WriteTo.File(
-                            Path.Combine(ApplicationData.Current.LocalFolder.Path, "Logs", "Log_.log"),
-                            rollingInterval: RollingInterval.Day,
-                            retainedFileCountLimit: 7
-                        );
+                        config
+                            .MinimumLevel.Debug()
+                            .WriteTo.File(
+                                Path.Combine(ApplicationData.Current.LocalFolder.Path, "Logs", "Log_.log"),
+                                rollingInterval: RollingInterval.Day,
+                                retainedFileCountLimit: 7
+                            );
                     }
                 )
                 .UseConfiguration(configure: configBuilder =>
