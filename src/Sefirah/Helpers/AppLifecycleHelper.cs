@@ -226,6 +226,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<IAdbService, AdbService>()
                 .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
                 .AddSingleton<IFileTransferService, FileTransferService>()
+                .AddSingleton<IProtocolSender, ProtocolSender>()
                 .AddSingleton<IClipboardService, ClipboardService>()
                 .AddSingleton<IRemoteAppService, RemoteAppService>()
 
@@ -235,6 +236,8 @@ public static class AppLifecycleHelper
                 .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
 #endif
                 .AddSingleton<ProtocolRouter>()
+                .AddSingleton<ServerLineRouter>()
+                .AddSingleton<HeartbeatProcessor>()
 
                 // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
                 .AddSingleton<INetworkService, NetworkService>()

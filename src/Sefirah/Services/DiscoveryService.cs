@@ -17,6 +17,7 @@ public class DiscoveryService(
     ILogger logger,
     IMdnsService mdnsService,
     IDeviceManager deviceManager,
+    HeartbeatProcessor heartbeatProcessor,
     Func<INetworkService> networkServiceFactory
     ) : IDiscoveryService, IUdpClientProvider
 {
@@ -318,32 +319,11 @@ public class DiscoveryService(
         {
             var message = Encoding.UTF8.GetString(buffer, (int)offset, (int)size);
 
-            // 处理设备发现消息（心跳格式）
-            var parts = message.Split(':');
-            if (parts.Length < 5) return;
+            var heartbeatInfo = heartbeatProcessor.ParseUdpHeartbeat(message);
+            if (heartbeatInfo == null) return;
 
-            var deviceId = parts[0];
-
-            // 1. 首先检查消息发送设备是否为本机，使用本地设备ID直接比较
-            if (deviceId == localDevice?.DeviceId)
-            {
-                // 收到来自本机的UDP发现消息，忽略，不打印日志
-                return;
-            }
-            // logger.LogInformation("收到UDP心跳包：{0}", message);
-            // logger.LogInformation("UDP心跳包设备ID：{0}", deviceId);
-
-            string decodedName;
-            try
-            {
-                decodedName = Encoding.UTF8.GetString(Convert.FromBase64String(parts[1]));
-            }
-            catch
-            {
-                decodedName = parts[1];
-            }
-
-            int devicePort = int.TryParse(parts[2], out var parsedPort) ? parsedPort : 23333;
+            // 跳过本机设备
+            if (heartbeatInfo.DeviceId == localDevice?.DeviceId) return;
 
             if (endpoint is IPEndPoint ipEndPoint)
             {
@@ -355,55 +335,37 @@ public class DiscoveryService(
             }
 
             var discovered = new DiscoveredDevice(
-                deviceId,
+                heartbeatInfo.DeviceId,
                 null,
-                decodedName,
+                heartbeatInfo.DeviceName,
                 DateTimeOffset.UtcNow,
                 DeviceOrigin.UdpBroadcast,
-                devicePort);
+                heartbeatInfo.Port);
 
             await dispatcher.EnqueueAsync(() =>
             {
-                // 2. 确保服务已初始化
-                if (!isInitialized)
-                {
-                    logger.LogWarning("发现服务未初始化，忽略设备添加");
-                    return;
-                }
+                if (!isInitialized) return;
 
-                // 3. 再次检查，确保不是本机设备
-                if (discovered.DeviceId == localDevice?.DeviceId)
-                {
-                    // 尝试添加本机设备，忽略，不打印日志
-                    return;
-                }
+                if (discovered.DeviceId == localDevice?.DeviceId) return;
 
-                // 4. 检查设备是否已经存在
                 var existingDevice = DiscoveredDevices.FirstOrDefault(d => d.DeviceId == discovered.DeviceId);
                 if (existingDevice is not null)
                 {
-                    // 更新现有设备
                     var index = DiscoveredDevices.IndexOf(existingDevice);
                     DiscoveredDevices[index] = discovered;
-                    // logger.LogInformation("更新UDP发现的设备：{0} ({1})");
                 }
                 else
                 {
-                    // 添加新设备
                     DiscoveredDevices.Add(discovered);
-                    // logger.LogInformation("添加新的UDP发现设备：{0} ({1})");
                 }
             });
 
             // 尝试更新已配对设备的在线状态
-            var pairedDevice = deviceManager.FindDeviceById(deviceId);
+            var pairedDevice = deviceManager.FindDeviceById(heartbeatInfo.DeviceId);
             if (pairedDevice != null)
             {
-                // logger.LogInformation("UDP心跳包更新已配对设备状态：{0} ({1})", pairedDevice.Name, deviceId);
-                // 更新设备的最后心跳时间
                 var networkService = networkServiceFactory();
-                networkService.UpdateDeviceStatusFromUdp(deviceId, message);
-                // logger.LogInformation("已调用NetworkService更新设备状态");
+                networkService.UpdateDeviceStatusFromUdp(heartbeatInfo.DeviceId, message);
             }
 
             StartCleanupTimer();

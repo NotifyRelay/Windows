@@ -18,7 +18,8 @@ namespace NotifyRelay.Platforms.Windows.Services;
 public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
     ISessionManager sessionManager,
-    IDeviceManager deviceManager) : IPlaybackService, IMMNotificationClient
+    IDeviceManager deviceManager,
+    IProtocolSender protocolSender) : IPlaybackService, IMMNotificationClient
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
@@ -419,7 +420,7 @@ public class WindowsPlaybackService(
                 string endPayloadJson = JsonSerializer.Serialize(endPayload);
 
                 // 使用 ProtocolSender 发送媒体结束包
-                _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, endPayloadJson);
+                _ = protocolSender.SendMessageAsync(device.Id, endPayloadJson);
             }
         }
     }
@@ -625,7 +626,7 @@ public class WindowsPlaybackService(
                     };
 
                     string requestJson = JsonSerializer.Serialize(requestObj);
-                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, requestJson);
+                    _ = protocolSender.SendMessageAsync(device.Id, requestJson);
                 }
             }
         }
@@ -812,7 +813,7 @@ public class WindowsPlaybackService(
             Action = controlType
         };
         string requestJson = JsonSerializer.Serialize(requestObj);
-        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
+        _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 
     /// <summary>
@@ -841,7 +842,7 @@ public class WindowsPlaybackService(
             {
                 if (device.ConnectionStatus)
                 {
-                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, responseJson, "DATA_STATUS");
+                    _ = protocolSender.SendMessageAsync(device.Id, responseJson, "DATA_STATUS");
                 }
             }
 

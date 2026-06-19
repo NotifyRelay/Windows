@@ -19,6 +19,9 @@ public class NetworkService(
     IScreenMirrorService screenMirrorService,
     ISystemInfoService systemInfoService,
     ProtocolRouter protocolRouter,
+    ServerLineRouter serverLineRouter,
+    HeartbeatProcessor heartbeatProcessor,
+    IProtocolSender protocolSender,
     Func<IRemoteAppService> remoteAppServiceFactory) : INetworkService, ISessionManager, ITcpServerProvider
 {
     private Server? server;
@@ -85,7 +88,7 @@ public class NetworkService(
 
     public void SendMessage(string deviceId, string message)
     {
-        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, message);
+        _ = protocolSender.SendMessageAsync(deviceId, message);
     }
 
     public void BroadcastMessage(string message)
@@ -119,50 +122,7 @@ public class NetworkService(
     /// <param name="message">UDP心跳包消息内容</param>
     public void UpdateDeviceStatusFromUdp(string deviceId, string message = null)
     {
-        var device = PairedDevices.FirstOrDefault(d => d.Id == deviceId);
-        if (device != null)
-        {
-            // logger.LogInformation("通过UDP心跳包更新设备状态：{0} ({1})", device.Name, device.Id);
-
-            // 解析UDP心跳包中的电量信息
-            if (!string.IsNullOrEmpty(message))
-            {
-                var parts = message.Split(':');
-                if (parts.Length >= 5)
-                {
-                    try
-                    {
-                        // 解析充电状态和电量
-                        var batteryPart = parts[3];
-                        var chargeSign = batteryPart[0];
-                        var isCharging = chargeSign == '+';
-                        var batteryLevelStr = batteryPart.Substring(1);
-                        var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
-
-                        // 更新设备状态
-                        var deviceStatus = new DeviceStatus
-                        {
-                            BatteryStatus = batteryLevel,
-                            ChargingStatus = isCharging
-                        };
-
-                        // 调用设备管理器更新设备状态
-                        deviceManager.UpdateDeviceStatus(device, deviceStatus);
-                        // logger.LogDebug("UDP心跳包更新设备电量：{0} ({1})，电量={2}%，充电={3}", device.Name, device.Id, batteryLevel, isCharging);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning("解析UDP心跳包电量信息失败：{0}", ex);
-                    }
-                }
-            }
-
-            MarkDeviceAlive(device);
-        }
-        else
-        {
-            // logger.LogDebug("UDP心跳包未找到已配对设备：{0}", deviceId);
-        }
+        heartbeatProcessor.UpdateDeviceFromUdp(deviceId, message, MarkDeviceAlive);
     }
 
     private bool TryGetSession(string deviceId, out ServerSession? session)
@@ -301,14 +261,7 @@ public class NetworkService(
                 if (string.IsNullOrEmpty(message)) continue;
 
                 var device = GetDeviceBySession(session);
-                if (device is null)
-                {
-                    await HandleHandshakeAsync(session, message);
-                }
-                else
-                {
-                    await ProcessProtocolMessageAsync(device, message);
-                }
+                await serverLineRouter.RouteLineAsync(session, message, device, this);
             }
 
             if (string.IsNullOrEmpty(bufferedData))
@@ -327,7 +280,7 @@ public class NetworkService(
         }
     }
 
-    private async Task HandleHandshakeAsync(ServerSession session, string message)
+    public async Task HandleHandshakeAsync(ServerSession session, string message)
     {
         if (!message.StartsWith("HANDSHAKE:"))
         {
@@ -428,46 +381,10 @@ public class NetworkService(
     {
         try
         {
-            // 处理心跳包（新格式）
-            var parts = message.Split(':');
-            if (parts.Length >= 5)
+            // 先尝试作为心跳包处理
+            if (heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive))
             {
-                // 获取心跳包中的设备ID
-                var heartbeatDeviceId = parts[0];
-
-                // 查找与心跳包设备ID匹配的设备
-                var targetDevice = PairedDevices.FirstOrDefault(d => d.Id == heartbeatDeviceId);
-
-                if (targetDevice != null)
-                {
-                    // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
-                    try
-                    {
-                        // 解析充电状态和电量
-                        var batteryPart = parts[3];
-                        var chargeSign = batteryPart[0];
-                        var isCharging = chargeSign == '+';
-                        var batteryLevelStr = batteryPart.Substring(1);
-                        var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery) ? Math.Clamp(parsedBattery, 0, 100) : 0;
-
-                        // 更新设备状态
-                        var deviceStatus = new DeviceStatus
-                        {
-                            BatteryStatus = batteryLevel,
-                            ChargingStatus = isCharging
-                        };
-
-                        // 调用设备管理器更新设备状态
-                        deviceManager.UpdateDeviceStatus(targetDevice, deviceStatus);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning("解析心跳包失败：{ex}", ex);
-                    }
-
-                    MarkDeviceAlive(targetDevice);
-                    return;
-                }
+                return;
             }
 
             if (message.StartsWith("DATA_"))
@@ -500,7 +417,7 @@ public class NetworkService(
         await protocolRouter.ProcessDataMessageAsync(device, message);
     }
 
-    private async Task<PairedDevice?> TryAttachExistingDeviceSessionAsync(ServerSession session, string message)
+    public async Task<PairedDevice?> TryAttachExistingDeviceSessionAsync(ServerSession session, string message)
     {
         try
         {
@@ -593,7 +510,7 @@ public class NetworkService(
         });
     }
 
-    private void DisconnectSession(ServerSession session)
+    public void DisconnectSession(ServerSession session)
     {
         try
         {
