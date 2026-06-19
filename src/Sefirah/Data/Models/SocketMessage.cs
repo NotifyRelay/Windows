@@ -254,10 +254,10 @@ public class NotificationTextMessage
 public class DeviceInfo : SocketMessage
 {
     [JsonPropertyName("deviceId")]
-    public string DeviceId { get; set; }
+    public string DeviceId { get; set; } = string.Empty;
 
     [JsonPropertyName("deviceName")]
-    public string DeviceName { get; set; }
+    public string DeviceName { get; set; } = string.Empty;
 
     [JsonPropertyName("model")]
     public string? Model { get; set; }
@@ -272,7 +272,7 @@ public class DeviceInfo : SocketMessage
     public string? Proof { get; set; }
 
     [JsonPropertyName("publicKey")]
-    public string PublicKey { get; set; }
+    public string PublicKey { get; set; } = string.Empty;
 }
 
 /// <summary>

@@ -18,7 +18,7 @@ public class DatabaseContext : IDisposable
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "初始化数据库上下文失败：{ex}");
+            logger.LogError(ex, "初始化数据库上下文失败");
             throw;
         }
     }
@@ -471,7 +471,7 @@ public class DatabaseContext : IDisposable
             if (disposing)
             {
                 Database?.Dispose();
-                Database = null;
+                Database = null!;
             }
             _disposed = true;
         }

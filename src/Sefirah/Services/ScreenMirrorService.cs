@@ -39,6 +39,12 @@ public class ScreenMirrorService(
         }
         catch { }
 
+        if (device == null)
+        {
+            logger.LogError("StartScrcpy 失败：设备为空");
+            return false;
+        }
+
         Process? process = null;
         CancellationTokenSource? processCts = null;
 

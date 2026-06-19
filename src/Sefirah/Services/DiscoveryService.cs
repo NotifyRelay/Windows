@@ -154,6 +154,11 @@ public class DiscoveryService(
         var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
         var chargeSign = isCharging ? "+" : "-";
 
+        if (localDevice == null)
+        {
+            return string.Empty;
+        }
+
         // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
         return $"{localDevice.DeviceId}:{encodedName}:{serverPort}:{chargeSign}{batteryLevel}:pc";
     }
@@ -165,6 +170,7 @@ public class DiscoveryService(
     {
         try
         {
+            if (localDevice == null) return;
             logger.LogInformation("本地设备名已更改，重新广播设备信息：{newName}", newName);
             localDevice.DeviceName = newName;
             var discoverMessage = BuildDiscoverMessage(newName);
@@ -386,6 +392,7 @@ public class DiscoveryService(
             logger.LogInformation("UDP 客户端已断开连接，重新启动广播");
             isBroadcasting = false;
 
+            if (localDevice == null) return;
             // 重新启动广播
             var discoverMessage = BuildDiscoverMessage(localDevice.DeviceName);
             BroadcastDeviceInfoAsync(discoverMessage);

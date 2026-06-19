@@ -402,7 +402,7 @@ public class ClipboardService : IClipboardService
             var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
             var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
 
-            await SetContentAsync(content, device);
+            await SetContentAsync(content ?? string.Empty, device);
             logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
         }
         catch (JsonException ex)

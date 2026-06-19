@@ -120,9 +120,9 @@ public class NetworkService(
     /// </summary>
     /// <param name="deviceId">设备ID</param>
     /// <param name="message">UDP心跳包消息内容</param>
-    public void UpdateDeviceStatusFromUdp(string deviceId, string message = null)
+    public void UpdateDeviceStatusFromUdp(string deviceId, string? message = null)
     {
-        heartbeatProcessor.UpdateDeviceFromUdp(deviceId, message, MarkDeviceAlive);
+        heartbeatProcessor.UpdateDeviceFromUdp(deviceId, message ?? string.Empty, MarkDeviceAlive);
     }
 
     private bool TryGetSession(string deviceId, out ServerSession? session)

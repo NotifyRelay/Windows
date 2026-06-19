@@ -68,7 +68,7 @@ public partial class PairedDevice : ObservableObject
                     // 只有当HasSentftpRequest为true时才启动计时器
                     if (HasSentftpRequest)
                     {
-                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器", Name, Id);
+                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器");
 
                         // 确保之前的计时器已被释放
                         autoftpTimer?.Stop();
@@ -211,7 +211,7 @@ public partial class PairedDevice : ObservableObject
                             DeviceId = Id,
                             Name = Name,
                             Model = Model,
-                            IpAddresses = IpAddresses,
+                            IpAddresses = IpAddresses ?? [],
                             SharedSecret = SharedSecret,
                             PublicKey = RemotePublicKey,
                             HasSentftpRequest = value

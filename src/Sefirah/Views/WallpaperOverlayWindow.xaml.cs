@@ -81,7 +81,7 @@ public sealed partial class WallpaperOverlayWindow : Window
         LoadSettings();
         RestoreWindowPosition(hWnd);
 
-        AppWindow.Changed += AppWindow_Changed;
+        AppWindow?.Changed += AppWindow_Changed;
 #endif
     }
 

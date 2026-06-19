@@ -102,7 +102,7 @@ public sealed partial class WallpaperOverlaySettingsPage : Page
                 ColorPicker.Color = new Windows.UI.Color { R = r, G = g, B = b, A = 255 };
             }
         }
-        ColorPickerDialog.ShowAsync();
+        _ = ColorPickerDialog.ShowAsync();
     }
 
     private void ColorPickerDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)

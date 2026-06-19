@@ -91,7 +91,7 @@ public static class NotifyCryptoHelper
             byte[] cipherText = new byte[plaintextBytes.Length];
             byte[] tag = new byte[16];
 
-            using (var aesgcm = new AesGcm(keyBytes))
+            using (var aesgcm = new AesGcm(keyBytes, 16))
             {
                 aesgcm.Encrypt(iv, plaintextBytes, cipherText, tag, null);
             }
@@ -132,7 +132,7 @@ public static class NotifyCryptoHelper
             Buffer.BlockCopy(buffer, iv.Length + cipherLen, tag, 0, tag.Length);
 
             byte[] plainBytes = new byte[cipherLen];
-            using (var aesgcm = new AesGcm(keyBytes))
+            using (var aesgcm = new AesGcm(keyBytes, 16))
             {
                 aesgcm.Decrypt(iv, cipherText, tag, plainBytes, null);
             }

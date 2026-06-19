@@ -57,13 +57,13 @@ internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSh
 
     public string RemoteStoragePath
     {
-        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath);
+        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
         set => Set(value);
     }
 
     public string ReceivedFilesPath
     {
-        get => Get(Constants.UserEnvironmentPaths.DownloadsPath);
+        get => Get(Constants.UserEnvironmentPaths.DownloadsPath)!;
         set => Set(value);
     }
 

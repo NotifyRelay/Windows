@@ -120,25 +120,25 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public string RemoteStoragePath
     {
-        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath);
+        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
         set => Set(value);
     }
 
     public string ReceivedFilesPath
     {
-        get => Get(Constants.UserEnvironmentPaths.DownloadsPath);
+        get => Get(Constants.UserEnvironmentPaths.DownloadsPath)!;
         set => Set(value);
     }
 
-    public string? ScrcpyPath
+    public string ScrcpyPath
     {
-        get => Get(string.Empty);
+        get => Get(string.Empty)!;
         set => Set(value);
     }
 
-    public string? AdbPath
+    public string AdbPath
     {
-        get => Get(string.Empty);
+        get => Get(string.Empty)!;
         set => Set(value);
     }
 
@@ -150,7 +150,7 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public List<BaseAction> Actions
     {
-        get => Get<List<BaseAction>>([]);
+        get => Get<List<BaseAction>>([])!;
         set => Set(value);
     }
 
@@ -199,7 +199,7 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public List<string> SelectedMonitors
     {
-        get => Get<List<string>>([]);
+        get => Get<List<string>>([])!;
         set => Set(value);
     }
 

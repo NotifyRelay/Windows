@@ -267,9 +267,9 @@ public class ProtocolRouter
 
                 // 提取关键信息
                 var originalHeader = root.TryGetProperty("originalHeader", out var originalHeaderProp) ? originalHeaderProp.GetString() : string.Empty;
-                var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() : string.Empty;
-                var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() : string.Empty;
-                var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
+                var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() ?? string.Empty : string.Empty;
+                var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() ?? string.Empty : string.Empty;
+                var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() ?? string.Empty : string.Empty;
 
                 logger.LogDebug("DATA_STATUS消息详情: originalHeader={originalHeader}, result={result}, action={action}", originalHeader, result, action);
 

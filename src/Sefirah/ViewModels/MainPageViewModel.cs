@@ -472,7 +472,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    public async void SetRingerMode(string? modeStr)
+    public async Task SetRingerMode(string? modeStr)
     {
         if (int.TryParse(modeStr, out int mode))
         {
@@ -572,7 +572,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
         var notificationToInvoke = new NotificationMessage
         {
             NotificationType = NotificationType.Invoke,
-            NotificationKey = notification.Key,
+            NotificationKey = notification.Key ?? string.Empty,
         };
         string? appIcon = string.Empty;
         if (!string.IsNullOrEmpty(notification.AppPackage))

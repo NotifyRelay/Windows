@@ -519,8 +519,8 @@ public class NotificationService(
             if (activeDevice?.DeviceSettings.ShowBadge == true)
             {
                 XmlDocument badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-                XmlElement badgeElement = badgeXml.SelectSingleNode("/badge") as XmlElement;
-                badgeElement.SetAttribute("value", totalNotifications.ToString());
+                XmlElement? badgeElement = badgeXml.SelectSingleNode("/badge") as XmlElement;
+                badgeElement?.SetAttribute("value", totalNotifications.ToString());
                 BadgeNotification badge = new(badgeXml);
                 BadgeUpdater badgeUpdater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
                 badgeUpdater.Update(badge);
@@ -1168,7 +1168,7 @@ public class NotificationService(
             var notificationMessage = new NotificationMessage
             {
                 NotificationKey = root.TryGetProperty("notificationKey", out var keyProp) && keyProp.ValueKind == JsonValueKind.String ?
-                    keyProp.GetString() : Guid.NewGuid().ToString(),
+                    keyProp.GetString()! : Guid.NewGuid().ToString(),
                 TimeStamp = root.TryGetProperty("timeStamp", out var timeProp) && timeProp.ValueKind == JsonValueKind.String ?
                     timeProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
                 NotificationType = root.TryGetProperty("notificationType", out var typeProp) && typeProp.ValueKind == JsonValueKind.String ?

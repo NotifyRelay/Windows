@@ -160,10 +160,9 @@ public static class LocalSocketRelayServer
                 // 由于ConcurrentBag无法直接移除特定元素，我们需要重新创建一个新的集合
                 // 这是一个更可靠的清理方式
                 var newClients = new List<TcpClient>();
-                TcpClient currentClient;
-                while (clients.TryTake(out currentClient))
+                while (clients.TryTake(out var currentClient))
                 {
-                    if (currentClient.Connected)
+                    if (currentClient?.Connected == true)
                     {
                         newClients.Add(currentClient);
                     }
@@ -353,14 +352,13 @@ public static class LocalSocketRelayServer
         try
         {
             var newClients = new List<TcpClient>();
-            TcpClient c;
-            while (clients.TryTake(out c))
+            while (clients.TryTake(out var c))
             {
-                if (c.Connected)
+                if (c?.Connected == true)
                 {
                     newClients.Add(c);
                 }
-                else
+                else if (c != null)
                 {
                     try { c.Close(); } catch { }
                 }

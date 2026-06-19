@@ -310,6 +310,17 @@ public class AdbService(
             // Get full device information including model
             var devices = await adbClient.GetDevicesAsync();
             var fullDeviceData = devices.FirstOrDefault(d => d.Serial == deviceData.Serial);
+            if (fullDeviceData == null)
+            {
+                return new AdbDevice
+                {
+                    Serial = deviceData.Serial,
+                    Model = deviceData.Model ?? "Unknown",
+                    State = deviceData.State,
+                    Type = deviceData.Serial.Contains(':') || deviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
+                    AndroidId = ""
+                };
+            }
             string androidId = string.Empty;
             try
             {
@@ -471,7 +482,7 @@ public class AdbService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "连接默认无线设备时出错：{ex}");
+            logger.LogError(ex, "连接默认无线设备时出错");
             return false;
         }
     }

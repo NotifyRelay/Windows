@@ -25,7 +25,6 @@ public class WindowsPlaybackService(
     private GlobalSystemMediaTransportControlsSessionManager? manager;
 
     // Local SMTC for remote media display
-    private string? _currentRemoteDeviceId;
 
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
@@ -557,7 +556,8 @@ public class WindowsPlaybackService(
             string text = string.Empty;
             string coverUrl = playbackSession.Thumbnail ?? string.Empty;
 
-            if (lastMediaState.TryGetValue(playbackSession.Source, out var oldState))
+            var sourceKey = playbackSession.Source ?? string.Empty;
+            if (lastMediaState.TryGetValue(sourceKey, out var oldState))
             {
                 // 计算差异
                 bool titleChanged = oldState.Title != currentState.Title;
@@ -588,7 +588,7 @@ public class WindowsPlaybackService(
             }
 
             // 更新上次发送的媒体状态
-            lastMediaState[playbackSession.Source] = currentState;
+            lastMediaState[sourceKey] = currentState;
 
             // 构建文本内容
             if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artist))
@@ -859,15 +859,15 @@ public class WindowsPlaybackService(
     private class MediaControlResponse
     {
         [JsonPropertyName("originalHeader")]
-        public string OriginalHeader { get; set; }
+        public string OriginalHeader { get; set; } = string.Empty;
 
         [JsonPropertyName("action")]
-        public string Action { get; set; }
+        public string Action { get; set; } = string.Empty;
 
         [JsonPropertyName("result")]
-        public string Result { get; set; }
+        public string Result { get; set; } = string.Empty;
 
         [JsonPropertyName("errorMessage")]
-        public string ErrorMessage { get; set; }
+        public string ErrorMessage { get; set; } = string.Empty;
     }
 }

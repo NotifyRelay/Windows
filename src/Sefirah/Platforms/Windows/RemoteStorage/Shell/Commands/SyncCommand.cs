@@ -112,7 +112,7 @@ public class SyncCommand(
             return HRESULT.E_NOINTERFACE;
         }
         var myriid = riid;
-        HRESULT hr = Marshal.QueryInterface(Marshal.GetIUnknownForObject(_site), ref myriid, out var ppv);
+        HRESULT hr = Marshal.QueryInterface(Marshal.GetIUnknownForObject(_site), in myriid, out var ppv);
         ppvSite = hr.Succeeded ? Marshal.GetObjectForIUnknown(ppv) : null;
         return hr;
     }

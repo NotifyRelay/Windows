@@ -7,7 +7,7 @@ namespace NotifyRelay.Services.Settings;
 
 internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsService
 {
-    private IGeneralSettingsService _generalSettingsService;
+    private IGeneralSettingsService _generalSettingsService = null!;
     public IGeneralSettingsService GeneralSettingsService
     {
         get => GetSettingsService(ref _generalSettingsService);

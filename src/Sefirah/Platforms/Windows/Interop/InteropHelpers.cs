@@ -63,7 +63,7 @@ public static class InteropHelpers
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern nint CreateEvent(nint lpEventAttributes, bool bManualReset,
-            bool bInitialState, string lpName);
+            bool bInitialState, string? lpName);
 
     [DllImport("kernel32.dll")]
     public static extern bool SetEvent(nint hEvent);
@@ -109,7 +109,7 @@ public static class InteropHelpers
     public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
 
     [DllImport("user32.dll", SetLastError = true)]
-    public static extern nint FindWindowEx(nint hWndParent, nint hWndChildAfter, [MarshalAs(UnmanagedType.LPWStr)] string lpszClass, [MarshalAs(UnmanagedType.LPWStr)] string lpszWindow);
+    public static extern nint FindWindowEx(nint hWndParent, nint hWndChildAfter, [MarshalAs(UnmanagedType.LPWStr)] string lpszClass, [MarshalAs(UnmanagedType.LPWStr)] string? lpszWindow);
 
     [DllImport("user32.dll", SetLastError = true)]
     public static extern nint GetDesktopWindow();

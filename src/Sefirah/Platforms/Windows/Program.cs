@@ -59,7 +59,7 @@ internal class Program
     {
         // WINUI3: https://github.com/microsoft/WindowsAppSDK/issues/1709
 
-        IntPtr redirectEventHandle = InteropHelpers.CreateEvent(IntPtr.Zero, true, false, null);
+        IntPtr redirectEventHandle = InteropHelpers.CreateEvent(IntPtr.Zero, true, false, null!);
 
         Task.Run(() =>
         {

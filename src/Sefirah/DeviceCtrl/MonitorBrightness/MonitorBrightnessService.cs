@@ -12,7 +12,7 @@ public class MonitorBrightnessService
     private bool _isRunning;
     private List<MonitorInfo> _availableMonitors = [];
 
-    public event EventHandler StatusChanged;
+    public event EventHandler? StatusChanged;
 
     public bool IsRunning => _isRunning;
 
