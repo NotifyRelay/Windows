@@ -1,7 +1,4 @@
-using System.Collections;
-using System.Linq;
 using System.Reflection;
-using Microsoft.Extensions.Logging;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;

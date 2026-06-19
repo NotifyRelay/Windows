@@ -253,19 +253,19 @@ public class DeepSeekBalanceService
             return;
 
         int mergeCount = BalanceHistory.Count - MaxHistoryItems + 1;
-        
+
         int startIndex = 0;
         while (startIndex < BalanceHistory.Count - 1 && mergeCount > 0)
         {
             int endIndex = startIndex;
             string currentType = BalanceHistory[startIndex].ChangeType;
-            
-            while (endIndex < BalanceHistory.Count && 
+
+            while (endIndex < BalanceHistory.Count &&
                    BalanceHistory[endIndex].ChangeType == currentType)
             {
                 endIndex++;
             }
-            
+
             int consecutiveCount = endIndex - startIndex;
             if (consecutiveCount >= 2)
             {
@@ -276,7 +276,7 @@ public class DeepSeekBalanceService
                     totalChange += BalanceHistory[i].Change;
                     totalMergeCount += BalanceHistory[i].MergeCount;
                 }
-                
+
                 var mergedItem = new BalanceHistoryItem
                 {
                     Time = BalanceHistory[endIndex - 1].Time,
@@ -285,21 +285,21 @@ public class DeepSeekBalanceService
                     ChangeType = currentType,
                     MergeCount = totalMergeCount
                 };
-                
+
                 for (int i = endIndex - 1; i >= startIndex; i--)
                 {
                     BalanceHistory.RemoveAt(i);
                 }
                 BalanceHistory.Insert(startIndex, mergedItem);
-                
+
                 mergeCount -= consecutiveCount - 1;
                 if (mergeCount <= 0)
                     break;
             }
-            
+
             startIndex++;
         }
-        
+
         if (mergeCount > 0 && BalanceHistory.Count > MaxHistoryItems)
         {
             BalanceHistory.RemoveAt(0);

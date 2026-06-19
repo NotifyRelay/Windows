@@ -9,7 +9,6 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Platforms.Windows.Interop;
-using NotifyRelay.Services;
 using Windows.Media;
 using Windows.Media.Control;
 

@@ -3,7 +3,6 @@ using NotifyRelay.Platforms.Windows.Helpers;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
-using static Vanara.PInvoke.Gdi32;
 using static Vanara.PInvoke.Shell32;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;

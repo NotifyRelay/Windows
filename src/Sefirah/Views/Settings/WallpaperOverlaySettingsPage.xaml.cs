@@ -1,13 +1,7 @@
-using System;
-using System.Collections.ObjectModel;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Media;
 using NotifyRelay.Data.Items;
 using NotifyRelay.Helpers;
 using NotifyRelay.ViewModels.Settings;
-using NotifyRelay.Views;
 
 namespace NotifyRelay.Views.Settings;
 

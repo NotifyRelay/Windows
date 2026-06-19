@@ -1,8 +1,4 @@
-using System;
 using Microsoft.UI.Windowing;
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Helpers;
 using WinRT.Interop;
@@ -94,15 +90,15 @@ public sealed partial class WallpaperOverlayWindow : Window
         if (_generalSettingsService == null) return;
 
         _displayText = _generalSettingsService.WallpaperOverlayText ?? "**壁纸层显示内容**";
-        
+
         if (_generalSettingsService.WallpaperOverlayFontSize > 0)
         {
             FontSize = _generalSettingsService.WallpaperOverlayFontSize;
         }
-        
+
         _textForeground = ColorHelper.CreateBrush(_generalSettingsService.WallpaperOverlayTextColor ?? "#FFFFFF");
         DisplayTextBlock.Foreground = _textForeground;
-        
+
         var alignment = _generalSettingsService.WallpaperOverlayTextAlignment ?? "居中";
         HorizontalAlignment = alignment switch
         {
@@ -116,7 +112,7 @@ public sealed partial class WallpaperOverlayWindow : Window
             "右对齐" => TextAlignment.Right,
             _ => TextAlignment.Center
         };
-        
+
         RenderMarkdown();
     }
 
@@ -143,7 +139,7 @@ public sealed partial class WallpaperOverlayWindow : Window
 
         if (x != 0 || y != 0)
         {
-            Platforms.Windows.Interop.InteropHelpers.SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0, 
+            Platforms.Windows.Interop.InteropHelpers.SetWindowPos(hWnd, IntPtr.Zero, x, y, 0, 0,
                 Platforms.Windows.Interop.InteropHelpers.SWP_NOSIZE | Platforms.Windows.Interop.InteropHelpers.SWP_NOACTIVATE | Platforms.Windows.Interop.InteropHelpers.SWP_NOZORDER);
         }
 
@@ -182,10 +178,10 @@ public sealed partial class WallpaperOverlayWindow : Window
     {
 #if WINDOWS
         var hWnd = WindowNative.GetWindowHandle(this);
-        
+
         AppWindow?.Show();
         Platforms.Windows.Interop.InteropHelpers.SetWindowToWallpaperLayer(hWnd);
-        
+
         RestoreWindowPosition(hWnd);
 #endif
     }
