@@ -1,3 +1,4 @@
+using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Services.Socket;
 
@@ -10,17 +11,23 @@ namespace NotifyRelay.Services;
 /// - 解析 TCP 首行协议前缀并分发到对应处理器
 /// - HANDSHAKE → NetworkService 握手处理
 /// - DATA_* → ProtocolRouter 加密业务通道
-/// - HEARTBEAT_TCP → HeartbeatProcessor（待迁移）
+/// - HEARTBEAT_TCP → HeartbeatProcessor 统一处理
 /// - 其他 → 断开连接
 /// </summary>
 public class ServerLineRouter
 {
     private readonly ILogger<ServerLineRouter> _logger;
+    private readonly HeartbeatProcessor _heartbeatProcessor;
+    private readonly IDeviceManager _deviceManager;
 
     public ServerLineRouter(
-        ILogger<ServerLineRouter> logger)
+        ILogger<ServerLineRouter> logger,
+        HeartbeatProcessor heartbeatProcessor,
+        IDeviceManager deviceManager)
     {
         _logger = logger;
+        _heartbeatProcessor = heartbeatProcessor;
+        _deviceManager = deviceManager;
     }
 
     /// <summary>
@@ -70,7 +77,17 @@ public class ServerLineRouter
         }
         else if (message.StartsWith("HEARTBEAT_TCP:"))
         {
-            await networkService.ProcessProtocolMessageAsync(null!, message);
+            var processed = _heartbeatProcessor.TryProcessHeartbeat(message, null, d =>
+            {
+                d.LastHeartbeat = DateTime.UtcNow;
+            });
+
+            if (!processed)
+            {
+                _logger.LogDebug("HEARTBEAT_TCP 未找到已配对设备，忽略");
+            }
+
+            networkService.DisconnectSession(session);
         }
         else
         {

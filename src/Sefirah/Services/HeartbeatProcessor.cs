@@ -8,14 +8,17 @@ namespace NotifyRelay.Services;
 /// 心跳处理器
 ///
 /// 职责：
-/// - 统一解析 TCP/UDP 心跳消息格式
+/// - 统一解析 TCP/UDP 心跳消息格式（TCP 带 HEARTBEAT_TCP: 前缀，UDP 不带）
 /// - 更新设备在线状态和电量信息
 /// - 消除 NetworkService 和 DiscoveryService 中的重复心跳解析代码
 ///
-/// 心跳格式：<uuid>:<displayName(base64)>:<port>:<+/-><batteryLevel>:<deviceType>
+/// TCP 心跳格式：HEARTBEAT_TCP:<uuid>:<displayName(base64)>:<port>:<+/-><batteryLevel>:<deviceType>
+/// UDP 心跳格式：<uuid>:<displayName(base64)>:<port>:<+/-><batteryLevel>:<deviceType>
 /// </summary>
 public class HeartbeatProcessor
 {
+    private const string HeartbeatTcpPrefix = "HEARTBEAT_TCP:";
+
     private readonly ILogger<HeartbeatProcessor> _logger;
     private readonly IDeviceManager _deviceManager;
 
@@ -28,31 +31,39 @@ public class HeartbeatProcessor
     }
 
     /// <summary>
-    /// 尝试作为 TCP 心跳处理消息
+    /// 提取心跳载荷（去掉 HEARTBEAT_TCP: 前缀，如果有）
     /// </summary>
-    /// <param name="message">原始消息</param>
-    /// <param name="device">当前设备（如果已绑定会话）</param>
-    /// <param name="markDeviceAlive">设备活跃回调</param>
-    /// <returns>如果消息是心跳格式并成功处理则返回 true</returns>
+    private static string GetHeartbeatPayload(string message)
+    {
+        return message.StartsWith(HeartbeatTcpPrefix)
+            ? message[HeartbeatTcpPrefix.Length..]
+            : message;
+    }
+
+    /// <summary>
+    /// 尝试处理 TCP 心跳消息（支持 HEARTBEAT_TCP: 开头或无前缀两种格式）
+    /// </summary>
     public bool TryProcessHeartbeat(string message, PairedDevice? device, Action<PairedDevice>? markDeviceAlive)
     {
-        var parts = message.Split(':');
-        if (parts.Length < 5) return false;
+        var payload = GetHeartbeatPayload(message);
+        var fields = ParseHeartbeatFields(payload);
+        if (fields == null) return false;
 
-        var heartbeatDeviceId = parts[0];
-
-        var targetDevice = device?.Id == heartbeatDeviceId
+        var targetDevice = device?.Id == fields.DeviceId
             ? device
-            : _deviceManager.FindDeviceById(heartbeatDeviceId);
+            : _deviceManager.FindDeviceById(fields.DeviceId);
 
         if (targetDevice == null) return false;
 
         try
         {
-            var deviceStatus = ParseBatteryStatus(parts[3]);
-            if (deviceStatus != null)
+            if (fields.BatteryLevel >= 0)
             {
-                _deviceManager.UpdateDeviceStatus(targetDevice, deviceStatus);
+                _deviceManager.UpdateDeviceStatus(targetDevice, new DeviceStatus
+                {
+                    BatteryStatus = fields.BatteryLevel,
+                    ChargingStatus = fields.IsCharging
+                });
             }
 
             markDeviceAlive?.Invoke(targetDevice);
@@ -60,17 +71,61 @@ public class HeartbeatProcessor
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "解析心跳包失败");
+            _logger.LogWarning(ex, "处理心跳包失败");
             return false;
         }
     }
 
     /// <summary>
-    /// 解析 UDP/UDP 广播心跳消息，获取设备基本信息和电量
+    /// 解析 UDP 广播心跳消息
     /// </summary>
     public UdpHeartbeatInfo? ParseUdpHeartbeat(string message)
     {
-        var parts = message.Split(':');
+        var fields = ParseHeartbeatFields(message);
+        if (fields == null) return null;
+
+        return new UdpHeartbeatInfo
+        {
+            DeviceId = fields.DeviceId,
+            DeviceName = fields.DeviceName,
+            Port = fields.Port,
+            BatteryLevel = fields.BatteryLevel,
+            IsCharging = fields.IsCharging,
+            DeviceType = fields.DeviceType
+        };
+    }
+
+    /// <summary>
+    /// 通过 UDP 心跳更新已配对设备状态
+    /// </summary>
+    public void UpdateDeviceFromUdp(string deviceId, string message, Action<PairedDevice>? markDeviceAlive)
+    {
+        var device = _deviceManager.FindDeviceById(deviceId);
+        if (device == null) return;
+
+        if (!string.IsNullOrEmpty(message))
+        {
+            var fields = ParseHeartbeatFields(GetHeartbeatPayload(message));
+            if (fields != null && fields.BatteryLevel >= 0)
+            {
+                _deviceManager.UpdateDeviceStatus(device, new DeviceStatus
+                {
+                    BatteryStatus = fields.BatteryLevel,
+                    ChargingStatus = fields.IsCharging
+                });
+            }
+        }
+
+        markDeviceAlive?.Invoke(device);
+    }
+
+    /// <summary>
+    /// 统一的心跳字段解析（TCP 和 UDP 共用）
+    /// 格式：<uuid>:<displayName(base64)>:<port>:<+/-><batteryLevel>:<deviceType>
+    /// </summary>
+    private static HeartbeatFields? ParseHeartbeatFields(string payload)
+    {
+        var parts = payload.Split(':');
         if (parts.Length < 5) return null;
 
         string decodedName;
@@ -85,14 +140,17 @@ public class HeartbeatProcessor
 
         var port = int.TryParse(parts[2], out var parsedPort) ? parsedPort : 23333;
 
-        int batteryLevel = 0;
+        int batteryLevel = -1;
         bool isCharging = false;
         try
         {
             var batteryPart = parts[3];
-            isCharging = batteryPart[0] == '+';
-            batteryLevel = int.TryParse(batteryPart[1..], out var parsed)
-                ? Math.Clamp(parsed, 0, 100) : 0;
+            if (batteryPart.Length >= 2)
+            {
+                isCharging = batteryPart[0] == '+';
+                batteryLevel = int.TryParse(batteryPart[1..], out var parsed)
+                    ? Math.Clamp(parsed, 0, 100) : -1;
+            }
         }
         catch
         {
@@ -101,7 +159,7 @@ public class HeartbeatProcessor
 
         var deviceType = parts.Length > 4 ? parts[4] : "unknown";
 
-        return new UdpHeartbeatInfo
+        return new HeartbeatFields
         {
             DeviceId = parts[0],
             DeviceName = decodedName,
@@ -112,55 +170,17 @@ public class HeartbeatProcessor
         };
     }
 
-    /// <summary>
-    /// 更新已配对设备的 UDP 心跳状态（电量 + 活跃标记）
-    /// </summary>
-    public void UpdateDeviceFromUdp(string deviceId, string message, Action<PairedDevice>? markDeviceAlive)
+    private sealed class HeartbeatFields
     {
-        var device = _deviceManager.FindDeviceById(deviceId);
-        if (device == null) return;
-
-        if (!string.IsNullOrEmpty(message))
-        {
-            var deviceStatus = ParseBatteryFromMessage(message);
-            if (deviceStatus != null)
-            {
-                _deviceManager.UpdateDeviceStatus(device, deviceStatus);
-            }
-        }
-
-        markDeviceAlive?.Invoke(device);
-    }
-
-    private DeviceStatus? ParseBatteryFromMessage(string message)
-    {
-        var parts = message.Split(':');
-        if (parts.Length < 5) return null;
-
-        return ParseBatteryStatus(parts[3]);
-    }
-
-    private static DeviceStatus? ParseBatteryStatus(string batteryPart)
-    {
-        if (string.IsNullOrEmpty(batteryPart) || batteryPart.Length < 2) return null;
-
-        var chargeSign = batteryPart[0];
-        var isCharging = chargeSign == '+';
-        var batteryLevelStr = batteryPart[1..];
-        var batteryLevel = int.TryParse(batteryLevelStr, out var parsedBattery)
-            ? Math.Clamp(parsedBattery, 0, 100) : 0;
-
-        return new DeviceStatus
-        {
-            BatteryStatus = batteryLevel,
-            ChargingStatus = isCharging
-        };
+        public string DeviceId { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public int Port { get; set; }
+        public int BatteryLevel { get; set; } = -1;
+        public bool IsCharging { get; set; }
+        public string DeviceType { get; set; } = string.Empty;
     }
 }
 
-/// <summary>
-/// UDP 心跳解析结果
-/// </summary>
 public class UdpHeartbeatInfo
 {
     public string DeviceId { get; set; } = string.Empty;
