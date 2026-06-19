@@ -19,7 +19,7 @@
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinTextConverter" FalseValue="{helpers:ResourceString Name=Pin}" TrueValue="{helpers:ResourceString Name=Unpin}" />
         <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
-        
+
         <DataTemplate x:Key="AppItemTemplate" x:DataType="models:ApplicationInfo">
             <Grid
                 HorizontalAlignment="Stretch"
@@ -86,7 +86,7 @@
                     TextWrapping="Wrap" />
             </Grid>
         </DataTemplate>
-        
+
         <DataTemplate x:Key="SearchSuggestionTemplate" x:DataType="models:ApplicationInfo">
             <StackPanel
                 Margin="0,8,0,8"
@@ -108,7 +108,7 @@
                     Text="{x:Bind AppName, Mode=OneWay}" />
             </StackPanel>
         </DataTemplate>
-        
+
         <Style x:Key="AppItemContainerStyle" BasedOn="{StaticResource DefaultGridViewItemStyle}" TargetType="GridViewItem">
             <Setter Property="Margin" Value="12,12,12,0" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />

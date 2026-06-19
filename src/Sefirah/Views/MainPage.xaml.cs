@@ -26,6 +26,7 @@ public sealed partial class MainPage : Page
     {
         { "Settings", typeof(SettingsPage) },
         { "Apps", typeof(AppsPage) },
+        { "LocalNotificationHistory", typeof(LocalNotificationHistoryPage) },
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
         { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
         { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) }

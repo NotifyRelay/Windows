@@ -5,6 +5,7 @@ using NotifyRelay.Models;
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
+using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.Services.Socket;
 using NotifyRelay.ViewModels;
@@ -105,6 +106,35 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤15：初始化通知服务...");
         notificationService.Initialize();
         logger.LogInformation("步骤15：通知服务初始化完成");
+
+        // 15a. 初始化过滤配置
+        logger.LogInformation("步骤15a：初始化通知过滤配置...");
+        try
+        {
+            var filterConfigRepository = Ioc.Default.GetRequiredService<FilterConfigRepository>();
+            var filterConfig = filterConfigRepository.LoadOrCreateDefault();
+            var remoteFilter = Ioc.Default.GetRequiredService<BackendRemoteFilter>();
+            filterConfig.ApplyTo(remoteFilter);
+            filterConfig.ApplyLocalFilter();
+            logger.LogInformation("步骤15a：通知过滤配置初始化完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15a：初始化通知过滤配置失败");
+        }
+
+        // 15b. 启动本地通知监听
+        logger.LogInformation("步骤15b：启动本地通知监听服务...");
+        try
+        {
+            var localListener = Ioc.Default.GetRequiredService<ILocalNotificationListenerService>();
+            localListener.Start();
+            logger.LogInformation("步骤15b：本地通知监听服务启动完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15b：启动本地通知监听服务失败");
+        }
 
         // 5. 为LocalSocketRelayServer设置logger并启动服务器
         logger.LogInformation("步骤16：设置并启动LocalSocketRelayServer...");
@@ -215,6 +245,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<DeviceRepository>()
                 .AddSingleton<RemoteAppRepository>()
                 .AddSingleton<NotificationRepository>()
+                .AddSingleton<FilterConfigRepository>()
 
                 // Platform-specific services
                 .AddWindowsServices()
@@ -250,6 +281,10 @@ public static class AppLifecycleHelper
                 // 6. 注册INotificationService，它依赖ISessionManager
                 .AddSingleton<INotificationService, NotificationService>()
                 .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
+                .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
+
+                // 注册通知过滤服务
+                .AddSingleton<BackendRemoteFilter>()
 
                 // 注册其他需要的工厂
                 .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
@@ -269,6 +304,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<MainPageViewModel>()
                 .AddSingleton<DevicesViewModel>()
                 .AddSingleton<AppsViewModel>()
+                .AddSingleton<LocalNotificationHistoryViewModel>()
                 )
             );
     }

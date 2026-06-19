@@ -3,6 +3,7 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Services.Filters;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
 using Windows.Data.Xml.Dom;
@@ -21,7 +22,8 @@ public class NotificationService(
     NotificationRepository notificationRepository,
     Func<INetworkService> networkServiceFactory,
     Func<IRemoteAppService> remoteAppServiceFactory,
-    IPlaybackService playbackService) : INotificationService, INotifyPropertyChanged
+    IPlaybackService playbackService,
+    BackendRemoteFilter remoteFilter) : INotificationService, INotifyPropertyChanged
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
 
@@ -134,6 +136,13 @@ public class NotificationService(
             // 过滤超级岛通知，识别段是'superisland:'
             if (message.AppPackage?.StartsWith("superisland:") == true)
             {
+                return;
+            }
+
+            // 应用远程过滤（黑/白名单、包名等价组映射、文本去重）
+            if (remoteFilter.ShouldBlock(message))
+            {
+                logger.LogDebug("远程过滤阻止了通知: {Title}", message.Title);
                 return;
             }
 

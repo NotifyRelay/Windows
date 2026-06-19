@@ -214,6 +214,9 @@ public class NotificationMessage : SocketMessage
     [JsonPropertyName("appIcon")]
     public string? AppIcon { get; set; }
 
+    [JsonPropertyName("isLocked")]
+    public bool IsLocked { get; set; }
+
     [JsonPropertyName("bigPicture")]
     public string? BigPicture { get; set; }
 
