@@ -559,7 +559,8 @@ public sealed partial class MainPageViewModel : BaseViewModel
 
     public async Task OpenApp(Notification notification, string? deviceId = null)
     {
-        Debug.WriteLine($"[调试] MainPageViewModel.OpenApp 被调用：notification.Key={notification?.Key} deviceId={deviceId}");
+        ArgumentNullException.ThrowIfNull(notification);
+        Debug.WriteLine($"[调试] MainPageViewModel.OpenApp 被调用：notification.Key={notification.Key} deviceId={deviceId}");
 
         // 如果未指定设备ID，使用当前活跃设备
         var targetDevice = deviceId != null ? DeviceManager.FindDeviceById(deviceId) : Device;

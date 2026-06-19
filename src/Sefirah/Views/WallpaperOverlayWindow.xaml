@@ -11,7 +11,7 @@
             <TextBlock
                 x:Name="DisplayTextBlock"
                 FontSize="24"
-                Foreground="{x:Bind TextForeground, Mode=OneWay}"
+                Foreground="{x:Bind TextForeground, Mode=OneTime}"
                 TextWrapping="Wrap"
                 HorizontalAlignment="Center"
                 TextAlignment="Center" />

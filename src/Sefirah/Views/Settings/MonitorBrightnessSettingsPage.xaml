@@ -36,7 +36,7 @@
             </BreadcrumbBar>
 
             <!--  ControlMyMonitor Path  -->
-            <wuc:SettingsCard Header="ControlMyMonitor" Description="{x:Bind ViewModel.ControlMyMonitorPath, Mode=OneWay}">
+            <wuc:SettingsCard Header="ControlMyMonitor" Description="{x:Bind ViewModel.ControlMyMonitorPath, Mode=OneTime}">
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE8A5;" />
                 </wuc:SettingsCard.HeaderIcon>

@@ -265,7 +265,7 @@
                                                     FontWeight="SemiBold"
                                                     Foreground="White"
                                                     HorizontalTextAlignment="Center"
-                                                    Text="{x:Bind Mode=OneWay}" />
+                                                    Text="{x:Bind Mode=OneTime}" />
                                                 <TextBlock
                                                     FontSize="10"
                                                     FontWeight="Normal"
