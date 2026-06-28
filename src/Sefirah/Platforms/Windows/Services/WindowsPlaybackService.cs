@@ -11,6 +11,7 @@ using NotifyRelay.Helpers;
 using NotifyRelay.Platforms.Windows.Interop;
 using Windows.Media;
 using Windows.Media.Control;
+using NotifyRelay.Services;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -500,6 +501,13 @@ public class WindowsPlaybackService(
             if (mediaProperties.Thumbnail is not null)
                 playbackSession.Thumbnail = await mediaProperties.Thumbnail.ToBase64Async();
 
+            try
+            {
+                var pbInfo = session.GetPlaybackInfo();
+                playbackSession.IsPlaying = pbInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            }
+            catch { }
+
             return playbackSession;
         }
         catch (COMException comEx)
@@ -627,6 +635,23 @@ public class WindowsPlaybackService(
                     string requestJson = JsonSerializer.Serialize(requestObj);
                     _ = protocolSender.SendMessageAsync(device.Id, requestJson);
                 }
+            }
+
+            // 发送本地媒体信息到 Gamebar 小部件
+            try
+            {
+                _ = LocalSocketRelayServer.SendMediaInfoAsync(
+                    playbackSession.Source ?? "local",
+                    "本机",
+                    playbackSession.TrackTitle ?? "",
+                    playbackSession.Artist ?? "",
+                    playbackSession.Thumbnail ?? "",
+                    playbackSession.IsPlaying
+                );
+            }
+            catch (Exception gamebarEx)
+            {
+                logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
             }
         }
         catch (Exception ex)

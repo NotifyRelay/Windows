@@ -93,7 +93,7 @@ public class NotificationService(
         LocalSocketRelayServer.CommandReceived += OnSocketCommandReceived;
     }
 
-    private void OnSocketCommandReceived(object? sender, string commandJson)
+    private async void OnSocketCommandReceived(object? sender, string commandJson)
     {
         try
         {
@@ -101,11 +101,22 @@ public class NotificationService(
             var root = doc.RootElement;
             if (root.TryGetProperty("action", out var actionProp) && actionProp.GetString() == "media_control")
             {
-                var deviceId = root.GetProperty("deviceId").GetString();
-                var command = root.GetProperty("command").GetString();
-                if (!string.IsNullOrEmpty(deviceId) && !string.IsNullOrEmpty(command))
+                var command = root.TryGetProperty("command", out var commandProp) ? commandProp.GetString() : null;
+                if (!string.IsNullOrEmpty(command))
                 {
-                    playbackService.SendMediaControlRequest(deviceId, command);
+                    // 将 Gamebar 的媒体控制指令路由到本地 SMTC
+                    var mediaAction = new NotifyRelay.Data.Models.PlaybackAction
+                    {
+                        Source = "MediaControl",  // 使用 "MediaControl" 让 HandleMediaActionAsync 进行播放/暂停切换
+                        PlaybackActionType = command switch
+                        {
+                            "playPause" => NotifyRelay.Data.Enums.PlaybackActionType.Play,
+                            "next" => NotifyRelay.Data.Enums.PlaybackActionType.Next,
+                            "previous" => NotifyRelay.Data.Enums.PlaybackActionType.Previous,
+                            _ => NotifyRelay.Data.Enums.PlaybackActionType.Play
+                        }
+                    };
+                    await playbackService.HandleMediaActionAsync(mediaAction);
                 }
             }
         }
