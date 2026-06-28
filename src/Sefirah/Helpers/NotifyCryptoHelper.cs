@@ -11,6 +11,7 @@ public static class NotifyCryptoHelper
 {
     private const int SharedSecretLength = 32;
 
+    [Obsolete("请使用 EcdhHelper 生成真正的密钥对")]
     public static string GeneratePublicKey()
     {
         return Guid.NewGuid().ToString().Replace("-", "");
@@ -71,6 +72,33 @@ public static class NotifyCryptoHelper
 
         Array.Copy(ms.ToArray(), okm, okm.Length);
         return okm;
+    }
+
+    /// <summary>
+    /// 格式感知的共享密钥派生。两端都是 ECDH 格式时使用 ECDH 协商，
+    /// 两端都是旧 UUID 格式时使用旧 HKDF 逻辑，
+    /// 新旧混用时抛出 InvalidOperationException。
+    /// </summary>
+    public static byte[] GenerateSharedSecretSmart(
+        string localKey, byte[]? localPrivateKey, string remoteKey)
+    {
+        bool localIsEcdh = EcdhHelper.IsEcdhFormat(localKey);
+        bool remoteIsEcdh = EcdhHelper.IsEcdhFormat(remoteKey);
+
+        if (localIsEcdh && remoteIsEcdh)
+        {
+            if (localPrivateKey == null || localPrivateKey.Length == 0)
+                throw new InvalidOperationException("ECDH 模式需要私钥");
+            return EcdhHelper.DeriveSharedSecretFromPrivate(localPrivateKey, remoteKey);
+        }
+
+        if (localIsEcdh != remoteIsEcdh)
+        {
+            throw new InvalidOperationException("不支持新旧格式混用配对");
+        }
+
+        // 两端都是 UUID 格式 → 旧 HKDF
+        return GenerateSharedSecretBytes(localKey, remoteKey);
     }
 
     public static string GenerateSharedSecretBase64(string localKey, string remoteKey)

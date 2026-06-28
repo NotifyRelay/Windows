@@ -1,8 +1,10 @@
+using System.Text.RegularExpressions;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Digests;
 using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
+using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
 
 namespace NotifyRelay.Helpers;
@@ -73,6 +75,72 @@ public class EcdhHelper
     {
         var expectedProof = GenerateProof(sharedSecret, nonce);
         return expectedProof == proof;
+    }
+
+    /// <summary>
+    /// 从密钥对获取 Base64 编码的公钥（未压缩点 65 字节）
+    /// </summary>
+    public static string GetPublicKeyBase64(AsymmetricCipherKeyPair keyPair)
+    {
+        var publicKey = (ECPublicKeyParameters)keyPair.Public;
+        var encodedPoint = publicKey.Q.GetEncoded(false);
+        return Convert.ToBase64String(encodedPoint);
+    }
+
+    /// <summary>
+    /// ECDH 密钥协商 + SHA-256 哈希，返回 32 字节
+    /// </summary>
+    public static byte[] DeriveSharedSecret(AsymmetricCipherKeyPair keyPair, string remotePublicKeyBase64)
+    {
+        var privateKey = (ECPrivateKeyParameters)keyPair.Private;
+        var privateKeyBytes = privateKey.D.ToByteArrayUnsigned();
+        return DeriveKey(remotePublicKeyBase64, privateKeyBytes);
+    }
+
+    /// <summary>
+    /// 从 byte[] 私钥重建密钥对并协商
+    /// </summary>
+    public static byte[] DeriveSharedSecretFromPrivate(byte[] privateKeyBytes, string remotePublicKeyBase64)
+    {
+        return DeriveKey(remotePublicKeyBase64, privateKeyBytes);
+    }
+
+    /// <summary>
+    /// 检测密钥格式：true=ECDH（非UUID格式），false=旧UUID格式
+    /// </summary>
+    public static bool IsEcdhFormat(string publicKey)
+    {
+        if (string.IsNullOrEmpty(publicKey)) return false;
+        if (publicKey.Length == 32 && Regex.IsMatch(publicKey, "^[0-9a-fA-F]{32}$")) return false;
+        return true;
+    }
+
+    /// <summary>
+    /// 序列化私钥为 byte[]（用于存储）
+    /// </summary>
+    public static byte[] SerializePrivateKey(AsymmetricCipherKeyPair keyPair)
+    {
+        var privateKey = (ECPrivateKeyParameters)keyPair.Private;
+        return privateKey.D.ToByteArrayUnsigned();
+    }
+
+    /// <summary>
+    /// 从 byte[] 私钥 + 公钥 Base64 反序列化密钥对
+    /// </summary>
+    public static AsymmetricCipherKeyPair DeserializeKeyPair(byte[] privateKeyBytes, string publicKeyBase64)
+    {
+        var ecParams = SecNamedCurves.GetByName("secp256r1");
+        var ecDomainParameters = new ECDomainParameters(ecParams.Curve, ecParams.G, ecParams.N, ecParams.H);
+
+        var privateKeyParameters = new ECPrivateKeyParameters(
+            new BigInteger(1, privateKeyBytes),
+            ecDomainParameters);
+
+        byte[] rawPointBytes = Convert.FromBase64String(publicKeyBase64);
+        var point = ecParams.Curve.DecodePoint(rawPointBytes);
+        var publicKeyParameters = new ECPublicKeyParameters(point, ecDomainParameters);
+
+        return new AsymmetricCipherKeyPair(publicKeyParameters, privateKeyParameters);
     }
 
     /// <summary>

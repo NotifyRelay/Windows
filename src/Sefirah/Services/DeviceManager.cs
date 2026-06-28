@@ -7,6 +7,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
 using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
+using Org.BouncyCastle.Crypto;
 
 namespace NotifyRelay.Services;
 
@@ -127,7 +128,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         {
             var localDevice = await GetLocalDeviceAsync();
             var localKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-            var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretBytes(localKey, remotePublicKey);
+            var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretSmart(localKey, localDevice.PrivateKey, remotePublicKey);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
@@ -219,13 +220,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             if (localDevice is null)
             {
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
-                var publicKey = NotifyCryptoHelper.GeneratePublicKey();
+                var keyPair = EcdhHelper.GetKeyPair();
+                var publicKeyBase64 = EcdhHelper.GetPublicKeyBase64(keyPair);
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = Guid.NewGuid().ToString(),
                     DeviceName = name,
-                    PublicKey = Encoding.UTF8.GetBytes(publicKey),
-                    PrivateKey = Array.Empty<byte>(),
+                    PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64),
+                    PrivateKey = EcdhHelper.SerializePrivateKey(keyPair),
                 };
 
                 // 保存本地设备到数据库
@@ -241,10 +243,12 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             else
             {
                 var currentKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-                var normalizedKey = NotifyCryptoHelper.NormalizePublicKey(currentKey);
-                if (!string.Equals(currentKey, normalizedKey, StringComparison.Ordinal))
+                // 如果现有公钥是旧 UUID 格式，迁移到 ECDH 密钥对
+                if (!EcdhHelper.IsEcdhFormat(currentKey))
                 {
-                    localDevice.PublicKey = Encoding.UTF8.GetBytes(normalizedKey);
+                    var keyPair = EcdhHelper.GetKeyPair();
+                    localDevice.PublicKey = Encoding.UTF8.GetBytes(EcdhHelper.GetPublicKeyBase64(keyPair));
+                    localDevice.PrivateKey = EcdhHelper.SerializePrivateKey(keyPair);
                     repository.AddOrUpdateLocalDevice(localDevice);
                 }
             }
@@ -275,6 +279,18 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         {
             logger.LogError(ex, "更新本地设备时出错");
         }
+    }
+
+    /// <summary>
+    /// 获取 ECDH 密钥对用于密钥协商
+    /// </summary>
+    public AsymmetricCipherKeyPair? GetLocalEcdhKeyPair()
+    {
+        var localDevice = repository.GetLocalDevice();
+        if (localDevice?.PrivateKey == null || localDevice.PrivateKey.Length == 0) return null;
+        var publicKeyBase64 = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+        if (!EcdhHelper.IsEcdhFormat(publicKeyBase64)) return null;
+        return EcdhHelper.DeserializeKeyPair(localDevice.PrivateKey, publicKeyBase64);
     }
 
     public async Task Initialize()

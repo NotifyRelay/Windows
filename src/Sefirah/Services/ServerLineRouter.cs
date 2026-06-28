@@ -71,7 +71,7 @@ public class ServerLineRouter
             }
             else
             {
-                _logger.LogWarning("收到未预期的 DATA 消息，来源: {id}", session.Id);
+                // TryAttachExistingDeviceSessionAsync 已记录具体原因（设备不存在 / 格式不兼容等）
                 networkService.DisconnectSession(session);
             }
         }

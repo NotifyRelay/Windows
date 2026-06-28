@@ -8,6 +8,8 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
 using Uno.Logging;
+using Windows.Data.Xml.Dom;
+using Windows.UI.Notifications;
 
 
 namespace NotifyRelay.Services;
@@ -33,7 +35,10 @@ public class NetworkService(
     private readonly Dictionary<string, ServerSession> deviceSessions = new();
     private readonly Dictionary<Guid, string> sessionDeviceMap = new();
     private readonly object sessionLock = new();
+    // 不兼容设备集合：旧版协议设备，阻止心跳复活
+    private readonly HashSet<string> incompatibleDevices = new();
     private string? localPublicKey;
+    private byte[]? localPrivateKey;
     private string? localDeviceId;
     private Timer? heartbeatTimer;
     private readonly TimeSpan heartbeatInterval = TimeSpan.FromSeconds(4);
@@ -58,6 +63,7 @@ public class NetworkService(
         {
             var localDevice = await deviceManager.GetLocalDeviceAsync();
             localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+            localPrivateKey = localDevice.PrivateKey;
             localDeviceId = localDevice.DeviceId;
 
             server = new Server(IPAddress.Any, ServerPort, this, logger)
@@ -325,18 +331,34 @@ public class NetworkService(
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
 
+        // 握手阶段格式检测：新旧不兼容时提前拒绝并提示
+        if (localPublicKey != null && remotePublicKey != null &&
+            EcdhHelper.IsEcdhFormat(localPublicKey) != EcdhHelper.IsEcdhFormat(remotePublicKey))
+        {
+            var knownName = PairedDevices.FirstOrDefault(d => d.Id == remoteDeviceId)?.Name ?? remoteDeviceId;
+            logger.LogWarning("设备 {name}({id}) 使用旧版加密协议，握手被拒绝。请升级该设备的 NotifyRelay 以支持新版加密", knownName, remoteDeviceId);
+            lock (incompatibleDevices) incompatibleDevices.Add(remoteDeviceId);
+            SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+            DisconnectSession(session);
+            // 非阻塞系统通知
+            ShowUpgradeToast(knownName);
+            return;
+        }
+
         var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, discoveredName, connectedSessionIpAddress);
 
         if (device is not null)
         {
             logger.Info($"设备 {device.Id} 已连接");
+            // 如果之前被标记为不兼容，现在成功连接则移除限制
+            lock (incompatibleDevices) incompatibleDevices.Remove(device.Id);
 
             device = await deviceManager.UpdateOrAddDeviceAsync(device, connectedDevice =>
             {
                 connectedDevice.ConnectionStatus = true;
                 connectedDevice.Session = session;
                 connectedDevice.RemotePublicKey = remotePublicKey;
-                connectedDevice.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretBytes(localPublicKey ?? string.Empty, remotePublicKey);
+                connectedDevice.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey ?? string.Empty, localPrivateKey, remotePublicKey);
                 connectedDevice.RemoteIpAddress = remoteIpAddress;
                 connectedDevice.RemoteDeviceType = remoteDeviceType;
                 deviceManager.ActiveDevice = connectedDevice;
@@ -445,6 +467,28 @@ public class NetworkService(
                 return null;
             }
 
+            // 格式检测：本地是 ECDH 但远端是 UUID → 拒绝（不支持新旧混用）
+            bool localIsEcdh = EcdhHelper.IsEcdhFormat(localPublicKey);
+            bool remoteIsEcdh = EcdhHelper.IsEcdhFormat(remotePublicKey);
+            if (localIsEcdh != remoteIsEcdh)
+            {
+                var deviceName = device.Name ?? remoteDeviceId;
+                logger.LogWarning("设备 {name}({id}) 使用旧版加密协议，已拒绝连接。请升级该设备的 NotifyRelay 以支持新版加密", deviceName, remoteDeviceId);
+                lock (incompatibleDevices) incompatibleDevices.Add(remoteDeviceId);
+                // 标记设备离线，触发 UI 更新
+                await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+                {
+                    if (device.ConnectionStatus)
+                    {
+                        device.ConnectionStatus = false;
+                        ConnectionStatusChanged?.Invoke(this, (device, false));
+                    }
+                });
+                // 非阻塞系统通知
+                ShowUpgradeToast(deviceName);
+                return null;
+            }
+
             // 获取会话的远程IP地址
             var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
 
@@ -453,7 +497,14 @@ public class NetworkService(
                 device.Session = session;
                 device.ConnectionStatus = true;
                 device.RemotePublicKey = remotePublicKey;
-                device.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretBytes(localPublicKey, remotePublicKey);
+                if (localIsEcdh && remoteIsEcdh && device.SharedSecret != null)
+                {
+                    // 两端都是 ECDH 格式且已有密钥，复用现有共享密钥
+                }
+                else if (device.SharedSecret == null)
+                {
+                    device.SharedSecret = NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey, localPrivateKey, remotePublicKey);
+                }
                 device.LastHeartbeat = DateTime.UtcNow;
                 deviceManager.ActiveDevice ??= device;
 
@@ -541,6 +592,11 @@ public class NetworkService(
 
     private void MarkDeviceAlive(PairedDevice device)
     {
+        // 不兼容的旧版设备，不复活
+        lock (incompatibleDevices)
+        {
+            if (incompatibleDevices.Contains(device.Id)) return;
+        }
         var now = DateTime.UtcNow;
         UpdateDeviceState(device, d =>
         {
@@ -651,5 +707,25 @@ public class NetworkService(
         }
 
         dispatcher.TryEnqueue(() => update(device));
+    }
+
+    /// <summary>
+    /// 显示非阻塞系统通知，提示设备需要升级
+    /// </summary>
+    private static void ShowUpgradeToast(string deviceName)
+    {
+        try
+        {
+            var template = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);
+            var elements = template.GetElementsByTagName("text");
+            elements[0].AppendChild(template.CreateTextNode("设备协议不兼容"));
+            elements[1].AppendChild(template.CreateTextNode($"设备「{deviceName}」使用旧版加密协议，已被拒绝连接。请升级该设备上的 NotifyRelay。"));
+            var toast = new ToastNotification(template);
+            ToastNotificationManager.CreateToastNotifier().Show(toast);
+        }
+        catch
+        {
+            // Toast 通知可能因系统权限或上下文不可用而失败，静默忽略
+        }
     }
 }
