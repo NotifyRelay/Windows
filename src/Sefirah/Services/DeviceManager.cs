@@ -4,7 +4,6 @@ using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Dialogs;
 using NotifyRelay.Helpers;
 using NotifyRelay.Utils;
 using Org.BouncyCastle.Crypto;
@@ -148,48 +147,9 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 return pairedDevice;
             }
 
-            var tcs = new TaskCompletionSource<PairedDevice?>();
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
-            {
-                try
-                {
-                    var frame = (Frame)App.MainWindow.Content!;
-                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, frame)
-                    {
-                        XamlRoot = App.MainWindow.Content!.XamlRoot
-                    };
-
-                    var result = await dialog.ShowAsync();
-
-                    if (result is not ContentDialogResult.Primary)
-                    {
-                        logger.LogInformation("用户拒绝了设备验证");
-                        tcs.SetResult(null);
-                        return;
-                    }
-
-                    var newDevice = new RemoteDeviceEntity
-                    {
-                        DeviceId = deviceId,
-                        Name = deviceName ?? deviceId,
-                        LastConnected = DateTime.Now,
-                        Model = string.Empty,
-                        SharedSecret = sharedSecretBytes,
-                        PublicKey = remotePublicKey,
-                        WallpaperBytes = null,
-                        IpAddresses = ipAddress is not null ? [ipAddress] : [],
-                    };
-
-                    repository.AddOrUpdateRemoteDevice(newDevice);
-                    tcs.SetResult(await newDevice.ToPairedDevice());
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
-            return await tcs.Task;
+            // 未知设备：旧的 HANDSHAKE 流程不再支持未认证配对，请使用配对码流程
+            logger.LogWarning("未知设备尝试通过 HANDSHAKE 连接，拒绝: {deviceId}", deviceId);
+            return null;
         }
         catch (Exception ex)
         {
@@ -305,5 +265,20 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         }
 
         ActiveDevice = PairedDevices.FirstOrDefault();
+    }
+
+    public string GeneratePairingCode()
+    {
+        return PairingCodeHelper.GenerateCode();
+    }
+
+    public string? GetCurrentPairingCode()
+    {
+        return PairingCodeHelper.GetCurrentCode();
+    }
+
+    public bool VerifyPairingCode(string code)
+    {
+        return PairingCodeHelper.VerifyCode(code);
     }
 }

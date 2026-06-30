@@ -69,4 +69,19 @@ public interface IDeviceManager
     /// Event fired when the local device name changes
     /// </summary>
     event EventHandler<string>? LocalDeviceNameChanged;
+
+    /// <summary>
+    /// 生成6位配对码，有效期5分钟
+    /// </summary>
+    string GeneratePairingCode();
+
+    /// <summary>
+    /// 获取当前有效的配对码，已过期返回null
+    /// </summary>
+    string? GetCurrentPairingCode();
+
+    /// <summary>
+    /// 验证配对码，验证成功后清除
+    /// </summary>
+    bool VerifyPairingCode(string code);
 }

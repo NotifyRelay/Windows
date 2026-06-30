@@ -58,7 +58,19 @@ public class ServerLineRouter
         string message,
         NetworkService networkService)
     {
-        if (message.StartsWith("HANDSHAKE:"))
+        if (message.StartsWith("PAIRING_INIT:"))
+        {
+            await networkService.HandlePairingInitAsync(session, message);
+        }
+        else if (message.StartsWith("PAIRING_RESP:"))
+        {
+            await networkService.HandlePairingRespAsync(session, message);
+        }
+        else if (message.StartsWith("ACCEPT:"))
+        {
+            await networkService.HandlePairingAcceptAsync(session, message);
+        }
+        else if (message.StartsWith("HANDSHAKE:"))
         {
             await networkService.HandleHandshakeAsync(session, message);
         }

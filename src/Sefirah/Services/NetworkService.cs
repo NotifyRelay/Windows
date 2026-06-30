@@ -10,6 +10,7 @@ using NotifyRelay.Services.Socket;
 using Uno.Logging;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
+using NotifyRelay.Dialogs;
 
 
 namespace NotifyRelay.Services;
@@ -288,6 +289,13 @@ public class NetworkService(
 
     public async Task HandleHandshakeAsync(ServerSession session, string message)
     {
+        if (message.StartsWith("PAIRING_REQ:"))
+        {
+            var pairingSessionIp = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
+            await HandlePairingRequestAsync(session, message, pairingSessionIp);
+            return;
+        }
+
         if (!message.StartsWith("HANDSHAKE:"))
         {
             if (message.StartsWith("DATA_"))
@@ -330,20 +338,6 @@ public class NetworkService(
 
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
-
-        // 握手阶段格式检测：新旧不兼容时提前拒绝并提示
-        if (localPublicKey != null && remotePublicKey != null &&
-            EcdhHelper.IsEcdhFormat(localPublicKey) != EcdhHelper.IsEcdhFormat(remotePublicKey))
-        {
-            var knownName = PairedDevices.FirstOrDefault(d => d.Id == remoteDeviceId)?.Name ?? remoteDeviceId;
-            logger.LogWarning("设备 {name}({id}) 使用旧版加密协议，握手被拒绝。请升级该设备的 NotifyRelay 以支持新版加密", knownName, remoteDeviceId);
-            lock (incompatibleDevices) incompatibleDevices.Add(remoteDeviceId);
-            SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
-            DisconnectSession(session);
-            // 非阻塞系统通知
-            ShowUpgradeToast(knownName);
-            return;
-        }
 
         var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, discoveredName, connectedSessionIpAddress);
 
@@ -397,7 +391,336 @@ public class NetworkService(
         }
     }
 
+    /// <summary>
+    /// 处理 PAIRING_INIT：接收端（PC）收到发起端（Android）的配对请求。
+    /// 协议格式：PAIRING_INIT:<uuid>:<tmpPubKey>:<ipAddress>:<batteryLevel>:<deviceType>
+    /// 流程：弹出配对码输入对话框 → 用发起端临时公钥加密配对码 → 回传 PAIRING_RESP
+    /// </summary>
+    public async Task HandlePairingInitAsync(ServerSession session, string message)
+    {
+        try
+        {
+            var parts = message.Split(':');
+            if (parts.Length < 6)
+            {
+                logger.LogWarning("PAIRING_INIT 格式无效");
+                DisconnectSession(session);
+                return;
+            }
 
+            var remoteUuid = parts[1];
+            var tmpPubKey = parts[2];  // 发起端的临时公钥
+            var remoteIp = parts.Length > 3 ? parts[3] : session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
+            var remoteDeviceType = parts.Length > 5 ? parts[5] : "unknown";
+
+            // 检查是否已被拒绝
+            if (deviceManager.PairedDevices.Any(d => d.Id == remoteUuid))
+            {
+                logger.LogWarning("设备已配对，忽略 PAIRING_INIT: {uuid}", remoteUuid);
+                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+                DisconnectSession(session);
+                return;
+            }
+
+            logger.Info($"收到 PAIRING_INIT: {remoteUuid}");
+
+            // 在主线程上显示配对码输入对话框
+            string? pairingCode = null;
+            // 尝试从已发现设备中获取设备名
+            var discoveredName = PairedDevices.FirstOrDefault(d => d.Id == remoteUuid)?.Name
+                ?? Ioc.Default.GetService<IDiscoveryService>()?.DiscoveredDevices
+                    .FirstOrDefault(d => d.DeviceId == remoteUuid)?.DeviceName
+                ?? remoteUuid;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
+            {
+                var dialog = new Dialogs.PairingCodeDialog(discoveredName)
+                {
+                    XamlRoot = App.MainWindow.Content!.XamlRoot
+                };
+                var result = await dialog.ShowAsync(ContentDialogPlacement.Popup);
+                if (result == ContentDialogResult.Primary)
+                {
+                    pairingCode = dialog.PairingCode;
+                }
+            });
+
+            // 用户取消了输入
+            if (pairingCode == null)
+            {
+                logger.Info($"用户取消了配对: {remoteUuid}");
+                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+                DisconnectSession(session);
+                return;
+            }
+
+            // 使用发起端的临时公钥加密配对码（ECIES 风格）
+            try
+            {
+                // 1. 生成接收端（PC）的临时密钥对
+                var receiverTmpKeyPair = EcdhHelper.GenerateEphemeralKeyPair();
+                var receiverTmpPubKeyB64 = EcdhHelper.GetPublicKeyBase64(receiverTmpKeyPair);
+
+                // 2. ECDH 密钥协商：用 PC 临时私钥 + Android 临时公钥（原始 ECDH，不含 HKDF）
+                var privateKeyBytes = EcdhHelper.SerializePrivateKey(receiverTmpKeyPair);
+                var rawSharedSecret = EcdhHelper.DeriveRawEcdh(privateKeyBytes, tmpPubKey);
+
+                // 3. 派生 AES 密钥并加密配对码（与 Android 端 EncryptionManager.hkdfDeriveKey + encrypt 兼容）
+                var aesKeyBytes = Convert.FromBase64String(EcdhHelper.DeriveAesKey(rawSharedSecret));
+                var encryptedCode = NotifyCryptoHelper.Encrypt(pairingCode, aesKeyBytes);
+
+                // 4. 获取 PC 的长期 ECDH 公钥
+                var localDevice = await deviceManager.GetLocalDeviceAsync();
+                var ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+
+                // 5. 关闭 PAIRING_INIT session（不回传任何内容），
+                //    新建 TCP 连接发送 PAIRING_RESP 到 Android 服务器
+                DisconnectSession(session);
+
+                var pairingResp = $"PAIRING_RESP:{localDeviceId}:{receiverTmpPubKeyB64}:{ltPubKey}:{encryptedCode}:{remoteIp}:{systemInfoService.GetSystemBatteryLevel()}:pc";
+                
+                using var androidSocket = new System.Net.Sockets.TcpClient();
+                 await androidSocket.ConnectAsync(System.Net.IPAddress.Parse(remoteIp), ServerPort);
+                await using var stream = androidSocket.GetStream();
+                var respBytes = Encoding.UTF8.GetBytes(pairingResp + "\n");
+                await stream.WriteAsync(respBytes);
+                await stream.FlushAsync();
+
+                // 6. 读取 ACCEPT 响应
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                var acceptLine = await reader.ReadLineAsync();
+                
+                if (acceptLine?.StartsWith("ACCEPT:") == true)
+                {
+                    var acceptParts = acceptLine.Split(':');
+                    if (acceptParts.Length >= 6)
+                    {
+                        var initiatorLtPubKey = acceptParts[3];
+                        var acceptIp = acceptParts.Length > 4 ? acceptParts[4] : string.Empty;
+                        var acceptDeviceType = acceptParts.Length > 6 ? acceptParts[6] : "unknown";
+
+                        logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
+
+                        // 完成 ECDH 标准密钥交换并保存设备（用户已通过输入配对码确认，跳过弹窗）
+                        var localKeyDevice = await deviceManager.GetLocalDeviceAsync();
+                        var localKey = Encoding.UTF8.GetString(localKeyDevice.PublicKey ?? Array.Empty<byte>());
+                        var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretSmart(
+                            localKey, localKeyDevice.PrivateKey, initiatorLtPubKey);
+
+                        var pairedDevice = new PairedDevice(remoteUuid)
+                         {
+                             Name = discoveredName,
+                             RemotePublicKey = initiatorLtPubKey,
+                             SharedSecret = sharedSecretBytes,
+                             RemoteIpAddress = remoteIp,
+                             RemoteDeviceType = acceptDeviceType,
+                             LastHeartbeat = DateTime.UtcNow,
+                         };
+                         await deviceManager.UpdateOrAddDeviceAsync(pairedDevice);
+                         ConnectionStatusChanged?.Invoke(this, (pairedDevice, false));
+                         logger.Info($"配对完成: {remoteUuid}");
+
+                         if (!PairedDevices.Any(d => d.Id == remoteUuid))
+                         {
+                             DelayedRequestAppList(remoteUuid);
+                         }
+                    }
+                }
+                else
+                {
+                    logger.Warn($"未收到 ACCEPT 或配对被拒绝: {acceptLine}");
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "加密配对码失败: {uuid}", remoteUuid);
+                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+                DisconnectSession(session);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 PAIRING_INIT 异常");
+            DisconnectSession(session);
+        }
+    }
+
+    /// <summary>
+    /// 处理 PAIRING_RESP：PC 作为发起端时收到接收端回传的加密配对码。
+    /// 协议格式：PAIRING_RESP:<uuid_R>:<tmpPub_R>:<ltPub_R>:<encryptedCode>:<ip>:<battery>:<deviceType>
+    /// 注意：当前 PC 通常作为接收端，此方法主要用于未来扩展或 PC-PC 配对。
+    /// </summary>
+    public async Task HandlePairingRespAsync(ServerSession session, string message)
+    {
+        try
+        {
+            var parts = message.Split(':');
+            if (parts.Length < 5)
+            {
+                logger.LogWarning("PAIRING_RESP 格式无效");
+                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+                DisconnectSession(session);
+                return;
+            }
+
+            var remoteUuid = parts[1];
+            var tmpPubKeyR = parts[2];   // 接收端的临时公钥
+            var ltPubKeyR = parts.Length > 3 ? parts[3] : string.Empty;    // 接收端的长期公钥
+            var encryptedCode = parts.Length > 4 ? parts[4] : string.Empty;
+
+            logger.LogWarning("收到 PAIRING_RESP，但 PC 当前不作为配对发起端。忽略: {uuid}", remoteUuid);
+            SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+            DisconnectSession(session);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 PAIRING_RESP 异常");
+            DisconnectSession(session);
+        }
+    }
+
+    /// <summary>
+    /// 处理 ACCEPT：Android 端验证配对码通过后回传的确认消息。
+    /// ACCEPT 格式：ACCEPT:<code>:<uuid>:<ltPubKey>:<ip>:<battery>:<deviceType>
+    /// </summary>
+    public async Task HandlePairingAcceptAsync(ServerSession session, string message)
+    {
+        try
+        {
+            var parts = message.Split(':');
+            if (parts.Length < 6)
+            {
+                logger.LogWarning("ACCEPT 格式无效");
+                DisconnectSession(session);
+                return;
+            }
+
+            var pairingCode = parts[1];
+            var remoteUuid = parts[2];
+            var remoteLtPubKey = parts[3];
+            var remoteIp = parts.Length > 4 ? parts[4] : string.Empty;
+            var remoteDeviceType = parts.Length > 6 ? parts[6] : "unknown";
+            var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
+
+            logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
+
+            // 完成 ECDH 标准密钥交换并保存设备
+            var device = await deviceManager.VerifyHandshakeAsync(remoteUuid, remoteLtPubKey, null, connectedSessionIpAddress);
+            if (device != null)
+            {
+                bool isKnownDevice = PairedDevices.Any(d => d.Id == device.Id);
+
+                device = await deviceManager.UpdateOrAddDeviceAsync(device, UpdateDeviceConfig =>
+                {
+                    UpdateDeviceConfig.ConnectionStatus = true;
+                    UpdateDeviceConfig.Session = session;
+                    UpdateDeviceConfig.RemotePublicKey = remoteLtPubKey;
+                    UpdateDeviceConfig.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(
+                        localPublicKey ?? string.Empty, localPrivateKey, remoteLtPubKey);
+                    UpdateDeviceConfig.RemoteIpAddress = remoteIp;
+                    UpdateDeviceConfig.RemoteDeviceType = remoteDeviceType;
+                    deviceManager.ActiveDevice = UpdateDeviceConfig;
+                    UpdateDeviceConfig.LastHeartbeat = DateTime.UtcNow;
+                });
+
+                BindSession(device.Id, session);
+                ConnectionStatusChanged?.Invoke(this, (device, true));
+                logger.Info($"配对完成: {remoteUuid}");
+
+                if (!isKnownDevice)
+                {
+                    DelayedRequestAppList(device.Id);
+                }
+            }
+            else
+            {
+                logger.Warn($"ACCEPT 处理失败，设备验证未通过: {remoteUuid}");
+                DisconnectSession(session);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 ACCEPT 异常");
+            DisconnectSession(session);
+        }
+    }
+
+    private async Task HandlePairingRequestAsync(ServerSession session, string message, string connectedSessionIpAddress)
+    {
+        try
+        {
+            var parts = message.Split(':');
+            if (parts.Length < 7)
+            {
+                SendRaw(session, "REJECT:");
+                DisconnectSession(session);
+                return;
+            }
+
+            var remoteDeviceId = parts[1];
+            var remotePublicKey = parts[2];
+            var pairingCode = parts[3];
+            var remoteIpAddress = parts.Length > 4 ? parts[4] : connectedSessionIpAddress;
+            var remoteDeviceType = parts.Length > 6 ? parts[6] : "unknown";
+
+            // 验证配对码
+            if (!PairingCodeHelper.VerifyCode(pairingCode))
+            {
+                logger.Warn($"配对码验证失败: {remoteDeviceId}");
+                SendRaw(session, $"REJECT:{localDeviceId}");
+                DisconnectSession(session);
+                return;
+            }
+
+            logger.Info($"配对码验证通过: {remoteDeviceId}");
+
+            // 获取或创建设备
+            var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, null, connectedSessionIpAddress);
+            if (device != null)
+            {
+                bool isKnownDevice = PairedDevices.Any(d => d.Id == device.Id);
+
+                device = await deviceManager.UpdateOrAddDeviceAsync(device, connectedDevice =>
+                {
+                    connectedDevice.ConnectionStatus = true;
+                    connectedDevice.Session = session;
+                    connectedDevice.RemotePublicKey = remotePublicKey;
+                    connectedDevice.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(
+                        localPublicKey ?? string.Empty, localPrivateKey, remotePublicKey);
+                    connectedDevice.RemoteIpAddress = remoteIpAddress;
+                    connectedDevice.RemoteDeviceType = remoteDeviceType;
+                    deviceManager.ActiveDevice = connectedDevice;
+                    connectedDevice.LastHeartbeat = DateTime.UtcNow;
+                });
+
+                BindSession(device.Id, session);
+
+                if (localDeviceId != null && localPublicKey != null)
+                {
+                    var localBattery = systemInfoService.GetSystemBatteryLevel() > 100 ? "100+" : systemInfoService.GetSystemBatteryLevel().ToString();
+                    var localIp = NetworkHelper.GetLocalIpAddress();
+                    SendRaw(session, $"ACCEPT:{localDeviceId}:{localPublicKey}:{localIp}:{localBattery}:pc");
+                }
+
+                ConnectionStatusChanged?.Invoke(this, (device, true));
+
+                if (!isKnownDevice)
+                {
+                    DelayedRequestAppList(device.Id);
+                }
+            }
+            else
+            {
+                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+                DisconnectSession(session);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理配对请求异常");
+            SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
+            DisconnectSession(session);
+        }
+    }
 
     public async Task ProcessProtocolMessageAsync(PairedDevice device, string message)
     {
@@ -467,28 +790,6 @@ public class NetworkService(
                 return null;
             }
 
-            // 格式检测：本地是 ECDH 但远端是 UUID → 拒绝（不支持新旧混用）
-            bool localIsEcdh = EcdhHelper.IsEcdhFormat(localPublicKey);
-            bool remoteIsEcdh = EcdhHelper.IsEcdhFormat(remotePublicKey);
-            if (localIsEcdh != remoteIsEcdh)
-            {
-                var deviceName = device.Name ?? remoteDeviceId;
-                logger.LogWarning("设备 {name}({id}) 使用旧版加密协议，已拒绝连接。请升级该设备的 NotifyRelay 以支持新版加密", deviceName, remoteDeviceId);
-                lock (incompatibleDevices) incompatibleDevices.Add(remoteDeviceId);
-                // 标记设备离线，触发 UI 更新
-                await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-                {
-                    if (device.ConnectionStatus)
-                    {
-                        device.ConnectionStatus = false;
-                        ConnectionStatusChanged?.Invoke(this, (device, false));
-                    }
-                });
-                // 非阻塞系统通知
-                ShowUpgradeToast(deviceName);
-                return null;
-            }
-
             // 获取会话的远程IP地址
             var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
 
@@ -497,11 +798,7 @@ public class NetworkService(
                 device.Session = session;
                 device.ConnectionStatus = true;
                 device.RemotePublicKey = remotePublicKey;
-                if (localIsEcdh && remoteIsEcdh && device.SharedSecret != null)
-                {
-                    // 两端都是 ECDH 格式且已有密钥，复用现有共享密钥
-                }
-                else if (device.SharedSecret == null)
+                if (device.SharedSecret == null)
                 {
                     device.SharedSecret = NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey, localPrivateKey, remotePublicKey);
                 }

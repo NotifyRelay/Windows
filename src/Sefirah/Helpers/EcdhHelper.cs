@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Crypto;
 using Org.BouncyCastle.Crypto.Digests;
@@ -123,13 +122,20 @@ public class EcdhHelper
     }
 
     /// <summary>
-    /// 检测密钥格式：true=ECDH（非UUID格式），false=旧UUID格式
+    /// 检测密钥是否为 ECDH 未压缩点格式（65 字节，以 0x04 开头）
     /// </summary>
     public static bool IsEcdhFormat(string publicKey)
     {
         if (string.IsNullOrEmpty(publicKey)) return false;
-        if (publicKey.Length == 32 && Regex.IsMatch(publicKey, "^[0-9a-fA-F]{32}$")) return false;
-        return true;
+        try
+        {
+            var bytes = Convert.FromBase64String(publicKey);
+            return bytes.Length == 65 && bytes[0] == 0x04;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
@@ -174,5 +180,65 @@ public class EcdhHelper
         return new string(Enumerable.Range(1, 12)
             .Select(_ => allowedChars[Random.Shared.Next(allowedChars.Length)])
             .ToArray());
+    }
+
+    /// <summary>
+    /// 使用 HKDF-SHA256 从原始共享密钥派生 AES-256 密钥（上下文：配对码加密）。
+    /// 与 Android 端 EncryptionManager.hkdfDeriveKey(ikm, "pairing-code-encryption") 兼容。
+    /// </summary>
+    /// <param name="sharedSecret">ECDH 原始共享密钥字节数组</param>
+    /// <param name="context">上下文区分字符串，用于派生不同用途的密钥</param>
+    /// <returns>Base64 编码的 32 字节 AES 密钥</returns>
+    public static string DeriveAesKey(byte[] sharedSecret, string context = "pairing-code-encryption")
+    {
+        // HKDF-Extract: HMAC-SHA256(salt=zeros(32), ikm=sharedSecret)
+        var salt = new byte[32];
+        byte[] prk;
+        using (var hmac = new HMACSHA256(salt))
+        {
+            prk = hmac.ComputeHash(sharedSecret);
+        }
+
+        // HKDF-Expand single block (32 bytes)
+        var infoBytes = Encoding.UTF8.GetBytes(context);
+        using var hmacExpand = new HMACSHA256(prk);
+        hmacExpand.Initialize();
+        hmacExpand.TransformBlock(infoBytes, 0, infoBytes.Length, infoBytes, 0);
+        hmacExpand.TransformFinalBlock([1], 0, 1);
+        var okm = hmacExpand.Hash ?? [];
+
+        return Convert.ToBase64String(okm.Take(32).ToArray());
+    }
+
+    /// <summary>
+    /// 执行原始 ECDH 密钥协商（不含 HKDF），返回原始共享密钥字节数组。
+    /// 与 Android 端 EcdhKeyStore.deriveRawSharedSecret() 兼容。
+    /// </summary>
+    public static byte[] DeriveRawEcdh(byte[] privateKeyBytes, string remotePublicKeyBase64)
+    {
+        var ecParams = SecNamedCurves.GetByName("secp256r1");
+        var ecDomainParameters = new ECDomainParameters(ecParams.Curve, ecParams.G, ecParams.N, ecParams.H);
+
+        var privateKeyParameters = new ECPrivateKeyParameters(
+            new Org.BouncyCastle.Math.BigInteger(1, privateKeyBytes),
+            ecDomainParameters);
+        byte[] rawPointBytes = Convert.FromBase64String(remotePublicKeyBase64);
+        var point = ecParams.Curve.DecodePoint(rawPointBytes);
+        var publicKeyParameters = new ECPublicKeyParameters(point,
+            new ECDomainParameters(ecParams.Curve, ecParams.G, ecParams.N, ecParams.H));
+
+        var agreement = AgreementUtilities.GetBasicAgreement("ECDH");
+        agreement.Init(privateKeyParameters);
+        var sharedSecret = agreement.CalculateAgreement(publicKeyParameters);
+        return sharedSecret.ToByteArrayUnsigned();
+    }
+
+    /// <summary>
+    /// 生成临时 ECDH 密钥对（用于配对码加密交换）。
+    /// 与 Android 端 EcdhKeyStore.generateEphemeralKeyPair() 兼容。
+    /// </summary>
+    public static AsymmetricCipherKeyPair GenerateEphemeralKeyPair()
+    {
+        return GetKeyPair(); // GetKeyPair 已生成 secp256r1 临时密钥对
     }
 }
