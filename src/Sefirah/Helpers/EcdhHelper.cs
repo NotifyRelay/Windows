@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 using Org.BouncyCastle.Asn1.Sec;
 using Org.BouncyCastle.Crypto;
@@ -6,6 +8,7 @@ using Org.BouncyCastle.Crypto.Generators;
 using Org.BouncyCastle.Crypto.Parameters;
 using Org.BouncyCastle.Math;
 using Org.BouncyCastle.Security;
+using Org.BouncyCastle.X509;
 
 namespace NotifyRelay.Helpers;
 
@@ -23,7 +26,7 @@ public class EcdhHelper
         return keyPairGenerator.GenerateKeyPair();
     }
 
-    public static byte[] DeriveKey(string androidPublicKey, byte[] privateKey)
+    public static byte[] DeriveKey(string remotePublicKeyBase64, byte[] privateKey)
     {
         // Reconstruct the key pair
         var ecParams = SecNamedCurves.GetByName("secp256r1");
@@ -32,22 +35,36 @@ public class EcdhHelper
         var privateKeyParameters = new ECPrivateKeyParameters(
             new Org.BouncyCastle.Math.BigInteger(1, privateKey),
             ecDomainParameters);
-        byte[] rawPointBytes = Convert.FromBase64String(androidPublicKey);
+        byte[] rawPointBytes = Convert.FromBase64String(remotePublicKeyBase64);
         var point = ecParams.Curve.DecodePoint(rawPointBytes);
         var publicKeyParameters = new ECPublicKeyParameters(point,
             new ECDomainParameters(ecParams.Curve, ecParams.G, ecParams.N, ecParams.H));
 
+        // 1. ECDH 密钥协商
         var agreement = AgreementUtilities.GetBasicAgreement("ECDH");
         agreement.Init(privateKeyParameters);
         var sharedSecret = agreement.CalculateAgreement(publicKeyParameters);
         var sharedSecretBytes = sharedSecret.ToByteArrayUnsigned();
 
-        var sha256 = new Sha256Digest();
-        var hashedSecret = new byte[sha256.GetDigestSize()];
-        sha256.BlockUpdate(sharedSecretBytes, 0, sharedSecretBytes.Length);
-        sha256.DoFinal(hashedSecret, 0);
+        // 2. HKDF-Extract: HMAC-SHA256(salt=zeros(32), ikm=ECDH_shared_secret)
+        var salt = new byte[32]; // 全零
+        byte[] prk;
+        using (var hmac = new HMACSHA256(salt))
+        {
+            prk = hmac.ComputeHash(sharedSecretBytes);
+        }
 
-        return hashedSecret;
+        // 3. HKDF-Expand: 派生 32 字节密钥
+        //    info = "NotifyRelay-ECDH-v1"（与 Android 端一致，同一字符串两端相同）
+        var infoBytes = Encoding.UTF8.GetBytes("NotifyRelay-ECDH-v1");
+
+        using var hmacExpand = new HMACSHA256(prk);
+        hmacExpand.Initialize();
+        hmacExpand.TransformBlock(infoBytes, 0, infoBytes.Length, infoBytes, 0);
+        hmacExpand.TransformFinalBlock([1], 0, 1);
+        var okm = hmacExpand.Hash ?? [];
+
+        return okm.Take(32).ToArray();
     }
 
     public static string GenerateNonce()
@@ -88,7 +105,7 @@ public class EcdhHelper
     }
 
     /// <summary>
-    /// ECDH 密钥协商 + SHA-256 哈希，返回 32 字节
+    /// ECDH 密钥协商 + HKDF-SHA256 派生，返回 32 字节
     /// </summary>
     public static byte[] DeriveSharedSecret(AsymmetricCipherKeyPair keyPair, string remotePublicKeyBase64)
     {

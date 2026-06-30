@@ -1,5 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -38,9 +39,11 @@ public class NetworkDriveMapper
                 return existingDrive;
             }
 
-            // 构建FTP URL，使用匿名登录
-            string ftpUrl = $"ftp://{serverInfo.IpAddress}:{serverInfo.Port}/";
-            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置(FTP匿名登录)，FTP URL: {FtpUrl}",
+            // 构建FTP URL，使用与 Android 端一致的凭据
+            var ftpUrl = string.IsNullOrEmpty(serverInfo.Username)
+                ? $"ftp://{serverInfo.IpAddress}:{serverInfo.Port}/"
+                : $"ftp://{Uri.EscapeDataString(serverInfo.Username)}:{Uri.EscapeDataString(serverInfo.Password)}@{serverInfo.IpAddress}:{serverInfo.Port}/";
+            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置，FTP URL: {FtpUrl}",
                 device.Name, ftpUrl);
 
             try
@@ -167,10 +170,19 @@ public class NetworkDriveMapper
 
                     if (!string.IsNullOrEmpty(ipAddress))
                     {
+                        if (device.SharedSecret == null || device.SharedSecret.Length == 0)
+                        {
+                            _logger.LogWarning("FTP 启动成功但设备 {DeviceName} 没有共享密钥，无法派生凭据", device.Name);
+                            return;
+                        }
+                        // 从 sharedSecret 派生与 Android 端一致的 FTP 凭据
+                        var creds = NotifyCryptoHelper.DeriveftpCredentials(device.SharedSecret);
                         var serverInfo = new ftpServerInfo
                         {
                             IpAddress = ipAddress,
-                            Port = port
+                            Port = port,
+                            Username = creds.Username,
+                            Password = creds.Password
                         };
 
                         await Task.Run(() =>
