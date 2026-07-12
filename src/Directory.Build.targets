@@ -1,2 +1,11 @@
 ﻿<Project>
+  <Target Name="BuildRustCore" BeforeTargets="BeforeBuild"
+          Condition="Exists('$(MSBuildThisFileDirectory)..\..\notify-relay-core\Cargo.toml')">
+    <Exec Command="cargo build --release
+                   --manifest-path $(MSBuildThisFileDirectory)..\..\notify-relay-core\Cargo.toml
+                   --target-dir $(MSBuildThisFileDirectory)..\..\notify-relay-core\build\target"
+          StandardOutputImportance="high" />
+    <Copy SourceFiles="$(MSBuildThisFileDirectory)..\..\notify-relay-core\build\target\release\notify_relay_core.dll"
+          DestinationFolder="$(OutputPath)" />
+  </Target>
 </Project>
