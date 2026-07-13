@@ -109,4 +109,9 @@ public static class NativeCore
     {
         return NotifyRelayCore.Safe.FormatHandshake(uuid, pubKey, ip, battery, deviceType);
     }
+
+    public static string? DecodeLine(string line)
+    {
+        return NotifyRelayCore.Safe.DecodeLine(_ctx, line);
+    }
 }

@@ -290,59 +290,21 @@ public class NetworkService(
         }
     }
 
-    public async Task HandleHandshakeAsync(ServerSession session, string message)
+    public async Task HandleHandshakeAsync(ServerSession session, string jsonMessage)
     {
-        if (message.StartsWith("PAIRING_REQ:"))
-        {
-            var pairingSessionIp = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
-            await HandlePairingRequestAsync(session, message, pairingSessionIp);
-            return;
-        }
-
-        if (!message.StartsWith("HANDSHAKE:"))
-        {
-            if (message.StartsWith("DATA_"))
-            {
-                var attachedDevice = await TryAttachExistingDeviceSessionAsync(session, message);
-                if (attachedDevice is not null)
-                {
-                    await ProcessProtocolMessageAsync(attachedDevice, message);
-                    return;
-                }
-            }
-
-            logger.LogWarning("收到意外的预握手消息，来源：{id}，消息：{message}", session.Id, message);
-            return;
-        }
-
-        var parts = message.Split(':');
-        if (parts.Length < 6)
-        {
-            logger.LogWarning("握手格式无效，期望至少6个部分");
-            SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
-            DisconnectSession(session);
-            return;
-        }
-
-        var remoteDeviceId = parts[1];
-        var remotePublicKey = parts[2];
-        var remoteIpAddress = parts[3];
-        var remoteBattery = parts[4];
-        var remoteDeviceType = parts[5];
-        var discoveredName = PairedDevices.FirstOrDefault(d => d.Id == remoteDeviceId)?.Name;
-
-        if (discoveredName is null)
-        {
-            var discovery = Ioc.Default.GetService<IDiscoveryService>();
-            discoveredName = discovery?.DiscoveredDevices.FirstOrDefault(d => d.DeviceId == remoteDeviceId)?.DeviceName;
-        }
+        using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
+        var root = doc.RootElement;
+        var remoteDeviceId = root.GetProperty("uuid").GetString() ?? "";
+        var remotePublicKey = root.GetProperty("pub_key").GetString() ?? "";
+        var remoteIpAddress = root.GetProperty("ip").GetString() ?? "";
+        var remoteDeviceType = root.GetProperty("device_type").GetString() ?? "";
         var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
-        logger.Info($"收到握手来自 {connectedSessionIpAddress} (类型: {remoteDeviceType}, 电量: {remoteBattery})");
+        logger.Info($"收到握手来自 {connectedSessionIpAddress} (类型: {remoteDeviceType})");
 
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
 
-        var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, discoveredName, connectedSessionIpAddress);
+        var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, string.Empty, connectedSessionIpAddress);
 
         if (device is not null)
         {
@@ -380,7 +342,8 @@ public class NetworkService(
                 }
             }
 
-            ConnectionStatusChanged?.Invoke(this, (device, true));
+            var nonNullDevice = device!;
+            ConnectionStatusChanged?.Invoke(this, (nonNullDevice, true));
 
             // 延迟请求应用列表，避免阻塞握手
             // 仅对新配对设备自动触发
@@ -403,22 +366,17 @@ public class NetworkService(
     /// 协议格式：PAIRING_INIT:<uuid>:<tmpPubKey>:<ipAddress>:<batteryLevel>:<deviceType>
     /// 流程：弹出配对码输入对话框 → 用发起端临时公钥加密配对码 → 回传 PAIRING_RESP
     /// </summary>
-    public async Task HandlePairingInitAsync(ServerSession session, string message)
+    public async Task HandlePairingInitAsync(ServerSession session, string jsonMessage)
     {
         try
         {
-            var parts = message.Split(':');
-            if (parts.Length < 6)
-            {
-                logger.LogWarning("PAIRING_INIT 格式无效");
-                DisconnectSession(session);
-                return;
-            }
-
-            var remoteUuid = parts[1];
-            var tmpPubKey = parts[2];  // 发起端的临时公钥
-            var remoteIp = parts.Length > 3 ? parts[3] : session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
-            var remoteDeviceType = parts.Length > 5 ? parts[5] : "unknown";
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
+            var root = doc.RootElement;
+            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
+            var tmpPubKey = root.GetProperty("tmp_pub_key").GetString() ?? "";
+            var remoteIp = root.GetProperty("ip").GetString();
+            if (string.IsNullOrEmpty(remoteIp))
+                remoteIp = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
 
             // 检查是否已被拒绝
             if (deviceManager.PairedDevices.Any(d => d.Id == remoteUuid))
@@ -497,14 +455,16 @@ public class NetworkService(
                 using var reader = new StreamReader(stream, Encoding.UTF8);
                 var acceptLine = await reader.ReadLineAsync();
                 
-                if (acceptLine?.StartsWith("ACCEPT:") == true)
+                var acceptJson = NativeCore.DecodeLine(acceptLine ?? "");
+                if (acceptJson != null)
                 {
-                    var acceptParts = acceptLine.Split(':');
-                    if (acceptParts.Length >= 6)
+                    using var acceptDoc = System.Text.Json.JsonDocument.Parse(acceptJson);
+                    var acceptRoot = acceptDoc.RootElement;
+                    if (acceptRoot.TryGetProperty("header", out var hdrProp) && hdrProp.GetString() == "ACCEPT")
                     {
-                        var initiatorLtPubKey = acceptParts[3];
-                        var acceptIp = acceptParts.Length > 4 ? acceptParts[4] : string.Empty;
-                        var acceptDeviceType = acceptParts.Length > 6 ? acceptParts[6] : "unknown";
+                        var initiatorLtPubKey = acceptRoot.GetProperty("lt_pub_key").GetString() ?? "";
+                        var acceptIp = acceptRoot.TryGetProperty("ip", out var ipProp) ? ipProp.GetString() ?? string.Empty : string.Empty;
+                        var acceptDeviceType = acceptRoot.TryGetProperty("device_type", out var dtProp) ? dtProp.GetString() ?? "unknown" : "unknown";
 
                         logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
@@ -567,23 +527,13 @@ public class NetworkService(
     /// 协议格式：PAIRING_RESP:<uuid_R>:<tmpPub_R>:<ltPub_R>:<encryptedCode>:<ip>:<battery>:<deviceType>
     /// 注意：当前 PC 通常作为接收端，此方法主要用于未来扩展或 PC-PC 配对。
     /// </summary>
-    public async Task HandlePairingRespAsync(ServerSession session, string message)
+    public async Task HandlePairingRespAsync(ServerSession session, string jsonMessage)
     {
         try
         {
-            var parts = message.Split(':');
-            if (parts.Length < 5)
-            {
-                logger.LogWarning("PAIRING_RESP 格式无效");
-                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
-                DisconnectSession(session);
-                return;
-            }
-
-            var remoteUuid = parts[1];
-            var tmpPubKeyR = parts[2];   // 接收端的临时公钥
-            var ltPubKeyR = parts.Length > 3 ? parts[3] : string.Empty;    // 接收端的长期公钥
-            var encryptedCode = parts.Length > 4 ? parts[4] : string.Empty;
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
+            var root = doc.RootElement;
+            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
 
             logger.LogWarning("收到 PAIRING_RESP，但 PC 当前不作为配对发起端。忽略: {uuid}", remoteUuid);
             SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
@@ -598,25 +548,17 @@ public class NetworkService(
 
     /// <summary>
     /// 处理 ACCEPT：Android 端验证配对码通过后回传的确认消息。
-    /// ACCEPT 格式：ACCEPT:<code>:<uuid>:<ltPubKey>:<ip>:<battery>:<deviceType>
     /// </summary>
-    public async Task HandlePairingAcceptAsync(ServerSession session, string message)
+    public async Task HandlePairingAcceptAsync(ServerSession session, string jsonMessage)
     {
         try
         {
-            var parts = message.Split(':');
-            if (parts.Length < 6)
-            {
-                logger.LogWarning("ACCEPT 格式无效");
-                DisconnectSession(session);
-                return;
-            }
-
-            var pairingCode = parts[1];
-            var remoteUuid = parts[2];
-            var remoteLtPubKey = parts[3];
-            var remoteIp = parts.Length > 4 ? parts[4] : string.Empty;
-            var remoteDeviceType = parts.Length > 6 ? parts[6] : "unknown";
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
+            var root = doc.RootElement;
+            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
+            var remoteLtPubKey = root.GetProperty("lt_pub_key").GetString() ?? "";
+            var remoteIp = root.GetProperty("ip").GetString() ?? string.Empty;
+            var remoteDeviceType = root.GetProperty("device_type").GetString() ?? "unknown";
             var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
 
             logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
@@ -748,21 +690,36 @@ public class NetworkService(
     {
         try
         {
-            // 先尝试作为心跳包处理
-            if (heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive))
+            var jsonStr = NativeCore.DecodeLine(message);
+            if (jsonStr == null)
             {
+                if (heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive))
+                {
+                    return;
+                }
+
+                logger.LogDebug("收到不支持的消息类型: {message}", message.Length > 50 ? message[..50] + "..." : message);
                 return;
             }
 
-            if (message.StartsWith("DATA_"))
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+            var root = doc.RootElement;
+            var header = root.GetProperty("header").GetString();
+
+            if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "data")
             {
-                // 处理DATA_*加密业务消息
-                await ProcessDataMessageAsync(device, message);
+                var plaintext = root.GetProperty("plaintext").GetString() ?? "";
+                await ProcessDecryptedDataAsync(device, header ?? "", plaintext);
                 return;
             }
 
-            logger.LogDebug("收到不支持的消息类型，按照要求直接不处理: {message}", message.Length > 50 ? message[..50] + "..." : message);
-            return;
+            if (header == "HEARTBEAT_TCP")
+            {
+                heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive);
+                return;
+            }
+
+            logger.LogDebug("收到已认证设备发送的协议消息: {header}", header);
         }
         catch (Exception ex)
         {
@@ -782,6 +739,15 @@ public class NetworkService(
 
         // 使用协议路由器处理消息
         await protocolRouter.ProcessDataMessageAsync(device, message);
+    }
+
+    /// <summary>
+    /// 处理已由 Rust 解密后的 DATA_* 业务消息。
+    /// </summary>
+    public async Task ProcessDecryptedDataAsync(PairedDevice device, string header, string plaintext)
+    {
+        MarkDeviceAlive(device);
+        await protocolRouter.ProcessDecryptedDataAsync(device, header, plaintext);
     }
 
     public async Task<PairedDevice?> TryAttachExistingDeviceSessionAsync(ServerSession session, string message)

@@ -1,5 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Services;
@@ -30,13 +31,6 @@ public class ServerLineRouter
         _deviceManager = deviceManager;
     }
 
-    /// <summary>
-    /// 分发首行协议到对应处理器
-    /// </summary>
-    /// <param name="session">TCP 会话</param>
-    /// <param name="message">首行协议文本</param>
-    /// <param name="device">已绑定的设备（null 表示尚未握手）</param>
-    /// <param name="networkService">NetworkService 实例，用于执行具体操作</param>
     public async Task RouteLineAsync(
         ServerSession session,
         string message,
@@ -58,52 +52,82 @@ public class ServerLineRouter
         string message,
         NetworkService networkService)
     {
-        if (message.StartsWith("PAIRING_INIT:"))
+        var jsonStr = NativeCore.DecodeLine(message);
+        if (jsonStr == null)
         {
-            await networkService.HandlePairingInitAsync(session, message);
+            // decodeLine 无法识别的消息（如 HEARTBEAT_TCP、NOTIFYRELAY_DISCOVER_MANUAL）
+            await HandleUnrecognizedAsync(session, message, networkService);
+            return;
         }
-        else if (message.StartsWith("PAIRING_RESP:"))
+
+        using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
+        var root = doc.RootElement;
+        var header = root.GetProperty("header").GetString();
+
+        _logger.LogDebug("routeLine: header={Header}", header);
+
+        // DATA_* 消息：由 Rust 解密后直接处理明文
+        if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "data")
         {
-            await networkService.HandlePairingRespAsync(session, message);
-        }
-        else if (message.StartsWith("ACCEPT:"))
-        {
-            await networkService.HandlePairingAcceptAsync(session, message);
-        }
-        else if (message.StartsWith("HANDSHAKE:"))
-        {
-            await networkService.HandleHandshakeAsync(session, message);
-        }
-        else if (message.StartsWith("DATA_"))
-        {
-            var attachedDevice = await networkService.TryAttachExistingDeviceSessionAsync(session, message);
+            var localUuid = root.GetProperty("local_uuid").GetString() ?? "";
+            var plaintext = root.GetProperty("plaintext").GetString() ?? "";
+            var attachedDevice = _deviceManager.PairedDevices.FirstOrDefault(d => d.Id == localUuid);
             if (attachedDevice != null)
             {
-                await networkService.ProcessProtocolMessageAsync(attachedDevice, message);
+                await networkService.ProcessDecryptedDataAsync(attachedDevice, header ?? "", plaintext);
             }
             else
             {
-                // TryAttachExistingDeviceSessionAsync 已记录具体原因（设备不存在 / 格式不兼容等）
                 networkService.DisconnectSession(session);
             }
+            return;
         }
-        else if (message.StartsWith("HEARTBEAT_TCP:"))
+
+        // 配对/握手消息：传递 JSON 字符串给 handler
+        switch (header)
+        {
+            case "PAIRING_INIT":
+                await networkService.HandlePairingInitAsync(session, jsonStr);
+                break;
+            case "PAIRING_RESP":
+                await networkService.HandlePairingRespAsync(session, jsonStr);
+                break;
+            case "ACCEPT":
+                await networkService.HandlePairingAcceptAsync(session, jsonStr);
+                break;
+            case "HANDSHAKE":
+                await networkService.HandleHandshakeAsync(session, jsonStr);
+                break;
+            case "HEARTBEAT_TCP":
+                await HandleUnrecognizedAsync(session, message, networkService);
+                break;
+            default:
+                _logger.LogWarning("收到未预期的协议消息: {Header}", header);
+                networkService.DisconnectSession(session);
+                break;
+        }
+    }
+
+    private async Task HandleUnrecognizedAsync(
+        ServerSession session,
+        string message,
+        NetworkService networkService)
+    {
+        if (message.StartsWith("HEARTBEAT_TCP:"))
         {
             var processed = _heartbeatProcessor.TryProcessHeartbeat(message, null, d =>
             {
                 d.LastHeartbeat = DateTime.UtcNow;
             });
-
             if (!processed)
             {
                 _logger.LogDebug("HEARTBEAT_TCP 未找到已配对设备，忽略");
             }
-
             networkService.DisconnectSession(session);
         }
         else
         {
-            _logger.LogWarning("收到未预期的预握手消息，来源: {id}，消息: {msg}",
+            _logger.LogWarning("收到未识别的预握手消息，来源: {id}，消息: {msg}",
                 session.Id, message.Length > 50 ? message[..50] + "..." : message);
             networkService.DisconnectSession(session);
         }

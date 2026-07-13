@@ -69,6 +69,108 @@ public class ProtocolRouter
     }
 
     /// <summary>
+    /// 处理已由 Rust 解密后的 DATA_* 业务消息。
+    /// </summary>
+    public async Task ProcessDecryptedDataAsync(PairedDevice device, string header, string plaintext)
+    {
+        try
+        {
+            switch (header)
+            {
+                case "DATA_APP_LIST_REQUEST":
+                    await HandleAppListRequestAsync(device, plaintext);
+                    break;
+                case "DATA_ICON_REQUEST":
+                    await HandleIconRequestAsync(device, plaintext);
+                    break;
+                case "DATA_NOTIFICATION":
+                    await notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
+                    break;
+                case "DATA_MEDIAPLAY":
+                    if (!ShouldProcessMediaMessage(device))
+                    {
+                        logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
+                        await notificationService.Value.HandleMediaPlayNotification(device, new NotificationMessage
+                        {
+                            NotificationKey = Guid.NewGuid().ToString(),
+                            NotificationType = NotificationType.New,
+                            MediaType = "END"
+                        });
+                        break;
+                    }
+                    await notificationService.Value.ProcessMediaPlayMessageAsync(device, plaintext);
+                    break;
+                case "DATA_APP_LIST_RESPONSE":
+                    await remoteAppService.Value.ProcessAppListResponseAsync(device, plaintext);
+                    break;
+                case "DATA_ICON_RESPONSE":
+                    await notificationService.Value.ProcessIconResponseAsync(device, plaintext);
+                    break;
+                case "DATA_AUDIO_REQUEST":
+                    await notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
+                    break;
+                case "DATA_SUPERISLAND":
+                    await HandleSuperIslandAsync(device, plaintext);
+                    break;
+                case "DATA_MEDIA_CONTROL":
+                    logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {plaintext}", plaintext);
+                    try
+                    {
+                        using (JsonDocument doc = JsonDocument.Parse(plaintext))
+                        {
+                            if (doc.RootElement.TryGetProperty("action", out var actionProp))
+                            {
+                                var action = actionProp.GetString();
+                                if (action == "audioRequest")
+                                {
+                                    await screenMirrorService.ProcessAudioRequestAsync(device);
+                                }
+                                else
+                                {
+                                    PlaybackActionType actionType = action switch
+                                    {
+                                        "playPause" => PlaybackActionType.Play,
+                                        "next" => PlaybackActionType.Next,
+                                        "previous" => PlaybackActionType.Previous,
+                                        _ => PlaybackActionType.Play
+                                    };
+                                    await playbackService.Value.HandleMediaActionAsync(new PlaybackAction
+                                    {
+                                        PlaybackActionType = actionType,
+                                        Source = "MediaControl"
+                                    });
+                                }
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "处理DATA_MEDIA_CONTROL分发时出错");
+                    }
+                    break;
+#if WINDOWS
+                case "DATA_FTP":
+                    await networkDriveMapper.Value.ProcessFtpMessageAsync(device, plaintext);
+                    break;
+#endif
+                case "DATA_CLIPBOARD":
+                    await clipboardService.Value.ProcessClipboardMessageAsync(device, plaintext);
+                    break;
+                case "DATA_STATUS":
+                    await HandleStatusMessageAsync(device, plaintext);
+                    break;
+                default:
+                    logger.LogWarning("不支持的 DATA 消息类型: {header}", header);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理已解密 DATA 消息时出错");
+        }
+    }
+
+    /// <summary>
     /// 处理DATA_*加密业务消息
     /// </summary>
     /// <param name="device">设备</param>

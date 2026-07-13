@@ -7,12 +7,6 @@ public static class NotifyRelayCore
 {
     private const string DllName = "notify_relay_core";
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void MessageCallback(IntPtr type, IntPtr data, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void PairingCallback(IntPtr type, IntPtr uuid, IntPtr pubKey, IntPtr userData);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_init();
 
@@ -44,7 +38,7 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_decrypt_message(IntPtr ctx, IntPtr encryptedLine);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_process_line(IntPtr ctx, IntPtr line, MessageCallback? onMessage, PairingCallback? onPairing, IntPtr userData);
+    public static extern IntPtr nrc_decode_line(IntPtr ctx, IntPtr line);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_format_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
@@ -145,12 +139,12 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static int ProcessLine(IntPtr ctx, string line, MessageCallback? onMsg, PairingCallback? onPair, IntPtr userData)
+        public static string? DecodeLine(IntPtr ctx, string line)
         {
             var linePtr = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_process_line(ctx, linePtr, onMsg, onPair, userData);
+            var result = NotifyRelayCore.nrc_decode_line(ctx, linePtr);
             Marshal.FreeHGlobal(linePtr);
-            return result;
+            return PtrToStringAndFree(result);
         }
 
         public static int DeriveSharedSecret(IntPtr ctx, string peerUuid, string peerPubKeyB64)
