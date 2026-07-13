@@ -2,6 +2,7 @@ using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
@@ -102,6 +103,20 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤14：初始化设备管理器...");
         await deviceManager.Initialize();
         logger.LogInformation("步骤14：设备管理器初始化完成");
+
+        // 4a. 初始化 Rust Core 并迁移已有设备的共享密钥
+        logger.LogInformation("步骤14a：初始化 Rust Core...");
+        NativeCore.Initialize();
+        int migratedCount = 0;
+        foreach (var device in deviceManager.PairedDevices)
+        {
+            if (device.SharedSecret != null && device.SharedSecret.Length == 32)
+            {
+                NativeCore.MigrateSharedSecret(device.Id, device.SharedSecret);
+                migratedCount++;
+            }
+        }
+        logger.LogInformation("步骤14a：Rust Core 初始化完成，已迁移 {count} 个设备密钥", migratedCount);
 
         logger.LogInformation("步骤15：初始化通知服务...");
         notificationService.Initialize();

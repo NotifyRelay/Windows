@@ -6,6 +6,7 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Socket;
 using Uno.Logging;
 using Windows.Data.Xml.Dom;
@@ -516,6 +517,7 @@ public class NetworkService(
                              LastHeartbeat = DateTime.UtcNow,
                          };
                          await deviceManager.UpdateOrAddDeviceAsync(pairedDevice);
+                         NativeCore.MigrateSharedSecret(remoteUuid, sharedSecretBytes);
                          ConnectionStatusChanged?.Invoke(this, (pairedDevice, false));
                          logger.Info($"配对完成: {remoteUuid}");
 
@@ -801,6 +803,10 @@ public class NetworkService(
                 if (device.SharedSecret == null)
                 {
                     device.SharedSecret = NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey, localPrivateKey, remotePublicKey);
+                    if (device.SharedSecret != null)
+                    {
+                        NativeCore.MigrateSharedSecret(remoteDeviceId, device.SharedSecret);
+                    }
                 }
                 device.LastHeartbeat = DateTime.UtcNow;
                 deviceManager.ActiveDevice ??= device;

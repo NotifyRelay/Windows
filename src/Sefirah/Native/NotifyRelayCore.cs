@@ -29,13 +29,16 @@ public static class NotifyRelayCore
     public static extern int nrc_ecdh_has_keypair(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_ecdh_derive_shared_secret(IntPtr ctx, IntPtr peerPubKeyB64);
+    public static extern int nrc_ecdh_derive_shared_secret(IntPtr ctx, IntPtr peerUuid, IntPtr peerPubKeyB64);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_migrate_shared_secret(IntPtr ctx, byte[] secret, uint len);
+    public static extern int nrc_migrate_shared_secret(IntPtr ctx, IntPtr deviceUuid, [In] byte[] aesKey, uint len);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_encrypt_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr plaintext);
+    public static extern int nrc_remove_device(IntPtr ctx, IntPtr deviceUuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_encrypt_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr remoteUuid, IntPtr plaintext);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_decrypt_message(IntPtr ctx, IntPtr encryptedLine);
@@ -81,16 +84,34 @@ public static class NotifyRelayCore
 
     public static class Safe
     {
-        public static string? EncryptMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string plaintext)
+        public static int MigrateSharedSecret(IntPtr ctx, string deviceUuid, byte[] aesKey)
+        {
+            var u = StringToPtr(deviceUuid);
+            var result = NotifyRelayCore.nrc_migrate_shared_secret(ctx, u, aesKey, (uint)aesKey.Length);
+            Marshal.FreeHGlobal(u);
+            return result;
+        }
+
+        public static int RemoveDevice(IntPtr ctx, string deviceUuid)
+        {
+            var u = StringToPtr(deviceUuid);
+            var result = NotifyRelayCore.nrc_remove_device(ctx, u);
+            Marshal.FreeHGlobal(u);
+            return result;
+        }
+
+        public static string? EncryptMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
         {
             var h = StringToPtr(header);
             var u = StringToPtr(localUuid);
             var k = StringToPtr(localPubKey);
+            var r = StringToPtr(remoteUuid);
             var p = StringToPtr(plaintext);
-            var result = NotifyRelayCore.nrc_encrypt_message(ctx, h, u, k, p);
+            var result = NotifyRelayCore.nrc_encrypt_message(ctx, h, u, k, r, p);
             Marshal.FreeHGlobal(h);
             Marshal.FreeHGlobal(u);
             Marshal.FreeHGlobal(k);
+            Marshal.FreeHGlobal(r);
             Marshal.FreeHGlobal(p);
             return PtrToStringAndFree(result);
         }
@@ -108,6 +129,16 @@ public static class NotifyRelayCore
             var linePtr = StringToPtr(line);
             var result = NotifyRelayCore.nrc_process_line(ctx, linePtr, onMsg, onPair, userData);
             Marshal.FreeHGlobal(linePtr);
+            return result;
+        }
+
+        public static int DeriveSharedSecret(IntPtr ctx, string peerUuid, string peerPubKeyB64)
+        {
+            var u = StringToPtr(peerUuid);
+            var k = StringToPtr(peerPubKeyB64);
+            var result = NotifyRelayCore.nrc_ecdh_derive_shared_secret(ctx, u, k);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(k);
             return result;
         }
 

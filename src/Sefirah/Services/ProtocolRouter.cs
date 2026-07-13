@@ -1,7 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
 #endif
@@ -91,8 +91,12 @@ public class ProtocolRouter
             }
 
             var messageType = parts[0];
-            var encryptedPayload = string.Join(":", parts.Skip(3));
-            var decryptedPayload = NotifyCryptoHelper.Decrypt(encryptedPayload, device.SharedSecret);
+            var decryptedPayload = NativeCore.DecryptMessage(message);
+            if (decryptedPayload == null)
+            {
+                logger.LogWarning("Rust解密失败: DecryptMessage, deviceId={id}", device.Id);
+                return;
+            }
             // 根据具体的DATA_*报文头进行分流处理
             switch (messageType)
             {

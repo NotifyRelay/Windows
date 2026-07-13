@@ -5,6 +5,7 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 using Org.BouncyCastle.Crypto;
 
@@ -85,6 +86,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
 
     public void RemoveDevice(PairedDevice device)
     {
+        NativeCore.RemoveDevice(device.Id);
+
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
             try
@@ -142,6 +145,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 }
 
                 repository.AddOrUpdateRemoteDevice(existingDevice);
+
+                NativeCore.MigrateSharedSecret(deviceId, sharedSecretBytes);
 
                 var pairedDevice = await App.MainWindow.DispatcherQueue.EnqueueAsync(() => existingDevice.ToPairedDevice());
                 return pairedDevice;

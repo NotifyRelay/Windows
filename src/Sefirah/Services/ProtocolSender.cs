@@ -2,7 +2,7 @@ using System.Net.Sockets;
 using System.Text;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Services;
 
@@ -115,10 +115,13 @@ public class ProtocolSender : IProtocolSender
 
             const int notifyRelayPort = 23333;
 
-            string encryptedPayload = NotifyCryptoHelper.Encrypt(plaintext, device.SharedSecret);
-
-            string framedMessage = $"{header}:{localDeviceId}:{localPublicKey}:{encryptedPayload}\n";
-            byte[] messageBytes = Encoding.UTF8.GetBytes(framedMessage);
+            string? framedMessage = NativeCore.EncryptMessage(header, localDeviceId, localPublicKey, device.Id, plaintext);
+            if (framedMessage == null)
+            {
+                _logger.LogError("Rust加密失败: EncryptMessage, device={deviceName}", device.Name);
+                return;
+            }
+            byte[] messageBytes = Encoding.UTF8.GetBytes(framedMessage + "\n");
 
             _logger.LogDebug("消息字节长度：{length}", messageBytes.Length);
 
