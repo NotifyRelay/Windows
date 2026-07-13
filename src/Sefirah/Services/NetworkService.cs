@@ -3,6 +3,8 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using CommunityToolkit.WinUI;
+using NotifyRelay.Data.AppDatabase.Models;
+using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
@@ -518,6 +520,15 @@ public class NetworkService(
                          };
                          await deviceManager.UpdateOrAddDeviceAsync(pairedDevice);
                          NativeCore.MigrateSharedSecret(remoteUuid, sharedSecretBytes);
+                          Ioc.Default.GetRequiredService<DeviceRepository>().AddOrUpdateRemoteDevice(new RemoteDeviceEntity
+                         {
+                             DeviceId = remoteUuid,
+                             Name = discoveredName ?? remoteUuid,
+                             SharedSecret = sharedSecretBytes,
+                             PublicKey = initiatorLtPubKey,
+                             IpAddresses = string.IsNullOrEmpty(remoteIp) ? [] : [remoteIp],
+                             LastConnected = DateTime.UtcNow,
+                         });
                          ConnectionStatusChanged?.Invoke(this, (pairedDevice, false));
                          logger.Info($"配对完成: {remoteUuid}");
 
@@ -800,13 +811,24 @@ public class NetworkService(
                 device.Session = session;
                 device.ConnectionStatus = true;
                 device.RemotePublicKey = remotePublicKey;
+                var deviceRepo = Ioc.Default.GetRequiredService<DeviceRepository>();
                 if (device.SharedSecret == null)
                 {
                     device.SharedSecret = NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey, localPrivateKey, remotePublicKey);
                     if (device.SharedSecret != null)
                     {
                         NativeCore.MigrateSharedSecret(remoteDeviceId, device.SharedSecret);
+                        if (deviceRepo.HasDevice(remoteDeviceId, out var dbDevice))
+                        {
+                            dbDevice.SharedSecret = device.SharedSecret;
+                            deviceRepo.AddOrUpdateRemoteDevice(dbDevice);
+                        }
                     }
+                }
+                if (deviceRepo.HasDevice(remoteDeviceId, out var dbEntity))
+                {
+                    dbEntity.PublicKey = remotePublicKey;
+                    deviceRepo.AddOrUpdateRemoteDevice(dbEntity);
                 }
                 device.LastHeartbeat = DateTime.UtcNow;
                 deviceManager.ActiveDevice ??= device;
@@ -828,6 +850,14 @@ public class NetworkService(
 
                         // 添加新的IP地址到列表中，保留旧的IP地址
                         device.IpAddresses.Add(connectedSessionIpAddress);
+                    }
+
+                    // 持久化 IP 地址到数据库
+                    var ipRepo = Ioc.Default.GetRequiredService<DeviceRepository>();
+                    if (ipRepo.HasDevice(device.Id, out var ipEntity))
+                    {
+                        ipEntity.IpAddresses = device.IpAddresses;
+                        ipRepo.AddOrUpdateRemoteDevice(ipEntity);
                     }
                 }
             });

@@ -1,5 +1,6 @@
 using System.Net.Sockets;
 using System.Text;
+using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
@@ -168,14 +169,20 @@ public class ProtocolSender : IProtocolSender
                         if (device.IpAddresses[0] != ipAddress)
                         {
                             lock (device)
-                            {
-                                if (device.IpAddresses[0] != ipAddress)
                                 {
-                                    device.IpAddresses.Remove(ipAddress);
-                                    device.IpAddresses.Insert(0, ipAddress);
-                                    _logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
+                                    if (device.IpAddresses[0] != ipAddress)
+                                    {
+                                        device.IpAddresses.Remove(ipAddress);
+                                        device.IpAddresses.Insert(0, ipAddress);
+                                        _logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
+                                        var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
+                                        if (repo.HasDevice(device.Id, out var entity))
+                                        {
+                                            entity.IpAddresses = device.IpAddresses;
+                                            repo.AddOrUpdateRemoteDevice(entity);
+                                        }
+                                    }
                                 }
-                            }
                         }
                     }
 

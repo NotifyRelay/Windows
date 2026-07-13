@@ -206,18 +206,12 @@ public partial class PairedDevice : ObservableObject
                     try
                     {
                         var deviceRepository = Ioc.Default.GetRequiredService<DeviceRepository>();
-                        var deviceEntity = new RemoteDeviceEntity
+                        if (deviceRepository.HasDevice(Id, out var deviceEntity))
                         {
-                            DeviceId = Id,
-                            Name = Name,
-                            Model = Model,
-                            IpAddresses = IpAddresses ?? [],
-                            SharedSecret = SharedSecret,
-                            PublicKey = RemotePublicKey,
-                            HasSentftpRequest = value
-                        };
-                        deviceRepository.AddOrUpdateRemoteDevice(deviceEntity);
-                        logger.LogDebug("HasSentftpRequest属性已保存到数据库");
+                            deviceEntity.HasSentftpRequest = value;
+                            deviceRepository.AddOrUpdateRemoteDevice(deviceEntity);
+                            logger.LogDebug("HasSentftpRequest属性已保存到数据库");
+                        }
                     }
                     catch (Exception ex)
                     {
