@@ -64,4 +64,49 @@ public static class NativeCore
     {
         return NotifyRelayCore.Safe.DecryptMessage(_ctx, encryptedLine);
     }
+
+    public static string? FormatHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatHeartbeat(uuid, nameB64, port, battery, deviceType);
+    }
+
+    public static string? FormatDiscovery(string uuid, string nameB64, ushort port, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatDiscovery(uuid, nameB64, port, battery, deviceType);
+    }
+
+    public static string? FormatTcpHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatTcpHeartbeat(uuid, nameB64, port, battery, deviceType);
+    }
+
+    public static string? ParseHeartbeatJson(string line)
+    {
+        return NotifyRelayCore.Safe.ParseHeartbeatJson(line);
+    }
+
+    public static string? ParseHeartbeatTcpJson(string line)
+    {
+        return NotifyRelayCore.Safe.ParseHeartbeatTcpJson(line);
+    }
+
+    public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatPairingInit(uuid, tmpPubKey, ip, battery, deviceType);
+    }
+
+    public static string? FormatPairingResp(string uuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatPairingResp(uuid, tmpPub, ltPub, encryptedCode, ip, battery, deviceType);
+    }
+
+    public static string? FormatAccept(string uuid, string ltPubKey, string ip, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatAccept(uuid, ltPubKey, ip, battery, deviceType);
+    }
+
+    public static string? FormatHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
+    {
+        return NotifyRelayCore.Safe.FormatHandshake(uuid, pubKey, ip, battery, deviceType);
+    }
 }

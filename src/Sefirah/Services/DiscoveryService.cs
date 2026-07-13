@@ -9,6 +9,7 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.EventArguments;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Services;
@@ -139,28 +140,20 @@ public class DiscoveryService(
         }
     }
 
-    /// <summary>
-    /// 构建设备发现消息（心跳格式）
-    /// </summary>
     private string BuildDiscoverMessage(string deviceName)
     {
+        if (localDevice == null) return string.Empty;
+
         var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
         var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
 
-        // 获取系统电量和充电状态
         var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
         var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
         var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
-        var chargeSign = isCharging ? "+" : "-";
+        var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
 
-        if (localDevice == null)
-        {
-            return string.Empty;
-        }
-
-        // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
-        return $"{localDevice.DeviceId}:{encodedName}:{serverPort}:{chargeSign}{batteryLevel}:pc";
+        return NativeCore.FormatDiscovery(localDevice.DeviceId, encodedName, (ushort)serverPort, signedBattery, "pc") ?? string.Empty;
     }
 
     /// <summary>

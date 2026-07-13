@@ -371,9 +371,13 @@ public class NetworkService(
 
             if (localDeviceId is not null && localPublicKey is not null)
             {
-                var localBattery = systemInfoService.GetSystemBatteryLevel() > 100 ? "100+" : systemInfoService.GetSystemBatteryLevel().ToString();
-                var localIp = NetworkHelper.GetLocalIpAddress();
-                SendRaw(session, $"ACCEPT:{localDeviceId}:{localPublicKey}:{localIp}:{localBattery}:pc");
+                var localBattery = systemInfoService.GetSystemBatteryLevel();
+                var localIp = NetworkHelper.GetLocalIpAddress() ?? string.Empty;
+                var acceptMsg = NativeCore.FormatAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
+                if (acceptMsg != null)
+                {
+                    SendRaw(session, acceptMsg);
+                }
             }
 
             ConnectionStatusChanged?.Invoke(this, (device, true));
@@ -479,7 +483,8 @@ public class NetworkService(
                 //    新建 TCP 连接发送 PAIRING_RESP 到 Android 服务器
                 DisconnectSession(session);
 
-                var pairingResp = $"PAIRING_RESP:{localDeviceId}:{receiverTmpPubKeyB64}:{ltPubKey}:{encryptedCode}:{remoteIp}:{systemInfoService.GetSystemBatteryLevel()}:pc";
+                var pairingResp = NativeCore.FormatPairingResp(localDeviceId, receiverTmpPubKeyB64, ltPubKey, encryptedCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
+                if (pairingResp == null) return;
                 
                 using var androidSocket = new System.Net.Sockets.TcpClient();
                  await androidSocket.ConnectAsync(System.Net.IPAddress.Parse(remoteIp), ServerPort);
@@ -709,9 +714,13 @@ public class NetworkService(
 
                 if (localDeviceId != null && localPublicKey != null)
                 {
-                    var localBattery = systemInfoService.GetSystemBatteryLevel() > 100 ? "100+" : systemInfoService.GetSystemBatteryLevel().ToString();
-                    var localIp = NetworkHelper.GetLocalIpAddress();
-                    SendRaw(session, $"ACCEPT:{localDeviceId}:{localPublicKey}:{localIp}:{localBattery}:pc");
+                    var localBattery = systemInfoService.GetSystemBatteryLevel();
+                    var localIp = NetworkHelper.GetLocalIpAddress() ?? string.Empty;
+                    var acceptMsg = NativeCore.FormatAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
+                    if (acceptMsg != null)
+                    {
+                        SendRaw(session, acceptMsg);
+                    }
                 }
 
                 ConnectionStatusChanged?.Invoke(this, (device, true));
@@ -955,18 +964,16 @@ public class NetworkService(
         {
             if (localDeviceId is null) return;
 
-            // 获取PC设备电量百分比和充电状态
-            var batteryLevel = systemInfoService.GetSystemBatteryLevel(); // 接入系统电量API
-            var isCharging = systemInfoService.GetSystemChargingStatus(); // 获取充电状态
-            var chargeSign = isCharging ? "+" : "-";
+            var batteryLevel = systemInfoService.GetSystemBatteryLevel();
+            var isCharging = systemInfoService.GetSystemChargingStatus();
+            var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
 
-            // 获取本地设备名称
             var localDevice = deviceManager.GetLocalDeviceAsync().Result;
             var deviceName = localDevice?.DeviceName ?? "PC";
             var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
 
-            // 心跳格式：<uuid>:<displayName>:<port>:<+/-><batteryLevel>:<deviceType>
-            var payload = $"{localDeviceId}:{encodedName}:{ServerPort}:{chargeSign}{batteryLevel}:pc";
+            var payload = NativeCore.FormatHeartbeat(localDeviceId, encodedName, (ushort)ServerPort, signedBattery, "pc");
+            if (payload == null) return;
             var bytes = Encoding.UTF8.GetBytes(payload);
             const int udpPort = 23334; // 使用与Android端相同的UDP端口
 

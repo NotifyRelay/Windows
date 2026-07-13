@@ -56,6 +56,27 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_format_discovery(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_tcp_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_heartbeat_json(IntPtr line);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_heartbeat_tcp_json(IntPtr line);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_pairing_init(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_pairing_resp(IntPtr uuid, IntPtr tmpPub, IntPtr ltPub, IntPtr encryptedCode, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_accept(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_handshake(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_export_state(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -147,12 +168,124 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(nrc_export_state(ctx));
         }
 
+        public static string? FormatHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var n = StringToPtr(nameB64);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_heartbeat(u, n, port, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(n);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? FormatDiscovery(string uuid, string nameB64, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var n = StringToPtr(nameB64);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_discovery(u, n, port, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(n);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
         public static int ImportState(IntPtr ctx, string json)
         {
             var jsonPtr = StringToPtr(json);
             var result = nrc_import_state(ctx, jsonPtr);
             Marshal.FreeHGlobal(jsonPtr);
             return result;
+        }
+
+        public static string? FormatTcpHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var n = StringToPtr(nameB64);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_tcp_heartbeat(u, n, port, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(n);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseHeartbeatJson(string line)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_parse_heartbeat_json(l);
+            Marshal.FreeHGlobal(l);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseHeartbeatTcpJson(string line)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_parse_heartbeat_tcp_json(l);
+            Marshal.FreeHGlobal(l);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var k = StringToPtr(tmpPubKey);
+            var i = StringToPtr(ip);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_pairing_init(u, k, i, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(k);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? FormatPairingResp(string uuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var t = StringToPtr(tmpPub);
+            var l = StringToPtr(ltPub);
+            var e = StringToPtr(encryptedCode);
+            var i = StringToPtr(ip);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_pairing_resp(u, t, l, e, i, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(t);
+            Marshal.FreeHGlobal(l);
+            Marshal.FreeHGlobal(e);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? FormatAccept(string uuid, string ltPubKey, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var k = StringToPtr(ltPubKey);
+            var i = StringToPtr(ip);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_accept(u, k, i, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(k);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? FormatHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid);
+            var k = StringToPtr(pubKey);
+            var i = StringToPtr(ip);
+            var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_format_handshake(u, k, i, battery, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(k);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
         }
     }
 }
