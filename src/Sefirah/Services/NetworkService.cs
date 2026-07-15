@@ -911,25 +911,8 @@ public class NetworkService(
                 }
             }
 
-            foreach (var device in PairedDevices.ToList())
-            {
-                var last = device.LastHeartbeat;
-                var lastSec = last.HasValue ? new DateTimeOffset(last.Value).ToUnixTimeSeconds() : 0L;
-                var nowSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                if (NativeCore.HeartbeatHasTimedOut(lastSec, nowSec, (long)heartbeatTimeout.TotalSeconds) && device.ConnectionStatus)
-                {
-                    UpdateDeviceState(device, d =>
-                    {
-                        d.ConnectionStatus = false;
-                        d.Session = null;
-                        if (TryGetSession(d.Id, out var staleSession) && staleSession is not null)
-                        {
-                            UnbindSession(staleSession);
-                        }
-                        ConnectionStatusChanged?.Invoke(this, (d, false));
-                    });
-                }
-            }
+            // Rust 内核自动扫描超时设备
+            NativeCore.HeartbeatTick((long)heartbeatTimeout.TotalSeconds);
         }
         catch
         {

@@ -1,9 +1,8 @@
-using System.Net.Sockets;
-using System.Text;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
+using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Services;
 
@@ -18,6 +17,7 @@ public class ProtocolSender : IProtocolSender
     private const string TAG = "ProtocolSender";
     private const int DEFAULT_TIMEOUT = 80000;
     private const int DEFAULT_CONNECT_TIMEOUT = 5000;
+    private const int NotifyRelayPort = 23333;
 
     private readonly ILogger<ProtocolSender> _logger;
     private readonly IDeviceManager _deviceManager;
@@ -30,11 +30,6 @@ public class ProtocolSender : IProtocolSender
         _deviceManager = deviceManager;
     }
 
-    /// <summary>
-    /// 发送消息，自动从JSON中提取type作为协议头
-    /// </summary>
-    /// <param name="deviceId">目标设备ID</param>
-    /// <param name="messageJson">消息JSON字符串</param>
     public async Task SendMessageAsync(string deviceId, string messageJson)
     {
         string header = "DATA_JSON";
@@ -54,12 +49,6 @@ public class ProtocolSender : IProtocolSender
         await SendMessageAsync(deviceId, messageJson, header);
     }
 
-    /// <summary>
-    /// 发送消息，指定协议头
-    /// </summary>
-    /// <param name="deviceId">目标设备ID</param>
-    /// <param name="messageJson">消息JSON字符串</param>
-    /// <param name="header">协议头</param>
     public async Task SendMessageAsync(string deviceId, string messageJson, string header)
     {
         var device = _deviceManager.PairedDevices.FirstOrDefault(d => d.Id == deviceId);
@@ -82,15 +71,6 @@ public class ProtocolSender : IProtocolSender
         await SendEncryptedAsync(device, header, messageJson, localDeviceId, localPublicKey);
     }
 
-    /// <summary>
-    /// 发送一条加密负载到指定设备。
-    /// </summary>
-    /// <param name="device">目标设备</param>
-    /// <param name="header">消息头，例如：DATA_JSON / DATA_ICON_REQUEST / DATA_ICON_RESPONSE 等</param>
-    /// <param name="plaintext">明文内容</param>
-    /// <param name="localDeviceId">本地设备ID</param>
-    /// <param name="localPublicKey">本地公钥</param>
-    /// <param name="timeoutMs">超时时间</param>
     public async Task SendEncryptedAsync(
         PairedDevice device,
         string header,
@@ -114,17 +94,14 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
-            const int notifyRelayPort = 23333;
-
             string? framedMessage = NativeCore.EncryptMessage(header, localDeviceId, localPublicKey, device.Id, plaintext);
             if (framedMessage == null)
             {
                 _logger.LogError("Rust加密失败: EncryptMessage, device={deviceName}", device.Name);
                 return;
             }
-            byte[] messageBytes = Encoding.UTF8.GetBytes(framedMessage + "\n");
 
-            _logger.LogDebug("消息字节长度：{length}", messageBytes.Length);
+            _logger.LogDebug("消息字节长度：{length}", framedMessage.Length);
 
             var ipAddressesCopy = device.IpAddresses.ToList();
 
@@ -132,77 +109,40 @@ public class ProtocolSender : IProtocolSender
             {
                 _logger.LogInformation("发送到设备：{deviceName} ({ipAddress})", device.Name, ipAddress);
 
-                using var tcpClient = new TcpClient();
-                tcpClient.ReceiveTimeout = (int)timeoutMs;
-                tcpClient.SendTimeout = (int)timeoutMs;
+                var success = await OneShotTcpClient.SendOnlyAsync(
+                    ipAddress, NotifyRelayPort, framedMessage,
+                    DEFAULT_CONNECT_TIMEOUT);
 
-                try
+                if (success)
                 {
-                    var connectTask = tcpClient.ConnectAsync(ipAddress, notifyRelayPort);
-                    var delayTask = Task.Delay(DEFAULT_CONNECT_TIMEOUT);
-                    var connectResult = await Task.WhenAny(connectTask, delayTask);
-
-                    if (connectResult == delayTask)
-                    {
-                        tcpClient.Close();
-                        _logger.LogWarning("连接设备超时：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
-                        continue;
-                    }
-
-                    if (!connectTask.IsCompletedSuccessfully)
-                    {
-                        _logger.LogWarning("连接设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
-                        continue;
-                    }
-
-                    using var networkStream = tcpClient.GetStream();
-                    networkStream.ReadTimeout = (int)timeoutMs;
-                    networkStream.WriteTimeout = (int)timeoutMs;
-
-                    await networkStream.WriteAsync(messageBytes, 0, messageBytes.Length);
-                    await networkStream.FlushAsync();
-
                     _logger.LogInformation("成功发送请求：{header}，deviceId={deviceId}", header, device.Id);
 
-                    if (device.IpAddresses.Count > 1)
+                    if (device.IpAddresses.Count > 1 && device.IpAddresses[0] != ipAddress)
                     {
-                        if (device.IpAddresses[0] != ipAddress)
+                        lock (device)
                         {
-                            lock (device)
+                            if (device.IpAddresses[0] != ipAddress)
+                            {
+                                device.IpAddresses.Remove(ipAddress);
+                                device.IpAddresses.Insert(0, ipAddress);
+                                _logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
+                                var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
+                                if (repo.HasDevice(device.Id, out var entity))
                                 {
-                                    if (device.IpAddresses[0] != ipAddress)
-                                    {
-                                        device.IpAddresses.Remove(ipAddress);
-                                        device.IpAddresses.Insert(0, ipAddress);
-                                        _logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
-                                        var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
-                                        if (repo.HasDevice(device.Id, out var entity))
-                                        {
-                                            entity.IpAddresses = device.IpAddresses;
-                                            repo.AddOrUpdateRemoteDevice(entity);
-                                        }
-                                    }
+                                    entity.IpAddresses = device.IpAddresses;
+                                    repo.AddOrUpdateRemoteDevice(entity);
                                 }
+                            }
                         }
                     }
 
                     return;
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "连接或发送到设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, notifyRelayPort);
-                }
+
+                _logger.LogWarning("连接或发送到设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, NotifyRelayPort);
             }
 
             _logger.LogWarning("所有IP地址都连接失败，跳过发送");
-        }
-        catch (ObjectDisposedException ex)
-        {
-            _logger.LogError(ex, "发送请求时 Socket 已释放：deviceId={deviceId}", device.Id);
-        }
-        catch (SocketException ex)
-        {
-            _logger.LogError(ex, "发送请求时 Socket 错误：deviceId={deviceId}", device.Id);
         }
         catch (Exception ex)
         {
@@ -210,9 +150,6 @@ public class ProtocolSender : IProtocolSender
         }
     }
 
-    /// <summary>
-    /// 发送一条加密负载到指定设备，使用默认超时时间。
-    /// </summary>
     public Task SendEncryptedAsync(
         PairedDevice device,
         string header,

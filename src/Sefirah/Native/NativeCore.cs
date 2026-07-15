@@ -271,6 +271,11 @@ public static class NativeCore
         return NotifyRelayCore.Safe.HeartbeatHasTimedOut(lastHeartbeatSec, nowSec, timeoutSec) != 0;
     }
 
+    public static int HeartbeatTick(long timeoutSec)
+    {
+        return NotifyRelayCore.Safe.HeartbeatTick(_ctx, timeoutSec);
+    }
+
     public static string? ComputeFeatureId(string packageName, string title, string text)
     {
         return NotifyRelayCore.Safe.ComputeFeatureId(packageName, title, text);
@@ -494,8 +499,6 @@ public static class NativeCore
         {
             NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, ipPtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null) return;
@@ -506,6 +509,25 @@ public static class NativeCore
                 }
             };
             NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_device_timeout ----
+        {
+            NotifyRelayCore.OnDeviceTimeoutCb cb = (uuidPtr, userData) =>
+            {
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                if (uuid == null) return;
+                var dispatcher = App.MainWindow?.DispatcherQueue;
+                if (dispatcher != null && !dispatcher.HasThreadAccess)
+                {
+                    dispatcher.TryEnqueue(() => HandleDeviceTimeout(uuid));
+                }
+                else
+                {
+                    HandleDeviceTimeout(uuid);
+                }
+            };
+            NotifyRelayCore.nrc_set_on_device_timeout_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
         // ---- on_send (统一发送回调：写入当前 TCP 会话) ----
@@ -544,5 +566,14 @@ public static class NativeCore
             };
             NotifyRelayCore.nrc_set_on_send_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
+    }
+
+    private static void HandleDeviceTimeout(string uuid)
+    {
+        var device = DeviceManager?.FindDeviceById(uuid);
+        if (device == null) return;
+        device.ConnectionStatus = false;
+        device.Session = null;
+        NetworkService?.DisconnectDevice(uuid);
     }
 }

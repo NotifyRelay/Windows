@@ -233,6 +233,15 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
 
+    // ======== Heartbeat tick & device timeout ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_heartbeat_tick(IntPtr ctx, long timeoutSec);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
+
+    public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
+
     // ======== New: verify_pairing_code, compute_dedup_key, heartbeat_timeout, feature_id ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_verify_pairing_code(IntPtr storedCode, IntPtr inputCode);
@@ -694,6 +703,11 @@ public static class NotifyRelayCore
             var result = NotifyRelayCore.nrc_parse_heartbeat_tcp_with_cb(l, cb, userData);
             Marshal.FreeHGlobal(l);
             return result;
+        }
+
+        public static int HeartbeatTick(IntPtr ctx, long timeoutSec)
+        {
+            return NotifyRelayCore.nrc_heartbeat_tick(ctx, timeoutSec);
         }
 
     }

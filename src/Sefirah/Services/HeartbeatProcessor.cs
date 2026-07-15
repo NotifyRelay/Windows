@@ -178,6 +178,10 @@ public class HeartbeatProcessor
     private void MarkDeviceAlive(PairedDevice device)
     {
         device.LastHeartbeat = DateTime.UtcNow;
+        if (!device.ConnectionStatus)
+        {
+            device.ConnectionStatus = true;
+        }
     }
 }
 

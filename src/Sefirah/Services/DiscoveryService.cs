@@ -358,12 +358,10 @@ public class DiscoveryService(
                 }
             });
 
-            // 尝试更新已配对设备的在线状态
-            var pairedDevice = deviceManager.FindDeviceById(heartbeatInfo.DeviceId);
-            if (pairedDevice != null)
+            // 已配对设备：通过 Rust 路径处理心跳
+            if (deviceManager.FindDeviceById(heartbeatInfo.DeviceId) != null)
             {
-                var networkService = networkServiceFactory();
-                networkService.UpdateDeviceStatusFromUdp(heartbeatInfo.DeviceId, message);
+                NativeCore.ProcessUdpBroadcast(message);
             }
 
             StartCleanupTimer();
