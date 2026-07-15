@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Services;
+using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Native;
 
@@ -15,6 +16,11 @@ public static class NativeCore
     // 回调分发目标
     internal static ProtocolRouter? ProtocolRouter { get; set; }
     internal static IDeviceManager? DeviceManager { get; set; }
+    internal static NetworkService? NetworkService { get; set; }
+    internal static HeartbeatProcessor? HeartbeatProcessor { get; set; }
+
+    /// <summary>供非 DATA 回调获取当前 TCP 会话上下文</summary>
+    internal static AsyncLocal<ServerSession?> CurrentSession { get; } = new();
 
     // 保持回调委托不被 GC 回收
     private static readonly List<Delegate> _callbackRefs = new();
@@ -314,5 +320,112 @@ public static class NativeCore
             (d, t) => ProtocolRouter?.OnDataSuperIslandAsync(d, t) ?? Task.CompletedTask);
         Cb(cb => NotifyRelayCore.nrc_set_on_unknown_data_cb(_ctx, cb), "DATA_UNKNOWN",
             (d, t) => Task.CompletedTask);
+
+        // ==================== 非 DATA 回调注册 ====================
+
+        // ---- on_handshake ----
+        {
+            NotifyRelayCore.OnHandshakeCb cb = (uuidPtr, pubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
+            {
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var pubKey = Marshal.PtrToStringUTF8(pubKeyPtr);
+                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+                if (uuid == null || pubKey == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                var json = $"{{\"uuid\":\"{uuid}\",\"pub_key\":\"{pubKey}\",\"ip\":\"{ip}\",\"device_type\":\"{deviceType}\"}}";
+                _ = ns.HandleHandshakeAsync(session, json);
+            };
+            NotifyRelayCore.nrc_set_on_handshake_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_pairing_init ----
+        {
+            NotifyRelayCore.OnPairingInitCb cb = (uuidPtr, tmpPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
+            {
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var tmpPubKey = Marshal.PtrToStringUTF8(tmpPubKeyPtr);
+                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                if (uuid == null || tmpPubKey == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                var json = $"{{\"uuid\":\"{uuid}\",\"tmp_pub_key\":\"{tmpPubKey}\",\"ip\":\"{ip}\"}}";
+                _ = ns.HandlePairingInitAsync(session, json);
+            };
+            NotifyRelayCore.nrc_set_on_pairing_init_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_pairing_resp ----
+        {
+            NotifyRelayCore.OnPairingRespCb cb = (uuidPtr, tmpPubPtr, ltPubPtr, encryptedCodePtr, ipPtr, battery, deviceTypePtr, userData) =>
+            {
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var tmpPub = Marshal.PtrToStringUTF8(tmpPubPtr);
+                var ltPub = Marshal.PtrToStringUTF8(ltPubPtr);
+                var encCode = Marshal.PtrToStringUTF8(encryptedCodePtr);
+                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                if (uuid == null || tmpPub == null || ltPub == null || encCode == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                var json = $"{{\"uuid\":\"{uuid}\",\"tmp_pub\":\"{tmpPub}\",\"lt_pub\":\"{ltPub}\",\"encrypted_code\":\"{encCode}\",\"ip\":\"{ip}\"}}";
+                _ = ns.HandlePairingRespAsync(session, json);
+            };
+            NotifyRelayCore.nrc_set_on_pairing_resp_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_accept ----
+        {
+            NotifyRelayCore.OnAcceptCb cb = (uuidPtr, ltPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
+            {
+                // ACCEPT 在服务端 routeLine 中无操作（由客户端侧处理）
+            };
+            NotifyRelayCore.nrc_set_on_accept_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_reject ----
+        {
+            NotifyRelayCore.OnRejectCb cb = (uuidPtr, userData) =>
+            {
+                // REJECT 在服务端 routeLine 中无操作（由客户端侧处理）
+            };
+            NotifyRelayCore.nrc_set_on_reject_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_heartbeat_tcp ----
+        {
+            NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, ipPtr, userData) =>
+            {
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+                if (uuid == null || nameB64 == null) return;
+                var hb = HeartbeatProcessor;
+                if (hb == null) return;
+                var line = $"HEARTBEAT_TCP:{uuid}:{nameB64}:{port}:{battery}:{deviceType}";
+                hb.TryProcessHeartbeat(line, null, d =>
+                {
+                    d.LastHeartbeat = DateTime.UtcNow;
+                });
+            };
+            NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_discover_manual ----
+        {
+            NotifyRelayCore.OnDiscoverManualCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, userData) =>
+            {
+                // DISCOVER_MANUAL 走 routeLine 回落
+            };
+            NotifyRelayCore.nrc_set_on_discover_manual_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
     }
 }
