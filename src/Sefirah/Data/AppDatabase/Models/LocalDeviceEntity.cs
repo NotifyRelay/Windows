@@ -11,5 +11,5 @@ public class LocalDeviceEntity
 
     public byte[] PublicKey { get; set; } = [];
 
-    public byte[] PrivateKey { get; set; } = [];
+    public string StateJson { get; set; } = string.Empty;
 }

@@ -37,6 +37,17 @@ public class ServerLineRouter
         PairedDevice? device,
         NetworkService networkService)
     {
+        // DATA_* 走 processLine → Rust 内部解密 → 回调分发
+        if (message.StartsWith("DATA"))
+        {
+            var headerName = message.Split(':')[0];
+            _logger.LogDebug("DATA消息路由到 Rust processLine: {Header}", headerName);
+            var result = NativeCore.ProcessLine(message);
+            _logger.LogDebug("Rust processLine 返回: {Result} ({Header})", result, headerName);
+            networkService.DisconnectSession(session);
+            return;
+        }
+
         PairedDevice? attachedDevice = device;
         if (attachedDevice == null)
         {
@@ -80,23 +91,6 @@ public class ServerLineRouter
         var header = root.GetProperty("header").GetString();
 
         _logger.LogDebug("routeLine: header={Header}", header);
-
-        // DATA_* 消息：由 Rust 解密后直接处理明文
-        if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "data")
-        {
-            var localUuid = root.GetProperty("local_uuid").GetString() ?? "";
-            var plaintext = root.GetProperty("plaintext").GetString() ?? "";
-            var attachedDevice = _deviceManager.PairedDevices.FirstOrDefault(d => d.Id == localUuid);
-            if (attachedDevice != null)
-            {
-                await networkService.ProcessDecryptedDataAsync(attachedDevice, header ?? "", plaintext);
-            }
-            else
-            {
-                networkService.DisconnectSession(session);
-            }
-            return;
-        }
 
         // 配对/握手消息：传递 JSON 字符串给 handler
         switch (header)

@@ -65,7 +65,7 @@ public class NetworkService(
         try
         {
             var localDevice = await deviceManager.GetLocalDeviceAsync();
-            localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+            localPublicKey = NativeCore.GetPublicKey() ?? string.Empty;
             localDeviceId = localDevice.DeviceId;
 
             server = new Server(IPAddress.Any, ServerPort, this, logger)
@@ -428,9 +428,13 @@ public class NetworkService(
                 // 3. 加密配对码
                 var encryptedCode = NativeCore.EncryptPairingCode(pairingCode) ?? string.Empty;
 
-                // 4. 获取 PC 的长期 ECDH 公钥
-                var localDevice = await deviceManager.GetLocalDeviceAsync();
-                var ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+                // 4. 获取 PC 的长期 ECDH 公钥（优先使用 Rust keypair）
+                var ltPubKey = NativeCore.GetPublicKey();
+                if (string.IsNullOrEmpty(ltPubKey))
+                {
+                    var localDevice = await deviceManager.GetLocalDeviceAsync();
+                    ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+                }
 
                 // 5. 关闭 PAIRING_INIT session（不回传任何内容），
                 //    新建 TCP 连接发送 PAIRING_RESP 到 Android 服务器
@@ -695,13 +699,7 @@ public class NetworkService(
             var root = doc.RootElement;
             var header = root.GetProperty("header").GetString();
 
-            if (root.TryGetProperty("type", out var typeProp) && typeProp.GetString() == "data")
-            {
-                var plaintext = root.GetProperty("plaintext").GetString() ?? "";
-                await ProcessDecryptedDataAsync(device, header ?? "", plaintext);
-                return;
-            }
-
+            // DATA_* 不再经过此路径（已在 RouteLineAsync 中被 processLine 接管）
             if (header == "HEARTBEAT_TCP")
             {
                 heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive);
@@ -714,29 +712,6 @@ public class NetworkService(
         {
             logger.LogError(ex, "处理协议消息时出错");
         }
-    }
-
-    /// <summary>
-    /// 处理DATA_*加密业务消息
-    /// </summary>
-    /// <param name="device">设备</param>
-    /// <param name="message">完整消息</param>
-    private async Task ProcessDataMessageAsync(PairedDevice device, string message)
-    {
-        // 更新设备活跃时间
-        MarkDeviceAlive(device);
-
-        // 使用协议路由器处理消息
-        await protocolRouter.ProcessDataMessageAsync(device, message);
-    }
-
-    /// <summary>
-    /// 处理已由 Rust 解密后的 DATA_* 业务消息。
-    /// </summary>
-    public async Task ProcessDecryptedDataAsync(PairedDevice device, string header, string plaintext)
-    {
-        MarkDeviceAlive(device);
-        await protocolRouter.ProcessDecryptedDataAsync(device, header, plaintext);
     }
 
     public async Task<PairedDevice?> TryAttachExistingDeviceSessionAsync(ServerSession session, string message)

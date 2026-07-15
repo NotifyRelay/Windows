@@ -192,18 +192,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
                 NativeCore.GenerateKeypair();
                 var publicKeyBase64 = NativeCore.GetPublicKey();
+                var stateJson = NativeCore.ExportState();
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = Guid.NewGuid().ToString(),
                     DeviceName = name,
                     PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
-                    PrivateKey = [],
+                    StateJson = stateJson ?? string.Empty,
                 };
-
-                var stateJson = NativeCore.ExportState();
-                if (stateJson != null)
-                    localDevice.PrivateKey = Encoding.UTF8.GetBytes(stateJson);
-
                 repository.AddOrUpdateLocalDevice(localDevice);
 
                 var savedDevice = repository.GetLocalDevice();
@@ -214,34 +210,45 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             }
             else
             {
-                bool stateRestored = false;
-                if (localDevice.PrivateKey is { Length: > 0 })
+                var rustPubKey = NativeCore.GetPublicKey();
+                if (rustPubKey == null)
                 {
-                    try
+                    bool stateRestored = false;
+                    if (!string.IsNullOrEmpty(localDevice.StateJson))
                     {
-                        var stateJson = Encoding.UTF8.GetString(localDevice.PrivateKey);
-                        if (stateJson.TrimStart().StartsWith("{") && NativeCore.ImportState(stateJson) == 0)
+                        try
                         {
-                            var rustPubKey = NativeCore.GetPublicKey();
-                            var storedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
-                            if (rustPubKey != null && rustPubKey == storedPubKey)
-                                stateRestored = true;
+                            if (NativeCore.ImportState(localDevice.StateJson) == 0)
+                            {
+                                rustPubKey = NativeCore.GetPublicKey();
+                                var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
+                                if (rustPubKey != null && rustPubKey == cachedPubKey)
+                                    stateRestored = true;
+                            }
                         }
+                        catch { }
                     }
-                    catch { }
-                }
 
-                if (!stateRestored)
+                    if (!stateRestored)
+                    {
+                        logger.LogWarning("本地密钥状态未找到或已损坏，正在生成新密钥对。现有配对的设备需要重新配对。");
+                        NativeCore.GenerateKeypair();
+                        rustPubKey = NativeCore.GetPublicKey();
+                        if (rustPubKey != null)
+                            localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
+                        localDevice.StateJson = NativeCore.ExportState() ?? string.Empty;
+                        repository.AddOrUpdateLocalDevice(localDevice);
+                    }
+                }
+                else
                 {
-                    logger.LogWarning("本地密钥状态未找到或已损坏，正在生成新密钥对。现有配对的设备需要重新配对。");
-                    NativeCore.GenerateKeypair();
-                    var newPubKey = NativeCore.GetPublicKey();
-                    if (newPubKey != null)
-                        localDevice.PublicKey = Encoding.UTF8.GetBytes(newPubKey);
-                    var newState = NativeCore.ExportState();
-                    if (newState != null)
-                        localDevice.PrivateKey = Encoding.UTF8.GetBytes(newState);
-                    repository.AddOrUpdateLocalDevice(localDevice);
+                    var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
+                    if (rustPubKey != cachedPubKey)
+                    {
+                        localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
+                        localDevice.StateJson = NativeCore.ExportState() ?? string.Empty;
+                        repository.AddOrUpdateLocalDevice(localDevice);
+                    }
                 }
             }
 

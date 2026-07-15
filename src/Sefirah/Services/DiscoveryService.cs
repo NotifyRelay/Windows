@@ -108,7 +108,7 @@ public class DiscoveryService(
             {
                 DeviceId = localDevice.DeviceId,
                 DeviceName = localDevice.DeviceName,
-                PublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>()),
+                PublicKey = NativeCore.GetPublicKey() ?? string.Empty,
                 Port = serverPort,
                 TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };
@@ -177,7 +177,7 @@ public class DiscoveryService(
             {
                 DeviceId = localDevice.DeviceId,
                 DeviceName = newName,
-                PublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>()),
+                PublicKey = NativeCore.GetPublicKey() ?? string.Empty,
                 Port = serverPort,
                 TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
             };

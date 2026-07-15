@@ -32,6 +32,23 @@ public class DatabaseContext : IDisposable
         {
             db.CreateTable<LocalDeviceEntity>();
         }
+        else
+        {
+            var localColumns = db.GetTableInfo(nameof(LocalDeviceEntity));
+            if (!localColumns.Any(col => col.Name.Equals("StateJson", StringComparison.OrdinalIgnoreCase)))
+            {
+                try
+                {
+                    db.Execute("ALTER TABLE LocalDeviceEntity ADD COLUMN StateJson TEXT DEFAULT ''");
+                    // 从旧的 PrivateKey 列迁移数据
+                    db.Execute("UPDATE LocalDeviceEntity SET StateJson = PrivateKey WHERE PrivateKey IS NOT NULL");
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"Migration warning: Could not add StateJson column: {ex.Message}");
+                }
+            }
+        }
 
         if (db.GetTableInfo(nameof(RemoteDeviceEntity)).Count == 0)
         {

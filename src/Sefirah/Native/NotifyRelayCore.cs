@@ -146,7 +146,12 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDataCb(IntPtr localUuid, IntPtr plaintext, IntPtr userData);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnLogCb(int level, IntPtr message);
+
     // ======== Callback setters ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_log_callback(IntPtr cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_handshake_cb(IntPtr ctx, OnHandshakeCb cb);
 

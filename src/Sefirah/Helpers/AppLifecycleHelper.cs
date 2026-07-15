@@ -97,7 +97,11 @@ public static class AppLifecycleHelper
         // 3. 初始化 Rust Core（必须在调用任何 NativeCore 方法之前）
         logger.LogInformation("步骤13：初始化 Rust Core...");
         NativeCore.Initialize();
-        logger.LogInformation("步骤13：Rust Core 初始化完成");
+        NativeCore.SetLogCallback(logger);
+        NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
+        NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
+        NativeCore.RegisterCallbacks();
+        logger.LogInformation("步骤13：Rust Core 初始化完成，回调已注册");
 
         // 4. 生成并初始化UUID，确保所有服务启动前UUID已可用
         logger.LogInformation("步骤14：开始生成并初始化UUID");

@@ -1,5 +1,9 @@
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Extensions.Logging;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
+using NotifyRelay.Services;
 
 namespace NotifyRelay.Native;
 
@@ -7,6 +11,13 @@ public static class NativeCore
 {
     private static IntPtr _ctx = IntPtr.Zero;
     private static bool _initialized = false;
+
+    // 回调分发目标
+    internal static ProtocolRouter? ProtocolRouter { get; set; }
+    internal static IDeviceManager? DeviceManager { get; set; }
+
+    // 保持回调委托不被 GC 回收
+    private static readonly List<Delegate> _callbackRefs = new();
 
     public static IntPtr Context => _ctx;
 
@@ -200,5 +211,84 @@ public static class NativeCore
     public static int ImportState(string json)
     {
         return NotifyRelayCore.Safe.ImportState(_ctx, json);
+    }
+
+    // ======== Callback-driven architecture ========
+
+    private static PairedDevice? FindDevice(IntPtr uuidPtr)
+    {
+        var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+        return uuid != null ? DeviceManager?.FindDeviceById(uuid) : null;
+    }
+
+    private static string? PtrToString(IntPtr ptr) => Marshal.PtrToStringUTF8(ptr);
+
+    public static void SetLogCallback(ILogger logger)
+    {
+        NotifyRelayCore.OnLogCb cb = (level, messagePtr) =>
+        {
+            var msg = Marshal.PtrToStringUTF8(messagePtr);
+            if (msg == null) return;
+            var logLevel = level switch
+            {
+                1 => LogLevel.Error,
+                2 => LogLevel.Warning,
+                3 => LogLevel.Information,
+                4 => LogLevel.Debug,
+                5 => LogLevel.Trace,
+                _ => LogLevel.Debug,
+            };
+            logger.Log(logLevel, "[Rust] {Msg}", msg);
+        };
+        var fp = Marshal.GetFunctionPointerForDelegate(cb);
+        NotifyRelayCore.nrc_set_log_callback(fp);
+        _callbackRefs.Add(cb);
+    }
+
+    public static void RegisterCallbacks()
+    {
+        if (_ctx == IntPtr.Zero) return;
+
+        void Cb(Action<NotifyRelayCore.OnDataCb?> setter, string tag, Func<PairedDevice, string, Task> handler)
+        {
+            NotifyRelayCore.OnDataCb cb = (uuidPtr, textPtr, userData) =>
+            {
+                var device = FindDevice(uuidPtr);
+                var text = PtrToString(textPtr);
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] {tag}: uuid={device?.Id}, text_len={text?.Length}, device_found={device != null}");
+                if (device != null && text != null)
+                {
+                    Task ignored = handler(device, text);
+                }
+            };
+            setter(cb); _callbackRefs.Add(cb);
+        }
+
+        Cb(cb => NotifyRelayCore.nrc_set_on_notification_cb(_ctx, cb), "DATA_NOTIFICATION",
+            (d, t) => ProtocolRouter?.OnDataNotificationAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_media_play_cb(_ctx, cb), "DATA_MEDIAPLAY",
+            (d, t) => ProtocolRouter?.OnDataMediaPlayAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_icon_request_cb(_ctx, cb), "DATA_ICON_REQUEST",
+            (d, t) => ProtocolRouter?.OnDataIconRequestAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_icon_response_cb(_ctx, cb), "DATA_ICON_RESPONSE",
+            (d, t) => ProtocolRouter?.OnDataIconResponseAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_app_list_request_cb(_ctx, cb), "DATA_APP_LIST_REQUEST",
+            (d, t) => ProtocolRouter?.OnDataAppListRequestAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_app_list_response_cb(_ctx, cb), "DATA_APP_LIST_RESPONSE",
+            (d, t) => ProtocolRouter?.OnDataAppListResponseAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_media_control_cb(_ctx, cb), "DATA_MEDIA_CONTROL",
+            (d, t) => ProtocolRouter?.OnDataMediaControlAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_ftp_cb(_ctx, cb), "DATA_FTP",
+            (d, t) => ProtocolRouter?.OnDataFtpAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_clipboard_cb(_ctx, cb), "DATA_CLIPBOARD",
+            (d, t) => ProtocolRouter?.OnDataClipboardAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_status_cb(_ctx, cb), "DATA_STATUS",
+            (d, t) => ProtocolRouter?.OnDataStatusAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_app_launch_cb(_ctx, cb), "DATA_APP_LAUNCH",
+            (d, t) => ProtocolRouter?.OnDataAppListRequestAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_superisland_cb(_ctx, cb), "DATA_SUPERISLAND",
+            (d, t) => ProtocolRouter?.OnDataSuperIslandAsync(d, t) ?? Task.CompletedTask);
+        Cb(cb => NotifyRelayCore.nrc_set_on_unknown_data_cb(_ctx, cb), "DATA_UNKNOWN",
+            (d, t) => Task.CompletedTask);
     }
 }

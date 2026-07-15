@@ -71,7 +71,7 @@ public class ProtocolSender : IProtocolSender
 
         var localDevice = await _deviceManager.GetLocalDeviceAsync();
         var localDeviceId = localDevice.DeviceId;
-        var localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
+        var localPublicKey = NativeCore.GetPublicKey() ?? string.Empty;
 
         if (localPublicKey is null || localDeviceId is null)
         {
