@@ -404,27 +404,15 @@ public static class NativeCore
                 var session = CurrentSession.Value;
                 if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || nameB64 == null) return;
-                var hb = HeartbeatProcessor;
-                if (hb == null) return;
-                var line = $"HEARTBEAT_TCP:{uuid}:{nameB64}:{port}:{battery}:{deviceType}";
-                hb.TryProcessHeartbeat(line, null, d =>
+                if (uuid == null) return;
+                var device = DeviceManager?.FindDeviceById(uuid);
+                if (device != null)
                 {
-                    d.LastHeartbeat = DateTime.UtcNow;
-                });
+                    device.LastHeartbeat = DateTime.UtcNow;
+                }
             };
             NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_discover_manual ----
-        {
-            NotifyRelayCore.OnDiscoverManualCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, userData) =>
-            {
-                // DISCOVER_MANUAL 走 routeLine 回落
-            };
-            NotifyRelayCore.nrc_set_on_discover_manual_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
     }
 }

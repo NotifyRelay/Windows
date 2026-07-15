@@ -171,9 +171,6 @@ public static class NotifyRelayCore
     public delegate void OnHeartbeatTcpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnDiscoverManualCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDataCb(IntPtr localUuid, IntPtr plaintext, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -199,9 +196,6 @@ public static class NotifyRelayCore
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_tcp_cb(IntPtr ctx, OnHeartbeatTcpCb cb);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_discover_manual_cb(IntPtr ctx, OnDiscoverManualCb cb);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_notification_cb(IntPtr ctx, OnDataCb cb);

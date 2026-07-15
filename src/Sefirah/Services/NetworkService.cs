@@ -665,41 +665,6 @@ public class NetworkService(
         }
     }
 
-    public async Task ProcessProtocolMessageAsync(PairedDevice device, string message)
-    {
-        try
-        {
-            var jsonStr = NativeCore.DecodeLine(message);
-            if (jsonStr == null)
-            {
-                if (heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive))
-                {
-                    return;
-                }
-
-                logger.LogDebug("收到不支持的消息类型: {message}", message.Length > 50 ? message[..50] + "..." : message);
-                return;
-            }
-
-            using var doc = System.Text.Json.JsonDocument.Parse(jsonStr);
-            var root = doc.RootElement;
-            var header = root.GetProperty("header").GetString();
-
-            // DATA_* 不再经过此路径（已在 RouteLineAsync 中被 processLine 接管）
-            if (header == "HEARTBEAT_TCP")
-            {
-                heartbeatProcessor.TryProcessHeartbeat(message, device, MarkDeviceAlive);
-                return;
-            }
-
-            logger.LogDebug("收到已认证设备发送的协议消息: {header}", header);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理协议消息时出错");
-        }
-    }
-
     public async Task<PairedDevice?> TryAttachExistingDeviceSessionAsync(ServerSession session, string message)
     {
         try

@@ -9,5 +9,4 @@ public interface INetworkService
     void SendMessage(string deviceId, string message);
     void UpdateDeviceStatusFromUdp(string deviceId, string? message = null);
 
-    Task ProcessProtocolMessageAsync(PairedDevice device, string message);
 }
