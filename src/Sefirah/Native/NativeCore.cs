@@ -102,16 +102,6 @@ public static class NativeCore
         return NotifyRelayCore.Safe.FormatTcpHeartbeat(uuid, nameB64, port, battery, deviceType);
     }
 
-    public static string? ParseHeartbeatJson(string line)
-    {
-        return NotifyRelayCore.Safe.ParseHeartbeatJson(line);
-    }
-
-    public static string? ParseHeartbeatTcpJson(string line)
-    {
-        return NotifyRelayCore.Safe.ParseHeartbeatTcpJson(line);
-    }
-
     public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
     {
         return NotifyRelayCore.Safe.FormatPairingInit(uuid, tmpPubKey, ip, battery, deviceType);
@@ -262,6 +252,38 @@ public static class NativeCore
     public static void SendDataMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
     {
         NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
+    }
+
+    // ======== New function wrappers ========
+
+    public static int VerifyPairingCode(string storedCode, string inputCode)
+    {
+        return NotifyRelayCore.Safe.VerifyPairingCode(storedCode, inputCode);
+    }
+
+    public static string? ComputeDedupKey(string deviceUuid, string data)
+    {
+        return NotifyRelayCore.Safe.ComputeDedupKey(deviceUuid, data);
+    }
+
+    public static bool HeartbeatHasTimedOut(long lastHeartbeatSec, long nowSec, long timeoutSec)
+    {
+        return NotifyRelayCore.Safe.HeartbeatHasTimedOut(lastHeartbeatSec, nowSec, timeoutSec) != 0;
+    }
+
+    public static string? ComputeFeatureId(string packageName, string title, string text)
+    {
+        return NotifyRelayCore.Safe.ComputeFeatureId(packageName, title, text);
+    }
+
+    public static int ParseHeartbeatWithCb(string line, NotifyRelayCore.OnHeartbeatWithCb cb, IntPtr userData)
+    {
+        return NotifyRelayCore.Safe.ParseHeartbeatWithCb(line, cb, userData);
+    }
+
+    public static int ParseHeartbeatTcpWithCb(string line, NotifyRelayCore.OnHeartbeatTcpWithCb cb, IntPtr userData)
+    {
+        return NotifyRelayCore.Safe.ParseHeartbeatTcpWithCb(line, cb, userData);
     }
 
     public static string? ExportState()
@@ -424,7 +446,16 @@ public static class NativeCore
         {
             NotifyRelayCore.OnAcceptCb cb = (uuidPtr, ltPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
-                // ACCEPT 在服务端 routeLine 中无操作（由客户端侧处理）
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var ltPubKey = Marshal.PtrToStringUTF8(ltPubKeyPtr);
+                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+                if (uuid == null || ltPubKey == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                _ = ns.HandlePairingAcceptAsync(session, uuid, ltPubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_accept_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -433,9 +464,30 @@ public static class NativeCore
         {
             NotifyRelayCore.OnRejectCb cb = (uuidPtr, userData) =>
             {
-                // REJECT 在服务端 routeLine 中无操作（由客户端侧处理）
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                if (uuid == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                _ = ns.HandleRejectAsync(session, uuid);
             };
             NotifyRelayCore.nrc_set_on_reject_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_heartbeat_udp ----
+        {
+            NotifyRelayCore.OnHeartbeatUdpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, userData) =>
+            {
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+                if (uuid == null) return;
+                var hp = HeartbeatProcessor;
+                if (hp == null) return;
+                hp.HandleUdpHeartbeat(uuid, nameB64, port, battery, deviceType);
+            };
+            NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
         // ---- on_heartbeat_tcp ----

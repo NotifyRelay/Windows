@@ -526,23 +526,15 @@ public class NetworkService(
     }
 
     /// <summary>
-    /// 处理 ACCEPT：Android 端验证配对码通过后回传的确认消息。
+    /// 处理 ACCEPT（由 Rust on_accept 回调调用，结构化参数，无需 JSON 解析）
     /// </summary>
-    public async Task HandlePairingAcceptAsync(ServerSession session, string jsonMessage)
+    public async Task HandlePairingAcceptAsync(ServerSession session, string remoteUuid, string remoteLtPubKey, string remoteIp, int battery, string remoteDeviceType)
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
-            var root = doc.RootElement;
-            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
-            var remoteLtPubKey = root.GetProperty("lt_pub_key").GetString() ?? "";
-            var remoteIp = root.GetProperty("ip").GetString() ?? string.Empty;
-            var remoteDeviceType = root.GetProperty("device_type").GetString() ?? "unknown";
             var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
-
             logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
-            // 完成 ECDH 标准密钥交换并保存设备
             var device = await deviceManager.VerifyHandshakeAsync(remoteUuid, remoteLtPubKey, null, connectedSessionIpAddress);
             if (device != null)
             {
@@ -573,6 +565,45 @@ public class NetworkService(
                 logger.Warn($"ACCEPT 处理失败，设备验证未通过: {remoteUuid}");
                 DisconnectSession(session);
             }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 ACCEPT 异常");
+            DisconnectSession(session);
+        }
+    }
+
+    /// <summary>
+    /// 处理 REJECT（由 Rust on_reject 回调调用）
+    /// </summary>
+    public async Task HandleRejectAsync(ServerSession session, string remoteUuid)
+    {
+        try
+        {
+            logger.Warn($"收到 REJECT: {remoteUuid}");
+            DisconnectSession(session);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 REJECT 异常");
+        }
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 处理 ACCEPT（以 Rust nrc_decode_line 输出的 JSON 为参数的旧入口，保持向后兼容）
+    /// </summary>
+    public async Task HandlePairingAcceptLegacyAsync(ServerSession session, string jsonMessage)
+    {
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
+            var root = doc.RootElement;
+            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
+            var remoteLtPubKey = root.GetProperty("lt_pub_key").GetString() ?? "";
+            var remoteIp = root.TryGetProperty("ip", out var ipProp) ? ipProp.GetString() ?? string.Empty : string.Empty;
+            var remoteDeviceType = root.TryGetProperty("device_type", out var dtProp) ? dtProp.GetString() ?? "unknown" : "unknown";
+            await HandlePairingAcceptAsync(session, remoteUuid, remoteLtPubKey, remoteIp, 0, remoteDeviceType);
         }
         catch (Exception ex)
         {
@@ -883,7 +914,9 @@ public class NetworkService(
             foreach (var device in PairedDevices.ToList())
             {
                 var last = device.LastHeartbeat;
-                if (last.HasValue && DateTime.UtcNow - last.Value > heartbeatTimeout && device.ConnectionStatus)
+                var lastSec = last.HasValue ? new DateTimeOffset(last.Value).ToUnixTimeSeconds() : 0L;
+                var nowSec = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+                if (NativeCore.HeartbeatHasTimedOut(lastSec, nowSec, (long)heartbeatTimeout.TotalSeconds) && device.ConnectionStatus)
                 {
                     UpdateDeviceState(device, d =>
                     {

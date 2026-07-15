@@ -239,6 +239,29 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
 
+    // ======== New: verify_pairing_code, compute_dedup_key, heartbeat_timeout, feature_id ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_verify_pairing_code(IntPtr storedCode, IntPtr inputCode);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_heartbeat_has_timed_out(long lastHeartbeatSec, long nowSec, long timeoutSec);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_feature_id(IntPtr packageName, IntPtr title, IntPtr text);
+
+    // ======== Heartbeat parse with callback (eliminates JSON re-parse) ========
+    public delegate void OnHeartbeatWithCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+    public delegate void OnHeartbeatTcpWithCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_parse_heartbeat_with_cb(IntPtr line, OnHeartbeatWithCb cb, IntPtr userData);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_parse_heartbeat_tcp_with_cb(IntPtr line, OnHeartbeatTcpWithCb cb, IntPtr userData);
+
     public static string? PtrToStringAndFree(IntPtr ptr)
     {
         if (ptr == IntPtr.Zero) return null;
@@ -467,22 +490,6 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static string? ParseHeartbeatJson(string line)
-        {
-            var l = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_parse_heartbeat_json(l);
-            Marshal.FreeHGlobal(l);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? ParseHeartbeatTcpJson(string line)
-        {
-            var l = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_parse_heartbeat_tcp_json(l);
-            Marshal.FreeHGlobal(l);
-            return PtrToStringAndFree(result);
-        }
-
         public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
         {
             var u = StringToPtr(uuid);
@@ -638,6 +645,61 @@ public static class NotifyRelayCore
         public static void SetUserData(IntPtr ctx, IntPtr userData)
         {
             NotifyRelayCore.nrc_set_user_data(ctx, userData);
+        }
+
+        // ======== New safe wrappers ========
+
+        public static int VerifyPairingCode(string storedCode, string inputCode)
+        {
+            var s = StringToPtr(storedCode);
+            var i = StringToPtr(inputCode);
+            var result = NotifyRelayCore.nrc_verify_pairing_code(s, i);
+            Marshal.FreeHGlobal(s);
+            Marshal.FreeHGlobal(i);
+            return result;
+        }
+
+        public static string? ComputeDedupKey(string deviceUuid, string data)
+        {
+            var u = StringToPtr(deviceUuid);
+            var d = StringToPtr(data);
+            var result = NotifyRelayCore.nrc_compute_dedup_key(u, d);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static int HeartbeatHasTimedOut(long lastHeartbeatSec, long nowSec, long timeoutSec)
+        {
+            return NotifyRelayCore.nrc_heartbeat_has_timed_out(lastHeartbeatSec, nowSec, timeoutSec);
+        }
+
+        public static string? ComputeFeatureId(string packageName, string title, string text)
+        {
+            var p = StringToPtr(packageName);
+            var t = StringToPtr(title);
+            var tx = StringToPtr(text);
+            var result = NotifyRelayCore.nrc_compute_feature_id(p, t, tx);
+            Marshal.FreeHGlobal(p);
+            Marshal.FreeHGlobal(t);
+            Marshal.FreeHGlobal(tx);
+            return PtrToStringAndFree(result);
+        }
+
+        public static int ParseHeartbeatWithCb(string line, OnHeartbeatWithCb cb, IntPtr userData)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_parse_heartbeat_with_cb(l, cb, userData);
+            Marshal.FreeHGlobal(l);
+            return result;
+        }
+
+        public static int ParseHeartbeatTcpWithCb(string line, OnHeartbeatTcpWithCb cb, IntPtr userData)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_parse_heartbeat_tcp_with_cb(l, cb, userData);
+            Marshal.FreeHGlobal(l);
+            return result;
         }
 
     }
