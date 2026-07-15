@@ -402,7 +402,7 @@ public class WindowsPlaybackService(
                     source = sender.SourceAppUserModelId,
                     position = currentPosition
                 });
-                var json = NativeCore.CreateMediaPayloadJson(rawJson);
+                var json = rawJson;
                 if (json != null)
                 {
                     SendPlaybackData(json);
@@ -449,7 +449,7 @@ public class WindowsPlaybackService(
                     featureKeyName = "si_feature_id",
                     featureKeyValue = "media_island_global"
                 });
-                string endPayloadJson = NativeCore.CreateMediaPayloadJson(rawJson);
+                string endPayloadJson = rawJson;
                 if (endPayloadJson == null) continue;
 
                 _ = protocolSender.SendMessageAsync(device.Id, endPayloadJson);
@@ -549,7 +549,7 @@ public class WindowsPlaybackService(
                 thumbnail = thumbnail,
                 isPlaying = isPlaying
             });
-            return NativeCore.CreateMediaPayloadJson(rawJson);
+            return rawJson;
         }
         catch (COMException comEx)
         {
@@ -658,7 +658,7 @@ public class WindowsPlaybackService(
                         isLocked = false,
                         mediaType = sendFullPayload ? "FULL" : "DELTA"
                     });
-                    string requestJson = NativeCore.CreateMediaPayloadJson(rawJson);
+                    string requestJson = rawJson;
                     if (requestJson == null) continue;
                     _ = protocolSender.SendMessageAsync(device.Id, requestJson);
                 }
@@ -867,7 +867,7 @@ public class WindowsPlaybackService(
             type = "DATA_MEDIA_CONTROL",
             action = controlType
         });
-        string requestJson = NativeCore.CreateMediaControlJson(rawJson);
+        string requestJson = rawJson;
         if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
@@ -890,7 +890,7 @@ public class WindowsPlaybackService(
                 result = success ? "success" : "error",
                 errorMessage = success ? string.Empty : "媒体操作失败"
             });
-            string responseJson = NativeCore.CreateStatusMessageJson(rawJson);
+            string responseJson = rawJson;
             if (responseJson == null) return;
 
             foreach (var device in deviceManager.PairedDevices)

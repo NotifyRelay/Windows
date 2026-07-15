@@ -326,11 +326,7 @@ public class NetworkService(
             {
                 var localBattery = systemInfoService.GetSystemBatteryLevel();
                 var localIp = NetworkHelper.GetLocalIpAddress() ?? string.Empty;
-                var acceptMsg = NativeCore.FormatAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
-                if (acceptMsg != null)
-                {
-                    SendRaw(session, acceptMsg);
-                }
+                NativeCore.SendAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
             }
 
             var nonNullDevice = device!;
@@ -637,11 +633,7 @@ public class NetworkService(
                 {
                     var localBattery = systemInfoService.GetSystemBatteryLevel();
                     var localIp = NetworkHelper.GetLocalIpAddress() ?? string.Empty;
-                    var acceptMsg = NativeCore.FormatAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
-                    if (acceptMsg != null)
-                    {
-                        SendRaw(session, acceptMsg);
-                    }
+                    NativeCore.SendAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
                 }
 
                 ConnectionStatusChanged?.Invoke(this, (device, true));
@@ -706,7 +698,6 @@ public class NetworkService(
                 }
                 else
                 {
-                    NativeCore.DeriveSharedSecret(remoteDeviceId, remotePublicKey);
                     var keyB64 = NativeCore.ExportDeviceKey(remoteDeviceId);
                     if (keyB64 != null)
                     {
@@ -854,9 +845,8 @@ public class NetworkService(
 
             var localDevice = deviceManager.GetLocalDeviceAsync().Result;
             var deviceName = localDevice?.DeviceName ?? "PC";
-            var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
 
-            var payload = NativeCore.FormatHeartbeat(localDeviceId, encodedName, (ushort)ServerPort, signedBattery, "pc");
+            var payload = NativeCore.FormatHeartbeat(localDeviceId, deviceName, (ushort)ServerPort, signedBattery, "pc");
             if (payload == null) return;
             var bytes = Encoding.UTF8.GetBytes(payload);
             const int udpPort = 23334; // 使用与Android端相同的UDP端口

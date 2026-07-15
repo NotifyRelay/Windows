@@ -38,25 +38,14 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_decrypt_message(IntPtr ctx, IntPtr encryptedLine);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_decrypt_payload(IntPtr ctx, IntPtr localUuid, IntPtr encryptedB64);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_decode_line(IntPtr ctx, IntPtr line);
 
+    // ======== Format helpers (for one-shot sync socket ops) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_parse_heartbeat(IntPtr line);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_discovery(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_tcp_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_parse_heartbeat_json(IntPtr line);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_parse_heartbeat_tcp_json(IntPtr line);
+    public static extern IntPtr nrc_format_handshake(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_format_pairing_init(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType);
@@ -68,7 +57,51 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_format_accept(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_handshake(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern IntPtr nrc_format_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_heartbeat_json(IntPtr line);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_heartbeat_tcp_json(IntPtr line);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_discovery(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_format_tcp_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    // ======== Send functions (for established connections) ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_pairing_init(IntPtr ctx, IntPtr uuid, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_accept(IntPtr ctx, IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_reject(IntPtr ctx, IntPtr uuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_heartbeat_tcp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_heartbeat_udp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_discovery(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_send_data_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr remoteUuid, IntPtr plaintext);
+
+    // ======== UDP broadcast processing ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_process_udp_broadcast(IntPtr ctx, IntPtr line);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_export_state(IntPtr ctx);
@@ -127,30 +160,6 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_user_data(IntPtr ctx, IntPtr userData);
 
-    // ======== JSON creators ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_notification_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_clipboard_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_media_control_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_media_payload_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_icon_request_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_icon_response_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_app_list_request_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_app_list_response_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_ftp_message_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_status_message_json(IntPtr input);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_create_app_launch_json(IntPtr input);
-
     // ======== Callback delegate types ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
@@ -176,65 +185,59 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnLogCb(int level, IntPtr message);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnSendCb(IntPtr line, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+
     // ======== Callback setters ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_log_callback(IntPtr cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_handshake_cb(IntPtr ctx, OnHandshakeCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_pairing_init_cb(IntPtr ctx, OnPairingInitCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_pairing_resp_cb(IntPtr ctx, OnPairingRespCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_accept_cb(IntPtr ctx, OnAcceptCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_reject_cb(IntPtr ctx, OnRejectCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_tcp_cb(IntPtr ctx, OnHeartbeatTcpCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_notification_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_media_play_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_icon_request_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_icon_response_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_app_list_request_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_app_list_response_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_media_control_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_ftp_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_clipboard_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_status_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_app_launch_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_superisland_cb(IntPtr ctx, OnDataCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_unknown_data_cb(IntPtr ctx, OnDataCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_send_cb(IntPtr ctx, OnSendCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_send_udp_cb(IntPtr ctx, OnSendCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
 
     public static string? PtrToStringAndFree(IntPtr ptr)
     {
@@ -296,6 +299,16 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
+        public static string? DecryptPayload(IntPtr ctx, string localUuid, string encryptedB64)
+        {
+            var u = StringToPtr(localUuid);
+            var e = StringToPtr(encryptedB64);
+            var result = NotifyRelayCore.nrc_decrypt_payload(ctx, u, e);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(e);
+            return PtrToStringAndFree(result);
+        }
+
         public static string? DecodeLine(IntPtr ctx, string line)
         {
             var linePtr = StringToPtr(line);
@@ -312,6 +325,77 @@ public static class NotifyRelayCore
             Marshal.FreeHGlobal(u);
             Marshal.FreeHGlobal(k);
             return result;
+        }
+
+        public static int ProcessUdpBroadcast(IntPtr ctx, string line)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_process_udp_broadcast(ctx, l);
+            Marshal.FreeHGlobal(l);
+            return result;
+        }
+
+        public static void SendHandshake(IntPtr ctx, string uuid, string pubKey, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var k = StringToPtr(pubKey); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_handshake(ctx, u, k, i, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendPairingInit(IntPtr ctx, string uuid, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_pairing_init(ctx, u, i, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendPairingResp(IntPtr ctx, string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var l = StringToPtr(ltPub); var c = StringToPtr(pairingCode); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_pairing_resp(ctx, u, l, c, i, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(l); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendAccept(IntPtr ctx, string uuid, string ltPubKey, string ip, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var k = StringToPtr(ltPubKey); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_accept(ctx, u, k, i, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendReject(IntPtr ctx, string uuid)
+        {
+            var u = StringToPtr(uuid);
+            NotifyRelayCore.nrc_send_reject(ctx, u);
+            Marshal.FreeHGlobal(u);
+        }
+
+        public static void SendHeartbeatTcp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_heartbeat_tcp(ctx, u, n, port, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendHeartbeatUdp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_heartbeat_udp(ctx, u, n, port, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendDiscovery(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_send_discovery(ctx, u, n, port, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+        }
+
+        public static void SendDataMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
+        {
+            var h = StringToPtr(header); var u = StringToPtr(localUuid); var k = StringToPtr(localPubKey); var r = StringToPtr(remoteUuid); var p = StringToPtr(plaintext);
+            NotifyRelayCore.nrc_send_data_message(ctx, h, u, k, r, p);
+            Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(r); Marshal.FreeHGlobal(p);
         }
 
         public static string? ExportState(IntPtr ctx)
@@ -556,24 +640,5 @@ public static class NotifyRelayCore
             NotifyRelayCore.nrc_set_user_data(ctx, userData);
         }
 
-        private static string? CreateJson(Func<IntPtr, IntPtr> fn, string input)
-        {
-            var p = StringToPtr(input);
-            var result = fn(p);
-            Marshal.FreeHGlobal(p);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? CreateNotificationJson(string input) => CreateJson(NotifyRelayCore.nrc_create_notification_json, input);
-        public static string? CreateClipboardJson(string input) => CreateJson(NotifyRelayCore.nrc_create_clipboard_json, input);
-        public static string? CreateMediaControlJson(string input) => CreateJson(NotifyRelayCore.nrc_create_media_control_json, input);
-        public static string? CreateMediaPayloadJson(string input) => CreateJson(NotifyRelayCore.nrc_create_media_payload_json, input);
-        public static string? CreateIconRequestJson(string input) => CreateJson(NotifyRelayCore.nrc_create_icon_request_json, input);
-        public static string? CreateIconResponseJson(string input) => CreateJson(NotifyRelayCore.nrc_create_icon_response_json, input);
-        public static string? CreateAppListRequestJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_list_request_json, input);
-        public static string? CreateAppListResponseJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_list_response_json, input);
-        public static string? CreateFtpMessageJson(string input) => CreateJson(NotifyRelayCore.nrc_create_ftp_message_json, input);
-        public static string? CreateStatusMessageJson(string input) => CreateJson(NotifyRelayCore.nrc_create_status_message_json, input);
-        public static string? CreateAppLaunchJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_launch_json, input);
     }
 }

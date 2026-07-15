@@ -144,7 +144,6 @@ public class DiscoveryService(
     {
         if (localDevice == null) return string.Empty;
 
-        var encodedName = Convert.ToBase64String(Encoding.UTF8.GetBytes(deviceName));
         var networkService = networkServiceFactory();
         var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
 
@@ -153,7 +152,7 @@ public class DiscoveryService(
         var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
         var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
 
-        return NativeCore.FormatDiscovery(localDevice.DeviceId, encodedName, (ushort)serverPort, signedBattery, "pc") ?? string.Empty;
+        return NativeCore.FormatDiscovery(localDevice.DeviceId, deviceName, (ushort)serverPort, signedBattery, "pc") ?? string.Empty;
     }
 
     /// <summary>

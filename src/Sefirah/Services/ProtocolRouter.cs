@@ -79,7 +79,7 @@ public class ProtocolRouter
         {
             logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
             var rawJson = JsonSerializer.Serialize(new { type = "DATA_MEDIAPLAY", mediaType = "END", time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
-            var json = NativeCore.CreateMediaPayloadJson(rawJson);
+            var json = rawJson;
             if (json != null)
             {
                 await notificationService.Value.HandleMediaPlayNotification(device, json);

@@ -194,7 +194,7 @@ public class ClipboardService : IClipboardService
             clipboardType = "text",
             content = text
         });
-        var serializedMessage = NativeCore.CreateClipboardJson(rawJson);
+        var serializedMessage = rawJson;
         if (serializedMessage == null) return;
         foreach (var device in devices)
         {
@@ -236,7 +236,7 @@ public class ClipboardService : IClipboardService
             clipboardType = mimeType,
             content = Convert.ToBase64String(buffer)
         });
-        var serializedMessage = NativeCore.CreateClipboardJson(rawJson);
+        var serializedMessage = rawJson;
         if (serializedMessage == null) return;
 
         foreach (var device in devices)

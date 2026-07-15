@@ -81,7 +81,7 @@ public class RemoteAppService(
             scope = "user",
             time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         });
-        var requestJson = NativeCore.CreateAppListRequestJson(rawJson);
+        var requestJson = rawJson;
         if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
@@ -97,7 +97,7 @@ public class RemoteAppService(
             packageNames = packageNames.Count > 1 ? packageNames : null,
             time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         });
-        var requestJson = NativeCore.CreateIconRequestJson(rawJson);
+        var requestJson = rawJson;
         if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }

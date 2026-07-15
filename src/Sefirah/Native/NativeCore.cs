@@ -82,6 +82,11 @@ public static class NativeCore
         return NotifyRelayCore.Safe.DecryptMessage(_ctx, encryptedLine);
     }
 
+    public static string? DecryptPayload(string localUuid, string encryptedB64)
+    {
+        return NotifyRelayCore.Safe.DecryptPayload(_ctx, localUuid, encryptedB64);
+    }
+
     public static string? FormatHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
     {
         return NotifyRelayCore.Safe.FormatHeartbeat(uuid, nameB64, port, battery, deviceType);
@@ -209,6 +214,56 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ProcessLine(_ctx, line);
     }
 
+    public static int ProcessUdpBroadcast(string line)
+    {
+        return NotifyRelayCore.Safe.ProcessUdpBroadcast(_ctx, line);
+    }
+
+    public static void SendHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendHandshake(_ctx, uuid, pubKey, ip, battery, deviceType);
+    }
+
+    public static void SendPairingInit(string uuid, string ip, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendPairingInit(_ctx, uuid, ip, battery, deviceType);
+    }
+
+    public static void SendPairingResp(string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendPairingResp(_ctx, uuid, ltPub, pairingCode, ip, battery, deviceType);
+    }
+
+    public static void SendAccept(string uuid, string ltPubKey, string ip, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendAccept(_ctx, uuid, ltPubKey, ip, battery, deviceType);
+    }
+
+    public static void SendReject(string uuid)
+    {
+        NotifyRelayCore.Safe.SendReject(_ctx, uuid);
+    }
+
+    public static void SendHeartbeatTcp(string uuid, string name, ushort port, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendHeartbeatTcp(_ctx, uuid, name, port, battery, deviceType);
+    }
+
+    public static void SendHeartbeatUdp(string uuid, string name, ushort port, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendHeartbeatUdp(_ctx, uuid, name, port, battery, deviceType);
+    }
+
+    public static void SendDiscovery(string uuid, string name, ushort port, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.SendDiscovery(_ctx, uuid, name, port, battery, deviceType);
+    }
+
+    public static void SendDataMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
+    {
+        NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
+    }
+
     public static string? ExportState()
     {
         return NotifyRelayCore.Safe.ExportState(_ctx);
@@ -228,20 +283,6 @@ public static class NativeCore
     {
         return NotifyRelayCore.Safe.DecryptLocalState(_ctx, encryptedB64, deviceUuid);
     }
-
-    // ======== JSON creator helpers ========
-
-    public static string? CreateNotificationJson(string json) => NotifyRelayCore.Safe.CreateNotificationJson(json);
-    public static string? CreateClipboardJson(string json) => NotifyRelayCore.Safe.CreateClipboardJson(json);
-    public static string? CreateMediaControlJson(string json) => NotifyRelayCore.Safe.CreateMediaControlJson(json);
-    public static string? CreateMediaPayloadJson(string json) => NotifyRelayCore.Safe.CreateMediaPayloadJson(json);
-    public static string? CreateIconRequestJson(string json) => NotifyRelayCore.Safe.CreateIconRequestJson(json);
-    public static string? CreateIconResponseJson(string json) => NotifyRelayCore.Safe.CreateIconResponseJson(json);
-    public static string? CreateAppListRequestJson(string json) => NotifyRelayCore.Safe.CreateAppListRequestJson(json);
-    public static string? CreateAppListResponseJson(string json) => NotifyRelayCore.Safe.CreateAppListResponseJson(json);
-    public static string? CreateFtpMessageJson(string json) => NotifyRelayCore.Safe.CreateFtpMessageJson(json);
-    public static string? CreateStatusMessageJson(string json) => NotifyRelayCore.Safe.CreateStatusMessageJson(json);
-    public static string? CreateAppLaunchJson(string json) => NotifyRelayCore.Safe.CreateAppLaunchJson(json);
 
     // ======== Callback-driven architecture ========
 
@@ -413,6 +454,43 @@ public static class NativeCore
                 }
             };
             NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_send (统一发送回调：写入当前 TCP 会话) ----
+        {
+            NotifyRelayCore.OnSendCb cb = (linePtr, userData) =>
+            {
+                var session = CurrentSession.Value;
+                if (session == null) return;
+                var line = Marshal.PtrToStringUTF8(linePtr);
+                if (line == null) return;
+                try
+                {
+                    var data = System.Text.Encoding.UTF8.GetBytes(line + "\n");
+                    session.Send(data, 0, data.Length);
+                }
+                catch { }
+            };
+            NotifyRelayCore.nrc_set_on_send_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_send_udp (统一 UDP 发送回调) ----
+        {
+            NotifyRelayCore.OnSendCb cb = (linePtr, userData) =>
+            {
+                var line = Marshal.PtrToStringUTF8(linePtr);
+                if (line == null) return;
+                try
+                {
+                    var data = System.Text.Encoding.UTF8.GetBytes(line);
+                    var client = new System.Net.Sockets.UdpClient();
+                    client.EnableBroadcast = true;
+                    client.Send(data, data.Length, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, 23334));
+                    client.Close();
+                }
+                catch { }
+            };
+            NotifyRelayCore.nrc_set_on_send_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
     }
 }

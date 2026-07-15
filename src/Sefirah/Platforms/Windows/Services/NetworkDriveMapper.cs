@@ -244,7 +244,7 @@ public class NetworkDriveMapper
                 username = action == "start" ? username : null,
                 password = action == "start" ? password : null
             });
-            var message = NativeCore.CreateFtpMessageJson(rawJson);
+            var message = rawJson;
             if (message == null) return;
             var networkService = Ioc.Default.GetRequiredService<INetworkService>();
             networkService.SendMessage(device.Id, message);

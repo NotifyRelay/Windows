@@ -974,7 +974,7 @@ public class NotificationService(
             {
                 // 构造结束标记payload
                 var rawJson = JsonSerializer.Serialize(new { type = "DATA_MEDIAPLAY", mediaType = "END", time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
-                var validatedJson = NativeCore.CreateMediaPayloadJson(rawJson);
+                var validatedJson = rawJson;
                 if (validatedJson != null) finalPayload = validatedJson;
             }
 

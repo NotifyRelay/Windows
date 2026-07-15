@@ -127,12 +127,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     {
         try
         {
-            if (NativeCore.DeriveSharedSecret(deviceId, remotePublicKey) != 0)
-            {
-                logger.LogError("派生共享密钥失败: {deviceId}", deviceId);
-                return null;
-            }
-
             var keyB64 = NativeCore.ExportDeviceKey(deviceId);
             if (keyB64 == null)
             {

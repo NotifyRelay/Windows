@@ -577,7 +577,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
             notificationType = "Invoke",
             notificationKey = notification.Key ?? string.Empty,
         });
-        var notificationJson = NativeCore.CreateNotificationJson(rawJson);
+        var notificationJson = rawJson;
         if (notificationJson == null) return;
 
         string? appIcon = string.Empty;

@@ -301,7 +301,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 appIcon = appIconBase64,
                 isLocked = isLocked
             });
-            var json = NativeCore.CreateNotificationJson(rawJson);
+            var json = rawJson;
             if (json == null) return;
             _sessionManager.BroadcastMessage(json);
 
@@ -338,7 +338,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 appPackage = $"windows_{id}",
                 timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
             });
-            var json = NativeCore.CreateNotificationJson(rawJson);
+            var json = rawJson;
             if (json == null) return;
             _sessionManager.BroadcastMessage(json);
         }
