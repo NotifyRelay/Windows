@@ -413,15 +413,18 @@ public static class NativeCore
         {
             NotifyRelayCore.OnPairingInitCb cb = (uuidPtr, tmpPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
+                System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init 进入");
                 var session = CurrentSession.Value;
-                if (session == null) return;
+                if (session == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: session=null"); return; }
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var tmpPubKey = Marshal.PtrToStringUTF8(tmpPubKeyPtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || tmpPubKey == null) return;
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_pairing_init: uuid={uuid}, ip={ip}");
+                if (uuid == null || tmpPubKey == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: uuid/tmpPubKey=null"); return; }
                 var ns = NetworkService;
-                if (ns == null) return;
+                if (ns == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: NetworkService=null"); return; }
+                System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: 调用 HandlePairingInitAsync");
                 _ = ns.HandlePairingInitAsync(session, uuid, tmpPubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_init_cb(_ctx, cb); _callbackRefs.Add(cb);

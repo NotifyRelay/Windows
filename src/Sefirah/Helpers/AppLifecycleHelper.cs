@@ -101,7 +101,7 @@ public static class AppLifecycleHelper
         NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
         NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
         NativeCore.RegisterCallbacks();
-        NativeCore.NetworkService = Ioc.Default.GetService<NetworkService>();
+        NativeCore.NetworkService = (NetworkService?)Ioc.Default.GetService<INetworkService>();
         NativeCore.HeartbeatProcessor = Ioc.Default.GetService<HeartbeatProcessor>();
         logger.LogInformation("步骤13：Rust Core 初始化完成，回调已注册");
 

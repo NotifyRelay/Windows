@@ -63,9 +63,11 @@ public static class OneShotTcpClient
         string ip,
         int port,
         string payload,
-        int connectTimeoutMs = DefaultConnectTimeout)
+        int connectTimeoutMs = DefaultConnectTimeout,
+        int timeoutMs = DefaultTimeout)
     {
         using var tcpClient = new TcpClient();
+        tcpClient.SendTimeout = timeoutMs;
 
         try
         {
@@ -79,6 +81,7 @@ public static class OneShotTcpClient
             }
 
             using var stream = tcpClient.GetStream();
+            stream.WriteTimeout = timeoutMs;
             var messageBytes = Encoding.UTF8.GetBytes(payload + "\n");
             await stream.WriteAsync(messageBytes);
             await stream.FlushAsync();

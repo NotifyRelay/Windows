@@ -355,18 +355,18 @@ public class NetworkService(
     /// </summary>
     public async Task HandlePairingInitAsync(ServerSession session, string remoteUuid, string tmpPubKey, string remoteIp, int battery, string deviceType)
     {
+        logger.LogInformation("HandlePairingInitAsync 进入: uuid={uuid}, ip={ip}", remoteUuid, remoteIp);
         try
         {
             if (string.IsNullOrEmpty(remoteIp))
                 remoteIp = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
 
-            // 检查是否已被拒绝
-            if (deviceManager.PairedDevices.Any(d => d.Id == remoteUuid))
+            // 已配对设备：先删除旧记录，允许重新配对刷新密钥
+            var existingDevice = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == remoteUuid);
+            if (existingDevice != null)
             {
-                logger.LogWarning("设备已配对，忽略 PAIRING_INIT: {uuid}", remoteUuid);
-                SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
-                DisconnectSession(session);
-                return;
+                logger.LogWarning("设备已配对，重新配对刷新密钥: {uuid}", remoteUuid);
+                deviceManager.RemoveDevice(existingDevice);
             }
 
             logger.Info($"收到 PAIRING_INIT: {remoteUuid}");

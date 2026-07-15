@@ -85,6 +85,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
 
     public void RemoveDevice(PairedDevice device)
     {
+        logger.LogInformation("RemoveDevice: 开始移除设备 {deviceId} {deviceName}", device.Id, device.Name);
         NativeCore.RemoveDevice(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
@@ -92,10 +93,15 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             try
             {
                 var existing = PairedDevices.FirstOrDefault(d => d.Id == device.Id);
-                if (existing is null) return;
+                if (existing is null)
+                {
+                    logger.LogWarning("RemoveDevice: PairedDevices 中未找到设备 {deviceId}", device.Id);
+                    return;
+                }
 
                 PairedDevices.Remove(existing);
                 repository.DeletePairedDevice(existing.Id);
+                logger.LogInformation("RemoveDevice: 设备 {deviceId} 已从内存和数据库移除", device.Id);
 
                 if (ActiveDevice?.Id == existing.Id)
                 {

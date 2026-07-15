@@ -111,7 +111,7 @@ public class ProtocolSender : IProtocolSender
 
                 var success = await OneShotTcpClient.SendOnlyAsync(
                     ipAddress, NotifyRelayPort, framedMessage,
-                    DEFAULT_CONNECT_TIMEOUT);
+                    DEFAULT_CONNECT_TIMEOUT, timeoutMs);
 
                 if (success)
                 {

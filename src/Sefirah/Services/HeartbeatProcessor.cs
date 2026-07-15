@@ -174,13 +174,17 @@ public class HeartbeatProcessor
 
     /// <summary>
     /// 标记设备在线（由 Rust 心跳回调或手动调用）
+    /// 后台数据更新立即执行，UI 绑定更新分发到主线程
     /// </summary>
     private void MarkDeviceAlive(PairedDevice device)
     {
         device.LastHeartbeat = DateTime.UtcNow;
         if (!device.ConnectionStatus)
         {
-            device.ConnectionStatus = true;
+            App.MainWindow?.DispatcherQueue?.TryEnqueue(() =>
+            {
+                device.ConnectionStatus = true;
+            });
         }
     }
 }
