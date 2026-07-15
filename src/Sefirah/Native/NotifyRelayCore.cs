@@ -77,6 +77,12 @@ public static class NotifyRelayCore
     public static extern int nrc_import_state(IntPtr ctx, IntPtr json);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_encrypt_local_state(IntPtr ctx, IntPtr plaintext, IntPtr deviceUuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_decrypt_local_state(IntPtr ctx, IntPtr encryptedB64, IntPtr deviceUuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_free_string(IntPtr s);
 
     // ======== New: Ephemeral ECDH ========
@@ -325,6 +331,26 @@ public static class NotifyRelayCore
             var result = nrc_import_state(ctx, jsonPtr);
             Marshal.FreeHGlobal(jsonPtr);
             return result;
+        }
+
+        public static string? EncryptLocalState(IntPtr ctx, string plaintext, string deviceUuid)
+        {
+            var p = StringToPtr(plaintext);
+            var u = StringToPtr(deviceUuid);
+            var result = nrc_encrypt_local_state(ctx, p, u);
+            Marshal.FreeHGlobal(p);
+            Marshal.FreeHGlobal(u);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? DecryptLocalState(IntPtr ctx, string encryptedB64, string deviceUuid)
+        {
+            var e = StringToPtr(encryptedB64);
+            var u = StringToPtr(deviceUuid);
+            var result = nrc_decrypt_local_state(ctx, e, u);
+            Marshal.FreeHGlobal(e);
+            Marshal.FreeHGlobal(u);
+            return PtrToStringAndFree(result);
         }
 
         public static string? FormatTcpHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)

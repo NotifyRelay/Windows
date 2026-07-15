@@ -213,6 +213,16 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ImportState(_ctx, json);
     }
 
+    public static string? EncryptLocalState(string plaintext, string deviceUuid)
+    {
+        return NotifyRelayCore.Safe.EncryptLocalState(_ctx, plaintext, deviceUuid);
+    }
+
+    public static string? DecryptLocalState(string encryptedB64, string deviceUuid)
+    {
+        return NotifyRelayCore.Safe.DecryptLocalState(_ctx, encryptedB64, deviceUuid);
+    }
+
     // ======== Callback-driven architecture ========
 
     private static PairedDevice? FindDevice(IntPtr uuidPtr)

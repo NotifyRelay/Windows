@@ -192,13 +192,15 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
                 NativeCore.GenerateKeypair();
                 var publicKeyBase64 = NativeCore.GetPublicKey();
+                var deviceId = Guid.NewGuid().ToString();
                 var stateJson = NativeCore.ExportState();
+                var encryptedState = stateJson != null ? NativeCore.EncryptLocalState(stateJson, deviceId) : null;
                 localDevice = new LocalDeviceEntity
                 {
-                    DeviceId = Guid.NewGuid().ToString(),
+                    DeviceId = deviceId,
                     DeviceName = name,
                     PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
-                    StateJson = stateJson ?? string.Empty,
+                    StateJson = encryptedState ?? string.Empty,
                 };
                 repository.AddOrUpdateLocalDevice(localDevice);
 
@@ -218,7 +220,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                     {
                         try
                         {
-                            if (NativeCore.ImportState(localDevice.StateJson) == 0)
+                            var decrypted = NativeCore.DecryptLocalState(localDevice.StateJson, localDevice.DeviceId);
+                            if (decrypted != null && NativeCore.ImportState(decrypted) == 0)
                             {
                                 rustPubKey = NativeCore.GetPublicKey();
                                 var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
@@ -236,7 +239,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                         rustPubKey = NativeCore.GetPublicKey();
                         if (rustPubKey != null)
                             localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        localDevice.StateJson = NativeCore.ExportState() ?? string.Empty;
+                        var newState = NativeCore.ExportState();
+                        localDevice.StateJson = newState != null ? NativeCore.EncryptLocalState(newState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }
@@ -246,7 +250,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                     if (rustPubKey != cachedPubKey)
                     {
                         localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        localDevice.StateJson = NativeCore.ExportState() ?? string.Empty;
+                        var updatedState = NativeCore.ExportState();
+                        localDevice.StateJson = updatedState != null ? NativeCore.EncryptLocalState(updatedState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }
