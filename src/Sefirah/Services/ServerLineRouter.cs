@@ -37,13 +37,19 @@ public class ServerLineRouter
         PairedDevice? device,
         NetworkService networkService)
     {
-        if (device == null)
+        PairedDevice? attachedDevice = device;
+        if (attachedDevice == null)
+        {
+            attachedDevice = await networkService.TryAttachExistingDeviceSessionAsync(session, message);
+        }
+
+        if (attachedDevice == null)
         {
             await RouteUnboundAsync(session, message, networkService);
         }
         else
         {
-            await networkService.ProcessProtocolMessageAsync(device, message);
+            await networkService.ProcessProtocolMessageAsync(attachedDevice, message);
         }
     }
 
@@ -55,7 +61,16 @@ public class ServerLineRouter
         var jsonStr = NativeCore.DecodeLine(message);
         if (jsonStr == null)
         {
-            // decodeLine 无法识别的消息（如 HEARTBEAT_TCP、NOTIFYRELAY_DISCOVER_MANUAL）
+            var parts = message.Split(new[] { ':' }, 4);
+            if (parts.Length >= 2 && parts[0].StartsWith("DATA"))
+            {
+                var deviceId = parts[1];
+                var keyExists = NativeCore.ExportDeviceKey(deviceId) != null;
+                _logger.LogWarning(
+                    "DATA消息解码失败：deviceId={DeviceId}, RustCore中是否存在该设备密钥={KeyExists}, 消息前缀={MsgPrefix}",
+                    deviceId, keyExists, message.Length > 80 ? message[..80] + "..." : message);
+            }
+
             await HandleUnrecognizedAsync(session, message, networkService);
             return;
         }

@@ -114,4 +114,91 @@ public static class NativeCore
     {
         return NotifyRelayCore.Safe.DecodeLine(_ctx, line);
     }
+
+    // ======== New methods ========
+
+    public static int GenerateKeypair()
+    {
+        return NotifyRelayCore.Safe.GenerateKeypair(_ctx);
+    }
+
+    public static string? GetPublicKey()
+    {
+        return NotifyRelayCore.Safe.GetPublicKey(_ctx);
+    }
+
+    public static int HasKeypair()
+    {
+        return NotifyRelayCore.Safe.HasKeypair(_ctx);
+    }
+
+    public static int GenerateEphemeralKeypair()
+    {
+        return NotifyRelayCore.Safe.GenerateEphemeralKeypair(_ctx);
+    }
+
+    public static string? GetEphemeralPublicKey()
+    {
+        return NotifyRelayCore.Safe.GetEphemeralPublicKey(_ctx);
+    }
+
+    public static int HasEphemeralKeypair()
+    {
+        return NotifyRelayCore.Safe.HasEphemeralKeypair(_ctx);
+    }
+
+    public static void ClearEphemeralKeypair()
+    {
+        NotifyRelayCore.Safe.ClearEphemeralKeypair(_ctx);
+    }
+
+    public static int DeriveSharedSecret(string deviceUuid, string peerPubKeyB64)
+    {
+        return NotifyRelayCore.Safe.DeriveSharedSecret(_ctx, deviceUuid, peerPubKeyB64);
+    }
+
+    public static int DerivePairingKey(string peerEphPubB64)
+    {
+        return NotifyRelayCore.Safe.DerivePairingKey(_ctx, peerEphPubB64);
+    }
+
+    public static string? EncryptPairingCode(string code)
+    {
+        return NotifyRelayCore.Safe.EncryptPairingCode(_ctx, code);
+    }
+
+    public static string? DecryptPairingCode(string encryptedB64)
+    {
+        return NotifyRelayCore.Safe.DecryptPairingCode(_ctx, encryptedB64);
+    }
+
+    public static int DeriveLongTermKey(string peerUuid, string peerLtPubB64)
+    {
+        return NotifyRelayCore.Safe.DeriveLongTermKey(_ctx, peerUuid, peerLtPubB64);
+    }
+
+    public static string? ExportDeviceKey(string deviceUuid)
+    {
+        return NotifyRelayCore.Safe.ExportDeviceKey(_ctx, deviceUuid);
+    }
+
+    public static string? ExportLocalKeypair()
+    {
+        return NotifyRelayCore.Safe.ExportLocalKeypair(_ctx);
+    }
+
+    public static int ProcessLine(string line)
+    {
+        return NotifyRelayCore.Safe.ProcessLine(_ctx, line);
+    }
+
+    public static string? ExportState()
+    {
+        return NotifyRelayCore.Safe.ExportState(_ctx);
+    }
+
+    public static int ImportState(string json)
+    {
+        return NotifyRelayCore.Safe.ImportState(_ctx, json);
+    }
 }

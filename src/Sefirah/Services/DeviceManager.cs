@@ -7,7 +7,6 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Native;
 using NotifyRelay.Utils;
-using Org.BouncyCastle.Crypto;
 
 namespace NotifyRelay.Services;
 
@@ -128,9 +127,19 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     {
         try
         {
-            var localDevice = await GetLocalDeviceAsync();
-            var localKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-            var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretSmart(localKey, localDevice.PrivateKey, remotePublicKey);
+            if (NativeCore.DeriveSharedSecret(deviceId, remotePublicKey) != 0)
+            {
+                logger.LogError("派生共享密钥失败: {deviceId}", deviceId);
+                return null;
+            }
+
+            var keyB64 = NativeCore.ExportDeviceKey(deviceId);
+            if (keyB64 == null)
+            {
+                logger.LogError("导出设备密钥失败: {deviceId}", deviceId);
+                return null;
+            }
+            var sharedSecretBytes = Convert.FromBase64String(keyB64);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
@@ -146,13 +155,10 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
 
                 repository.AddOrUpdateRemoteDevice(existingDevice);
 
-                NativeCore.MigrateSharedSecret(deviceId, sharedSecretBytes);
-
                 var pairedDevice = await App.MainWindow.DispatcherQueue.EnqueueAsync(() => existingDevice.ToPairedDevice());
                 return pairedDevice;
             }
 
-            // 未知设备：旧的 HANDSHAKE 流程不再支持未认证配对，请使用配对码流程
             logger.LogWarning("未知设备尝试通过 HANDSHAKE 连接，拒绝: {deviceId}", deviceId);
             return null;
         }
@@ -171,34 +177,35 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             int retryCount = 0;
             const int maxRetries = 3;
 
-            // 尝试多次获取本地设备，确保数据库连接稳定
             while (localDevice is null && retryCount < maxRetries)
             {
                 localDevice = repository.GetLocalDevice();
                 if (localDevice is null)
                 {
                     retryCount++;
-                    await Task.Delay(100); // 等待100毫秒后重试
+                    await Task.Delay(100);
                 }
             }
 
             if (localDevice is null)
             {
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
-                var keyPair = EcdhHelper.GetKeyPair();
-                var publicKeyBase64 = EcdhHelper.GetPublicKeyBase64(keyPair);
+                NativeCore.GenerateKeypair();
+                var publicKeyBase64 = NativeCore.GetPublicKey();
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = Guid.NewGuid().ToString(),
                     DeviceName = name,
-                    PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64),
-                    PrivateKey = EcdhHelper.SerializePrivateKey(keyPair),
+                    PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
+                    PrivateKey = [],
                 };
 
-                // 保存本地设备到数据库
+                var stateJson = NativeCore.ExportState();
+                if (stateJson != null)
+                    localDevice.PrivateKey = Encoding.UTF8.GetBytes(stateJson);
+
                 repository.AddOrUpdateLocalDevice(localDevice);
 
-                // 验证保存是否成功
                 var savedDevice = repository.GetLocalDevice();
                 if (savedDevice is null || savedDevice.DeviceId != localDevice.DeviceId)
                 {
@@ -207,13 +214,33 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             }
             else
             {
-                var currentKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-                // 如果现有公钥是旧 UUID 格式，迁移到 ECDH 密钥对
-                if (!EcdhHelper.IsEcdhFormat(currentKey))
+                bool stateRestored = false;
+                if (localDevice.PrivateKey is { Length: > 0 })
                 {
-                    var keyPair = EcdhHelper.GetKeyPair();
-                    localDevice.PublicKey = Encoding.UTF8.GetBytes(EcdhHelper.GetPublicKeyBase64(keyPair));
-                    localDevice.PrivateKey = EcdhHelper.SerializePrivateKey(keyPair);
+                    try
+                    {
+                        var stateJson = Encoding.UTF8.GetString(localDevice.PrivateKey);
+                        if (stateJson.TrimStart().StartsWith("{") && NativeCore.ImportState(stateJson) == 0)
+                        {
+                            var rustPubKey = NativeCore.GetPublicKey();
+                            var storedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
+                            if (rustPubKey != null && rustPubKey == storedPubKey)
+                                stateRestored = true;
+                        }
+                    }
+                    catch { }
+                }
+
+                if (!stateRestored)
+                {
+                    logger.LogWarning("本地密钥状态未找到或已损坏，正在生成新密钥对。现有配对的设备需要重新配对。");
+                    NativeCore.GenerateKeypair();
+                    var newPubKey = NativeCore.GetPublicKey();
+                    if (newPubKey != null)
+                        localDevice.PublicKey = Encoding.UTF8.GetBytes(newPubKey);
+                    var newState = NativeCore.ExportState();
+                    if (newState != null)
+                        localDevice.PrivateKey = Encoding.UTF8.GetBytes(newState);
                     repository.AddOrUpdateLocalDevice(localDevice);
                 }
             }
@@ -244,18 +271,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         {
             logger.LogError(ex, "更新本地设备时出错");
         }
-    }
-
-    /// <summary>
-    /// 获取 ECDH 密钥对用于密钥协商
-    /// </summary>
-    public AsymmetricCipherKeyPair? GetLocalEcdhKeyPair()
-    {
-        var localDevice = repository.GetLocalDevice();
-        if (localDevice?.PrivateKey == null || localDevice.PrivateKey.Length == 0) return null;
-        var publicKeyBase64 = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-        if (!EcdhHelper.IsEcdhFormat(publicKeyBase64)) return null;
-        return EcdhHelper.DeserializeKeyPair(localDevice.PrivateKey, publicKeyBase64);
     }
 
     public async Task Initialize()

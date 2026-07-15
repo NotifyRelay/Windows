@@ -79,6 +79,134 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_free_string(IntPtr s);
 
+    // ======== New: Ephemeral ECDH ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_ecdh_generate_ephemeral_keypair(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_ecdh_get_ephemeral_public_key(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_ecdh_has_ephemeral_keypair(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_ecdh_clear_ephemeral_keypair(IntPtr ctx);
+
+    // ======== New: Pairing code ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_ecdh_derive_pairing_key(IntPtr ctx, IntPtr peerEphPubB64);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_ecdh_encrypt_pairing_code(IntPtr ctx, IntPtr code);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_ecdh_decrypt_pairing_code(IntPtr ctx, IntPtr encryptedB64);
+
+    // ======== New: Long-term key alias ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_ecdh_derive_long_term_key(IntPtr ctx, IntPtr peerUuid, IntPtr peerLtPubB64);
+
+    // ======== New: Key export ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_export_device_key(IntPtr ctx, IntPtr deviceUuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_export_local_keypair(IntPtr ctx);
+
+    // ======== New: Unified process ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_process_line(IntPtr ctx, IntPtr line);
+
+    // ======== New: User data ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_user_data(IntPtr ctx, IntPtr userData);
+
+    // ======== Callback delegate types ========
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnPairingInitCb(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnPairingRespCb(IntPtr uuid, IntPtr tmpPub, IntPtr ltPub, IntPtr encryptedCode, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnAcceptCb(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnRejectCb(IntPtr uuid, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnHeartbeatTcpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDiscoverManualCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDataCb(IntPtr localUuid, IntPtr plaintext, IntPtr userData);
+
+    // ======== Callback setters ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_handshake_cb(IntPtr ctx, OnHandshakeCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_pairing_init_cb(IntPtr ctx, OnPairingInitCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_pairing_resp_cb(IntPtr ctx, OnPairingRespCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_accept_cb(IntPtr ctx, OnAcceptCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_reject_cb(IntPtr ctx, OnRejectCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_heartbeat_tcp_cb(IntPtr ctx, OnHeartbeatTcpCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_discover_manual_cb(IntPtr ctx, OnDiscoverManualCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_notification_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_media_play_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_icon_request_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_icon_response_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_app_list_request_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_app_list_response_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_media_control_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_ftp_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_clipboard_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_status_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_app_launch_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_superisland_cb(IntPtr ctx, OnDataCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_unknown_data_cb(IntPtr ctx, OnDataCb cb);
+
     public static string? PtrToStringAndFree(IntPtr ptr)
     {
         if (ptr == IntPtr.Zero) return null;
@@ -280,6 +408,103 @@ public static class NotifyRelayCore
             Marshal.FreeHGlobal(i);
             Marshal.FreeHGlobal(d);
             return PtrToStringAndFree(result);
+        }
+
+        // ======== New safe wrappers ========
+
+        public static int GenerateKeypair(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_ecdh_generate_keypair(ctx);
+        }
+
+        public static string? GetPublicKey(IntPtr ctx)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_public_key(ctx));
+        }
+
+        public static int HasKeypair(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_ecdh_has_keypair(ctx);
+        }
+
+        public static int GenerateEphemeralKeypair(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_ecdh_generate_ephemeral_keypair(ctx);
+        }
+
+        public static string? GetEphemeralPublicKey(IntPtr ctx)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_ephemeral_public_key(ctx));
+        }
+
+        public static int HasEphemeralKeypair(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_ecdh_has_ephemeral_keypair(ctx);
+        }
+
+        public static void ClearEphemeralKeypair(IntPtr ctx)
+        {
+            NotifyRelayCore.nrc_ecdh_clear_ephemeral_keypair(ctx);
+        }
+
+        public static int DerivePairingKey(IntPtr ctx, string peerEphPubB64)
+        {
+            var p = StringToPtr(peerEphPubB64);
+            var result = NotifyRelayCore.nrc_ecdh_derive_pairing_key(ctx, p);
+            Marshal.FreeHGlobal(p);
+            return result;
+        }
+
+        public static string? EncryptPairingCode(IntPtr ctx, string code)
+        {
+            var c = StringToPtr(code);
+            var result = NotifyRelayCore.nrc_ecdh_encrypt_pairing_code(ctx, c);
+            Marshal.FreeHGlobal(c);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? DecryptPairingCode(IntPtr ctx, string encryptedB64)
+        {
+            var e = StringToPtr(encryptedB64);
+            var result = NotifyRelayCore.nrc_ecdh_decrypt_pairing_code(ctx, e);
+            Marshal.FreeHGlobal(e);
+            return PtrToStringAndFree(result);
+        }
+
+        public static int DeriveLongTermKey(IntPtr ctx, string peerUuid, string peerLtPubB64)
+        {
+            var u = StringToPtr(peerUuid);
+            var k = StringToPtr(peerLtPubB64);
+            var result = NotifyRelayCore.nrc_ecdh_derive_long_term_key(ctx, u, k);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(k);
+            return result;
+        }
+
+        public static string? ExportDeviceKey(IntPtr ctx, string deviceUuid)
+        {
+            var u = StringToPtr(deviceUuid);
+            var result = NotifyRelayCore.nrc_export_device_key(ctx, u);
+            Marshal.FreeHGlobal(u);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ExportLocalKeypair(IntPtr ctx)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_export_local_keypair(ctx));
+        }
+
+        public static int ProcessLine(IntPtr ctx, string line)
+        {
+            var l = StringToPtr(line);
+            var result = NotifyRelayCore.nrc_process_line(ctx, l);
+            Marshal.FreeHGlobal(l);
+            return result;
+        }
+
+        public static void SetUserData(IntPtr ctx, IntPtr userData)
+        {
+            NotifyRelayCore.nrc_set_user_data(ctx, userData);
         }
     }
 }

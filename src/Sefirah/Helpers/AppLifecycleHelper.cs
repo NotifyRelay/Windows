@@ -94,19 +94,23 @@ public static class AppLifecycleHelper
         logger.LogInformation("WindowsNotificationHandler注册成功");
 #endif
 
-        // 3. 生成并初始化UUID，确保所有服务启动前UUID已可用
-        logger.LogInformation("步骤13：开始生成并初始化UUID");
-        localDevice = await deviceManager.GetLocalDeviceAsync();
-        logger.LogInformation("步骤13：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
-
-        // 4. 初始化设备管理器和通知服务
-        logger.LogInformation("步骤14：初始化设备管理器...");
-        await deviceManager.Initialize();
-        logger.LogInformation("步骤14：设备管理器初始化完成");
-
-        // 4a. 初始化 Rust Core 并迁移已有设备的共享密钥
-        logger.LogInformation("步骤14a：初始化 Rust Core...");
+        // 3. 初始化 Rust Core（必须在调用任何 NativeCore 方法之前）
+        logger.LogInformation("步骤13：初始化 Rust Core...");
         NativeCore.Initialize();
+        logger.LogInformation("步骤13：Rust Core 初始化完成");
+
+        // 4. 生成并初始化UUID，确保所有服务启动前UUID已可用
+        logger.LogInformation("步骤14：开始生成并初始化UUID");
+        localDevice = await deviceManager.GetLocalDeviceAsync();
+        logger.LogInformation("步骤14：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
+
+        // 5. 初始化设备管理器和通知服务
+        logger.LogInformation("步骤15：初始化设备管理器...");
+        await deviceManager.Initialize();
+        logger.LogInformation("步骤15：设备管理器初始化完成");
+
+        // 5a. 迁移已有设备的共享密钥
+        logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
         int migratedCount = 0;
         foreach (var device in deviceManager.PairedDevices)
         {

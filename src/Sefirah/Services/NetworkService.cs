@@ -42,7 +42,6 @@ public class NetworkService(
     // 不兼容设备集合：旧版协议设备，阻止心跳复活
     private readonly HashSet<string> incompatibleDevices = new();
     private string? localPublicKey;
-    private byte[]? localPrivateKey;
     private string? localDeviceId;
     private Timer? heartbeatTimer;
     private readonly TimeSpan heartbeatInterval = TimeSpan.FromSeconds(4);
@@ -67,7 +66,6 @@ public class NetworkService(
         {
             var localDevice = await deviceManager.GetLocalDeviceAsync();
             localPublicKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-            localPrivateKey = localDevice.PrivateKey;
             localDeviceId = localDevice.DeviceId;
 
             server = new Server(IPAddress.Any, ServerPort, this, logger)
@@ -317,7 +315,6 @@ public class NetworkService(
                 connectedDevice.ConnectionStatus = true;
                 connectedDevice.Session = session;
                 connectedDevice.RemotePublicKey = remotePublicKey;
-                connectedDevice.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey ?? string.Empty, localPrivateKey, remotePublicKey);
                 connectedDevice.RemoteIpAddress = remoteIpAddress;
                 connectedDevice.RemoteDeviceType = remoteDeviceType;
                 deviceManager.ActiveDevice = connectedDevice;
@@ -418,20 +415,18 @@ public class NetworkService(
                 return;
             }
 
-            // 使用发起端的临时公钥加密配对码（ECIES 风格）
+            // 使用 Rust 核心完成临时密钥交换和配对码加密
             try
             {
                 // 1. 生成接收端（PC）的临时密钥对
-                var receiverTmpKeyPair = EcdhHelper.GenerateEphemeralKeyPair();
-                var receiverTmpPubKeyB64 = EcdhHelper.GetPublicKeyBase64(receiverTmpKeyPair);
+                NativeCore.GenerateEphemeralKeypair();
+                var receiverTmpPubKeyB64 = NativeCore.GetEphemeralPublicKey() ?? string.Empty;
 
-                // 2. ECDH 密钥协商：用 PC 临时私钥 + Android 临时公钥（原始 ECDH，不含 HKDF）
-                var privateKeyBytes = EcdhHelper.SerializePrivateKey(receiverTmpKeyPair);
-                var rawSharedSecret = EcdhHelper.DeriveRawEcdh(privateKeyBytes, tmpPubKey);
+                // 2. ECDH 密钥协商 + 派生配对码加密密钥
+                NativeCore.DerivePairingKey(tmpPubKey);
 
-                // 3. 派生 AES 密钥并加密配对码（与 Android 端 EncryptionManager.hkdfDeriveKey + encrypt 兼容）
-                var aesKeyBytes = Convert.FromBase64String(EcdhHelper.DeriveAesKey(rawSharedSecret));
-                var encryptedCode = NotifyCryptoHelper.Encrypt(pairingCode, aesKeyBytes);
+                // 3. 加密配对码
+                var encryptedCode = NativeCore.EncryptPairingCode(pairingCode) ?? string.Empty;
 
                 // 4. 获取 PC 的长期 ECDH 公钥
                 var localDevice = await deviceManager.GetLocalDeviceAsync();
@@ -469,10 +464,9 @@ public class NetworkService(
                         logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
                         // 完成 ECDH 标准密钥交换并保存设备（用户已通过输入配对码确认，跳过弹窗）
-                        var localKeyDevice = await deviceManager.GetLocalDeviceAsync();
-                        var localKey = Encoding.UTF8.GetString(localKeyDevice.PublicKey ?? Array.Empty<byte>());
-                        var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretSmart(
-                            localKey, localKeyDevice.PrivateKey, initiatorLtPubKey);
+                        NativeCore.DeriveSharedSecret(remoteUuid, initiatorLtPubKey);
+                        var sharedKeyB64 = NativeCore.ExportDeviceKey(remoteUuid);
+                        var sharedSecretBytes = sharedKeyB64 != null ? Convert.FromBase64String(sharedKeyB64) : [];
 
                         var pairedDevice = new PairedDevice(remoteUuid)
                          {
@@ -483,8 +477,7 @@ public class NetworkService(
                              RemoteDeviceType = acceptDeviceType,
                              LastHeartbeat = DateTime.UtcNow,
                          };
-                         await deviceManager.UpdateOrAddDeviceAsync(pairedDevice);
-                         NativeCore.MigrateSharedSecret(remoteUuid, sharedSecretBytes);
+                          await deviceManager.UpdateOrAddDeviceAsync(pairedDevice, d => deviceManager.ActiveDevice = d);
                           Ioc.Default.GetRequiredService<DeviceRepository>().AddOrUpdateRemoteDevice(new RemoteDeviceEntity
                          {
                              DeviceId = remoteUuid,
@@ -574,8 +567,6 @@ public class NetworkService(
                     UpdateDeviceConfig.ConnectionStatus = true;
                     UpdateDeviceConfig.Session = session;
                     UpdateDeviceConfig.RemotePublicKey = remoteLtPubKey;
-                    UpdateDeviceConfig.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(
-                        localPublicKey ?? string.Empty, localPrivateKey, remoteLtPubKey);
                     UpdateDeviceConfig.RemoteIpAddress = remoteIp;
                     UpdateDeviceConfig.RemoteDeviceType = remoteDeviceType;
                     deviceManager.ActiveDevice = UpdateDeviceConfig;
@@ -644,8 +635,6 @@ public class NetworkService(
                     connectedDevice.ConnectionStatus = true;
                     connectedDevice.Session = session;
                     connectedDevice.RemotePublicKey = remotePublicKey;
-                    connectedDevice.SharedSecret ??= NotifyCryptoHelper.GenerateSharedSecretSmart(
-                        localPublicKey ?? string.Empty, localPrivateKey, remotePublicKey);
                     connectedDevice.RemoteIpAddress = remoteIpAddress;
                     connectedDevice.RemoteDeviceType = remoteDeviceType;
                     deviceManager.ActiveDevice = connectedDevice;
@@ -757,8 +746,7 @@ public class NetworkService(
             string remoteDeviceId;
             string remotePublicKey = string.Empty;
 
-            // 处理其他格式
-            var parts = message.Split(':');
+            var parts = message.Split(new[] { ':' }, 4);
             if (parts.Length < 3) return null;
             remoteDeviceId = parts[1];
             remotePublicKey = parts[2];
@@ -768,8 +756,7 @@ public class NetworkService(
 
             if (device.RemotePublicKey is not null && !string.Equals(device.RemotePublicKey, remotePublicKey, StringComparison.Ordinal))
             {
-                logger.LogWarning("设备 {id} 的远端公钥不匹配", remoteDeviceId);
-                return null;
+                logger.LogWarning("设备 {id} 的远端公钥与当前消息不匹配，继续尝试使用现有密钥解密", remoteDeviceId);
             }
 
             if (localPublicKey is null)
@@ -787,12 +774,17 @@ public class NetworkService(
                 device.ConnectionStatus = true;
                 device.RemotePublicKey = remotePublicKey;
                 var deviceRepo = Ioc.Default.GetRequiredService<DeviceRepository>();
-                if (device.SharedSecret == null)
+                if (device.SharedSecret != null && device.SharedSecret.Length == 32)
                 {
-                    device.SharedSecret = NotifyCryptoHelper.GenerateSharedSecretSmart(localPublicKey, localPrivateKey, remotePublicKey);
-                    if (device.SharedSecret != null)
+                    NativeCore.MigrateSharedSecret(remoteDeviceId, device.SharedSecret);
+                }
+                else
+                {
+                    NativeCore.DeriveSharedSecret(remoteDeviceId, remotePublicKey);
+                    var keyB64 = NativeCore.ExportDeviceKey(remoteDeviceId);
+                    if (keyB64 != null)
                     {
-                        NativeCore.MigrateSharedSecret(remoteDeviceId, device.SharedSecret);
+                        device.SharedSecret = Convert.FromBase64String(keyB64);
                         if (deviceRepo.HasDevice(remoteDeviceId, out var dbDevice))
                         {
                             dbDevice.SharedSecret = device.SharedSecret;
