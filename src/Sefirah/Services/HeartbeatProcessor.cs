@@ -1,4 +1,3 @@
-using System.Text;
 using System.Text.Json;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
@@ -100,23 +99,12 @@ public class HeartbeatProcessor
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 
-            var nameB64 = root.GetProperty("name_b64").GetString() ?? string.Empty;
-            string decodedName;
-            try
-            {
-                decodedName = Encoding.UTF8.GetString(Convert.FromBase64String(nameB64));
-            }
-            catch
-            {
-                decodedName = nameB64;
-            }
-
             var battery = root.GetProperty("battery").GetInt32();
 
             return new UdpHeartbeatInfo
             {
                 DeviceId = root.GetProperty("uuid").GetString() ?? string.Empty,
-                DeviceName = decodedName,
+                DeviceName = root.GetProperty("name").GetString() ?? string.Empty,
                 Port = root.GetProperty("port").GetInt32(),
                 BatteryLevel = battery < 0 ? Math.Abs(battery) : battery,
                 IsCharging = battery >= 0,

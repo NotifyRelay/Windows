@@ -336,8 +336,7 @@ public static class NativeCore
                 if (uuid == null || pubKey == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                var json = $"{{\"uuid\":\"{uuid}\",\"pub_key\":\"{pubKey}\",\"ip\":\"{ip}\",\"device_type\":\"{deviceType}\"}}";
-                _ = ns.HandleHandshakeAsync(session, json);
+                _ = ns.HandleHandshakeAsync(session, uuid, pubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_handshake_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -351,11 +350,11 @@ public static class NativeCore
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var tmpPubKey = Marshal.PtrToStringUTF8(tmpPubKeyPtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null || tmpPubKey == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                var json = $"{{\"uuid\":\"{uuid}\",\"tmp_pub_key\":\"{tmpPubKey}\",\"ip\":\"{ip}\"}}";
-                _ = ns.HandlePairingInitAsync(session, json);
+                _ = ns.HandlePairingInitAsync(session, uuid, tmpPubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_init_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -371,11 +370,11 @@ public static class NativeCore
                 var ltPub = Marshal.PtrToStringUTF8(ltPubPtr);
                 var encCode = Marshal.PtrToStringUTF8(encryptedCodePtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null || tmpPub == null || ltPub == null || encCode == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                var json = $"{{\"uuid\":\"{uuid}\",\"tmp_pub\":\"{tmpPub}\",\"lt_pub\":\"{ltPub}\",\"encrypted_code\":\"{encCode}\",\"ip\":\"{ip}\"}}";
-                _ = ns.HandlePairingRespAsync(session, json);
+                _ = ns.HandlePairingRespAsync(session, uuid, tmpPub, ltPub, encCode, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_resp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }

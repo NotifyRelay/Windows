@@ -288,14 +288,8 @@ public class NetworkService(
         }
     }
 
-    public async Task HandleHandshakeAsync(ServerSession session, string jsonMessage)
+    public async Task HandleHandshakeAsync(ServerSession session, string remoteDeviceId, string remotePublicKey, string remoteIpAddress, int battery, string remoteDeviceType)
     {
-        using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
-        var root = doc.RootElement;
-        var remoteDeviceId = root.GetProperty("uuid").GetString() ?? "";
-        var remotePublicKey = root.GetProperty("pub_key").GetString() ?? "";
-        var remoteIpAddress = root.GetProperty("ip").GetString() ?? "";
-        var remoteDeviceType = root.GetProperty("device_type").GetString() ?? "";
         var connectedSessionIpAddress = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0];
         logger.Info($"收到握手来自 {connectedSessionIpAddress} (类型: {remoteDeviceType})");
 
@@ -363,15 +357,10 @@ public class NetworkService(
     /// 协议格式：PAIRING_INIT:<uuid>:<tmpPubKey>:<ipAddress>:<batteryLevel>:<deviceType>
     /// 流程：弹出配对码输入对话框 → 用发起端临时公钥加密配对码 → 回传 PAIRING_RESP
     /// </summary>
-    public async Task HandlePairingInitAsync(ServerSession session, string jsonMessage)
+    public async Task HandlePairingInitAsync(ServerSession session, string remoteUuid, string tmpPubKey, string remoteIp, int battery, string deviceType)
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
-            var root = doc.RootElement;
-            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
-            var tmpPubKey = root.GetProperty("tmp_pub_key").GetString() ?? "";
-            var remoteIp = root.GetProperty("ip").GetString();
             if (string.IsNullOrEmpty(remoteIp))
                 remoteIp = session.Socket.RemoteEndPoint?.ToString()?.Split(':')[0] ?? string.Empty;
 
@@ -524,13 +513,10 @@ public class NetworkService(
     /// 协议格式：PAIRING_RESP:<uuid_R>:<tmpPub_R>:<ltPub_R>:<encryptedCode>:<ip>:<battery>:<deviceType>
     /// 注意：当前 PC 通常作为接收端，此方法主要用于未来扩展或 PC-PC 配对。
     /// </summary>
-    public async Task HandlePairingRespAsync(ServerSession session, string jsonMessage)
+    public async Task HandlePairingRespAsync(ServerSession session, string remoteUuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
     {
         try
         {
-            using var doc = System.Text.Json.JsonDocument.Parse(jsonMessage);
-            var root = doc.RootElement;
-            var remoteUuid = root.GetProperty("uuid").GetString() ?? "";
 
             logger.LogWarning("收到 PAIRING_RESP，但 PC 当前不作为配对发起端。忽略: {uuid}", remoteUuid);
             SendRaw(session, $"REJECT:{localDeviceId ?? string.Empty}");
