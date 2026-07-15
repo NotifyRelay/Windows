@@ -60,12 +60,6 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_format_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_parse_heartbeat_json(IntPtr line);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_parse_heartbeat_tcp_json(IntPtr line);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_format_discovery(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
