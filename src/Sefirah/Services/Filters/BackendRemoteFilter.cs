@@ -1,3 +1,4 @@
+using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Services.Filters;
@@ -76,49 +77,18 @@ public class BackendRemoteFilter
     /// <summary>
     /// 便捷方法：是否应阻止该通知
     /// </summary>
-    public bool ShouldBlock(NotificationMessage message)
+    public bool ShouldBlock(NotificationType notificationType, string? title, string? appPackage, string? appName, string? text)
     {
-        return !FilterRemoteNotification(message).ShouldShow;
-    }
+        var pkg = appPackage ?? string.Empty;
 
-    /// <summary>
-    /// 过滤远程通知
-    /// </summary>
-    public FilterResult FilterRemoteNotification(NotificationMessage message)
-    {
-        var pkg = message.AppPackage ?? string.Empty;
-        var title = message.Title ?? string.Empty;
-        var text = message.Text ?? string.Empty;
-
-        // 1. 包名等价组映射
         var mappedPkg = MapToLocalPackage(pkg);
-
-        // 2. 对等模式过滤：如果本机已安装相同应用，跳过（由本机自己显示）
         if (EnablePeerMode && !string.IsNullOrEmpty(mappedPkg) &&
             InstalledPackageNames.Contains(mappedPkg))
         {
-            _logger.LogDebug("对等模式过滤: {pkg} 本机已安装", mappedPkg);
-            return FilterResult.Blocked;
+            return true;
         }
 
-        // 3. 过滤模式检查
-        if (!CheckFilterMode(mappedPkg, pkg, title, text))
-            return FilterResult.Blocked;
-
-        // 4. 文本去重
-        if (EnableDeduplication && IsDuplicate(title, text))
-        {
-            _logger.LogDebug("文本去重过滤: title={title}, text={text}", title, text);
-            return FilterResult.Blocked;
-        }
-
-        // 5. 记录到去重缓存
-        if (EnableDeduplication)
-        {
-            RecordNotification(title, text);
-        }
-
-        return FilterResult.Passed(mappedPkg, message.AppName);
+        return false;
     }
 
     /// <summary>

@@ -7,7 +7,7 @@ public interface IftpService
     /// <summary>
     /// Initializes the ftp service with the server information and shell services.
     /// </summary>
-    Task InitializeAsync(PairedDevice device, ftpServerInfo info);
+    Task InitializeAsync(PairedDevice device, string payload);
 
     /// <summary>
     /// Removes the sync root.

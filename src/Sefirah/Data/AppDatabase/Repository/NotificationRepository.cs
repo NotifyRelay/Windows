@@ -52,12 +52,25 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         }
     }
 
-    public void UpsertNotification(string deviceId, NotificationMessage message, bool pinned)
+    public void UpsertNotification(string deviceId, string payload, bool pinned)
     {
+        string notificationKey = Guid.NewGuid().ToString();
         try
         {
+            using var doc = JsonDocument.Parse(payload);
+            var root = doc.RootElement;
+
+            var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
+                ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+            var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
+            var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
+            var notificationType = root.TryGetProperty("notificationType", out var nt) && nt.ValueKind == JsonValueKind.String ? nt.GetString() : "New";
+            if (root.TryGetProperty("notificationKey", out var nk) && nk.ValueKind == JsonValueKind.String)
+                notificationKey = nk.GetString()!;
+            var timeStamp = root.TryGetProperty("timeStamp", out var ts) && ts.ValueKind == JsonValueKind.String ? ts.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+
             // 生成聚合键作为主键
-            var aggregationKey = $"{message.AppPackage}|{message.Title}|{message.Text}|{message.NotificationType}";
+            var aggregationKey = $"{appPackage}|{title}|{text}|{notificationType}";
             var entity = context.Database.Find<NotificationEntity>(aggregationKey);
 
             List<string> deviceIds = [];
@@ -65,7 +78,6 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
 
             if (entity is not null)
             {
-                // 如果通知已存在，解析现有的设备ID和名称
                 try
                 {
                     deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds) ?? [];
@@ -78,31 +90,28 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                 }
             }
 
-            // 添加新设备ID和名称（如果不存在）
             if (!deviceIds.Contains(deviceId))
             {
                 deviceIds.Add(deviceId);
-                // 使用设备ID作为名称占位符，后续会更新
                 deviceNames.Add(deviceId);
             }
 
-            // 更新或创建通知实体
             var updatedEntity = new NotificationEntity
             {
                 Id = aggregationKey,
-                NotificationKey = message.NotificationKey,
+                NotificationKey = notificationKey,
                 DeviceIds = JsonSerializer.Serialize(deviceIds),
                 DeviceNames = JsonSerializer.Serialize(deviceNames),
-                MessageJson = SocketMessageSerializer.Serialize(message),
+                MessageJson = payload,
                 Pinned = pinned,
-                CreatedAt = ParseTimestamp(message.TimeStamp)
+                CreatedAt = ParseTimestamp(timeStamp)
             };
 
             context.Database.InsertOrReplace(updatedEntity);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "保存/更新设备 {DeviceId} 的通知 {Key} 失败", deviceId, message.NotificationKey);
+            logger.LogError(ex, "保存/更新设备 {DeviceId} 的通知 {Key} 失败", deviceId, notificationKey);
         }
     }
 

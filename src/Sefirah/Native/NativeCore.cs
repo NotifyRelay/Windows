@@ -223,6 +223,20 @@ public static class NativeCore
         return NotifyRelayCore.Safe.DecryptLocalState(_ctx, encryptedB64, deviceUuid);
     }
 
+    // ======== JSON creator helpers ========
+
+    public static string? CreateNotificationJson(string json) => NotifyRelayCore.Safe.CreateNotificationJson(json);
+    public static string? CreateClipboardJson(string json) => NotifyRelayCore.Safe.CreateClipboardJson(json);
+    public static string? CreateMediaControlJson(string json) => NotifyRelayCore.Safe.CreateMediaControlJson(json);
+    public static string? CreateMediaPayloadJson(string json) => NotifyRelayCore.Safe.CreateMediaPayloadJson(json);
+    public static string? CreateIconRequestJson(string json) => NotifyRelayCore.Safe.CreateIconRequestJson(json);
+    public static string? CreateIconResponseJson(string json) => NotifyRelayCore.Safe.CreateIconResponseJson(json);
+    public static string? CreateAppListRequestJson(string json) => NotifyRelayCore.Safe.CreateAppListRequestJson(json);
+    public static string? CreateAppListResponseJson(string json) => NotifyRelayCore.Safe.CreateAppListResponseJson(json);
+    public static string? CreateFtpMessageJson(string json) => NotifyRelayCore.Safe.CreateFtpMessageJson(json);
+    public static string? CreateStatusMessageJson(string json) => NotifyRelayCore.Safe.CreateStatusMessageJson(json);
+    public static string? CreateAppLaunchJson(string json) => NotifyRelayCore.Safe.CreateAppLaunchJson(json);
+
     // ======== Callback-driven architecture ========
 
     private static PairedDevice? FindDevice(IntPtr uuidPtr)

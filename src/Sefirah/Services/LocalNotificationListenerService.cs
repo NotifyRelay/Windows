@@ -2,7 +2,7 @@ using System.Reflection;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
 using Windows.Storage.Streams;
 
@@ -288,27 +288,28 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
             var isLocked = IsWorkstationLocked();
             var appIconBase64 = ExtractAppIconAsync(userNotification).GetAwaiter().GetResult();
 
-            var notificationMsg = new NotificationMessage
+            var rawJson = JsonSerializer.Serialize(new
             {
-                NotificationKey = $"local_{id}",
-                TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
-                NotificationType = NotificationType.New,
-                AppPackage = appPackage,
-                AppName = appName,
-                Title = title,
-                Text = text,
-                AppIcon = appIconBase64,
-                IsLocked = isLocked
-            };
-
-            var json = System.Text.Json.JsonSerializer.Serialize(notificationMsg);
+                type = "DATA_NOTIFICATION",
+                notificationKey = $"local_{id}",
+                timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                notificationType = "New",
+                appPackage = appPackage,
+                appName = appName,
+                title = title,
+                text = text,
+                appIcon = appIconBase64,
+                isLocked = isLocked
+            });
+            var json = NativeCore.CreateNotificationJson(rawJson);
+            if (json == null) return;
             _sessionManager.BroadcastMessage(json);
 
             if (_localDeviceId != null)
             {
                 try
                 {
-                    _notificationRepository.UpsertNotification(_localDeviceId, notificationMsg, false);
+                    _notificationRepository.UpsertNotification(_localDeviceId, json, false);
                 }
                 catch (Exception ex)
                 {
@@ -329,15 +330,16 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     {
         try
         {
-            var removeMsg = new NotificationMessage
+            var rawJson = JsonSerializer.Serialize(new
             {
-                NotificationKey = $"local_{id}",
-                NotificationType = NotificationType.Removed,
-                AppPackage = $"windows_{id}",
-                TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
-            };
-
-            var json = System.Text.Json.JsonSerializer.Serialize(removeMsg);
+                type = "DATA_NOTIFICATION",
+                notificationKey = $"local_{id}",
+                notificationType = "Removed",
+                appPackage = $"windows_{id}",
+                timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
+            });
+            var json = NativeCore.CreateNotificationJson(rawJson);
+            if (json == null) return;
             _sessionManager.BroadcastMessage(json);
         }
         catch (Exception ex)

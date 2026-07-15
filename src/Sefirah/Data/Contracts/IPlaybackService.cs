@@ -1,5 +1,3 @@
-using NotifyRelay.Data.Models;
-
 namespace NotifyRelay.Data.Contracts;
 
 /// <summary>
@@ -14,14 +12,14 @@ public interface IPlaybackService
     /// <summary>
     /// Executes the corresponding media control action on the current device.
     /// </summary>
-    /// <param name="action">The media action to execute.</param>
-    Task HandleMediaActionAsync(PlaybackAction mediaAction);
+    /// <param name="mediaActionJson">The media action JSON payload.</param>
+    Task HandleMediaActionAsync(string mediaActionJson);
 
     /// <summary>
     /// Handles a media playback message from the remote device.
     /// </summary>
-    /// <param name="data">The playback data containing action details.</param>
-    Task HandleRemotePlaybackMessageAsync(PlaybackSession data);
+    /// <param name="data">The playback data JSON payload.</param>
+    Task HandleRemotePlaybackMessageAsync(string data);
 
     /// <summary>
     /// Sends a media control request to the specified device.

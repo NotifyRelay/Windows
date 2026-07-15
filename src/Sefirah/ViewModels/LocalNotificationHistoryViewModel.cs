@@ -40,18 +40,22 @@ public sealed partial class LocalNotificationHistoryViewModel : BaseViewModel
             {
                 try
                 {
-                    var msg = SocketMessageSerializer.DeserializeMessage(entity.MessageJson) as NotificationMessage;
-                    if (msg == null) continue;
+                    var msgJson = SocketMessageSerializer.DeserializeMessage(entity.MessageJson);
+                    if (msgJson == null) continue;
 
-                    var notif = await Notification.FromMessage(msg);
+                    var notif = await Notification.FromMessage(msgJson);
                     notif.Pinned = entity.Pinned;
                     notif.AddSourceDevice(device.DeviceId, device.DeviceName ?? device.DeviceId);
 
-                    if (!string.IsNullOrEmpty(msg.AppPackage))
+                    using var doc = JsonDocument.Parse(msgJson);
+                    var root = doc.RootElement;
+                    var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
+                        ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+                    if (!string.IsNullOrEmpty(appPackage))
                     {
-                        string iconPath = IconUtils.GetAppIconPath(msg.AppPackage);
+                        string iconPath = IconUtils.GetAppIconPath(appPackage);
                         notif.IconPath = iconPath;
-                        if (IconUtils.AppIconExists(msg.AppPackage))
+                        if (IconUtils.AppIconExists(appPackage))
                             await notif.LoadIconAsync();
                     }
 

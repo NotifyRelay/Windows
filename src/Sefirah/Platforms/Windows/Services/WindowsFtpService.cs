@@ -8,7 +8,7 @@ public class WindowftpService(
     NetworkDriveMapper networkDriveMapper
     ) : IftpService
 {
-    public async Task InitializeAsync(PairedDevice device, ftpServerInfo info)
+    public async Task InitializeAsync(PairedDevice device, string payload)
     {
         // 这个方法现在由ProtocolRouter直接调用NetworkDriveMapper处理，这里只是保持接口兼容
         logger.LogInformation("FTP服务初始化已由ProtocolRouter直接处理，此方法仅保持接口兼容");

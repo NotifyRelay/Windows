@@ -1,6 +1,7 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -26,7 +27,7 @@ public class RemoteAppService(
 
             logger.LogDebug("处理APP_LIST_RESPONSE消息");
 
-            var appList = new ApplicationList { AppList = new List<ApplicationInfoMessage>() };
+            var appEntries = new List<(string PackageName, string AppName)>();
 
             if (root.TryGetProperty("apps", out var appsArray))
             {
@@ -38,21 +39,20 @@ public class RemoteAppService(
                         if (!string.IsNullOrEmpty(packageName))
                         {
                             var appName = appElement.TryGetProperty("appName", out var appNameProp) ? appNameProp.GetString() ?? packageName : packageName;
-                            var appInfo = new ApplicationInfoMessage { PackageName = packageName, AppName = appName };
-                            appList.AppList.Add(appInfo);
+                            appEntries.Add((packageName, appName));
                         }
                     }
                 }
 
-                remoteAppRepository.UpdateApplicationList(device, appList);
-                logger.LogDebug("已更新应用列表，共 {Count} 个应用", appList.AppList.Count);
+                remoteAppRepository.UpdateApplicationList(device, appEntries);
+                logger.LogDebug("已更新应用列表，共 {Count} 个应用", appEntries.Count);
 
                 var packageNamesWithoutIcons = new List<string>();
-                foreach (var appInfo in appList.AppList)
+                foreach (var (packageName, _) in appEntries)
                 {
-                    if (!IconUtils.AppIconExists(appInfo.PackageName))
+                    if (!IconUtils.AppIconExists(packageName))
                     {
-                        packageNamesWithoutIcons.Add(appInfo.PackageName);
+                        packageNamesWithoutIcons.Add(packageName);
                     }
                 }
 
@@ -75,8 +75,14 @@ public class RemoteAppService(
 
     public void SendAppListRequest(string deviceId)
     {
-        var request = new ApplicationListRequest();
-        string requestJson = JsonSerializer.Serialize(request);
+        var rawJson = JsonSerializer.Serialize(new
+        {
+            type = "DATA_APP_LIST_REQUEST",
+            scope = "user",
+            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+        var requestJson = NativeCore.CreateAppListRequestJson(rawJson);
+        if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 
@@ -84,17 +90,15 @@ public class RemoteAppService(
     {
         logger.LogInformation("开始发送图标请求：deviceId={deviceId}, packageCount={packageCount}", deviceId, packageNames.Count);
 
-        var request = new IconRequest();
-        if (packageNames.Count == 1)
+        var rawJson = JsonSerializer.Serialize(new
         {
-            request.PackageName = packageNames.First();
-        }
-        else
-        {
-            request.PackageNames = packageNames;
-        }
-
-        string requestJson = JsonSerializer.Serialize(request);
+            type = "DATA_ICON_REQUEST",
+            packageName = packageNames.Count == 1 ? packageNames.First() : null,
+            packageNames = packageNames.Count > 1 ? packageNames : null,
+            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+        var requestJson = NativeCore.CreateIconRequestJson(rawJson);
+        if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 }

@@ -2,6 +2,7 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Extensions;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
@@ -187,20 +188,14 @@ public class ClipboardService : IClipboardService
         // Convert Windows CRLF to Unix LF 
         text = text.Replace("\r\n", "\n");
 
-        // 创建剪贴板消息内容
-        var clipboardContent = new ClipboardMessage
+        var rawJson = JsonSerializer.Serialize(new
         {
-            ClipboardType = "text/plain",
-            Content = text
-        };
-        // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
-        var jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = false,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-        var serializedMessage = JsonSerializer.Serialize(clipboardContent, jsonOptions);
+            type = "DATA_CLIPBOARD",
+            clipboardType = "text",
+            content = text
+        });
+        var serializedMessage = NativeCore.CreateClipboardJson(rawJson);
+        if (serializedMessage == null) return;
         foreach (var device in devices)
         {
             if (device.ConnectionStatus)
@@ -235,20 +230,14 @@ public class ClipboardService : IClipboardService
         byte[] buffer = new byte[stream.Length];
         await stream.ReadExactlyAsync(buffer);
 
-        // 创建剪贴板消息内容
-        var clipboardContent = new ClipboardMessage
+        var rawJson = JsonSerializer.Serialize(new
         {
-            ClipboardType = mimeType,
-            Content = Convert.ToBase64String(buffer)
-        };
-        // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
-        var jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = false,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-        var serializedMessage = JsonSerializer.Serialize(clipboardContent, jsonOptions);
+            type = "DATA_CLIPBOARD",
+            clipboardType = mimeType,
+            content = Convert.ToBase64String(buffer)
+        });
+        var serializedMessage = NativeCore.CreateClipboardJson(rawJson);
+        if (serializedMessage == null) return;
 
         foreach (var device in devices)
         {
@@ -399,7 +388,7 @@ public class ClipboardService : IClipboardService
             using var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
 
-            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
+            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text";
             var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
 
             await SetContentAsync(content ?? string.Empty, device);

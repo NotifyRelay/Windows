@@ -127,6 +127,30 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_user_data(IntPtr ctx, IntPtr userData);
 
+    // ======== JSON creators ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_notification_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_clipboard_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_media_control_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_media_payload_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_icon_request_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_icon_response_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_app_list_request_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_app_list_response_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_ftp_message_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_status_message_json(IntPtr input);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_create_app_launch_json(IntPtr input);
+
     // ======== Callback delegate types ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
@@ -537,5 +561,25 @@ public static class NotifyRelayCore
         {
             NotifyRelayCore.nrc_set_user_data(ctx, userData);
         }
+
+        private static string? CreateJson(Func<IntPtr, IntPtr> fn, string input)
+        {
+            var p = StringToPtr(input);
+            var result = fn(p);
+            Marshal.FreeHGlobal(p);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? CreateNotificationJson(string input) => CreateJson(NotifyRelayCore.nrc_create_notification_json, input);
+        public static string? CreateClipboardJson(string input) => CreateJson(NotifyRelayCore.nrc_create_clipboard_json, input);
+        public static string? CreateMediaControlJson(string input) => CreateJson(NotifyRelayCore.nrc_create_media_control_json, input);
+        public static string? CreateMediaPayloadJson(string input) => CreateJson(NotifyRelayCore.nrc_create_media_payload_json, input);
+        public static string? CreateIconRequestJson(string input) => CreateJson(NotifyRelayCore.nrc_create_icon_request_json, input);
+        public static string? CreateIconResponseJson(string input) => CreateJson(NotifyRelayCore.nrc_create_icon_response_json, input);
+        public static string? CreateAppListRequestJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_list_request_json, input);
+        public static string? CreateAppListResponseJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_list_response_json, input);
+        public static string? CreateFtpMessageJson(string input) => CreateJson(NotifyRelayCore.nrc_create_ftp_message_json, input);
+        public static string? CreateStatusMessageJson(string input) => CreateJson(NotifyRelayCore.nrc_create_status_message_json, input);
+        public static string? CreateAppLaunchJson(string input) => CreateJson(NotifyRelayCore.nrc_create_app_launch_json, input);
     }
 }

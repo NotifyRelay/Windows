@@ -170,11 +170,18 @@ public class DatabaseContext : IDisposable
                             var deviceId = oldId.Split('|')[0];
 
                             Console.WriteLine($"反序列化消息... record {migratedCount + 1}");
-                            var message = SocketMessageSerializer.DeserializeMessage(messageJson) as NotificationMessage;
+                            var msgJson = SocketMessageSerializer.DeserializeMessage(messageJson);
 
-                            if (message != null)
+                            if (msgJson != null)
                             {
-                                var newId = $"{message.AppPackage}|{message.Title}|{message.Text}|{message.NotificationType}";
+                                using var doc = JsonDocument.Parse(msgJson);
+                                var root = doc.RootElement;
+                                var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
+                                    ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+                                var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
+                                var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
+                                var notificationType = root.TryGetProperty("notificationType", out var nt) && nt.ValueKind == JsonValueKind.String ? nt.GetString() : "New";
+                                var newId = $"{appPackage}|{title}|{text}|{notificationType}";
 
                                 var newEntity = new NotificationEntity
                                 {

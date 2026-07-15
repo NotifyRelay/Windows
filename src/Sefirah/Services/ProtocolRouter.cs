@@ -78,12 +78,12 @@ public class ProtocolRouter
         if (!ShouldProcessMediaMessage(device))
         {
             logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
-            await notificationService.Value.HandleMediaPlayNotification(device, new NotificationMessage
+            var rawJson = JsonSerializer.Serialize(new { type = "DATA_MEDIAPLAY", mediaType = "END", time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+            var json = NativeCore.CreateMediaPayloadJson(rawJson);
+            if (json != null)
             {
-                NotificationKey = Guid.NewGuid().ToString(),
-                NotificationType = NotificationType.New,
-                MediaType = "END"
-            });
+                await notificationService.Value.HandleMediaPlayNotification(device, json);
+            }
             return;
         }
         await notificationService.Value.ProcessMediaPlayMessageAsync(device, plaintext);
@@ -120,11 +120,12 @@ public class ProtocolRouter
                         "previous" => PlaybackActionType.Previous,
                         _ => PlaybackActionType.Play
                     };
-                    await playbackService.Value.HandleMediaActionAsync(new PlaybackAction
+                    var actionJson = JsonSerializer.Serialize(new
                     {
-                        PlaybackActionType = actionType,
-                        Source = "MediaControl"
+                        playbackActionType = actionType.ToString(),
+                        source = "MediaControl"
                     });
+                    await playbackService.Value.HandleMediaActionAsync(actionJson);
                 }
             }
         }
