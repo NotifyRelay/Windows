@@ -1,54 +1,43 @@
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.RegularExpressions;
+using System.Text.Json;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Helpers;
 
+/// <summary>
+/// 密码学工具类。
+/// 实际计算委托给 Rust Core (nrc_derive_ftp_credentials / nrc_derive_password_hash / nrc_generate_random_password)。
+/// </summary>
 public static class NotifyCryptoHelper
 {
     public static (string Username, string Password) DeriveftpCredentials(byte[] sharedSecret)
     {
-        const string usernamePrefix = "ftp_";
-        const int passwordLength = 32;
+        var secretB64 = Convert.ToBase64String(sharedSecret);
+        var jsonStr = NotifyRelayCore.Safe.DeriveFtpCredentials(secretB64);
+        if (string.IsNullOrEmpty(jsonStr))
+            return ("", "");
 
-        using var sha256 = SHA256.Create();
-        var derived = sha256.ComputeHash(sharedSecret);
-
-        var usernameBytes = derived.Take(8).ToArray();
-        var username = Convert.ToBase64String(usernameBytes)
-            .Replace("+", "-")
-            .Replace("/", "_")
-            .Replace("=", "");
-        username = Regex.Replace(username, "[^a-zA-Z0-9]", string.Empty)
-            .ToLowerInvariant();
-        username = usernamePrefix + username[..Math.Min(16, username.Length)];
-
-        var passwordBytes = derived.Take(passwordLength).ToArray();
-        var password = Convert.ToBase64String(passwordBytes)
-            .Replace("+", "-")
-            .Replace("/", "_")
-            .Replace("=", "");
-        password = Regex.Replace(password, "[^a-zA-Z0-9]", string.Empty);
-
-        return (username, password);
+        try
+        {
+            using var doc = JsonDocument.Parse(jsonStr);
+            var root = doc.RootElement;
+            var username = root.GetProperty("username").GetString() ?? "";
+            var password = root.GetProperty("password").GetString() ?? "";
+            return (username, password);
+        }
+        catch
+        {
+            return ("", "");
+        }
     }
 
     public static string DerivePasswordHash(string password)
     {
-        using var md5 = MD5.Create();
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes(password));
-        return Convert.ToBase64String(hash);
+        return NotifyRelayCore.Safe.DerivePasswordHash(password) ?? "";
     }
 
     public static string GenerateRandomPassword()
     {
-        const string allowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
-                                    "abcdefghijklmnopqrstuvwxyz" +
-                                    "0123456789" +
-                                    "!@#$%^&*";
-
-        return new string(Enumerable.Range(1, 12)
-            .Select(_ => allowedChars[Random.Shared.Next(allowedChars.Length)])
-            .ToArray());
+        return NotifyRelayCore.Safe.GenerateRandomPassword() ?? "";
     }
 }

@@ -310,9 +310,14 @@ public static class NativeCore
         return NotifyRelayCore.Safe.HeartbeatTick(_ctx, timeoutSec);
     }
 
-    public static string? ComputeFeatureId(string packageName, string title, string text)
+    public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
     {
-        return NotifyRelayCore.Safe.ComputeFeatureId(packageName, title, text);
+        return NotifyRelayCore.Safe.ComputeFeatureId(superPkg, paramV2Raw, title, text, instanceId);
+    }
+
+    public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
+    {
+        return NotifyRelayCore.Safe.ComputeFeatureIdSimple(packageName, title, text);
     }
 
     public static int ParseHeartbeatWithCb(string line, NotifyRelayCore.OnHeartbeatWithCb cb, IntPtr userData)
@@ -527,12 +532,23 @@ public static class NativeCore
             NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, ipPtr, userData) =>
             {
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null) return;
                 var device = DeviceManager?.FindDeviceById(uuid);
                 if (device != null)
                 {
                     device.LastHeartbeat = DateTime.UtcNow;
+                    if (!string.IsNullOrEmpty(nameB64))
+                    {
+                        try
+                        {
+                            var name = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(nameB64));
+                            if (!string.IsNullOrEmpty(name) && name != "unknown")
+                                device.Name = name;
+                        }
+                        catch { }
+                    }
                 }
             };
             NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);

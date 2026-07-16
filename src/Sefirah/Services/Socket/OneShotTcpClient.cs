@@ -1,5 +1,4 @@
-using System.Net.Sockets;
-using System.Text;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Services.Socket;
 
@@ -8,88 +7,39 @@ namespace NotifyRelay.Services.Socket;
 ///
 /// 封装「创建连接 → 发送报文 → 读取响应 → 关闭」的模板逻辑，
 /// 消除 ProtocolSender 中的重复 Socket 代码。
+///
+/// 实际网络操作委托给 Rust Core (nrc_oneshot_send_receive / nrc_oneshot_send_only)。
 /// </summary>
 public static class OneShotTcpClient
 {
-    private const int DefaultConnectTimeout = 5000;
-    private const int DefaultTimeout = 80000;
+    private const uint DefaultConnectTimeout = 5000;
+    private const uint DefaultTimeout = 80000;
 
     /// <summary>
     /// 发送报文并返回完整响应。
     /// </summary>
-    public static async Task<string?> SendAndReceiveAsync(
+    public static Task<string?> SendAndReceiveAsync(
         string ip,
         int port,
         string payload,
-        int connectTimeoutMs = DefaultConnectTimeout,
-        int timeoutMs = DefaultTimeout)
+        int connectTimeoutMs = (int)DefaultConnectTimeout,
+        int timeoutMs = (int)DefaultTimeout)
     {
-        using var tcpClient = new TcpClient();
-        tcpClient.ReceiveTimeout = timeoutMs;
-        tcpClient.SendTimeout = timeoutMs;
-
-        try
-        {
-            var connectTask = tcpClient.ConnectAsync(ip, port);
-            var delayTask = Task.Delay(connectTimeoutMs);
-            var connectResult = await Task.WhenAny(connectTask, delayTask);
-
-            if (connectResult == delayTask || !connectTask.IsCompletedSuccessfully)
-            {
-                return null;
-            }
-
-            using var stream = tcpClient.GetStream();
-            stream.ReadTimeout = timeoutMs;
-            stream.WriteTimeout = timeoutMs;
-
-            var messageBytes = Encoding.UTF8.GetBytes(payload + "\n");
-            await stream.WriteAsync(messageBytes);
-            await stream.FlushAsync();
-
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            return await reader.ReadLineAsync();
-        }
-        catch
-        {
-            return null;
-        }
+        var result = NotifyRelayCore.Safe.OneShotSendReceive(ip, (ushort)port, payload, (uint)connectTimeoutMs, (uint)timeoutMs);
+        return Task.FromResult(result);
     }
 
     /// <summary>
     /// 仅发送报文，不等待响应。
     /// </summary>
-    public static async Task<bool> SendOnlyAsync(
+    public static Task<bool> SendOnlyAsync(
         string ip,
         int port,
         string payload,
-        int connectTimeoutMs = DefaultConnectTimeout,
-        int timeoutMs = DefaultTimeout)
+        int connectTimeoutMs = (int)DefaultConnectTimeout,
+        int timeoutMs = (int)DefaultTimeout)
     {
-        using var tcpClient = new TcpClient();
-        tcpClient.SendTimeout = timeoutMs;
-
-        try
-        {
-            var connectTask = tcpClient.ConnectAsync(ip, port);
-            var delayTask = Task.Delay(connectTimeoutMs);
-            var connectResult = await Task.WhenAny(connectTask, delayTask);
-
-            if (connectResult == delayTask || !connectTask.IsCompletedSuccessfully)
-            {
-                return false;
-            }
-
-            using var stream = tcpClient.GetStream();
-            stream.WriteTimeout = timeoutMs;
-            var messageBytes = Encoding.UTF8.GetBytes(payload + "\n");
-            await stream.WriteAsync(messageBytes);
-            await stream.FlushAsync();
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        var result = NotifyRelayCore.Safe.OneShotSendOnly(ip, (ushort)port, payload, (uint)connectTimeoutMs);
+        return Task.FromResult(result != 0);
     }
 }

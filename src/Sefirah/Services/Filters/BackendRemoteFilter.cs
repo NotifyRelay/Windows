@@ -1,5 +1,7 @@
+using System.Text.Json;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Services.Filters;
 
@@ -7,9 +9,9 @@ namespace NotifyRelay.Services.Filters;
 /// 远程通知过滤器（Android → PC 方向）
 /// 决定 Android 端发来的通知是否在 PC 上显示
 /// 功能对齐 Android 端 BackendRemoteFilter：
-/// - 包名等价组映射（合一化）
-/// - 过滤模式：none / black / white / peer
-/// - 文本去重（80% 匹配率）
+/// - 包名等价组映射（合一化）— 委托给 Rust Core
+/// - 过滤模式：none / black / white / peer — 委托给 Rust Core
+/// - 文本去重（80% 匹配率）— 委托给 Rust Core
 /// </summary>
 public class BackendRemoteFilter
 {
@@ -92,87 +94,27 @@ public class BackendRemoteFilter
     }
 
     /// <summary>
-    /// 包名等价组映射
+    /// 包名等价组映射 — 委托给 Rust Core
     /// </summary>
     public string MapToLocalPackage(string pkg)
     {
-        if (!EnablePackageGroupMapping || string.IsNullOrEmpty(pkg))
-            return pkg;
-
-        for (int i = 0; i < PackageGroups.Count; i++)
-        {
-            if (i >= PackageGroupEnabled.Count || !PackageGroupEnabled[i])
-                continue;
-
-            var group = PackageGroups[i];
-            if (group.Contains(pkg, StringComparer.OrdinalIgnoreCase))
-            {
-                return group[0]; // 统一返回组内第一个包名
-            }
-        }
-
-        return pkg;
+        var result = NotifyRelayCore.Safe.MapLocalPackage(IntPtr.Zero, pkg);
+        return result ?? pkg;
     }
 
     /// <summary>
-    /// 检查过滤模式
+    /// 检查过滤模式 — 委托给 Rust Core
     /// </summary>
     private bool CheckFilterMode(string mappedPkg, string originalPkg, string title, string text)
     {
-        if (FilterMode == "none")
-            return true;
-
-        if (FilterMode == "black")
-        {
-            foreach (var entry in FilterList)
-            {
-                var targetPkg = string.IsNullOrEmpty(entry.PackageName) ? "" : entry.PackageName;
-                var pkgMatch = mappedPkg.Equals(targetPkg, StringComparison.OrdinalIgnoreCase) ||
-                               originalPkg.Equals(targetPkg, StringComparison.OrdinalIgnoreCase);
-
-                if (!pkgMatch)
-                    continue;
-
-                if (string.IsNullOrEmpty(entry.Keyword))
-                    return false;
-
-                var lowerKw = entry.Keyword.ToLowerInvariant();
-                if (title.ToLowerInvariant().Contains(lowerKw) ||
-                    text.ToLowerInvariant().Contains(lowerKw))
-                    return false;
-            }
-            return true;
-        }
-
-        if (FilterMode == "white")
-        {
-            foreach (var entry in FilterList)
-            {
-                var targetPkg = string.IsNullOrEmpty(entry.PackageName) ? "" : entry.PackageName;
-                var pkgMatch = mappedPkg.Equals(targetPkg, StringComparison.OrdinalIgnoreCase) ||
-                               originalPkg.Equals(targetPkg, StringComparison.OrdinalIgnoreCase);
-
-                if (!pkgMatch && !string.IsNullOrEmpty(targetPkg))
-                    continue;
-
-                if (string.IsNullOrEmpty(entry.Keyword))
-                    return true;
-
-                var lowerKw = entry.Keyword.ToLowerInvariant();
-                if (title.ToLowerInvariant().Contains(lowerKw) ||
-                    text.ToLowerInvariant().Contains(lowerKw))
-                    return true;
-            }
-            return false;
-        }
-
-        return true;
+        var result = NotifyRelayCore.Safe.CheckFilterMode(IntPtr.Zero, mappedPkg, originalPkg, title, text);
+        return result != 0;
     }
 
     // ====== 文本去重 ======
 
     /// <summary>
-    /// 判断是否与最近通知重复（80%+ 匹配率）
+    /// 判断是否与最近通知重复（80%+ 匹配率）— 委托给 Rust Core
     /// </summary>
     private bool IsDuplicate(string newTitle, string newText)
     {
@@ -182,8 +124,7 @@ public class BackendRemoteFilter
         {
             foreach (var (existingTitle, existingText, _) in _recentNotifications)
             {
-                var sim = CalculateCombinedSimilarity(newTitle, newText, existingTitle, existingText);
-                if (sim >= 0.8)
+                if (NotifyRelayCore.Safe.ShouldDeduplicate(newTitle, newText, existingTitle, existingText) != 0)
                     return true;
             }
         }
@@ -203,69 +144,6 @@ public class BackendRemoteFilter
             while (_recentNotifications.Count > MaxRecentNotifications)
                 _recentNotifications.RemoveLast();
         }
-    }
-
-    /// <summary>
-    /// 计算标题和内容的综合相似度（分开计算后合并）
-    /// </summary>
-    private static double CalculateCombinedSimilarity(
-        string newTitle, string newText,
-        string oldTitle, string oldText)
-    {
-        bool titleEmpty = string.IsNullOrWhiteSpace(newTitle) && string.IsNullOrWhiteSpace(oldTitle);
-        bool textEmpty = string.IsNullOrWhiteSpace(newText) && string.IsNullOrWhiteSpace(oldText);
-
-        if (titleEmpty && textEmpty)
-            return 1.0;
-
-        if (titleEmpty)
-            return CalculateTextSimilarity(newText, oldText);
-
-        if (textEmpty)
-            return CalculateTextSimilarity(newTitle, oldTitle);
-
-        // 标题和内容各占 50%
-        var titleSim = CalculateTextSimilarity(newTitle, oldTitle);
-        var textSim = CalculateTextSimilarity(newText, oldText);
-        return (titleSim + textSim) / 2.0;
-    }
-
-    /// <summary>
-    /// 计算两段文本的相似度（基于字符级 Jaccard + 公共子序列）
-    /// 返回 0.0 ~ 1.0
-    /// </summary>
-    private static double CalculateTextSimilarity(string a, string b)
-    {
-        if (string.IsNullOrEmpty(a) && string.IsNullOrEmpty(b))
-            return 1.0;
-        if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b))
-            return 0.0;
-
-        a = a.Trim().ToLowerInvariant();
-        b = b.Trim().ToLowerInvariant();
-
-        if (a == b)
-            return 1.0;
-        if (a.Contains(b) || b.Contains(a))
-            return 0.9;
-
-        // 字符级 Jaccard 相似度
-        var setA = new HashSet<char>(a);
-        var setB = new HashSet<char>(b);
-
-        if (setA.Count == 0 && setB.Count == 0)
-            return 1.0;
-
-        var intersection = setA.Intersect(setB).Count();
-        var union = setA.Union(setB).Count();
-
-        var jaccard = union > 0 ? (double)intersection / union : 0.0;
-
-        // 长度比惩罚
-        var lenRatio = (double)Math.Min(a.Length, b.Length) / Math.Max(a.Length, b.Length);
-
-        // 综合：Jaccard 权重 0.7 + 长度比权重 0.3
-        return jaccard * 0.7 + lenRatio * 0.3;
     }
 
     private void CleanupStaleEntries()

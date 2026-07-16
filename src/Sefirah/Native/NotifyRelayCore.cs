@@ -287,7 +287,47 @@ public static class NotifyRelayCore
     public static extern int nrc_heartbeat_has_timed_out(long lastHeartbeatSec, long nowSec, long timeoutSec);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_feature_id(IntPtr packageName, IntPtr title, IntPtr text);
+    public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_feature_id_simple(IntPtr packageName, IntPtr title, IntPtr text);
+
+    // ======== Text similarity & dedup ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double nrc_text_similarity(IntPtr a, IntPtr b);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_should_deduplicate(IntPtr newTitle, IntPtr newText, IntPtr oldTitle, IntPtr oldText);
+
+    // ======== Filter ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr filterMode, IntPtr filterListJson, IntPtr packageGroupsJson, IntPtr groupEnabledJson, IntPtr installedPkgsJson);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_map_local_package(IntPtr ctx, IntPtr pkg);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_check_filter_mode(IntPtr ctx, IntPtr mappedPkg, IntPtr originalPkg, IntPtr title, IntPtr text);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
+
+    // ======== OneShot TCP client ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_oneshot_send_receive(IntPtr ip, ushort port, IntPtr payload, uint connectTimeoutMs, uint readTimeoutMs);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_oneshot_send_only(IntPtr ip, ushort port, IntPtr payload, uint connectTimeoutMs);
+
+    // ======== FTP credential derivation ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_derive_ftp_credentials(IntPtr sharedSecretB64);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_derive_password_hash(IntPtr password);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_generate_random_password();
 
     // ======== Heartbeat parse with callback (eliminates JSON re-parse) ========
     public delegate void OnHeartbeatWithCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
@@ -711,15 +751,155 @@ public static class NotifyRelayCore
             return NotifyRelayCore.nrc_heartbeat_has_timed_out(lastHeartbeatSec, nowSec, timeoutSec);
         }
 
-        public static string? ComputeFeatureId(string packageName, string title, string text)
+        public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
+        {
+            var pkg = StringToPtr(superPkg);
+            var param = StringToPtr(paramV2Raw);
+            var t = StringToPtr(title);
+            var tx = StringToPtr(text);
+            var iid = StringToPtr(instanceId);
+            var result = NotifyRelayCore.nrc_compute_feature_id(pkg, param, t, tx, iid);
+            Marshal.FreeHGlobal(pkg);
+            Marshal.FreeHGlobal(param);
+            Marshal.FreeHGlobal(t);
+            Marshal.FreeHGlobal(tx);
+            Marshal.FreeHGlobal(iid);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
         {
             var p = StringToPtr(packageName);
             var t = StringToPtr(title);
             var tx = StringToPtr(text);
-            var result = NotifyRelayCore.nrc_compute_feature_id(p, t, tx);
+            var result = NotifyRelayCore.nrc_compute_feature_id_simple(p, t, tx);
             Marshal.FreeHGlobal(p);
             Marshal.FreeHGlobal(t);
             Marshal.FreeHGlobal(tx);
+            return PtrToStringAndFree(result);
+        }
+
+        // ======== Text similarity & dedup ========
+
+        public static double TextSimilarity(string a, string b)
+        {
+            var aPtr = StringToPtr(a);
+            var bPtr = StringToPtr(b);
+            var result = NotifyRelayCore.nrc_text_similarity(aPtr, bPtr);
+            Marshal.FreeHGlobal(aPtr);
+            Marshal.FreeHGlobal(bPtr);
+            return result;
+        }
+
+        public static int ShouldDeduplicate(string newTitle, string newText, string oldTitle, string oldText)
+        {
+            var nt = StringToPtr(newTitle);
+            var ntx = StringToPtr(newText);
+            var ot = StringToPtr(oldTitle);
+            var otx = StringToPtr(oldText);
+            var result = NotifyRelayCore.nrc_should_deduplicate(nt, ntx, ot, otx);
+            Marshal.FreeHGlobal(nt);
+            Marshal.FreeHGlobal(ntx);
+            Marshal.FreeHGlobal(ot);
+            Marshal.FreeHGlobal(otx);
+            return result;
+        }
+
+        // ======== Filter ========
+
+        public static int SetFilterConfig(IntPtr ctx, string filterMode, string filterListJson, string packageGroupsJson, string groupEnabledJson, string installedPkgsJson)
+        {
+            var mode = StringToPtr(filterMode);
+            var list = StringToPtr(filterListJson);
+            var groups = StringToPtr(packageGroupsJson);
+            var enabled = StringToPtr(groupEnabledJson);
+            var installed = StringToPtr(installedPkgsJson);
+            var result = NotifyRelayCore.nrc_set_filter_config(ctx, mode, list, groups, enabled, installed);
+            Marshal.FreeHGlobal(mode);
+            Marshal.FreeHGlobal(list);
+            Marshal.FreeHGlobal(groups);
+            Marshal.FreeHGlobal(enabled);
+            Marshal.FreeHGlobal(installed);
+            return result;
+        }
+
+        public static string? MapLocalPackage(IntPtr ctx, string pkg)
+        {
+            var p = StringToPtr(pkg);
+            var result = NotifyRelayCore.nrc_map_local_package(ctx, p);
+            Marshal.FreeHGlobal(p);
+            return PtrToStringAndFree(result);
+        }
+
+        public static int CheckFilterMode(IntPtr ctx, string mappedPkg, string originalPkg, string title, string text)
+        {
+            var mp = StringToPtr(mappedPkg);
+            var op = StringToPtr(originalPkg);
+            var t = StringToPtr(title);
+            var tx = StringToPtr(text);
+            var result = NotifyRelayCore.nrc_check_filter_mode(ctx, mp, op, t, tx);
+            Marshal.FreeHGlobal(mp);
+            Marshal.FreeHGlobal(op);
+            Marshal.FreeHGlobal(t);
+            Marshal.FreeHGlobal(tx);
+            return result;
+        }
+
+        public static string? FilterNotification(IntPtr ctx, string pkg, string title, string text)
+        {
+            var p = StringToPtr(pkg);
+            var t = StringToPtr(title);
+            var tx = StringToPtr(text);
+            var result = NotifyRelayCore.nrc_filter_notification(ctx, p, t, tx);
+            Marshal.FreeHGlobal(p);
+            Marshal.FreeHGlobal(t);
+            Marshal.FreeHGlobal(tx);
+            return PtrToStringAndFree(result);
+        }
+
+        // ======== OneShot TCP client ========
+
+        public static string? OneShotSendReceive(string ip, ushort port, string payload, uint connectTimeoutMs = 5000, uint readTimeoutMs = 80000)
+        {
+            var i = StringToPtr(ip);
+            var p = StringToPtr(payload);
+            var result = NotifyRelayCore.nrc_oneshot_send_receive(i, port, p, connectTimeoutMs, readTimeoutMs);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(p);
+            return PtrToStringAndFree(result);
+        }
+
+        public static int OneShotSendOnly(string ip, ushort port, string payload, uint connectTimeoutMs = 5000)
+        {
+            var i = StringToPtr(ip);
+            var p = StringToPtr(payload);
+            var result = NotifyRelayCore.nrc_oneshot_send_only(i, port, p, connectTimeoutMs);
+            Marshal.FreeHGlobal(i);
+            Marshal.FreeHGlobal(p);
+            return result;
+        }
+
+        // ======== FTP credential derivation ========
+
+        public static string? DeriveFtpCredentials(string sharedSecretB64)
+        {
+            var s = StringToPtr(sharedSecretB64);
+            var result = NotifyRelayCore.nrc_derive_ftp_credentials(s);
+            Marshal.FreeHGlobal(s);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? DerivePasswordHash(string password)
+        {
+            var p = StringToPtr(password);
+            var result = NotifyRelayCore.nrc_derive_password_hash(p);
+            Marshal.FreeHGlobal(p);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? GenerateRandomPassword()
+        {
+            var result = NotifyRelayCore.nrc_generate_random_password();
             return PtrToStringAndFree(result);
         }
 

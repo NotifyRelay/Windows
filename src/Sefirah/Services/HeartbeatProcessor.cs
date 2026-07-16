@@ -33,6 +33,10 @@ public class HeartbeatProcessor
 
         try
         {
+            if (!string.IsNullOrEmpty(displayName) && displayName != "unknown")
+            {
+                targetDevice.Name = displayName;
+            }
             var absBattery = battery < 0 ? Math.Abs(battery) : battery;
             var isCharging = battery >= 0;
             if (absBattery >= 0)
@@ -96,13 +100,20 @@ public class HeartbeatProcessor
         if (!string.IsNullOrEmpty(message))
         {
             var fields = ParseUdpHeartbeatDirect(message);
-            if (fields != null && fields.BatteryLevel >= 0)
+            if (fields != null)
             {
-                _deviceManager.UpdateDeviceStatus(device, new DeviceStatus
+                if (!string.IsNullOrEmpty(fields.DeviceName) && fields.DeviceName != "unknown")
                 {
-                    BatteryStatus = fields.BatteryLevel,
-                    ChargingStatus = fields.IsCharging
-                });
+                    device.Name = fields.DeviceName;
+                }
+                if (fields.BatteryLevel >= 0)
+                {
+                    _deviceManager.UpdateDeviceStatus(device, new DeviceStatus
+                    {
+                        BatteryStatus = fields.BatteryLevel,
+                        ChargingStatus = fields.IsCharging
+                    });
+                }
             }
         }
 
