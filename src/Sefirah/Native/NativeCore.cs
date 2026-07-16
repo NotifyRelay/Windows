@@ -111,9 +111,9 @@ public static class NativeCore
         return NotifyRelayCore.Safe.PeriodicBroadcast(_ctx, action, uuid, name, battery, deviceType);
     }
 
-    public static void SendHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
+    public static void SendHandshake(string uuid, string pubKey, string localIp, string targetIp, int battery, string deviceType)
     {
-        NotifyRelayCore.Safe.SendHandshake(_ctx, uuid, pubKey, ip, battery, deviceType);
+        NotifyRelayCore.Safe.SendHandshake(_ctx, uuid, pubKey, localIp, targetIp, battery, deviceType);
     }
 
     public static void SendPairingInit(string uuid, string expectedCode, string ip, int battery, string deviceType)
@@ -494,9 +494,9 @@ public static class NativeCore
     private static long _senderQueueHandle;
     private static long _reconnectStateHandle;
 
-    public static long StartHeartbeatSender(string uuid, string name, int battery, string deviceType, ulong intervalMs = 4000, int mode = 0)
+    public static long StartHeartbeatSender(string uuid, string name, int battery, string deviceType, string ip, ulong intervalMs = 4000, int mode = 0)
     {
-        _heartbeatHandle = NotifyRelayCore.Safe.StartHeartbeatSender(_ctx, uuid, name, battery, deviceType, intervalMs, mode);
+        _heartbeatHandle = NotifyRelayCore.Safe.StartHeartbeatSender(_ctx, uuid, name, battery, deviceType, ip, intervalMs, mode);
         return _heartbeatHandle;
     }
 
@@ -605,7 +605,7 @@ public static class NativeCore
         StartSenderQueue();
 
         // 2. 启动心跳发送器（UDP 模式）
-        StartHeartbeatSender(localDeviceId, deviceName, battery, deviceType, 4000, 0);
+        StartHeartbeatSender(localDeviceId, deviceName, battery, deviceType, "", 4000, 0);
 
         // 3. 启动离线检测
         StartOfflineDetector(12, 5000);

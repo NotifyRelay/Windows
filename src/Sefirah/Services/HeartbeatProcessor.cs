@@ -34,7 +34,10 @@ public class HeartbeatProcessor
         {
             if (!string.IsNullOrEmpty(name) && name != "unknown")
             {
-                targetDevice.Name = name;
+                App.MainWindow?.DispatcherQueue?.TryEnqueue(() =>
+                {
+                    targetDevice.Name = name;
+                });
                 _deviceManager.SaveDevice(targetDevice);
             }
             var absBattery = battery < 0 ? Math.Abs(battery) : battery;

@@ -63,7 +63,7 @@ public static class NotifyRelayCore
 
     // ======== Updated Send functions ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr localIp, IntPtr targetIp, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_send_pairing_init(IntPtr ctx, IntPtr uuid, IntPtr expectedCode, IntPtr ip, int battery, IntPtr deviceType);
@@ -123,7 +123,7 @@ public static class NotifyRelayCore
 
     // ======== Heartbeat sender ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_start_heartbeat_sender(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ulong intervalMs, int mode);
+    public static extern long nrc_start_heartbeat_sender(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, IntPtr ip, ulong intervalMs, int mode);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_update_heartbeat_params(IntPtr ctx, long handlePtr, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType);
@@ -398,11 +398,11 @@ public static class NotifyRelayCore
         }
 
         // ======== Send functions ========
-        public static int SendHandshake(IntPtr ctx, string uuid, string pubKey, string ip, int battery, string deviceType)
+        public static int SendHandshake(IntPtr ctx, string uuid, string pubKey, string localIp, string targetIp, int battery, string deviceType)
         {
-            var u = StringToPtr(uuid); var k = StringToPtr(pubKey); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_send_handshake(ctx, u, k, i, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            var u = StringToPtr(uuid); var k = StringToPtr(pubKey); var li = StringToPtr(localIp); var ti = StringToPtr(targetIp); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_send_handshake(ctx, u, k, li, ti, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(li); Marshal.FreeHGlobal(ti); Marshal.FreeHGlobal(d);
             return result;
         }
 
@@ -700,11 +700,11 @@ public static class NotifyRelayCore
         }
 
         // ======== Heartbeat sender ========
-        public static long StartHeartbeatSender(IntPtr ctx, string uuid, string name, int battery, string deviceType, ulong intervalMs, int mode)
+        public static long StartHeartbeatSender(IntPtr ctx, string uuid, string name, int battery, string deviceType, string ip, ulong intervalMs, int mode)
         {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_start_heartbeat_sender(ctx, u, n, battery, d, intervalMs, mode);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType); var i = StringToPtr(ip);
+            var result = NotifyRelayCore.nrc_start_heartbeat_sender(ctx, u, n, battery, d, i, intervalMs, mode);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d); Marshal.FreeHGlobal(i);
             return result;
         }
 
