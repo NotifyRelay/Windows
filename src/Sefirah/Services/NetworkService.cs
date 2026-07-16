@@ -877,39 +877,8 @@ public class NetworkService(
             var localDevice = deviceManager.GetLocalDeviceAsync().Result;
             var deviceName = localDevice?.DeviceName ?? "PC";
 
-            var payload = NativeCore.FormatHeartbeat(localDeviceId, deviceName, (ushort)ServerPort, signedBattery, "pc");
-            if (payload == null) return;
-            var bytes = Encoding.UTF8.GetBytes(payload);
-            const int udpPort = 23334; // 使用与Android端相同的UDP端口
-
-            // 使用UDP广播发送心跳
-            using var udpClient = new System.Net.Sockets.UdpClient();
-            udpClient.EnableBroadcast = true;
-
-            // 获取本地网络的广播地址
-            var localAddresses = NetworkHelper.GetAllValidAddresses();
-            var broadcastEndpoints = localAddresses.Select(ipInfo =>
-            {
-                var network = new Data.Models.IPNetwork(ipInfo.Address, ipInfo.SubnetMask);
-                var broadcastAddress = network.BroadcastAddress;
-                return new IPEndPoint(broadcastAddress, udpPort);
-            }).Distinct().ToList();
-
-            // 添加全局广播地址
-            broadcastEndpoints.Add(new IPEndPoint(IPAddress.Broadcast, udpPort));
-
-            // 发送广播心跳
-            foreach (var endPoint in broadcastEndpoints)
-            {
-                try
-                {
-                    udpClient.Send(bytes, bytes.Length, endPoint);
-                }
-                catch
-                {
-                    // best-effort UDP heartbeat send
-                }
-            }
+            // 全权委托 Rust 内核格式化并发送 UDP 心跳广播
+            NativeCore.SendHeartbeatUdp(localDeviceId, deviceName, (ushort)ServerPort, signedBattery, "pc");
 
             // Rust 内核自动扫描超时设备
             NativeCore.HeartbeatTick((long)heartbeatTimeout.TotalSeconds);

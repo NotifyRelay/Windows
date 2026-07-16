@@ -551,7 +551,7 @@ public static class NativeCore
             NotifyRelayCore.nrc_set_on_send_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
-        // ---- on_send_udp (统一 UDP 发送回调) ----
+        // ---- on_send_udp (统一 UDP 发送回调，支持多子网广播) ----
         {
             NotifyRelayCore.OnSendCb cb = (linePtr, userData) =>
             {
@@ -560,10 +560,29 @@ public static class NativeCore
                 try
                 {
                     var data = System.Text.Encoding.UTF8.GetBytes(line);
-                    var client = new System.Net.Sockets.UdpClient();
+                    using var client = new System.Net.Sockets.UdpClient();
                     client.EnableBroadcast = true;
-                    client.Send(data, data.Length, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, 23334));
-                    client.Close();
+                    const int udpPort = 23334;
+
+                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+                    {
+                        if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                        var ipProps = ni.GetIPProperties();
+                        foreach (var ua in ipProps.UnicastAddresses)
+                        {
+                            if (ua.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
+                            if (System.Net.IPAddress.IsLoopback(ua.Address)) continue;
+                            var mask = ua.IPv4Mask;
+                            if (mask == null) continue;
+                            var ipBytes = ua.Address.GetAddressBytes();
+                            var maskBytes = mask.GetAddressBytes();
+                            var bcast = new byte[4];
+                            for (int i = 0; i < 4; i++) bcast[i] = (byte)(ipBytes[i] | (byte)~maskBytes[i]);
+                            var ep = new System.Net.IPEndPoint(new System.Net.IPAddress(bcast), udpPort);
+                            try { client.Send(data, data.Length, ep); } catch { }
+                        }
+                    }
+                    try { client.Send(data, data.Length, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, udpPort)); } catch { }
                 }
                 catch { }
             };

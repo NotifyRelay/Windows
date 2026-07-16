@@ -8,7 +8,6 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.EventArguments;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
 using NotifyRelay.Native;
 using NotifyRelay.Services.Socket;
 
@@ -24,7 +23,6 @@ public class DiscoveryService(
 {
     private MulticastClient? udpClient;
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
-    private const string DEFAULT_BROADCAST = "255.255.255.255";
     private LocalDeviceEntity? localDevice;
     private readonly int port = 23334;
 
@@ -34,7 +32,6 @@ public class DiscoveryService(
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
 
     public List<DiscoveredMdnsServiceArgs> DiscoveredMdnsServices { get; } = [];
-    private List<IPEndPoint> broadcastEndpoints = [];
     private const int DiscoveryPort = 23334;
     private bool isBroadcasting;
     private bool isInitialized = false;
@@ -61,28 +58,7 @@ public class DiscoveryService(
             deviceManager.LocalDeviceNameChanged += OnLocalDeviceNameChanged;
             logger.LogInformation("事件处理程序已设置");
 
-            // 4. 获取本地地址和构建设备发现消息
-            var localAddresses = NetworkHelper.GetAllValidAddresses();
-            logger.LogInformation($"将广播的地址：{string.Join(", ", localAddresses)}");
-            var discoverMessage = BuildDiscoverMessage(localDevice.DeviceName);
-
-            // 5. 构建广播端点列表
-            broadcastEndpoints = [.. localAddresses.Select(ipInfo =>
-            {
-                var network = new Data.Models.IPNetwork(ipInfo.Address, ipInfo.SubnetMask);
-                var broadcastAddress = network.BroadcastAddress;
-
-                return broadcastAddress.Equals(IPAddress.Broadcast) && ipInfo.Gateway is not null
-                    ? new IPEndPoint(ipInfo.Gateway, DiscoveryPort)
-                    : new IPEndPoint(broadcastAddress, DiscoveryPort);
-            }).Distinct()];
-
-            broadcastEndpoints.Add(new IPEndPoint(IPAddress.Parse(DEFAULT_BROADCAST), DiscoveryPort));
-            var ipAddresses = deviceManager.GetRemoteDeviceIpAddresses();
-            broadcastEndpoints.AddRange(ipAddresses.Select(ip => new IPEndPoint(IPAddress.Parse(ip), DiscoveryPort)));
-            logger.LogInformation("当前广播端点：{endpoints}", string.Join(", ", broadcastEndpoints));
-
-            // 6. 初始化UDP客户端
+            // 4. 初始化UDP客户端（仅用于接收，发送由 Rust on_send_udp 回调处理）
             udpClient = new MulticastClient("0.0.0.0", port, this, logger)
             {
                 OptionDualMode = false,
@@ -119,8 +95,8 @@ public class DiscoveryService(
             isInitialized = true;
             logger.LogInformation("发现服务初始化标志已设置为true，开始接受设备发现事件");
 
-            // 9. 开始广播设备信息
-            BroadcastDeviceInfoAsync(discoverMessage);
+            // 9. 开始广播设备信息（全权委托 Rust 内核格式化并发送 UDP 发现广播）
+            BroadcastDeviceInfoAsync();
 
             logger.LogInformation("发现服务已完全初始化，开始接受设备发现事件");
 
@@ -140,21 +116,6 @@ public class DiscoveryService(
         }
     }
 
-    private string BuildDiscoverMessage(string deviceName)
-    {
-        if (localDevice == null) return string.Empty;
-
-        var networkService = networkServiceFactory();
-        var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
-
-        var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
-        var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
-        var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
-        var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-
-        return NativeCore.FormatDiscovery(localDevice.DeviceId, deviceName, (ushort)serverPort, signedBattery, "pc") ?? string.Empty;
-    }
-
     /// <summary>
     /// 处理本地设备名更改事件
     /// </summary>
@@ -165,8 +126,7 @@ public class DiscoveryService(
             if (localDevice == null) return;
             logger.LogInformation("本地设备名已更改，重新广播设备信息：{newName}", newName);
             localDevice.DeviceName = newName;
-            var discoverMessage = BuildDiscoverMessage(newName);
-            BroadcastDeviceInfoAsync(discoverMessage);
+            BroadcastDeviceInfoAsync();
 
             // 重新发布mDNS服务广告
             mdnsService.UnAdvertiseService();
@@ -188,46 +148,29 @@ public class DiscoveryService(
         }
     }
 
-    private async void BroadcastDeviceInfoAsync(string discoverMessage)
+    private async void BroadcastDeviceInfoAsync()
     {
         if (isBroadcasting) return;
         isBroadcasting = true;
-
-        var messageBytes = Encoding.UTF8.GetBytes(discoverMessage);
 
         while (udpClient is not null)
         {
             try
             {
-                var endpointsSnapshot = broadcastEndpoints.ToArray();
-                foreach (var endPoint in endpointsSnapshot)
+                // 全权委托 Rust 内核格式化并发送 UDP 发现广播（通过 on_send_udp 回调）
+                if (localDevice != null)
                 {
-                    try
-                    {
-                        if (udpClient is not null)
-                        {
-                            udpClient.Socket.SendTo(messageBytes, endPoint);
-                        }
-                        else
-                        {
-                            logger.LogWarning("UDP 客户端已释放，停止广播");
-                            break;
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogDebug("发送广播消息时出错：{ex}", ex);
-                    }
+                    var networkService = networkServiceFactory();
+                    var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
+                    var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
+                    var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
+                    var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
+                    var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
+
+                    NativeCore.SendDiscovery(localDevice.DeviceId, localDevice.DeviceName, (ushort)serverPort, signedBattery, "pc");
                 }
 
-                try
-                {
-                    await Task.Delay(1000);
-                }
-                catch
-                {
-                    break;
-                }
+                await Task.Delay(1000);
             }
             catch (Exception ex)
             {
@@ -323,14 +266,7 @@ public class DiscoveryService(
             // 跳过本机设备
             if (heartbeatInfo.DeviceId == localDevice?.DeviceId) return;
 
-            if (endpoint is IPEndPoint ipEndPoint)
-            {
-                var newEndpoint = new IPEndPoint(ipEndPoint.Address, DiscoveryPort);
-                if (!broadcastEndpoints.Contains(newEndpoint))
-                {
-                    broadcastEndpoints.Add(newEndpoint);
-                }
-            }
+            // UDP 发送已全权委托 Rust on_send_udp 回调处理，不再跟踪广播端点
 
             var discovered = new DiscoveredDevice(
                 heartbeatInfo.DeviceId,
@@ -384,8 +320,7 @@ public class DiscoveryService(
 
             if (localDevice == null) return;
             // 重新启动广播
-            var discoverMessage = BuildDiscoverMessage(localDevice.DeviceName);
-            BroadcastDeviceInfoAsync(discoverMessage);
+            BroadcastDeviceInfoAsync();
         }
         catch (Exception ex)
         {
