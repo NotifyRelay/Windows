@@ -1,24 +1,14 @@
-using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
-using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Services;
 
 /// <summary>
-/// 统一加密发送器
-///
-/// 封装加密、认证检查、TCP发送与报文头拼装：
-/// 最终报文格式：`<HEADER>:<localUuid>:<localPublicKey>:<encryptedPayload>\n`
+/// 统一加密发送器 - 通过 Rust core 发送队列发送
 /// </summary>
 public class ProtocolSender : IProtocolSender
 {
-    private const string TAG = "ProtocolSender";
-    private const int DEFAULT_TIMEOUT = 80000;
-    private const int DEFAULT_CONNECT_TIMEOUT = 5000;
-    private const int NotifyRelayPort = 23333;
-
     private readonly ILogger<ProtocolSender> _logger;
     private readonly IDeviceManager _deviceManager;
 
@@ -62,7 +52,7 @@ public class ProtocolSender : IProtocolSender
         var localDeviceId = localDevice.DeviceId;
         var localPublicKey = NativeCore.GetPublicKey() ?? string.Empty;
 
-        if (localPublicKey is null || localDeviceId is null)
+        if (localDeviceId is null)
         {
             _logger.LogWarning("本地身份未初始化，跳过发送");
             return;
@@ -77,7 +67,7 @@ public class ProtocolSender : IProtocolSender
         string plaintext,
         string localDeviceId,
         string localPublicKey,
-        int timeoutMs = DEFAULT_TIMEOUT
+        int timeoutMs = 80000
     )
     {
         try
@@ -94,60 +84,18 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
-            string? framedMessage = NativeCore.EncryptMessage(header, localDeviceId, localPublicKey, device.Id, plaintext);
-            if (framedMessage == null)
-            {
-                _logger.LogError("Rust加密失败: EncryptMessage, device={deviceName}", device.Name);
-                return;
-            }
+            // 使用 Rust core 发送队列加密发送（自动排队、限流、重试）
+            var ip = device.IpAddresses[0];
+            var dedupKey = NativeCore.ComputeDedupKey(device.Id, plaintext);
+            NativeCore.EnqueueMessage(device.Id, ip, header, plaintext, dedupKey);
 
-            _logger.LogDebug("消息字节长度：{length}", framedMessage.Length);
-
-            var ipAddressesCopy = device.IpAddresses.ToList();
-
-            foreach (string ipAddress in ipAddressesCopy)
-            {
-                _logger.LogInformation("发送到设备：{deviceName} ({ipAddress})", device.Name, ipAddress);
-
-                var success = await OneShotTcpClient.SendOnlyAsync(
-                    NativeCore.Context, ipAddress, NotifyRelayPort, framedMessage,
-                    DEFAULT_CONNECT_TIMEOUT, timeoutMs);
-
-                if (success)
-                {
-                    _logger.LogInformation("成功发送请求：{header}，deviceId={deviceId}", header, device.Id);
-
-                    if (device.IpAddresses.Count > 1 && device.IpAddresses[0] != ipAddress)
-                    {
-                        lock (device)
-                        {
-                            if (device.IpAddresses[0] != ipAddress)
-                            {
-                                device.IpAddresses.Remove(ipAddress);
-                                device.IpAddresses.Insert(0, ipAddress);
-                                _logger.LogInformation("已调整设备IP优先级，下次将优先尝试：{ipAddress}", ipAddress);
-                                var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
-                                if (repo.HasDevice(device.Id, out var entity))
-                                {
-                                    entity.IpAddresses = device.IpAddresses;
-                                    repo.AddOrUpdateRemoteDevice(entity);
-                                }
-                            }
-                        }
-                    }
-
-                    return;
-                }
-
-                _logger.LogWarning("连接或发送到设备失败：{ipAddress}:{port}，尝试下一个IP", ipAddress, NotifyRelayPort);
-            }
-
-            _logger.LogWarning("所有IP地址都连接失败，跳过发送");
+            _logger.LogDebug("消息已入发送队列：header={header}, deviceId={deviceId}", header, device.Id);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "发送请求时出错：deviceId={deviceId}", device.Id);
         }
+        await Task.CompletedTask;
     }
 
     public Task SendEncryptedAsync(
@@ -158,6 +106,6 @@ public class ProtocolSender : IProtocolSender
         string localPublicKey
     )
     {
-        return SendEncryptedAsync(device, header, plaintext, localDeviceId, localPublicKey, DEFAULT_TIMEOUT);
+        return SendEncryptedAsync(device, header, plaintext, localDeviceId, localPublicKey, 80000);
     }
 }

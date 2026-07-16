@@ -488,6 +488,140 @@ public static class NativeCore
         }
     }
 
+    // ======== Heartbeat sender ========
+    private static long _heartbeatHandle;
+    private static long _offlineDetectorHandle;
+    private static long _senderQueueHandle;
+    private static long _reconnectStateHandle;
+
+    public static long StartHeartbeatSender(string uuid, string name, int battery, string deviceType, ulong intervalMs = 4000, int mode = 0)
+    {
+        _heartbeatHandle = NotifyRelayCore.Safe.StartHeartbeatSender(_ctx, uuid, name, battery, deviceType, intervalMs, mode);
+        return _heartbeatHandle;
+    }
+
+    public static void UpdateHeartbeatParams(long handlePtr, string uuid, string name, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.UpdateHeartbeatParams(_ctx, handlePtr, uuid, name, battery, deviceType);
+    }
+
+    public static void StopHeartbeatSender()
+    {
+        NotifyRelayCore.nrc_stop_heartbeat_sender(_ctx, _heartbeatHandle);
+        _heartbeatHandle = 0;
+    }
+
+    // ======== Offline detector ========
+    public static long StartOfflineDetector(long timeoutSec = 12, ulong checkIntervalMs = 5000)
+    {
+        _offlineDetectorHandle = NotifyRelayCore.Safe.StartOfflineDetector(_ctx, timeoutSec, checkIntervalMs);
+        return _offlineDetectorHandle;
+    }
+
+    // ======== Sender queue ========
+    public static long CreateSenderQueue()
+    {
+        _senderQueueHandle = NotifyRelayCore.Safe.CreateSenderQueue(_ctx);
+        return _senderQueueHandle;
+    }
+
+    public static void StartSenderQueue()
+    {
+        NotifyRelayCore.Safe.StartSenderQueue(_ctx, _senderQueueHandle);
+    }
+
+    public static void EnqueueMessage(string deviceUuid, string deviceIp, string header, string plaintext, string? dedupKey = null)
+    {
+        NotifyRelayCore.Safe.EnqueueMessage(_ctx, _senderQueueHandle, deviceUuid, deviceIp, header, plaintext, dedupKey);
+    }
+
+    public static void StopSenderQueue()
+    {
+        NotifyRelayCore.nrc_stop_sender_queue(_ctx, _senderQueueHandle);
+        _senderQueueHandle = 0;
+    }
+
+    // ======== Network change ========
+    public static void OnNetworkChanged(string? localIp = null)
+    {
+        if (localIp is not null)
+        {
+            var bytes = System.Text.Encoding.UTF8.GetBytes(localIp);
+            var ipPtr = Marshal.AllocHGlobal(bytes.Length + 1);
+            Marshal.Copy(bytes, 0, ipPtr, bytes.Length);
+            Marshal.WriteByte(ipPtr, bytes.Length, 0);
+            NotifyRelayCore.nrc_on_network_changed(_ctx, ipPtr);
+            Marshal.FreeHGlobal(ipPtr);
+        }
+        else
+        {
+            NotifyRelayCore.nrc_on_network_changed(_ctx, IntPtr.Zero);
+        }
+    }
+
+    // ======== Local IP ========
+    public static string? GetLocalIp()
+    {
+        return NotifyRelayCore.PtrToStringAndFree(NotifyRelayCore.nrc_get_local_ip());
+    }
+
+    // ======== Discovery ========
+    public static void AddKnownDevice(string uuid, string ip)
+    {
+        NotifyRelayCore.Safe.AddKnownDevice(_ctx, uuid, ip);
+    }
+
+    public static void RemoveKnownDevice(string uuid)
+    {
+        NotifyRelayCore.Safe.RemoveKnownDevice(_ctx, uuid);
+    }
+
+    public static void RecordDiscoveredDevice(string uuid, string? name, string ip, ushort port, int battery, string deviceType)
+    {
+        NotifyRelayCore.Safe.RecordDiscoveredDevice(_ctx, uuid, name, ip, port, battery, deviceType);
+    }
+
+    public static string? GetDiscoveredDevices()
+    {
+        return NotifyRelayCore.PtrToStringAndFree(NotifyRelayCore.nrc_get_discovered_devices(_ctx));
+    }
+
+    public static void StartKnownDeviceScanner()
+    {
+        NotifyRelayCore.nrc_start_known_device_scanner(_ctx);
+    }
+
+    // ======== Diff ========
+    public static string? ComputeSuperIslandDiff(string oldState, string newState)
+    {
+        return NotifyRelayCore.Safe.ComputeSuperIslandDiff(oldState, newState);
+    }
+
+    // ======== Initialize new core features ========
+    public static void InitializeNewFeatures(string localDeviceId, string deviceName, int battery, string deviceType)
+    {
+        // 1. 创建发送队列
+        CreateSenderQueue();
+        StartSenderQueue();
+
+        // 2. 启动心跳发送器（UDP 模式）
+        StartHeartbeatSender(localDeviceId, deviceName, battery, deviceType, 4000, 0);
+
+        // 3. 启动离线检测
+        StartOfflineDetector(12, 5000);
+
+        // 4. 启动已知设备扫描
+        StartKnownDeviceScanner();
+    }
+
+    public static void StopNewFeatures()
+    {
+        StopHeartbeatSender();
+        StopSenderQueue();
+        NotifyRelayCore.nrc_stop_offline_detector(_ctx);
+        NotifyRelayCore.nrc_stop_known_device_scanner(_ctx);
+    }
+
     private static void HandleDeviceTimeout(string uuid)
     {
         var device = DeviceManager?.FindDeviceById(uuid);

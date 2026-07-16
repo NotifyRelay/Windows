@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.NetworkInformation;
 using System.Text;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
@@ -33,9 +34,6 @@ public class NetworkService(
     private readonly HashSet<string> incompatibleDevices = new();
     private string? localPublicKey;
     private string? localDeviceId;
-    private Timer? heartbeatTimer;
-    private readonly TimeSpan heartbeatInterval = TimeSpan.FromSeconds(4);
-    private readonly TimeSpan heartbeatTimeout = TimeSpan.FromSeconds(15);
     private readonly Lazy<IRemoteAppService> remoteAppService = new(remoteAppServiceFactory);
 
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
@@ -64,7 +62,16 @@ public class NetworkService(
             {
                 isRunning = true;
                 logger.Info($"服务器已在端口 {ServerPort} 启动");
-                StartHeartbeat();
+
+                // 启动 Rust core 网络功能
+                var battery = systemInfoService.GetSystemBatteryLevel();
+                var isCharging = systemInfoService.GetSystemChargingStatus();
+                var signedBattery = isCharging ? Math.Abs(battery) : -Math.Abs(battery);
+                NativeCore.InitializeNewFeatures(localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc");
+
+                // 注册网络变化监听
+                NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+
                 return true;
             }
 
@@ -137,7 +144,7 @@ public class NetworkService(
             if (localDeviceId is not null && localPublicKey is not null)
             {
                 var localBattery = systemInfoService.GetSystemBatteryLevel();
-                var localIp = NetworkHelper.GetLocalIpAddress() ?? string.Empty;
+                var localIp = NativeCore.GetLocalIp() ?? string.Empty;
                 NativeCore.SendAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
             }
 
@@ -346,31 +353,13 @@ public class NetworkService(
         });
     }
 
-    private void StartHeartbeat()
+
+
+    private void OnNetworkAddressChanged(object? sender, EventArgs e)
     {
-        heartbeatTimer ??= new Timer(_ => HeartbeatTick(), null, heartbeatInterval, heartbeatInterval);
-    }
-
-    private void HeartbeatTick()
-    {
-        try
-        {
-            if (localDeviceId is null) return;
-
-            var batteryLevel = systemInfoService.GetSystemBatteryLevel();
-            var isCharging = systemInfoService.GetSystemChargingStatus();
-            var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-
-            var localDevice = deviceManager.GetLocalDeviceAsync().Result;
-            var deviceName = localDevice?.DeviceName ?? "PC";
-
-            // 全权委托 Rust 内核格式化并发送 UDP 心跳广播
-            NativeCore.SendHeartbeatUdp(localDeviceId, deviceName, (ushort)ServerPort, signedBattery, "pc");
-        }
-        catch
-        {
-            // best-effort heartbeat
-        }
+        logger.LogDebug("网络地址变化，通知 Rust core");
+        var localIp = NativeCore.GetLocalIp();
+        NativeCore.OnNetworkChanged(localIp);
     }
 
     private void UpdateDeviceState(PairedDevice device, Action<PairedDevice> update)

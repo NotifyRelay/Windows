@@ -1,5 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Services;
 
@@ -21,6 +22,10 @@ public class HeartbeatProcessor
     public void HandleUdpHeartbeat(string uuid, string? name, ushort port, int battery, string deviceType)
     {
         DeviceDiscovered?.Invoke(uuid, name, port, battery, deviceType);
+
+        // 记录到 Rust core 的发现状态中
+        var ip = NativeCore.GetLocalIp() ?? "0.0.0.0";
+        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, battery, deviceType);
 
         var targetDevice = _deviceManager.FindDeviceById(uuid);
         if (targetDevice == null) return;

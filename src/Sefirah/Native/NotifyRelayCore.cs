@@ -121,6 +121,83 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
 
+    // ======== Heartbeat sender ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long nrc_start_heartbeat_sender(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ulong intervalMs, int mode);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_update_heartbeat_params(IntPtr ctx, long handlePtr, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_heartbeat_sender(IntPtr ctx, long handlePtr);
+
+    // ======== Offline detector ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long nrc_start_offline_detector(IntPtr ctx, long timeoutSec, ulong checkIntervalMs);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_offline_detector(IntPtr ctx);
+
+    // ======== Sender queue ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long nrc_create_sender_queue(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_start_sender_queue(IntPtr ctx, long queuePtr);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_enqueue_message(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr deviceIp, IntPtr header, IntPtr plaintext, IntPtr dedupKey);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_sender_queue(IntPtr ctx, long queuePtr);
+
+    // ======== Diff ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_superisland_diff(IntPtr oldState, IntPtr newState);
+
+    // ======== Network change ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_on_network_changed(IntPtr ctx, IntPtr localIp);
+
+    // ======== Local IP ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_get_local_ip();
+
+    // ======== Discovery ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_add_known_device(IntPtr ctx, IntPtr uuid, IntPtr ip);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_remove_known_device(IntPtr ctx, IntPtr uuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_record_discovered_device(IntPtr ctx, IntPtr uuid, IntPtr name, IntPtr ip, ushort port, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_get_discovered_devices(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_start_known_device_scanner(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_known_device_scanner(IntPtr ctx);
+
+    // ======== Reconnect ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern long nrc_create_reconnect_state(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_reconnect_add_target(IntPtr ctx, long statePtr, IntPtr uuid, IntPtr ip);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_reconnect_remove_target(IntPtr ctx, long statePtr, IntPtr uuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_reconnect_start(IntPtr ctx, long statePtr, ulong intervalSecs, uint maxRetries);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_reconnect_stop(IntPtr ctx, long statePtr);
+
     // ======== Callback delegate types ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
@@ -620,6 +697,81 @@ public static class NotifyRelayCore
             var result = NotifyRelayCore.nrc_remove_device_session(ctx, u);
             Marshal.FreeHGlobal(u);
             return result;
+        }
+
+        // ======== Heartbeat sender ========
+        public static long StartHeartbeatSender(IntPtr ctx, string uuid, string name, int battery, string deviceType, ulong intervalMs, int mode)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_start_heartbeat_sender(ctx, u, n, battery, d, intervalMs, mode);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+            return result;
+        }
+
+        public static void UpdateHeartbeatParams(IntPtr ctx, long handlePtr, string uuid, string name, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_update_heartbeat_params(ctx, handlePtr, u, n, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+        }
+
+        // ======== Offline detector ========
+        public static long StartOfflineDetector(IntPtr ctx, long timeoutSec, ulong checkIntervalMs)
+        {
+            return NotifyRelayCore.nrc_start_offline_detector(ctx, timeoutSec, checkIntervalMs);
+        }
+
+        // ======== Sender queue ========
+        public static long CreateSenderQueue(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_create_sender_queue(ctx);
+        }
+
+        public static void StartSenderQueue(IntPtr ctx, long queuePtr)
+        {
+            NotifyRelayCore.nrc_start_sender_queue(ctx, queuePtr);
+        }
+
+        public static void EnqueueMessage(IntPtr ctx, long queuePtr, string deviceUuid, string deviceIp, string header, string plaintext, string? dedupKey)
+        {
+            var u = StringToPtr(deviceUuid); var i = StringToPtr(deviceIp);
+            var h = StringToPtr(header); var p = StringToPtr(plaintext);
+            var d = StringToPtr(dedupKey);
+            NotifyRelayCore.nrc_enqueue_message(ctx, queuePtr, u, i, h, p, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(p);
+            if (d != IntPtr.Zero) Marshal.FreeHGlobal(d);
+        }
+
+        // ======== Discovery ========
+        public static void AddKnownDevice(IntPtr ctx, string uuid, string ip)
+        {
+            var u = StringToPtr(uuid); var i = StringToPtr(ip);
+            NotifyRelayCore.nrc_add_known_device(ctx, u, i);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(i);
+        }
+
+        public static void RemoveKnownDevice(IntPtr ctx, string uuid)
+        {
+            var u = StringToPtr(uuid);
+            NotifyRelayCore.nrc_remove_known_device(ctx, u);
+            Marshal.FreeHGlobal(u);
+        }
+
+        public static void RecordDiscoveredDevice(IntPtr ctx, string uuid, string? name, string ip, ushort port, int battery, string deviceType)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name);
+            var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_record_discovered_device(ctx, u, n, i, port, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+        }
+
+        // ======== Diff ========
+        public static string? ComputeSuperIslandDiff(string oldState, string newState)
+        {
+            var o = StringToPtr(oldState); var n = StringToPtr(newState);
+            var result = NotifyRelayCore.nrc_compute_superisland_diff(o, n);
+            Marshal.FreeHGlobal(o); Marshal.FreeHGlobal(n);
+            return PtrToStringAndFree(result);
         }
     }
 }
