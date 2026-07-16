@@ -115,9 +115,19 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         });
     }
 
-    public Task UpdateDevice(RemoteDeviceEntity device)
+    public void SaveDevice(PairedDevice device)
     {
-        throw new NotImplementedException();
+        var entity = new RemoteDeviceEntity
+        {
+            DeviceId = device.Id,
+            Name = device.Name,
+            Model = device.Model,
+            IpAddresses = device.IpAddresses,
+            SharedSecret = device.SharedSecret,
+            PublicKey = device.RemotePublicKey,
+            HasSentftpRequest = device.HasSentftpRequest,
+        };
+        repository.AddOrUpdateRemoteDevice(entity);
     }
 
     public void UpdateDeviceStatus(PairedDevice device, DeviceStatus deviceStatus)

@@ -104,16 +104,6 @@ public class NetworkService(
         NativeCore.RemoveDeviceSession(deviceId);
     }
 
-    /// <summary>
-    /// 通过UDP心跳包更新设备状态
-    /// </summary>
-    /// <param name="deviceId">设备ID</param>
-    /// <param name="message">UDP心跳包消息内容</param>
-    public void UpdateDeviceStatusFromUdp(string deviceId, string? message = null)
-    {
-        heartbeatProcessor.UpdateDeviceFromUdp(deviceId, message ?? string.Empty, MarkDeviceAlive);
-    }
-
     public async Task HandleHandshakeAsync(string remoteDeviceId, string remotePublicKey, string remoteIpAddress, int battery, string remoteDeviceType)
     {
         logger.Info($"收到握手来自 {remoteIpAddress} (类型: {remoteDeviceType})");
@@ -121,7 +111,7 @@ public class NetworkService(
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
 
-        var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, string.Empty, remoteIpAddress);
+        var device = await deviceManager.VerifyHandshakeAsync(remoteDeviceId, remotePublicKey, null, remoteIpAddress);
 
         if (device is not null)
         {
@@ -216,40 +206,21 @@ public class NetworkService(
                 return;
             }
 
-            // 使用 Rust 核心完成临时密钥交换和配对码加密
+            // 使用 Rust 核心发送加密的 PAIRING_RESP（内部完成临时密钥生成+配对码加密）
             try
             {
-                // 1. 生成接收端（PC）的临时密钥对
-                NativeCore.GenerateEphemeralKeypair();
-                var receiverTmpPubKeyB64 = NativeCore.GetEphemeralPublicKey() ?? string.Empty;
-
-                // 2. ECDH 密钥协商 + 派生配对码加密密钥
-                NativeCore.DerivePairingKey(tmpPubKey);
-
-                // 3. 加密配对码
-                var encryptedCode = NativeCore.EncryptPairingCode(pairingCode) ?? string.Empty;
-
-                // 4. 获取 PC 的长期 ECDH 公钥（优先使用 Rust keypair）
                 var ltPubKey = NativeCore.GetPublicKey();
                 if (string.IsNullOrEmpty(ltPubKey))
                 {
                     var localDevice = await deviceManager.GetLocalDeviceAsync();
                     ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
                 }
-
-                // 5. 发送 PAIRING_RESP 到 Android 服务器
-                var pairingResp = NativeCore.FormatPairingResp(localDeviceId, receiverTmpPubKeyB64, ltPubKey, encryptedCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
-                if (pairingResp == null) return;
-
-                // 使用 Rust TCP 服务器发送消息
-                NativeCore.SendToDevice(remoteUuid, pairingResp);
-
-                // 注意：配对响应的 ACCEPT 处理由 Rust 内核通过回调处理
+                NativeCore.SendPairingResp(localDeviceId, ltPubKey, pairingCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
                 logger.Info($"已发送 PAIRING_RESP: {remoteUuid}");
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "加密配对码失败: {uuid}", remoteUuid);
+                logger.LogError(ex, "发送 PAIRING_RESP 失败: {uuid}", remoteUuid);
                 NativeCore.SendReject(localDeviceId ?? string.Empty);
             }
         }
@@ -395,9 +366,6 @@ public class NetworkService(
 
             // 全权委托 Rust 内核格式化并发送 UDP 心跳广播
             NativeCore.SendHeartbeatUdp(localDeviceId, deviceName, (ushort)ServerPort, signedBattery, "pc");
-
-            // Rust 内核自动扫描超时设备
-            NativeCore.HeartbeatTick((long)heartbeatTimeout.TotalSeconds);
         }
         catch
         {

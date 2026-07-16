@@ -35,45 +35,41 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_encrypt_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr remoteUuid, IntPtr plaintext);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_decrypt_message(IntPtr ctx, IntPtr encryptedLine);
+    public static extern int nrc_process_line(IntPtr ctx, IntPtr line);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_decrypt_payload(IntPtr ctx, IntPtr localUuid, IntPtr encryptedB64);
+    public static extern void nrc_set_user_data(IntPtr ctx, IntPtr userData);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_decode_line(IntPtr ctx, IntPtr line);
-
-    // ======== Format helpers (for one-shot sync socket ops) ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_handshake(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_periodic_broadcast(IntPtr ctx, int action, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_pairing_init(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern IntPtr nrc_export_state(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_pairing_resp(IntPtr uuid, IntPtr tmpPub, IntPtr ltPub, IntPtr encryptedCode, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_import_state(IntPtr ctx, IntPtr json);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_accept(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern IntPtr nrc_encrypt_local_state(IntPtr ctx, IntPtr plaintext, IntPtr deviceUuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+    public static extern IntPtr nrc_decrypt_local_state(IntPtr ctx, IntPtr encryptedB64, IntPtr deviceUuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_discovery(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+    public static extern IntPtr nrc_export_device_key(IntPtr ctx, IntPtr deviceUuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_format_tcp_heartbeat(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
+    public static extern void nrc_free_string(IntPtr s);
 
-    // ======== Send functions (for established connections) ========
+    // ======== Updated Send functions ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_pairing_init(IntPtr ctx, IntPtr uuid, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_send_pairing_init(IntPtr ctx, IntPtr uuid, IntPtr expectedCode, IntPtr ip, int battery, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_accept(IntPtr ctx, IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
@@ -93,66 +89,37 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_data_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr remoteUuid, IntPtr plaintext);
 
-    // ======== UDP broadcast processing ========
+    // ======== New: OneShot TCP (ctx param, unified timeout) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_process_udp_broadcast(IntPtr ctx, IntPtr line);
+    public static extern int nrc_oneshot_send_receive(IntPtr ctx, IntPtr ip, ushort port, IntPtr payload, uint timeoutMs);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_export_state(IntPtr ctx);
+    public static extern int nrc_oneshot_send_only(IntPtr ctx, IntPtr ip, ushort port, IntPtr payload, uint timeoutMs);
+
+    // ======== Network layer ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_start_tcp_server(IntPtr ctx, ushort port);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_import_state(IntPtr ctx, IntPtr json);
+    public static extern int nrc_stop_tcp_server(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_encrypt_local_state(IntPtr ctx, IntPtr plaintext, IntPtr deviceUuid);
+    public static extern int nrc_restart_udp_listener(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_decrypt_local_state(IntPtr ctx, IntPtr encryptedB64, IntPtr deviceUuid);
+    public static extern int nrc_send_to_device(IntPtr ctx, IntPtr uuid, IntPtr message);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_free_string(IntPtr s);
-
-    // ======== New: Ephemeral ECDH ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_ecdh_generate_ephemeral_keypair(IntPtr ctx);
+    public static extern int nrc_broadcast_message(IntPtr ctx, IntPtr message);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_ecdh_get_ephemeral_public_key(IntPtr ctx);
+    public static extern int nrc_get_connected_device_count(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_ecdh_has_ephemeral_keypair(IntPtr ctx);
+    public static extern int nrc_is_device_connected(IntPtr ctx, IntPtr uuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_ecdh_clear_ephemeral_keypair(IntPtr ctx);
-
-    // ======== New: Pairing code ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_ecdh_derive_pairing_key(IntPtr ctx, IntPtr peerEphPubB64);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_ecdh_encrypt_pairing_code(IntPtr ctx, IntPtr code);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_ecdh_decrypt_pairing_code(IntPtr ctx, IntPtr encryptedB64);
-
-    // ======== New: Long-term key alias ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_ecdh_derive_long_term_key(IntPtr ctx, IntPtr peerUuid, IntPtr peerLtPubB64);
-
-    // ======== New: Key export ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_export_device_key(IntPtr ctx, IntPtr deviceUuid);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_export_local_keypair(IntPtr ctx);
-
-    // ======== New: Unified process ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_process_line(IntPtr ctx, IntPtr line);
-
-    // ======== New: User data ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_user_data(IntPtr ctx, IntPtr userData);
+    public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
 
     // ======== Callback delegate types ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
@@ -181,6 +148,12 @@ public static class NotifyRelayCore
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnPairingResultCb(IntPtr uuid, int success, IntPtr errorMsg, IntPtr userData);
 
     // ======== Callback setters ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -225,119 +198,65 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_unknown_data_cb(IntPtr ctx, OnDataCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
-
-    // ======== Heartbeat tick & device timeout ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_heartbeat_tick(IntPtr ctx, long timeoutSec);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
-
-    public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
-
-    // ======== Network layer ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_start_tcp_server(IntPtr ctx, ushort port);
+    public static extern void nrc_set_on_pairing_result_cb(IntPtr ctx, OnPairingResultCb cb);
 
+    // ======== Dedup ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_stop_tcp_server(IntPtr ctx);
+    public static extern int nrc_dedup_check_and_pend(IntPtr ctx, IntPtr dedupKey, long ttlMs);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_dedup_mark_sent(IntPtr ctx, IntPtr dedupKey);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_dedup_clear_pending(IntPtr ctx, IntPtr dedupKey);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_dedup_cleanup(IntPtr ctx, long nowMs, long ttlMs);
 
+    // ======== Filter ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_send_to_device(IntPtr ctx, IntPtr uuid, IntPtr message);
+    public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr filterMode, IntPtr filterListJson, IntPtr packageGroupsJson, IntPtr groupEnabledJson, IntPtr installedPkgsJson);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_map_local_package(IntPtr ctx, IntPtr pkg);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_check_filter_mode(IntPtr ctx, IntPtr mappedPkg, IntPtr originalPkg, IntPtr title, IntPtr text);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
 
+    // ======== Other utilities ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_broadcast_message(IntPtr ctx, IntPtr message);
+    public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_compute_feature_id_simple(IntPtr packageName, IntPtr title, IntPtr text);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern double nrc_text_similarity(IntPtr a, IntPtr b);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_should_deduplicate(IntPtr newTitle, IntPtr newText, IntPtr oldTitle, IntPtr oldText);
 
+    // ======== FTP credentials ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_get_connected_device_count(IntPtr ctx);
-
+    public static extern IntPtr nrc_derive_ftp_credentials(IntPtr sharedSecretB64);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_is_device_connected(IntPtr ctx, IntPtr uuid);
-
+    public static extern IntPtr nrc_derive_password_hash(IntPtr password);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
+    public static extern IntPtr nrc_generate_random_password();
 
     // ======== Network callbacks ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceConnectedCb(IntPtr uuid, IntPtr ip, IntPtr userData);
-
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceDisconnectedCb(IntPtr uuid, IntPtr userData);
-
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnTcpErrorCb(IntPtr error, IntPtr userData);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_connected_cb(IntPtr ctx, OnDeviceConnectedCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_disconnected_cb(IntPtr ctx, OnDeviceDisconnectedCb cb);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_tcp_error_cb(IntPtr ctx, OnTcpErrorCb cb);
-
-    // ======== New: verify_pairing_code, compute_dedup_key, heartbeat_timeout, feature_id ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_verify_pairing_code(IntPtr storedCode, IntPtr inputCode);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_heartbeat_has_timed_out(long lastHeartbeatSec, long nowSec, long timeoutSec);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_feature_id_simple(IntPtr packageName, IntPtr title, IntPtr text);
-
-    // ======== Text similarity & dedup ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern double nrc_text_similarity(IntPtr a, IntPtr b);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_should_deduplicate(IntPtr newTitle, IntPtr newText, IntPtr oldTitle, IntPtr oldText);
-
-    // ======== Filter ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr filterMode, IntPtr filterListJson, IntPtr packageGroupsJson, IntPtr groupEnabledJson, IntPtr installedPkgsJson);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_map_local_package(IntPtr ctx, IntPtr pkg);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_check_filter_mode(IntPtr ctx, IntPtr mappedPkg, IntPtr originalPkg, IntPtr title, IntPtr text);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
-
-    // ======== OneShot TCP client ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_oneshot_send_receive(IntPtr ip, ushort port, IntPtr payload, uint connectTimeoutMs, uint readTimeoutMs);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_oneshot_send_only(IntPtr ip, ushort port, IntPtr payload, uint connectTimeoutMs);
-
-    // ======== FTP credential derivation ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_derive_ftp_credentials(IntPtr sharedSecretB64);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_derive_password_hash(IntPtr password);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_generate_random_password();
-
-    // ======== Heartbeat parse with callback (eliminates JSON re-parse) ========
-    public delegate void OnHeartbeatWithCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
-    public delegate void OnHeartbeatTcpWithCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_parse_heartbeat_with_cb(IntPtr line, OnHeartbeatWithCb cb, IntPtr userData);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_parse_heartbeat_tcp_with_cb(IntPtr line, OnHeartbeatTcpWithCb cb, IntPtr userData);
 
     public static string? PtrToStringAndFree(IntPtr ptr)
     {
@@ -359,6 +278,7 @@ public static class NotifyRelayCore
 
     public static class Safe
     {
+        // ======== Key management ========
         public static int MigrateSharedSecret(IntPtr ctx, string deviceUuid, byte[] aesKey)
         {
             var u = StringToPtr(deviceUuid);
@@ -377,83 +297,52 @@ public static class NotifyRelayCore
 
         public static string? EncryptMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
         {
-            var h = StringToPtr(header);
-            var u = StringToPtr(localUuid);
-            var k = StringToPtr(localPubKey);
-            var r = StringToPtr(remoteUuid);
-            var p = StringToPtr(plaintext);
+            var h = StringToPtr(header); var u = StringToPtr(localUuid); var k = StringToPtr(localPubKey);
+            var r = StringToPtr(remoteUuid); var p = StringToPtr(plaintext);
             var result = NotifyRelayCore.nrc_encrypt_message(ctx, h, u, k, r, p);
-            Marshal.FreeHGlobal(h);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
-            Marshal.FreeHGlobal(r);
-            Marshal.FreeHGlobal(p);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? DecryptMessage(IntPtr ctx, string encryptedLine)
-        {
-            var line = StringToPtr(encryptedLine);
-            var result = NotifyRelayCore.nrc_decrypt_message(ctx, line);
-            Marshal.FreeHGlobal(line);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? DecryptPayload(IntPtr ctx, string localUuid, string encryptedB64)
-        {
-            var u = StringToPtr(localUuid);
-            var e = StringToPtr(encryptedB64);
-            var result = NotifyRelayCore.nrc_decrypt_payload(ctx, u, e);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(e);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? DecodeLine(IntPtr ctx, string line)
-        {
-            var linePtr = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_decode_line(ctx, linePtr);
-            Marshal.FreeHGlobal(linePtr);
+            Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(r); Marshal.FreeHGlobal(p);
             return PtrToStringAndFree(result);
         }
 
         public static int DeriveSharedSecret(IntPtr ctx, string peerUuid, string peerPubKeyB64)
         {
-            var u = StringToPtr(peerUuid);
-            var k = StringToPtr(peerPubKeyB64);
+            var u = StringToPtr(peerUuid); var k = StringToPtr(peerPubKeyB64);
             var result = NotifyRelayCore.nrc_ecdh_derive_shared_secret(ctx, u, k);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k);
             return result;
         }
 
-        public static int ProcessUdpBroadcast(IntPtr ctx, string line)
+        public static int PeriodicBroadcast(IntPtr ctx, int action, string? uuid, string? name, int battery, string? deviceType)
         {
-            var l = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_process_udp_broadcast(ctx, l);
-            Marshal.FreeHGlobal(l);
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_periodic_broadcast(ctx, action, u, n, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
             return result;
         }
 
-        public static void SendHandshake(IntPtr ctx, string uuid, string pubKey, string ip, int battery, string deviceType)
+        // ======== Send functions ========
+        public static int SendHandshake(IntPtr ctx, string uuid, string pubKey, string ip, int battery, string deviceType)
         {
             var u = StringToPtr(uuid); var k = StringToPtr(pubKey); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_handshake(ctx, u, k, i, battery, d);
+            var result = NotifyRelayCore.nrc_send_handshake(ctx, u, k, i, battery, d);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            return result;
         }
 
-        public static void SendPairingInit(IntPtr ctx, string uuid, string ip, int battery, string deviceType)
+        public static int SendPairingInit(IntPtr ctx, string uuid, string expectedCode, string ip, int battery, string deviceType)
         {
-            var u = StringToPtr(uuid); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_pairing_init(ctx, u, i, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            var u = StringToPtr(uuid); var c = StringToPtr(expectedCode); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_send_pairing_init(ctx, u, c, i, battery, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            return result;
         }
 
-        public static void SendPairingResp(IntPtr ctx, string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
+        public static int SendPairingResp(IntPtr ctx, string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
         {
             var u = StringToPtr(uuid); var l = StringToPtr(ltPub); var c = StringToPtr(pairingCode); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_pairing_resp(ctx, u, l, c, i, battery, d);
+            var result = NotifyRelayCore.nrc_send_pairing_resp(ctx, u, l, c, i, battery, d);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(l); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            return result;
         }
 
         public static void SendAccept(IntPtr ctx, string uuid, string ltPubKey, string ip, int battery, string deviceType)
@@ -493,38 +382,33 @@ public static class NotifyRelayCore
 
         public static void SendDataMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
         {
-            var h = StringToPtr(header); var u = StringToPtr(localUuid); var k = StringToPtr(localPubKey); var r = StringToPtr(remoteUuid); var p = StringToPtr(plaintext);
+            var h = StringToPtr(header); var u = StringToPtr(localUuid); var k = StringToPtr(localPubKey);
+            var r = StringToPtr(remoteUuid); var p = StringToPtr(plaintext);
             NotifyRelayCore.nrc_send_data_message(ctx, h, u, k, r, p);
             Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(r); Marshal.FreeHGlobal(p);
         }
 
+        // ======== OneShot TCP ========
+        public static int OneShotSendReceive(IntPtr ctx, string ip, ushort port, string payload, uint timeoutMs = 5000)
+        {
+            var i = StringToPtr(ip); var p = StringToPtr(payload);
+            var result = NotifyRelayCore.nrc_oneshot_send_receive(ctx, i, port, p, timeoutMs);
+            Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(p);
+            return result;
+        }
+
+        public static int OneShotSendOnly(IntPtr ctx, string ip, ushort port, string payload, uint timeoutMs = 5000)
+        {
+            var i = StringToPtr(ip); var p = StringToPtr(payload);
+            var result = NotifyRelayCore.nrc_oneshot_send_only(ctx, i, port, p, timeoutMs);
+            Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(p);
+            return result;
+        }
+
+        // ======== State persistence ========
         public static string? ExportState(IntPtr ctx)
         {
             return PtrToStringAndFree(nrc_export_state(ctx));
-        }
-
-        public static string? FormatHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var n = StringToPtr(nameB64);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_heartbeat(u, n, port, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(n);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatDiscovery(string uuid, string nameB64, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var n = StringToPtr(nameB64);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_discovery(u, n, port, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(n);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
         }
 
         public static int ImportState(IntPtr ctx, string json)
@@ -537,165 +421,18 @@ public static class NotifyRelayCore
 
         public static string? EncryptLocalState(IntPtr ctx, string plaintext, string deviceUuid)
         {
-            var p = StringToPtr(plaintext);
-            var u = StringToPtr(deviceUuid);
+            var p = StringToPtr(plaintext); var u = StringToPtr(deviceUuid);
             var result = nrc_encrypt_local_state(ctx, p, u);
-            Marshal.FreeHGlobal(p);
-            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(u);
             return PtrToStringAndFree(result);
         }
 
         public static string? DecryptLocalState(IntPtr ctx, string encryptedB64, string deviceUuid)
         {
-            var e = StringToPtr(encryptedB64);
-            var u = StringToPtr(deviceUuid);
+            var e = StringToPtr(encryptedB64); var u = StringToPtr(deviceUuid);
             var result = nrc_decrypt_local_state(ctx, e, u);
-            Marshal.FreeHGlobal(e);
-            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(e); Marshal.FreeHGlobal(u);
             return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatTcpHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var n = StringToPtr(nameB64);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_tcp_heartbeat(u, n, port, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(n);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var k = StringToPtr(tmpPubKey);
-            var i = StringToPtr(ip);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_pairing_init(u, k, i, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatPairingResp(string uuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var t = StringToPtr(tmpPub);
-            var l = StringToPtr(ltPub);
-            var e = StringToPtr(encryptedCode);
-            var i = StringToPtr(ip);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_pairing_resp(u, t, l, e, i, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(t);
-            Marshal.FreeHGlobal(l);
-            Marshal.FreeHGlobal(e);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatAccept(string uuid, string ltPubKey, string ip, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var k = StringToPtr(ltPubKey);
-            var i = StringToPtr(ip);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_accept(u, k, i, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? FormatHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid);
-            var k = StringToPtr(pubKey);
-            var i = StringToPtr(ip);
-            var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_format_handshake(u, k, i, battery, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
-        // ======== New safe wrappers ========
-
-        public static int GenerateKeypair(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_ecdh_generate_keypair(ctx);
-        }
-
-        public static string? GetPublicKey(IntPtr ctx)
-        {
-            return PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_public_key(ctx));
-        }
-
-        public static int HasKeypair(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_ecdh_has_keypair(ctx);
-        }
-
-        public static int GenerateEphemeralKeypair(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_ecdh_generate_ephemeral_keypair(ctx);
-        }
-
-        public static string? GetEphemeralPublicKey(IntPtr ctx)
-        {
-            return PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_ephemeral_public_key(ctx));
-        }
-
-        public static int HasEphemeralKeypair(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_ecdh_has_ephemeral_keypair(ctx);
-        }
-
-        public static void ClearEphemeralKeypair(IntPtr ctx)
-        {
-            NotifyRelayCore.nrc_ecdh_clear_ephemeral_keypair(ctx);
-        }
-
-        public static int DerivePairingKey(IntPtr ctx, string peerEphPubB64)
-        {
-            var p = StringToPtr(peerEphPubB64);
-            var result = NotifyRelayCore.nrc_ecdh_derive_pairing_key(ctx, p);
-            Marshal.FreeHGlobal(p);
-            return result;
-        }
-
-        public static string? EncryptPairingCode(IntPtr ctx, string code)
-        {
-            var c = StringToPtr(code);
-            var result = NotifyRelayCore.nrc_ecdh_encrypt_pairing_code(ctx, c);
-            Marshal.FreeHGlobal(c);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? DecryptPairingCode(IntPtr ctx, string encryptedB64)
-        {
-            var e = StringToPtr(encryptedB64);
-            var result = NotifyRelayCore.nrc_ecdh_decrypt_pairing_code(ctx, e);
-            Marshal.FreeHGlobal(e);
-            return PtrToStringAndFree(result);
-        }
-
-        public static int DeriveLongTermKey(IntPtr ctx, string peerUuid, string peerLtPubB64)
-        {
-            var u = StringToPtr(peerUuid);
-            var k = StringToPtr(peerLtPubB64);
-            var result = NotifyRelayCore.nrc_ecdh_derive_long_term_key(ctx, u, k);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(k);
-            return result;
         }
 
         public static string? ExportDeviceKey(IntPtr ctx, string deviceUuid)
@@ -706,11 +443,12 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static string? ExportLocalKeypair(IntPtr ctx)
-        {
-            return PtrToStringAndFree(NotifyRelayCore.nrc_export_local_keypair(ctx));
-        }
+        // ======== Key management wrappers ========
+        public static int GenerateKeypair(IntPtr ctx) => NotifyRelayCore.nrc_ecdh_generate_keypair(ctx);
+        public static string? GetPublicKey(IntPtr ctx) => PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_public_key(ctx));
+        public static int HasKeypair(IntPtr ctx) => NotifyRelayCore.nrc_ecdh_has_keypair(ctx);
 
+        // ======== Process ========
         public static int ProcessLine(IntPtr ctx, string line)
         {
             var l = StringToPtr(line);
@@ -719,107 +457,41 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static void SetUserData(IntPtr ctx, IntPtr userData)
-        {
-            NotifyRelayCore.nrc_set_user_data(ctx, userData);
-        }
+        public static void SetUserData(IntPtr ctx, IntPtr userData) => NotifyRelayCore.nrc_set_user_data(ctx, userData);
 
-        // ======== New safe wrappers ========
-
-        public static int VerifyPairingCode(string storedCode, string inputCode)
+        // ======== Dedup ========
+        public static int DedupCheckAndPend(IntPtr ctx, string dedupKey, long ttlMs)
         {
-            var s = StringToPtr(storedCode);
-            var i = StringToPtr(inputCode);
-            var result = NotifyRelayCore.nrc_verify_pairing_code(s, i);
-            Marshal.FreeHGlobal(s);
-            Marshal.FreeHGlobal(i);
+            var k = StringToPtr(dedupKey);
+            var result = NotifyRelayCore.nrc_dedup_check_and_pend(ctx, k, ttlMs);
+            Marshal.FreeHGlobal(k);
             return result;
         }
 
-        public static string? ComputeDedupKey(string deviceUuid, string data)
+        public static void DedupMarkSent(IntPtr ctx, string dedupKey)
         {
-            var u = StringToPtr(deviceUuid);
-            var d = StringToPtr(data);
-            var result = NotifyRelayCore.nrc_compute_dedup_key(u, d);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
+            var k = StringToPtr(dedupKey);
+            NotifyRelayCore.nrc_dedup_mark_sent(ctx, k);
+            Marshal.FreeHGlobal(k);
         }
 
-        public static int HeartbeatHasTimedOut(long lastHeartbeatSec, long nowSec, long timeoutSec)
+        public static void DedupClearPending(IntPtr ctx, string dedupKey)
         {
-            return NotifyRelayCore.nrc_heartbeat_has_timed_out(lastHeartbeatSec, nowSec, timeoutSec);
+            var k = StringToPtr(dedupKey);
+            NotifyRelayCore.nrc_dedup_clear_pending(ctx, k);
+            Marshal.FreeHGlobal(k);
         }
 
-        public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
-        {
-            var pkg = StringToPtr(superPkg);
-            var param = StringToPtr(paramV2Raw);
-            var t = StringToPtr(title);
-            var tx = StringToPtr(text);
-            var iid = StringToPtr(instanceId);
-            var result = NotifyRelayCore.nrc_compute_feature_id(pkg, param, t, tx, iid);
-            Marshal.FreeHGlobal(pkg);
-            Marshal.FreeHGlobal(param);
-            Marshal.FreeHGlobal(t);
-            Marshal.FreeHGlobal(tx);
-            Marshal.FreeHGlobal(iid);
-            return PtrToStringAndFree(result);
-        }
-
-        public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
-        {
-            var p = StringToPtr(packageName);
-            var t = StringToPtr(title);
-            var tx = StringToPtr(text);
-            var result = NotifyRelayCore.nrc_compute_feature_id_simple(p, t, tx);
-            Marshal.FreeHGlobal(p);
-            Marshal.FreeHGlobal(t);
-            Marshal.FreeHGlobal(tx);
-            return PtrToStringAndFree(result);
-        }
-
-        // ======== Text similarity & dedup ========
-
-        public static double TextSimilarity(string a, string b)
-        {
-            var aPtr = StringToPtr(a);
-            var bPtr = StringToPtr(b);
-            var result = NotifyRelayCore.nrc_text_similarity(aPtr, bPtr);
-            Marshal.FreeHGlobal(aPtr);
-            Marshal.FreeHGlobal(bPtr);
-            return result;
-        }
-
-        public static int ShouldDeduplicate(string newTitle, string newText, string oldTitle, string oldText)
-        {
-            var nt = StringToPtr(newTitle);
-            var ntx = StringToPtr(newText);
-            var ot = StringToPtr(oldTitle);
-            var otx = StringToPtr(oldText);
-            var result = NotifyRelayCore.nrc_should_deduplicate(nt, ntx, ot, otx);
-            Marshal.FreeHGlobal(nt);
-            Marshal.FreeHGlobal(ntx);
-            Marshal.FreeHGlobal(ot);
-            Marshal.FreeHGlobal(otx);
-            return result;
-        }
+        public static void DedupCleanup(IntPtr ctx, long nowMs, long ttlMs)
+            => NotifyRelayCore.nrc_dedup_cleanup(ctx, nowMs, ttlMs);
 
         // ======== Filter ========
-
         public static int SetFilterConfig(IntPtr ctx, string filterMode, string filterListJson, string packageGroupsJson, string groupEnabledJson, string installedPkgsJson)
         {
-            var mode = StringToPtr(filterMode);
-            var list = StringToPtr(filterListJson);
-            var groups = StringToPtr(packageGroupsJson);
-            var enabled = StringToPtr(groupEnabledJson);
-            var installed = StringToPtr(installedPkgsJson);
+            var mode = StringToPtr(filterMode); var list = StringToPtr(filterListJson); var groups = StringToPtr(packageGroupsJson);
+            var enabled = StringToPtr(groupEnabledJson); var installed = StringToPtr(installedPkgsJson);
             var result = NotifyRelayCore.nrc_set_filter_config(ctx, mode, list, groups, enabled, installed);
-            Marshal.FreeHGlobal(mode);
-            Marshal.FreeHGlobal(list);
-            Marshal.FreeHGlobal(groups);
-            Marshal.FreeHGlobal(enabled);
-            Marshal.FreeHGlobal(installed);
+            Marshal.FreeHGlobal(mode); Marshal.FreeHGlobal(list); Marshal.FreeHGlobal(groups); Marshal.FreeHGlobal(enabled); Marshal.FreeHGlobal(installed);
             return result;
         }
 
@@ -833,54 +505,63 @@ public static class NotifyRelayCore
 
         public static int CheckFilterMode(IntPtr ctx, string mappedPkg, string originalPkg, string title, string text)
         {
-            var mp = StringToPtr(mappedPkg);
-            var op = StringToPtr(originalPkg);
-            var t = StringToPtr(title);
-            var tx = StringToPtr(text);
+            var mp = StringToPtr(mappedPkg); var op = StringToPtr(originalPkg); var t = StringToPtr(title); var tx = StringToPtr(text);
             var result = NotifyRelayCore.nrc_check_filter_mode(ctx, mp, op, t, tx);
-            Marshal.FreeHGlobal(mp);
-            Marshal.FreeHGlobal(op);
-            Marshal.FreeHGlobal(t);
-            Marshal.FreeHGlobal(tx);
+            Marshal.FreeHGlobal(mp); Marshal.FreeHGlobal(op); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx);
+            return result;
+        }
+
+        // ======== Utility wrappers ========
+        public static string? ComputeDedupKey(string deviceUuid, string data)
+        {
+            var u = StringToPtr(deviceUuid); var d = StringToPtr(data);
+            var result = NotifyRelayCore.nrc_compute_dedup_key(u, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(d);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
+        {
+            var pkg = StringToPtr(superPkg); var param = StringToPtr(paramV2Raw); var t = StringToPtr(title);
+            var tx = StringToPtr(text); var iid = StringToPtr(instanceId);
+            var result = NotifyRelayCore.nrc_compute_feature_id(pkg, param, t, tx, iid);
+            Marshal.FreeHGlobal(pkg); Marshal.FreeHGlobal(param); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx); Marshal.FreeHGlobal(iid);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
+        {
+            var p = StringToPtr(packageName); var t = StringToPtr(title); var tx = StringToPtr(text);
+            var result = NotifyRelayCore.nrc_compute_feature_id_simple(p, t, tx);
+            Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx);
+            return PtrToStringAndFree(result);
+        }
+
+        public static double TextSimilarity(string a, string b)
+        {
+            var aPtr = StringToPtr(a); var bPtr = StringToPtr(b);
+            var result = NotifyRelayCore.nrc_text_similarity(aPtr, bPtr);
+            Marshal.FreeHGlobal(aPtr); Marshal.FreeHGlobal(bPtr);
+            return result;
+        }
+
+        public static int ShouldDeduplicate(string newTitle, string newText, string oldTitle, string oldText)
+        {
+            var nt = StringToPtr(newTitle); var ntx = StringToPtr(newText); var ot = StringToPtr(oldTitle); var otx = StringToPtr(oldText);
+            var result = NotifyRelayCore.nrc_should_deduplicate(nt, ntx, ot, otx);
+            Marshal.FreeHGlobal(nt); Marshal.FreeHGlobal(ntx); Marshal.FreeHGlobal(ot); Marshal.FreeHGlobal(otx);
             return result;
         }
 
         public static string? FilterNotification(IntPtr ctx, string pkg, string title, string text)
         {
-            var p = StringToPtr(pkg);
-            var t = StringToPtr(title);
-            var tx = StringToPtr(text);
+            var p = StringToPtr(pkg); var t = StringToPtr(title); var tx = StringToPtr(text);
             var result = NotifyRelayCore.nrc_filter_notification(ctx, p, t, tx);
-            Marshal.FreeHGlobal(p);
-            Marshal.FreeHGlobal(t);
-            Marshal.FreeHGlobal(tx);
+            Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx);
             return PtrToStringAndFree(result);
         }
 
-        // ======== OneShot TCP client ========
-
-        public static string? OneShotSendReceive(string ip, ushort port, string payload, uint connectTimeoutMs = 5000, uint readTimeoutMs = 80000)
-        {
-            var i = StringToPtr(ip);
-            var p = StringToPtr(payload);
-            var result = NotifyRelayCore.nrc_oneshot_send_receive(i, port, p, connectTimeoutMs, readTimeoutMs);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(p);
-            return PtrToStringAndFree(result);
-        }
-
-        public static int OneShotSendOnly(string ip, ushort port, string payload, uint connectTimeoutMs = 5000)
-        {
-            var i = StringToPtr(ip);
-            var p = StringToPtr(payload);
-            var result = NotifyRelayCore.nrc_oneshot_send_only(i, port, p, connectTimeoutMs);
-            Marshal.FreeHGlobal(i);
-            Marshal.FreeHGlobal(p);
-            return result;
-        }
-
-        // ======== FTP credential derivation ========
-
+        // ======== FTP ========
         public static string? DeriveFtpCredentials(string sharedSecretB64)
         {
             var s = StringToPtr(sharedSecretB64);
@@ -903,46 +584,16 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static int ParseHeartbeatWithCb(string line, OnHeartbeatWithCb cb, IntPtr userData)
-        {
-            var l = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_parse_heartbeat_with_cb(l, cb, userData);
-            Marshal.FreeHGlobal(l);
-            return result;
-        }
-
-        public static int ParseHeartbeatTcpWithCb(string line, OnHeartbeatTcpWithCb cb, IntPtr userData)
-        {
-            var l = StringToPtr(line);
-            var result = NotifyRelayCore.nrc_parse_heartbeat_tcp_with_cb(l, cb, userData);
-            Marshal.FreeHGlobal(l);
-            return result;
-        }
-
-        public static int HeartbeatTick(IntPtr ctx, long timeoutSec)
-        {
-            return NotifyRelayCore.nrc_heartbeat_tick(ctx, timeoutSec);
-        }
-
-        // ======== Network layer safe wrappers ========
-
-        public static int StartTcpServer(IntPtr ctx, ushort port)
-        {
-            return NotifyRelayCore.nrc_start_tcp_server(ctx, port);
-        }
-
-        public static int StopTcpServer(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_stop_tcp_server(ctx);
-        }
+        // ======== Network wrappers ========
+        public static int StartTcpServer(IntPtr ctx, ushort port) => NotifyRelayCore.nrc_start_tcp_server(ctx, port);
+        public static int StopTcpServer(IntPtr ctx) => NotifyRelayCore.nrc_stop_tcp_server(ctx);
+        public static int RestartUdpListener(IntPtr ctx) => NotifyRelayCore.nrc_restart_udp_listener(ctx);
 
         public static int SendToDevice(IntPtr ctx, string uuid, string message)
         {
-            var u = StringToPtr(uuid);
-            var m = StringToPtr(message);
+            var u = StringToPtr(uuid); var m = StringToPtr(message);
             var result = NotifyRelayCore.nrc_send_to_device(ctx, u, m);
-            Marshal.FreeHGlobal(u);
-            Marshal.FreeHGlobal(m);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(m);
             return result;
         }
 
@@ -954,11 +605,7 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static int GetConnectedDeviceCount(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_get_connected_device_count(ctx);
-        }
-
+        public static int GetConnectedDeviceCount(IntPtr ctx) => NotifyRelayCore.nrc_get_connected_device_count(ctx);
         public static int IsDeviceConnected(IntPtr ctx, string uuid)
         {
             var u = StringToPtr(uuid);

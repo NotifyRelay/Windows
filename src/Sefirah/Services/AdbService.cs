@@ -147,8 +147,12 @@ public class AdbService(
     {
         try
         {
-            // Check if device already exists in collection
-            var existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
+            // Check if device already exists in collection (在UI线程上获取以避免并发修改)
+            AdbDevice? existingDevice = null;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
+            });
             if (existingDevice != null) return;
 
             // get the rudimentary data if it isn't online yet
@@ -194,7 +198,12 @@ public class AdbService(
     private async void DeviceDisconnected(object? sender, DeviceDataEventArgs e)
     {
         logger.LogTrace($"设备已断开：{e.Device.Serial}");
-        var existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
+        // 在UI线程上获取existingDevice，避免集合在枚举时被修改
+        AdbDevice? existingDevice = null;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
+        });
         if (existingDevice != null)
         {
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
@@ -212,8 +221,14 @@ public class AdbService(
     {
 
         logger.LogTrace($"设备状态已更改：{e.Device.Serial} {e.OldState} -> {e.NewState}");
-        var existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
-
+        
+        // 在UI线程上获取existingDevice，避免集合在枚举时被修改
+        AdbDevice? existingDevice = null;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
+        });
+        
         if (e.NewState == DeviceState.Online)
         {
             var deviceInfo = await GetFullDeviceInfoAsync(e.Device);
@@ -538,7 +553,12 @@ public class AdbService(
     {
         logger.LogInformation("正在从设备 {deviceId} 卸载应用 {appPackage}", appPackage, deviceId);
 
-        var adbDevice = AdbDevices.FirstOrDefault(d => d.AndroidId == deviceId);
+        // 在UI线程上查询以避免并发修改
+        AdbDevice? adbDevice = null;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            adbDevice = AdbDevices.FirstOrDefault(d => d.AndroidId == deviceId);
+        });
         if (adbDevice?.DeviceData == null) return;
 
         var deviceData = adbDevice.DeviceData;
@@ -670,7 +690,12 @@ public class AdbService(
                 logger.LogDebug("成功连接到 {Host}", host);
             }
 
-            var usbDevice = AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB && d.IsOnline) ?? AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB);
+            // 在UI线程上查询以避免并发修改
+            AdbDevice? usbDevice = null;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                usbDevice = AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB && d.IsOnline) ?? AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB);
+            });
             if (usbDevice == null) return;
 
             logger.LogDebug("尝试启用 TCP/IP 模式，首选 USB 设备序列: {Serial}", usbDevice.Serial);
@@ -709,18 +734,22 @@ public class AdbService(
         {
             logger.LogInformation("尝试自动重连设备 {DeviceName} ({DeviceId})", device.Name, device.Id);
 
-            // 检查当前设备是否已经有对应的ADB连接
-            var hasConnection = AdbDevices.Any(adbDevice =>
-                adbDevice.IsOnline &&
-                (
-                    (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == device.Id) ||
-                    (string.IsNullOrEmpty(adbDevice.AndroidId) &&
-                        !string.IsNullOrEmpty(adbDevice.Model) &&
-                        !string.IsNullOrEmpty(device.Model) &&
-                        (device.Model.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                         device.Model.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                         adbDevice.Model.Contains(device.Model, StringComparison.OrdinalIgnoreCase)))
-                ));
+            // 检查当前设备是否已经有对应的ADB连接 (在UI线程上执行以避免并发修改)
+            bool hasConnection = false;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                hasConnection = AdbDevices.Any(adbDevice =>
+                    adbDevice.IsOnline &&
+                    (
+                        (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == device.Id) ||
+                        (string.IsNullOrEmpty(adbDevice.AndroidId) &&
+                            !string.IsNullOrEmpty(adbDevice.Model) &&
+                            !string.IsNullOrEmpty(device.Model) &&
+                            (device.Model.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                             device.Model.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                             adbDevice.Model.Contains(device.Model, StringComparison.OrdinalIgnoreCase)))
+                    ));
+            });
 
             if (hasConnection)
             {
@@ -783,7 +812,12 @@ public class AdbService(
 
                     while (DateTime.Now - startTime < maxWaitTime)
                     {
-                        var newDevice = AdbDevices.FirstOrDefault(d => d.Serial == deviceSerial && d.IsOnline);
+                        // 在UI线程上查询以避免并发修改
+                        AdbDevice? newDevice = null;
+                        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+                        {
+                            newDevice = AdbDevices.FirstOrDefault(d => d.Serial == deviceSerial && d.IsOnline);
+                        });
                         if (newDevice != null)
                         {
                             logger.LogDebug("设备 {Serial} 已出现在ADB设备列表中", deviceSerial);

@@ -42,9 +42,9 @@ public interface IDeviceManager
     void RemoveDevice(PairedDevice device);
 
     /// <summary>
-    /// Updates the device in the database.
+    /// 持久化设备变更（名称、IP等）到数据库
     /// </summary>
-    Task UpdateDevice(RemoteDeviceEntity device);
+    void SaveDevice(PairedDevice device);
 
     /// <summary>
     /// Updates the device properties (battery..)

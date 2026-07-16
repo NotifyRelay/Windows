@@ -110,7 +110,7 @@ public class ProtocolSender : IProtocolSender
                 _logger.LogInformation("发送到设备：{deviceName} ({ipAddress})", device.Name, ipAddress);
 
                 var success = await OneShotTcpClient.SendOnlyAsync(
-                    ipAddress, NotifyRelayPort, framedMessage,
+                    NativeCore.Context, ipAddress, NotifyRelayPort, framedMessage,
                     DEFAULT_CONNECT_TIMEOUT, timeoutMs);
 
                 if (success)

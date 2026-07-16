@@ -74,56 +74,6 @@ public static class NativeCore
         return NotifyRelayCore.Safe.EncryptMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
     }
 
-    public static string? DecryptMessage(string encryptedLine)
-    {
-        return NotifyRelayCore.Safe.DecryptMessage(_ctx, encryptedLine);
-    }
-
-    public static string? DecryptPayload(string localUuid, string encryptedB64)
-    {
-        return NotifyRelayCore.Safe.DecryptPayload(_ctx, localUuid, encryptedB64);
-    }
-
-    public static string? FormatHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatHeartbeat(uuid, nameB64, port, battery, deviceType);
-    }
-
-    public static string? FormatDiscovery(string uuid, string nameB64, ushort port, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatDiscovery(uuid, nameB64, port, battery, deviceType);
-    }
-
-    public static string? FormatTcpHeartbeat(string uuid, string nameB64, ushort port, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatTcpHeartbeat(uuid, nameB64, port, battery, deviceType);
-    }
-
-    public static string? FormatPairingInit(string uuid, string tmpPubKey, string ip, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatPairingInit(uuid, tmpPubKey, ip, battery, deviceType);
-    }
-
-    public static string? FormatPairingResp(string uuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatPairingResp(uuid, tmpPub, ltPub, encryptedCode, ip, battery, deviceType);
-    }
-
-    public static string? FormatAccept(string uuid, string ltPubKey, string ip, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatAccept(uuid, ltPubKey, ip, battery, deviceType);
-    }
-
-    public static string? FormatHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
-    {
-        return NotifyRelayCore.Safe.FormatHandshake(uuid, pubKey, ip, battery, deviceType);
-    }
-
-    public static string? DecodeLine(string line)
-    {
-        return NotifyRelayCore.Safe.DecodeLine(_ctx, line);
-    }
-
     // ======== New methods ========
 
     public static int GenerateKeypair()
@@ -141,49 +91,9 @@ public static class NativeCore
         return NotifyRelayCore.Safe.HasKeypair(_ctx);
     }
 
-    public static int GenerateEphemeralKeypair()
-    {
-        return NotifyRelayCore.Safe.GenerateEphemeralKeypair(_ctx);
-    }
-
-    public static string? GetEphemeralPublicKey()
-    {
-        return NotifyRelayCore.Safe.GetEphemeralPublicKey(_ctx);
-    }
-
-    public static int HasEphemeralKeypair()
-    {
-        return NotifyRelayCore.Safe.HasEphemeralKeypair(_ctx);
-    }
-
-    public static void ClearEphemeralKeypair()
-    {
-        NotifyRelayCore.Safe.ClearEphemeralKeypair(_ctx);
-    }
-
     public static int DeriveSharedSecret(string deviceUuid, string peerPubKeyB64)
     {
         return NotifyRelayCore.Safe.DeriveSharedSecret(_ctx, deviceUuid, peerPubKeyB64);
-    }
-
-    public static int DerivePairingKey(string peerEphPubB64)
-    {
-        return NotifyRelayCore.Safe.DerivePairingKey(_ctx, peerEphPubB64);
-    }
-
-    public static string? EncryptPairingCode(string code)
-    {
-        return NotifyRelayCore.Safe.EncryptPairingCode(_ctx, code);
-    }
-
-    public static string? DecryptPairingCode(string encryptedB64)
-    {
-        return NotifyRelayCore.Safe.DecryptPairingCode(_ctx, encryptedB64);
-    }
-
-    public static int DeriveLongTermKey(string peerUuid, string peerLtPubB64)
-    {
-        return NotifyRelayCore.Safe.DeriveLongTermKey(_ctx, peerUuid, peerLtPubB64);
     }
 
     public static string? ExportDeviceKey(string deviceUuid)
@@ -191,19 +101,14 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ExportDeviceKey(_ctx, deviceUuid);
     }
 
-    public static string? ExportLocalKeypair()
-    {
-        return NotifyRelayCore.Safe.ExportLocalKeypair(_ctx);
-    }
-
     public static int ProcessLine(string line)
     {
         return NotifyRelayCore.Safe.ProcessLine(_ctx, line);
     }
 
-    public static int ProcessUdpBroadcast(string line)
+    public static int PeriodicBroadcast(int action, string? uuid = null, string? name = null, int battery = -1, string? deviceType = null)
     {
-        return NotifyRelayCore.Safe.ProcessUdpBroadcast(_ctx, line);
+        return NotifyRelayCore.Safe.PeriodicBroadcast(_ctx, action, uuid, name, battery, deviceType);
     }
 
     public static void SendHandshake(string uuid, string pubKey, string ip, int battery, string deviceType)
@@ -211,9 +116,9 @@ public static class NativeCore
         NotifyRelayCore.Safe.SendHandshake(_ctx, uuid, pubKey, ip, battery, deviceType);
     }
 
-    public static void SendPairingInit(string uuid, string ip, int battery, string deviceType)
+    public static void SendPairingInit(string uuid, string expectedCode, string ip, int battery, string deviceType)
     {
-        NotifyRelayCore.Safe.SendPairingInit(_ctx, uuid, ip, battery, deviceType);
+        NotifyRelayCore.Safe.SendPairingInit(_ctx, uuid, expectedCode, ip, battery, deviceType);
     }
 
     public static void SendPairingResp(string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
@@ -290,24 +195,9 @@ public static class NativeCore
 
     // ======== New function wrappers ========
 
-    public static int VerifyPairingCode(string storedCode, string inputCode)
-    {
-        return NotifyRelayCore.Safe.VerifyPairingCode(storedCode, inputCode);
-    }
-
     public static string? ComputeDedupKey(string deviceUuid, string data)
     {
         return NotifyRelayCore.Safe.ComputeDedupKey(deviceUuid, data);
-    }
-
-    public static bool HeartbeatHasTimedOut(long lastHeartbeatSec, long nowSec, long timeoutSec)
-    {
-        return NotifyRelayCore.Safe.HeartbeatHasTimedOut(lastHeartbeatSec, nowSec, timeoutSec) != 0;
-    }
-
-    public static int HeartbeatTick(long timeoutSec)
-    {
-        return NotifyRelayCore.Safe.HeartbeatTick(_ctx, timeoutSec);
     }
 
     public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
@@ -318,16 +208,6 @@ public static class NativeCore
     public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
     {
         return NotifyRelayCore.Safe.ComputeFeatureIdSimple(packageName, title, text);
-    }
-
-    public static int ParseHeartbeatWithCb(string line, NotifyRelayCore.OnHeartbeatWithCb cb, IntPtr userData)
-    {
-        return NotifyRelayCore.Safe.ParseHeartbeatWithCb(line, cb, userData);
-    }
-
-    public static int ParseHeartbeatTcpWithCb(string line, NotifyRelayCore.OnHeartbeatTcpWithCb cb, IntPtr userData)
-    {
-        return NotifyRelayCore.Safe.ParseHeartbeatTcpWithCb(line, cb, userData);
     }
 
     public static string? ExportState()
@@ -514,40 +394,35 @@ public static class NativeCore
 
         // ---- on_heartbeat_udp ----
         {
-            NotifyRelayCore.OnHeartbeatUdpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, userData) =>
+            NotifyRelayCore.OnHeartbeatUdpCb cb = (uuidPtr, namePtr, port, battery, deviceTypePtr, userData) =>
             {
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
+                var name = Marshal.PtrToStringUTF8(namePtr);
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null) return;
                 var hp = HeartbeatProcessor;
                 if (hp == null) return;
-                hp.HandleUdpHeartbeat(uuid, nameB64, port, battery, deviceType);
+                hp.HandleUdpHeartbeat(uuid, name, port, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
         // ---- on_heartbeat_tcp ----
         {
-            NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, nameB64Ptr, port, battery, deviceTypePtr, ipPtr, userData) =>
+            NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, namePtr, port, battery, deviceTypePtr, ipPtr, userData) =>
             {
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var nameB64 = Marshal.PtrToStringUTF8(nameB64Ptr);
+                var name = Marshal.PtrToStringUTF8(namePtr);
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
                 if (uuid == null) return;
                 var device = DeviceManager?.FindDeviceById(uuid);
                 if (device != null)
                 {
                     device.LastHeartbeat = DateTime.UtcNow;
-                    if (!string.IsNullOrEmpty(nameB64))
+                    if (!string.IsNullOrEmpty(name))
                     {
-                        try
-                        {
-                            var name = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(nameB64));
-                            if (!string.IsNullOrEmpty(name) && name != "unknown")
-                                device.Name = name;
-                        }
-                        catch { }
+                        device.Name = name;
+                        DeviceManager?.SaveDevice(device);
                     }
                 }
             };
