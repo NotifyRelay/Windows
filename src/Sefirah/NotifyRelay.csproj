@@ -122,9 +122,15 @@
             <RustTargetDir>$([MSBuild]::NormalizeDirectory('$(RustProjectDir)build\target\release'))</RustTargetDir>
             <RustDllPath>$([MSBuild]::NormalizePath('$(RustTargetDir)notify_relay_core.dll'))</RustDllPath>
         </PropertyGroup>
+        <ItemGroup>
+            <RustSourceFiles Include="$(RustProjectDir)src\**\*.rs" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.toml" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.lock" />
+        </ItemGroup>
         <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
         <Exec Command="cargo build --release" WorkingDirectory="$(RustProjectDir)" ConsoleToMSBuild="true" />
         <Message Text="复制 DLL 到输出目录: $(RustDllPath) -> $(OutDir)" Importance="high" />
-        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
     </Target>
 </Project>

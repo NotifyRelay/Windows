@@ -180,9 +180,6 @@ public static class NotifyRelayCore
     public delegate void OnLogCb(int level, IntPtr message);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnSendCb(IntPtr line, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
 
     // ======== Callback setters ========
@@ -227,10 +224,6 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_unknown_data_cb(IntPtr ctx, OnDataCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_send_cb(IntPtr ctx, OnSendCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_send_udp_cb(IntPtr ctx, OnSendCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
 
     // ======== Heartbeat tick & device timeout ========
@@ -241,6 +234,47 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
 
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
+
+    // ======== Network layer ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_start_tcp_server(IntPtr ctx, ushort port);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_stop_tcp_server(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_send_to_device(IntPtr ctx, IntPtr uuid, IntPtr message);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_broadcast_message(IntPtr ctx, IntPtr message);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_get_connected_device_count(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_is_device_connected(IntPtr ctx, IntPtr uuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
+
+    // ======== Network callbacks ========
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDeviceConnectedCb(IntPtr uuid, IntPtr ip, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDeviceDisconnectedCb(IntPtr uuid, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnTcpErrorCb(IntPtr error, IntPtr userData);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_device_connected_cb(IntPtr ctx, OnDeviceConnectedCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_device_disconnected_cb(IntPtr ctx, OnDeviceDisconnectedCb cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_tcp_error_cb(IntPtr ctx, OnTcpErrorCb cb);
 
     // ======== New: verify_pairing_code, compute_dedup_key, heartbeat_timeout, feature_id ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -710,5 +744,55 @@ public static class NotifyRelayCore
             return NotifyRelayCore.nrc_heartbeat_tick(ctx, timeoutSec);
         }
 
+        // ======== Network layer safe wrappers ========
+
+        public static int StartTcpServer(IntPtr ctx, ushort port)
+        {
+            return NotifyRelayCore.nrc_start_tcp_server(ctx, port);
+        }
+
+        public static int StopTcpServer(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_stop_tcp_server(ctx);
+        }
+
+        public static int SendToDevice(IntPtr ctx, string uuid, string message)
+        {
+            var u = StringToPtr(uuid);
+            var m = StringToPtr(message);
+            var result = NotifyRelayCore.nrc_send_to_device(ctx, u, m);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(m);
+            return result;
+        }
+
+        public static int BroadcastMessage(IntPtr ctx, string message)
+        {
+            var m = StringToPtr(message);
+            var result = NotifyRelayCore.nrc_broadcast_message(ctx, m);
+            Marshal.FreeHGlobal(m);
+            return result;
+        }
+
+        public static int GetConnectedDeviceCount(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_get_connected_device_count(ctx);
+        }
+
+        public static int IsDeviceConnected(IntPtr ctx, string uuid)
+        {
+            var u = StringToPtr(uuid);
+            var result = NotifyRelayCore.nrc_is_device_connected(ctx, u);
+            Marshal.FreeHGlobal(u);
+            return result;
+        }
+
+        public static int RemoveDeviceSession(IntPtr ctx, string uuid)
+        {
+            var u = StringToPtr(uuid);
+            var result = NotifyRelayCore.nrc_remove_device_session(ctx, u);
+            Marshal.FreeHGlobal(u);
+            return result;
+        }
     }
 }

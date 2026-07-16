@@ -292,16 +292,14 @@ public static class AppLifecycleHelper
                 .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
 #endif
                 .AddSingleton<ProtocolRouter>()
-                .AddSingleton<ServerLineRouter>()
                 .AddSingleton<HeartbeatProcessor>()
 
                 // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
                 .AddSingleton<INetworkService, NetworkService>()
                 .AddSingleton<Func<INetworkService>>(sp => () => sp.GetRequiredService<INetworkService>())
 
-                // 5. 注册ISessionManager和ITcpServerProvider，它们由INetworkService实现
+                // 5. 注册ISessionManager，由INetworkService实现
                 .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
-                .AddSingleton<ITcpServerProvider>(sp => (ITcpServerProvider)sp.GetRequiredService<INetworkService>())
 
                 // 6. 注册INotificationService，它依赖ISessionManager
                 .AddSingleton<INotificationService, NotificationService>()

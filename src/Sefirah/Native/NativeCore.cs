@@ -19,9 +19,6 @@ public static class NativeCore
     internal static NetworkService? NetworkService { get; set; }
     internal static HeartbeatProcessor? HeartbeatProcessor { get; set; }
 
-    /// <summary>供非 DATA 回调获取当前 TCP 会话上下文</summary>
-    internal static AsyncLocal<ServerSession?> CurrentSession { get; } = new();
-
     // 保持回调委托不被 GC 回收
     private static readonly List<Delegate> _callbackRefs = new();
 
@@ -254,6 +251,43 @@ public static class NativeCore
         NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
     }
 
+    // ======== Network layer wrappers ========
+
+    public static int StartTcpServer(ushort port)
+    {
+        return NotifyRelayCore.Safe.StartTcpServer(_ctx, port);
+    }
+
+    public static int StopTcpServer()
+    {
+        return NotifyRelayCore.Safe.StopTcpServer(_ctx);
+    }
+
+    public static int SendToDevice(string uuid, string message)
+    {
+        return NotifyRelayCore.Safe.SendToDevice(_ctx, uuid, message);
+    }
+
+    public static int BroadcastMessage(string message)
+    {
+        return NotifyRelayCore.Safe.BroadcastMessage(_ctx, message);
+    }
+
+    public static int GetConnectedDeviceCount()
+    {
+        return NotifyRelayCore.Safe.GetConnectedDeviceCount(_ctx);
+    }
+
+    public static int IsDeviceConnected(string uuid)
+    {
+        return NotifyRelayCore.Safe.IsDeviceConnected(_ctx, uuid);
+    }
+
+    public static int RemoveDeviceSession(string uuid)
+    {
+        return NotifyRelayCore.Safe.RemoveDeviceSession(_ctx, uuid);
+    }
+
     // ======== New function wrappers ========
 
     public static int VerifyPairingCode(string storedCode, string inputCode)
@@ -395,8 +429,6 @@ public static class NativeCore
         {
             NotifyRelayCore.OnHandshakeCb cb = (uuidPtr, pubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var pubKey = Marshal.PtrToStringUTF8(pubKeyPtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
@@ -404,7 +436,7 @@ public static class NativeCore
                 if (uuid == null || pubKey == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                _ = ns.HandleHandshakeAsync(session, uuid, pubKey, ip, battery, deviceType);
+                _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_handshake_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -414,8 +446,6 @@ public static class NativeCore
             NotifyRelayCore.OnPairingInitCb cb = (uuidPtr, tmpPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
                 System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init 进入");
-                var session = CurrentSession.Value;
-                if (session == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: session=null"); return; }
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var tmpPubKey = Marshal.PtrToStringUTF8(tmpPubKeyPtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
@@ -425,7 +455,7 @@ public static class NativeCore
                 var ns = NetworkService;
                 if (ns == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: NetworkService=null"); return; }
                 System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: 调用 HandlePairingInitAsync");
-                _ = ns.HandlePairingInitAsync(session, uuid, tmpPubKey, ip, battery, deviceType);
+                _ = ns.HandlePairingInitAsync(uuid, tmpPubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_init_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -434,8 +464,6 @@ public static class NativeCore
         {
             NotifyRelayCore.OnPairingRespCb cb = (uuidPtr, tmpPubPtr, ltPubPtr, encryptedCodePtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var tmpPub = Marshal.PtrToStringUTF8(tmpPubPtr);
                 var ltPub = Marshal.PtrToStringUTF8(ltPubPtr);
@@ -445,7 +473,7 @@ public static class NativeCore
                 if (uuid == null || tmpPub == null || ltPub == null || encCode == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                _ = ns.HandlePairingRespAsync(session, uuid, tmpPub, ltPub, encCode, ip, battery, deviceType);
+                _ = ns.HandlePairingRespAsync(uuid, tmpPub, ltPub, encCode, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_resp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -454,8 +482,6 @@ public static class NativeCore
         {
             NotifyRelayCore.OnAcceptCb cb = (uuidPtr, ltPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 var ltPubKey = Marshal.PtrToStringUTF8(ltPubKeyPtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
@@ -463,7 +489,7 @@ public static class NativeCore
                 if (uuid == null || ltPubKey == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                _ = ns.HandlePairingAcceptAsync(session, uuid, ltPubKey, ip, battery, deviceType);
+                _ = ns.HandlePairingAcceptAsync(uuid, ltPubKey, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_accept_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -472,13 +498,11 @@ public static class NativeCore
         {
             NotifyRelayCore.OnRejectCb cb = (uuidPtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
                 if (uuid == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                _ = ns.HandleRejectAsync(session, uuid);
+                _ = ns.HandleRejectAsync(uuid);
             };
             NotifyRelayCore.nrc_set_on_reject_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
@@ -533,60 +557,43 @@ public static class NativeCore
             NotifyRelayCore.nrc_set_on_device_timeout_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
-        // ---- on_send (统一发送回调：写入当前 TCP 会话) ----
+        // ---- on_device_connected ----
         {
-            NotifyRelayCore.OnSendCb cb = (linePtr, userData) =>
+            NotifyRelayCore.OnDeviceConnectedCb cb = (uuidPtr, ipPtr, userData) =>
             {
-                var session = CurrentSession.Value;
-                if (session == null) return;
-                var line = Marshal.PtrToStringUTF8(linePtr);
-                if (line == null) return;
-                try
-                {
-                    var data = System.Text.Encoding.UTF8.GetBytes(line + "\n");
-                    session.Send(data, 0, data.Length);
-                }
-                catch { }
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+                if (uuid == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                // 设备连接事件由 Rust 内核处理，平台端只需记录日志
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_connected: uuid={uuid}, ip={ip}");
             };
-            NotifyRelayCore.nrc_set_on_send_cb(_ctx, cb); _callbackRefs.Add(cb);
+            NotifyRelayCore.nrc_set_on_device_connected_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
-        // ---- on_send_udp (统一 UDP 发送回调，支持多子网广播) ----
+        // ---- on_device_disconnected ----
         {
-            NotifyRelayCore.OnSendCb cb = (linePtr, userData) =>
+            NotifyRelayCore.OnDeviceDisconnectedCb cb = (uuidPtr, userData) =>
             {
-                var line = Marshal.PtrToStringUTF8(linePtr);
-                if (line == null) return;
-                try
-                {
-                    var data = System.Text.Encoding.UTF8.GetBytes(line);
-                    using var client = new System.Net.Sockets.UdpClient();
-                    client.EnableBroadcast = true;
-                    const int udpPort = 23334;
-
-                    foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
-                    {
-                        if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
-                        var ipProps = ni.GetIPProperties();
-                        foreach (var ua in ipProps.UnicastAddresses)
-                        {
-                            if (ua.Address.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
-                            if (System.Net.IPAddress.IsLoopback(ua.Address)) continue;
-                            var mask = ua.IPv4Mask;
-                            if (mask == null) continue;
-                            var ipBytes = ua.Address.GetAddressBytes();
-                            var maskBytes = mask.GetAddressBytes();
-                            var bcast = new byte[4];
-                            for (int i = 0; i < 4; i++) bcast[i] = (byte)(ipBytes[i] | (byte)~maskBytes[i]);
-                            var ep = new System.Net.IPEndPoint(new System.Net.IPAddress(bcast), udpPort);
-                            try { client.Send(data, data.Length, ep); } catch { }
-                        }
-                    }
-                    try { client.Send(data, data.Length, new System.Net.IPEndPoint(System.Net.IPAddress.Broadcast, udpPort)); } catch { }
-                }
-                catch { }
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                if (uuid == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                // 设备断开事件由 Rust 内核处理，平台端只需记录日志
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_disconnected: uuid={uuid}");
             };
-            NotifyRelayCore.nrc_set_on_send_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
+            NotifyRelayCore.nrc_set_on_device_disconnected_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_tcp_error ----
+        {
+            NotifyRelayCore.OnTcpErrorCb cb = (errorPtr, userData) =>
+            {
+                var error = Marshal.PtrToStringUTF8(errorPtr) ?? "unknown";
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_tcp_error: {error}");
+            };
+            NotifyRelayCore.nrc_set_on_tcp_error_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
     }
 
