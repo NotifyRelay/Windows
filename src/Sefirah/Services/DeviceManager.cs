@@ -68,11 +68,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         return await tcs.Task;
     }
 
-    public Task<RemoteDeviceEntity> GetDeviceInfoAsync(string deviceId)
-    {
-        throw new NotImplementedException();
-    }
-
     public List<string> GetRemoteDeviceIpAddresses()
     {
         return repository.GetRemoteDeviceIpAddresses();

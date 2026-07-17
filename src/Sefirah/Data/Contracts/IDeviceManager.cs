@@ -27,11 +27,6 @@ public interface IDeviceManager
     Task<PairedDevice> UpdateOrAddDeviceAsync(PairedDevice device, Action<PairedDevice>? updateAction = null);
 
     /// <summary>
-    /// Gets the device info.
-    /// </summary>
-    Task<RemoteDeviceEntity> GetDeviceInfoAsync(string deviceId);
-
-    /// <summary>
     /// Gets the last connected device.
     /// </summary>
     Task<PairedDevice?> GetLastConnectedDevice();

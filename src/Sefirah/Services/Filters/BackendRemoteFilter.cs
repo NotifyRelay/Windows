@@ -98,7 +98,7 @@ public class BackendRemoteFilter
     /// </summary>
     public string MapToLocalPackage(string pkg)
     {
-        var result = NotifyRelayCore.Safe.MapLocalPackage(IntPtr.Zero, pkg);
+        var result = NotifyRelayCore.Safe.MapLocalPackage(NativeCore.Context, pkg);
         return result ?? pkg;
     }
 
@@ -107,7 +107,7 @@ public class BackendRemoteFilter
     /// </summary>
     private bool CheckFilterMode(string mappedPkg, string originalPkg, string title, string text)
     {
-        var result = NotifyRelayCore.Safe.CheckFilterMode(IntPtr.Zero, mappedPkg, originalPkg, title, text);
+        var result = NotifyRelayCore.Safe.CheckFilterMode(NativeCore.Context, mappedPkg, originalPkg, title, text);
         return result != 0;
     }
 

@@ -12,6 +12,7 @@ public static class NativeCore
 {
     private static IntPtr _ctx = IntPtr.Zero;
     private static bool _initialized = false;
+    private static string? _gitHash;
 
     // 回调分发目标
     internal static ProtocolRouter? ProtocolRouter { get; set; }
@@ -48,6 +49,7 @@ public static class NativeCore
         }
 
         _ctx = NotifyRelayCore.nrc_init();
+        _gitHash = GetGitHash();
     }
 
     public static void Destroy()
@@ -57,6 +59,15 @@ public static class NativeCore
             NotifyRelayCore.nrc_destroy(_ctx);
             _ctx = IntPtr.Zero;
         }
+    }
+
+    public static string? GetGitHash()
+    {
+        var ptr = NotifyRelayCore.nrc_get_git_hash();
+        if (ptr == IntPtr.Zero) return null;
+        var result = Marshal.PtrToStringAnsi(ptr);
+        NotifyRelayCore.nrc_free_string(ptr);
+        return result;
     }
 
     public static int MigrateSharedSecret(string deviceUuid, byte[] aesKey)
@@ -242,6 +253,11 @@ public static class NativeCore
 
     public static void SetLogCallback(ILogger logger)
     {
+        if (_gitHash != null)
+        {
+            logger.LogInformation("NotifyRelay Core loaded (git: {GitHash})", _gitHash);
+            _gitHash = null;
+        }
         NotifyRelayCore.OnLogCb cb = (level, messagePtr) =>
         {
             var msg = Marshal.PtrToStringUTF8(messagePtr);
@@ -492,7 +508,6 @@ public static class NativeCore
     private static long _heartbeatHandle;
     private static long _offlineDetectorHandle;
     private static long _senderQueueHandle;
-    private static long _reconnectStateHandle;
 
     public static long StartHeartbeatSender(string uuid, string name, int battery, string deviceType, string ip, ulong intervalMs = 4000, int mode = 0)
     {

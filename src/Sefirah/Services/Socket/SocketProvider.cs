@@ -69,26 +69,4 @@ public partial class Client(string address, int port, ITcpClientProvider socketP
 }
 
 
-public partial class MulticastClient(string address, int port, IUdpClientProvider socketProvider, ILogger logger) : UdpClient(address, port)
-{
 
-    protected override void OnConnected()
-    {
-        ReceiveAsync();
-    }
-
-    protected override void OnDisconnected()
-    {
-        socketProvider.OnDisconnected();
-    }
-
-    protected override void OnReceived(EndPoint endpoint, byte[] buffer, long offset, long size)
-    {
-        socketProvider.OnReceived(endpoint, buffer, offset, size);
-        ReceiveAsync();
-    }
-    protected override void OnError(SocketError error)
-    {
-        logger.LogError("会话 {Id} 遇到错误：{error}", Id, error);
-    }
-}

@@ -14,6 +14,9 @@ public static class NotifyRelayCore
     public static extern void nrc_destroy(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_get_git_hash();
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_ecdh_generate_keypair(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -182,22 +185,6 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_known_device_scanner(IntPtr ctx);
 
-    // ======== Reconnect ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_create_reconnect_state(IntPtr ctx);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_reconnect_add_target(IntPtr ctx, long statePtr, IntPtr uuid, IntPtr ip);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_reconnect_remove_target(IntPtr ctx, long statePtr, IntPtr uuid);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_reconnect_start(IntPtr ctx, long statePtr, ulong intervalSecs, uint maxRetries);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_reconnect_stop(IntPtr ctx, long statePtr);
-
     // ======== Callback delegate types ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
@@ -228,9 +215,6 @@ public static class NotifyRelayCore
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnPairingResultCb(IntPtr uuid, int success, IntPtr errorMsg, IntPtr userData);
 
     // ======== Callback setters ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -277,9 +261,6 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_pairing_result_cb(IntPtr ctx, OnPairingResultCb cb);
-
     // ======== Dedup ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_dedup_check_and_pend(IntPtr ctx, IntPtr dedupKey, long ttlMs);
@@ -292,13 +273,13 @@ public static class NotifyRelayCore
 
     // ======== Filter ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr filterMode, IntPtr filterListJson, IntPtr packageGroupsJson, IntPtr groupEnabledJson, IntPtr installedPkgsJson);
+    public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr configJson);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_map_local_package(IntPtr ctx, IntPtr pkg);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_check_filter_mode(IntPtr ctx, IntPtr mappedPkg, IntPtr originalPkg, IntPtr title, IntPtr text);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
+    public static extern int nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
 
     // ======== Other utilities ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -563,12 +544,11 @@ public static class NotifyRelayCore
             => NotifyRelayCore.nrc_dedup_cleanup(ctx, nowMs, ttlMs);
 
         // ======== Filter ========
-        public static int SetFilterConfig(IntPtr ctx, string filterMode, string filterListJson, string packageGroupsJson, string groupEnabledJson, string installedPkgsJson)
+        public static int SetFilterConfig(IntPtr ctx, string configJson)
         {
-            var mode = StringToPtr(filterMode); var list = StringToPtr(filterListJson); var groups = StringToPtr(packageGroupsJson);
-            var enabled = StringToPtr(groupEnabledJson); var installed = StringToPtr(installedPkgsJson);
-            var result = NotifyRelayCore.nrc_set_filter_config(ctx, mode, list, groups, enabled, installed);
-            Marshal.FreeHGlobal(mode); Marshal.FreeHGlobal(list); Marshal.FreeHGlobal(groups); Marshal.FreeHGlobal(enabled); Marshal.FreeHGlobal(installed);
+            var json = StringToPtr(configJson);
+            var result = NotifyRelayCore.nrc_set_filter_config(ctx, json);
+            Marshal.FreeHGlobal(json);
             return result;
         }
 
@@ -630,12 +610,12 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static string? FilterNotification(IntPtr ctx, string pkg, string title, string text)
+        public static bool FilterNotification(IntPtr ctx, string pkg, string title, string text)
         {
             var p = StringToPtr(pkg); var t = StringToPtr(title); var tx = StringToPtr(text);
             var result = NotifyRelayCore.nrc_filter_notification(ctx, p, t, tx);
             Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx);
-            return PtrToStringAndFree(result);
+            return result != 0;
         }
 
         // ======== FTP ========

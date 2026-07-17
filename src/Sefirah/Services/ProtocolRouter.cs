@@ -144,10 +144,16 @@ public class ProtocolRouter
         => HandleStatusMessageAsync(device, plaintext);
 
     public Task OnDataAppListRequestAsync(PairedDevice device, string plaintext)
-        => HandleAppListRequestAsync(device, plaintext);
+    {
+        logger.LogDebug("收到应用列表请求，暂时不处理");
+        return Task.CompletedTask;
+    }
 
     public Task OnDataIconRequestAsync(PairedDevice device, string plaintext)
-        => HandleIconRequestAsync(device, plaintext);
+    {
+        logger.LogDebug("收到图标请求，暂时不处理");
+        return Task.CompletedTask;
+    }
 
     public Task OnDataSuperIslandAsync(PairedDevice device, string plaintext)
         => HandleSuperIslandAsync(device, plaintext);
@@ -161,38 +167,6 @@ public class ProtocolRouter
             MediaMessageReceiveMode.AudioOnly => screenMirrorService.IsAudioOnlyRunning(device.Id),
             _ => true
         };
-    }
-
-    /// <summary>
-    /// 处理应用列表请求
-    /// </summary>
-    private async Task HandleAppListRequestAsync(PairedDevice device, string decryptedPayload)
-    {
-        try
-        {
-            // 应用列表请求暂时不处理，直接返回
-            logger.LogDebug("收到应用列表请求，暂时不处理");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理应用列表请求时出错");
-        }
-    }
-
-    /// <summary>
-    /// 处理图标请求
-    /// </summary>
-    private async Task HandleIconRequestAsync(PairedDevice device, string decryptedPayload)
-    {
-        try
-        {
-            // 图标请求暂时不处理，直接返回
-            logger.LogDebug("收到图标请求，暂时不处理");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理图标请求时出错");
-        }
     }
 
     /// <summary>
@@ -220,12 +194,10 @@ public class ProtocolRouter
                 switch (originalHeader)
                 {
                     case "DATA_MEDIA_CONTROL":
-                        // 处理媒体控制响应
-                        await HandleMediaControlResponseAsync(device, root, result, errorMessage, action);
+                        logger.LogDebug("媒体控制状态响应: action={action}, result={result}", action, result);
                         break;
                     case "DATA_FTP":
-                        // 处理FTP响应
-                        HandleFtpResponse(device, root, result, errorMessage, action);
+                        logger.LogDebug("FTP状态响应: action={action}, result={result}", action, result);
                         break;
                     default:
                         // 处理其他类型的状态响应
@@ -364,61 +336,5 @@ public class ProtocolRouter
         return pics.Count > 0 ? pics : null;
     }
 
-    /// <summary>
-    /// 处理媒体控制响应
-    /// </summary>
-    private async Task HandleMediaControlResponseAsync(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
-    {
-        try
-        {
-            logger.LogDebug("处理媒体控制响应: action={action}, result={result}", action, result);
-
-            // 这里可以添加媒体控制响应的处理逻辑
-            // 例如：更新媒体控制状态、显示提示信息等
-
-            if (!string.IsNullOrEmpty(errorMessage))
-            {
-                logger.LogWarning("媒体控制响应错误: {errorMessage}", errorMessage);
-                // 可以添加错误处理逻辑
-            }
-            else if (result == "success")
-            {
-                logger.LogDebug("媒体控制操作成功: {action}", action);
-                // 可以添加成功处理逻辑
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理媒体控制响应时出错");
-        }
-    }
-
-    /// <summary>
-    /// 处理FTP响应
-    /// </summary>
-    private void HandleFtpResponse(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
-    {
-        try
-        {
-            logger.LogDebug("处理FTP响应: action={action}, result={result}", action, result);
-
-            // 这里可以添加FTP响应的处理逻辑
-            // 例如：更新FTP状态、显示提示信息等
-
-            if (!string.IsNullOrEmpty(errorMessage))
-            {
-                logger.LogWarning("FTP响应错误: {errorMessage}", errorMessage);
-                // 可以添加错误处理逻辑
-            }
-            else if (result == "success")
-            {
-                logger.LogDebug("FTP操作成功: {action}", action);
-                // 可以添加成功处理逻辑
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理FTP响应时出错");
-        }
-    }
 }
+
