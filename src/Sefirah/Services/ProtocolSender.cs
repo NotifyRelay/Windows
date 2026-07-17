@@ -78,16 +78,9 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
-            if (device.IpAddresses == null || device.IpAddresses.Count == 0)
-            {
-                _logger.LogWarning("设备 {deviceName} 没有可用的IP地址", device.Name);
-                return;
-            }
-
-            // 使用 Rust core 发送队列加密发送（自动排队、限流、重试）
-            var ip = device.IpAddresses[0];
+            // 使用 Rust core 发送队列加密发送（IP 由 Rust 内部管理）
             var dedupKey = NativeCore.ComputeDedupKey(device.Id, plaintext);
-            NativeCore.EnqueueMessage(device.Id, ip, header, plaintext, dedupKey);
+            NativeCore.EnqueueMessage(device.Id, header, plaintext, dedupKey);
 
             _logger.LogDebug("消息已入发送队列：header={header}, deviceId={deviceId}", header, device.Id);
         }

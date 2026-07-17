@@ -146,7 +146,7 @@ public static class NotifyRelayCore
     public static extern void nrc_start_sender_queue(IntPtr ctx, long queuePtr);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_enqueue_message(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr deviceIp, IntPtr header, IntPtr plaintext, IntPtr dedupKey);
+    public static extern void nrc_enqueue_message(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr header, IntPtr plaintext, IntPtr dedupKey);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_sender_queue(IntPtr ctx, long queuePtr);
@@ -732,13 +732,13 @@ public static class NotifyRelayCore
             NotifyRelayCore.nrc_start_sender_queue(ctx, queuePtr);
         }
 
-        public static void EnqueueMessage(IntPtr ctx, long queuePtr, string deviceUuid, string deviceIp, string header, string plaintext, string? dedupKey)
+        public static void EnqueueMessage(IntPtr ctx, long queuePtr, string deviceUuid, string header, string plaintext, string? dedupKey)
         {
-            var u = StringToPtr(deviceUuid); var i = StringToPtr(deviceIp);
+            var u = StringToPtr(deviceUuid);
             var h = StringToPtr(header); var p = StringToPtr(plaintext);
             var d = StringToPtr(dedupKey);
-            NotifyRelayCore.nrc_enqueue_message(ctx, queuePtr, u, i, h, p, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(p);
+            NotifyRelayCore.nrc_enqueue_message(ctx, queuePtr, u, h, p, d);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(h); Marshal.FreeHGlobal(p);
             if (d != IntPtr.Zero) Marshal.FreeHGlobal(d);
         }
 

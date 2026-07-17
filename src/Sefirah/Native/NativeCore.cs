@@ -530,9 +530,9 @@ public static class NativeCore
         NotifyRelayCore.Safe.StartSenderQueue(_ctx, _senderQueueHandle);
     }
 
-    public static void EnqueueMessage(string deviceUuid, string deviceIp, string header, string plaintext, string? dedupKey = null)
+    public static void EnqueueMessage(string deviceUuid, string header, string plaintext, string? dedupKey = null)
     {
-        NotifyRelayCore.Safe.EnqueueMessage(_ctx, _senderQueueHandle, deviceUuid, deviceIp, header, plaintext, dedupKey);
+        NotifyRelayCore.Safe.EnqueueMessage(_ctx, _senderQueueHandle, deviceUuid, header, plaintext, dedupKey);
     }
 
     public static void StopSenderQueue()
