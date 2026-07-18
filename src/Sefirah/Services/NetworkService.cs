@@ -333,6 +333,29 @@ public class NetworkService(
         await Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 处理配对结果回调（由 Rust on_pairing_result 回调调用，统一配对成功/失败通知）
+    /// </summary>
+    public async Task HandlePairingResultAsync(string remoteUuid, int success, string errorMsg)
+    {
+        try
+        {
+            if (success == 1)
+            {
+                logger.Info($"配对成功: {remoteUuid}");
+            }
+            else
+            {
+                logger.Warn($"配对失败: {remoteUuid}, error={errorMsg}");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理配对结果异常");
+        }
+        await Task.CompletedTask;
+    }
+
     private void DelayedRequestAppList(string deviceId)
     {
         Task.Run(async () =>

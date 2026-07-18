@@ -80,6 +80,16 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_reject(IntPtr ctx, IntPtr uuid);
 
+    // ======== Pairing code management (Rust-generated) ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_generate_pairing_code(IntPtr ctx, uint ttlSecs);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_clear_pairing_code(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_validate_pairing_code(IntPtr ctx, IntPtr code);
+
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_heartbeat_tcp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
 
@@ -216,6 +226,9 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
 
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnPairingResultCb(IntPtr uuid, int success, IntPtr errorMsg, IntPtr userData);
+
     // ======== Callback setters ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_log_callback(IntPtr cb);
@@ -261,6 +274,8 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_pairing_result_cb(IntPtr ctx, OnPairingResultCb cb);
     // ======== Dedup ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_dedup_check_and_pend(IntPtr ctx, IntPtr dedupKey, long ttlMs);
@@ -415,6 +430,25 @@ public static class NotifyRelayCore
             var u = StringToPtr(uuid);
             NotifyRelayCore.nrc_send_reject(ctx, u);
             Marshal.FreeHGlobal(u);
+        }
+
+        // ======== Pairing code management (Rust-generated) ========
+        public static string? GeneratePairingCode(IntPtr ctx, uint ttlSecs = 300)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_generate_pairing_code(ctx, ttlSecs));
+        }
+
+        public static void ClearPairingCode(IntPtr ctx)
+        {
+            NotifyRelayCore.nrc_clear_pairing_code(ctx);
+        }
+
+        public static int ValidatePairingCode(IntPtr ctx, string code)
+        {
+            var c = StringToPtr(code);
+            var result = NotifyRelayCore.nrc_validate_pairing_code(ctx, c);
+            Marshal.FreeHGlobal(c);
+            return result;
         }
 
         public static void SendHeartbeatTcp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)

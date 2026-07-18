@@ -147,6 +147,22 @@ public static class NativeCore
         NotifyRelayCore.Safe.SendReject(_ctx, uuid);
     }
 
+    // ======== Pairing code management (Rust-generated) ========
+    public static string? GeneratePairingCode(uint ttlSecs = 300)
+    {
+        return NotifyRelayCore.Safe.GeneratePairingCode(_ctx, ttlSecs);
+    }
+
+    public static void ClearPairingCode()
+    {
+        NotifyRelayCore.Safe.ClearPairingCode(_ctx);
+    }
+
+    public static int ValidatePairingCode(string code)
+    {
+        return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
+    }
+
     public static void SendHeartbeatTcp(string uuid, string name, ushort port, int battery, string deviceType)
     {
         NotifyRelayCore.Safe.SendHeartbeatTcp(_ctx, uuid, name, port, battery, deviceType);
@@ -406,6 +422,20 @@ public static class NativeCore
                 _ = ns.HandleRejectAsync(uuid);
             };
             NotifyRelayCore.nrc_set_on_reject_cb(_ctx, cb); _callbackRefs.Add(cb);
+        }
+
+        // ---- on_pairing_result ----
+        {
+            NotifyRelayCore.OnPairingResultCb cb = (uuidPtr, success, errorMsgPtr, userData) =>
+            {
+                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+                var errorMsg = Marshal.PtrToStringUTF8(errorMsgPtr) ?? "";
+                if (uuid == null) return;
+                var ns = NetworkService;
+                if (ns == null) return;
+                _ = ns.HandlePairingResultAsync(uuid, success, errorMsg);
+            };
+            NotifyRelayCore.nrc_set_on_pairing_result_cb(_ctx, cb); _callbackRefs.Add(cb);
         }
 
         // ---- on_heartbeat_udp ----
