@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
@@ -138,13 +139,19 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     {
         try
         {
-            var keyB64 = NativeCore.ExportDeviceKey(deviceId);
-            if (keyB64 == null)
+            var keyJson = NativeCore.ExportDeviceKey(deviceId);
+            if (keyJson == null)
             {
                 logger.LogError("导出设备密钥失败: {deviceId}", deviceId);
                 return null;
             }
-            var sharedSecretBytes = Convert.FromBase64String(keyB64);
+            var aesB64 = JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString();
+            if (string.IsNullOrEmpty(aesB64))
+            {
+                logger.LogError("解析设备 AES 密钥失败: {deviceId}", deviceId);
+                return null;
+            }
+            var sharedSecretBytes = Convert.FromBase64String(aesB64);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {

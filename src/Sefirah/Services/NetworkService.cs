@@ -209,7 +209,7 @@ public class NetworkService(
             if (pairingCode == null)
             {
                 logger.Info($"用户取消了配对: {remoteUuid}");
-                NativeCore.SendReject(localDeviceId ?? string.Empty);
+                NativeCore.SendReject(remoteUuid);
                 return;
             }
 
@@ -228,7 +228,7 @@ public class NetworkService(
             catch (Exception ex)
             {
                 logger.LogError(ex, "发送 PAIRING_RESP 失败: {uuid}", remoteUuid);
-                NativeCore.SendReject(localDeviceId ?? string.Empty);
+                NativeCore.SendReject(remoteUuid);
             }
         }
         catch (Exception ex)
@@ -265,32 +265,50 @@ public class NetworkService(
         {
             logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
-            var device = await deviceManager.VerifyHandshakeAsync(remoteUuid, remoteLtPubKey, null, remoteIp);
-            if (device != null)
+            var existing = PairedDevices.FirstOrDefault(d => d.Id == remoteUuid);
+            if (existing != null)
             {
-                bool isKnownDevice = PairedDevices.Any(d => d.Id == device.Id);
-
-                device = await deviceManager.UpdateOrAddDeviceAsync(device, UpdateDeviceConfig =>
+                var keyJson = NativeCore.ExportDeviceKey(remoteUuid);
+                if (keyJson != null)
                 {
-                    UpdateDeviceConfig.ConnectionStatus = true;
-                    UpdateDeviceConfig.RemotePublicKey = remoteLtPubKey;
-                    UpdateDeviceConfig.RemoteIpAddress = remoteIp;
-                    UpdateDeviceConfig.RemoteDeviceType = remoteDeviceType;
-                    deviceManager.ActiveDevice = UpdateDeviceConfig;
-                    UpdateDeviceConfig.LastHeartbeat = DateTime.UtcNow;
-                });
-
-                ConnectionStatusChanged?.Invoke(this, (device, true));
-                logger.Info($"配对完成: {remoteUuid}");
-
-                if (!isKnownDevice)
-                {
-                    DelayedRequestAppList(device.Id);
+                    try { var aesB64 = System.Text.Json.JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString(); if (!string.IsNullOrEmpty(aesB64)) existing.SharedSecret = Convert.FromBase64String(aesB64); } catch { }
                 }
+                existing.RemotePublicKey = remoteLtPubKey;
+                if (!existing.IpAddresses.Contains(remoteIp)) existing.IpAddresses.Add(remoteIp);
+                existing.RemoteDeviceType = remoteDeviceType;
+                deviceManager.ActiveDevice = existing;
+                ConnectionStatusChanged?.Invoke(this, (existing, true));
+                logger.Info($"配对完成（更新已有设备）: {remoteUuid}");
+                DelayedRequestAppList(remoteUuid);
             }
             else
             {
-                logger.Warn($"ACCEPT 处理失败，设备验证未通过: {remoteUuid}");
+                var keyJson = NativeCore.ExportDeviceKey(remoteUuid);
+                byte[]? sharedSecret = null;
+                if (keyJson != null)
+                {
+                    try { var aesB64 = System.Text.Json.JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString(); if (!string.IsNullOrEmpty(aesB64)) sharedSecret = Convert.FromBase64String(aesB64); } catch { }
+                }
+                var newDevice = new PairedDevice(remoteUuid)
+                {
+                    Name = remoteUuid,
+                    RemotePublicKey = remoteLtPubKey,
+                    IpAddresses = [remoteIp],
+                    RemoteDeviceType = remoteDeviceType,
+                    SharedSecret = sharedSecret,
+                };
+                deviceManager.SaveDevice(newDevice);
+                if (App.MainWindow.DispatcherQueue is { } dispatcher)
+                {
+                    _ = dispatcher.EnqueueAsync(() =>
+                    {
+                        PairedDevices.Add(newDevice);
+                        deviceManager.ActiveDevice = newDevice;
+                        ConnectionStatusChanged?.Invoke(this, (newDevice, true));
+                    });
+                }
+                logger.Info($"新设备配对完成: {remoteUuid}");
+                DelayedRequestAppList(remoteUuid);
             }
         }
         catch (Exception ex)

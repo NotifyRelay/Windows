@@ -127,9 +127,9 @@ public static class NativeCore
         NotifyRelayCore.Safe.SendHandshake(_ctx, uuid, pubKey, localIp, targetIp, battery, deviceType);
     }
 
-    public static void SendPairingInit(string uuid, string expectedCode, string ip, int battery, string deviceType)
+    public static void SendPairingInit(string localUuid, string targetUuid, string expectedCode, int battery, string deviceType)
     {
-        NotifyRelayCore.Safe.SendPairingInit(_ctx, uuid, expectedCode, ip, battery, deviceType);
+        NotifyRelayCore.Safe.SendPairingInit(_ctx, localUuid, targetUuid, expectedCode, battery, deviceType);
     }
 
     public static void SendPairingResp(string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)

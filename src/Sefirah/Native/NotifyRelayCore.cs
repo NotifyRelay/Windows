@@ -69,7 +69,7 @@ public static class NotifyRelayCore
     public static extern int nrc_send_handshake(IntPtr ctx, IntPtr uuid, IntPtr pubKey, IntPtr localIp, IntPtr targetIp, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_send_pairing_init(IntPtr ctx, IntPtr uuid, IntPtr expectedCode, IntPtr ip, int battery, IntPtr deviceType);
+    public static extern int nrc_send_pairing_init(IntPtr ctx, IntPtr localUuid, IntPtr targetUuid, IntPtr expectedCode, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
@@ -387,11 +387,11 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static int SendPairingInit(IntPtr ctx, string uuid, string expectedCode, string ip, int battery, string deviceType)
+        public static int SendPairingInit(IntPtr ctx, string localUuid, string targetUuid, string expectedCode, int battery, string deviceType)
         {
-            var u = StringToPtr(uuid); var c = StringToPtr(expectedCode); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_send_pairing_init(ctx, u, c, i, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
+            var lu = StringToPtr(localUuid); var tu = StringToPtr(targetUuid); var c = StringToPtr(expectedCode); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_send_pairing_init(ctx, lu, tu, c, battery, d);
+            Marshal.FreeHGlobal(lu); Marshal.FreeHGlobal(tu); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(d);
             return result;
         }
 
