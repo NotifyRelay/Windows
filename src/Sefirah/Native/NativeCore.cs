@@ -379,18 +379,17 @@ public static class NativeCore
 
         // ---- on_pairing_resp ----
         {
-            NotifyRelayCore.OnPairingRespCb cb = (uuidPtr, tmpPubPtr, ltPubPtr, encryptedCodePtr, ipPtr, battery, deviceTypePtr, userData) =>
+            NotifyRelayCore.OnPairingRespCb cb = (uuidPtr, spake2PubPtr, ltPubPtr, ipPtr, battery, deviceTypePtr, userData) =>
             {
                 var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var tmpPub = Marshal.PtrToStringUTF8(tmpPubPtr);
+                var spake2Pub = Marshal.PtrToStringUTF8(spake2PubPtr);
                 var ltPub = Marshal.PtrToStringUTF8(ltPubPtr);
-                var encCode = Marshal.PtrToStringUTF8(encryptedCodePtr);
                 var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
                 var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || tmpPub == null || ltPub == null || encCode == null) return;
+                if (uuid == null || spake2Pub == null || ltPub == null) return;
                 var ns = NetworkService;
                 if (ns == null) return;
-                _ = ns.HandlePairingRespAsync(uuid, tmpPub, ltPub, encCode, ip, battery, deviceType);
+                _ = ns.HandlePairingRespAsync(uuid, spake2Pub, ltPub, ip, battery, deviceType);
             };
             NotifyRelayCore.nrc_set_on_pairing_resp_cb(_ctx, cb); _callbackRefs.Add(cb);
         }

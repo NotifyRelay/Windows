@@ -72,7 +72,7 @@ public static class NotifyRelayCore
     public static extern int nrc_send_pairing_init(IntPtr ctx, IntPtr localUuid, IntPtr targetUuid, IntPtr expectedCode, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
+        public static extern int nrc_send_pairing_resp(IntPtr ctx, IntPtr uuid, IntPtr ltPub, IntPtr pairingCode, IntPtr ip, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_accept(IntPtr ctx, IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType);
@@ -203,7 +203,7 @@ public static class NotifyRelayCore
     public delegate void OnPairingInitCb(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnPairingRespCb(IntPtr uuid, IntPtr tmpPub, IntPtr ltPub, IntPtr encryptedCode, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
+    public delegate void OnPairingRespCb(IntPtr uuid, IntPtr spake2Pub, IntPtr ltPub, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnAcceptCb(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);

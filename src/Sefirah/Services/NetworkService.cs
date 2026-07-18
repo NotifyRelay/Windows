@@ -242,7 +242,7 @@ public class NetworkService(
     /// 协议格式：PAIRING_RESP:<uuid_R>:<tmpPub_R>:<ltPub_R>:<encryptedCode>:<ip>:<battery>:<deviceType>
     /// 注意：当前 PC 通常作为接收端，此方法主要用于未来扩展或 PC-PC 配对。
     /// </summary>
-    public async Task HandlePairingRespAsync(string remoteUuid, string tmpPub, string ltPub, string encryptedCode, string ip, int battery, string deviceType)
+    public async Task HandlePairingRespAsync(string remoteUuid, string spake2Pub, string ltPub, string ip, int battery, string deviceType)
     {
         try
         {
