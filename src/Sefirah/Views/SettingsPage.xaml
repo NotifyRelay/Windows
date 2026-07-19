@@ -53,6 +53,11 @@
                     <FontIcon Glyph="&#xE946;" />
                 </NavigationViewItem.Icon>
             </NavigationViewItem>
+            <NavigationViewItem Content="动态光效" Tag="DynamicLightingSettingsPage">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE739;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
         </NavigationView.MenuItems>
 
         <Frame x:Name="SettingsContentFrame" Padding="40,20,0,0" />

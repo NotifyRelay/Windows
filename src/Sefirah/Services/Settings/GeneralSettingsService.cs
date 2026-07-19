@@ -292,4 +292,40 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         get => Get(600);
         set => Set(value);
     }
+
+    public bool EnableDynamicLighting
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public bool EnableAutoRGB
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public double DynamicLightingBrightness
+    {
+        get => Get(1.0);
+        set => Set(value);
+    }
+
+    public string? DynamicLightingColor
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public string? DynamicLightingEffect
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public int AutoRGBUpdateInterval
+    {
+        get => Get(100);
+        set => Set(value);
+    }
 }
