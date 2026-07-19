@@ -163,10 +163,7 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
     }
 
-    public static void SendHeartbeatTcp(string uuid, string name, ushort port, int battery, string deviceType)
-    {
-        NotifyRelayCore.Safe.SendHeartbeatTcp(_ctx, uuid, name, port, battery, deviceType);
-    }
+    
 
     public static void SendHeartbeatUdp(string uuid, string name, ushort port, int battery, string deviceType)
     {
@@ -195,10 +192,7 @@ public static class NativeCore
         return NotifyRelayCore.Safe.StopTcpServer(_ctx);
     }
 
-    public static int SendToDevice(string uuid, string message)
-    {
-        return NotifyRelayCore.Safe.SendToDevice(_ctx, uuid, message);
-    }
+    
 
     public static int BroadcastMessage(string message)
     {
@@ -298,239 +292,229 @@ public static class NativeCore
     {
         if (_ctx == IntPtr.Zero) return;
 
-        void Cb(Action<NotifyRelayCore.OnDataCb?> setter, string tag, Func<PairedDevice, string, Task> handler)
+        NotifyRelayCore.OnPairingCb onPairingCb = (uuidPtr, msgTypePtr, dataPtr, intValue, extraPtr, userData) =>
         {
-            NotifyRelayCore.OnDataCb cb = (uuidPtr, textPtr, userData) =>
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            var msgType = Marshal.PtrToStringUTF8(msgTypePtr);
+            var data = Marshal.PtrToStringUTF8(dataPtr);
+            var extra = Marshal.PtrToStringUTF8(extraPtr);
+            if (uuid == null || msgType == null) return;
+
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_pairing: type={msgType}, uuid={uuid}");
+
+            switch (msgType)
             {
-                var device = FindDevice(uuidPtr);
-                var text = PtrToString(textPtr);
-                System.Diagnostics.Debug.WriteLine($"[CoreCb] {tag}: uuid={device?.Id}, text_len={text?.Length}, device_found={device != null}");
-                if (device != null && text != null)
-                {
-                    Task ignored = handler(device, text);
-                }
-            };
-            setter(cb); _callbackRefs.Add(cb);
-        }
-
-        Cb(cb => NotifyRelayCore.nrc_set_on_notification_cb(_ctx, cb), "DATA_NOTIFICATION",
-            (d, t) => ProtocolRouter?.OnDataNotificationAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_media_play_cb(_ctx, cb), "DATA_MEDIAPLAY",
-            (d, t) => ProtocolRouter?.OnDataMediaPlayAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_icon_request_cb(_ctx, cb), "DATA_ICON_REQUEST",
-            (d, t) => ProtocolRouter?.OnDataIconRequestAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_icon_response_cb(_ctx, cb), "DATA_ICON_RESPONSE",
-            (d, t) => ProtocolRouter?.OnDataIconResponseAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_app_list_request_cb(_ctx, cb), "DATA_APP_LIST_REQUEST",
-            (d, t) => ProtocolRouter?.OnDataAppListRequestAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_app_list_response_cb(_ctx, cb), "DATA_APP_LIST_RESPONSE",
-            (d, t) => ProtocolRouter?.OnDataAppListResponseAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_media_control_cb(_ctx, cb), "DATA_MEDIA_CONTROL",
-            (d, t) => ProtocolRouter?.OnDataMediaControlAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_ftp_cb(_ctx, cb), "DATA_FTP",
-            (d, t) => ProtocolRouter?.OnDataFtpAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_clipboard_cb(_ctx, cb), "DATA_CLIPBOARD",
-            (d, t) => ProtocolRouter?.OnDataClipboardAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_status_cb(_ctx, cb), "DATA_STATUS",
-            (d, t) => ProtocolRouter?.OnDataStatusAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_app_launch_cb(_ctx, cb), "DATA_APP_LAUNCH",
-            (d, t) => ProtocolRouter?.OnDataAppListRequestAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_superisland_cb(_ctx, cb), "DATA_SUPERISLAND",
-            (d, t) => ProtocolRouter?.OnDataSuperIslandAsync(d, t) ?? Task.CompletedTask);
-        Cb(cb => NotifyRelayCore.nrc_set_on_unknown_data_cb(_ctx, cb), "DATA_UNKNOWN",
-            (d, t) => Task.CompletedTask);
-
-        // ==================== 非 DATA 回调注册 ====================
-
-        // ---- on_handshake ----
-        {
-            NotifyRelayCore.OnHandshakeCb cb = (uuidPtr, pubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var pubKey = Marshal.PtrToStringUTF8(pubKeyPtr);
-                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || pubKey == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, battery, deviceType);
-            };
-            NotifyRelayCore.nrc_set_on_handshake_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_pairing_init ----
-        {
-            NotifyRelayCore.OnPairingInitCb cb = (uuidPtr, tmpPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
-            {
-                System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init 进入");
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var tmpPubKey = Marshal.PtrToStringUTF8(tmpPubKeyPtr);
-                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_pairing_init: uuid={uuid}, ip={ip}");
-                if (uuid == null || tmpPubKey == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: uuid/tmpPubKey=null"); return; }
-                var ns = NetworkService;
-                if (ns == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: NetworkService=null"); return; }
-                System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing_init: 调用 HandlePairingInitAsync");
-                _ = ns.HandlePairingInitAsync(uuid, tmpPubKey, ip, battery, deviceType);
-            };
-            NotifyRelayCore.nrc_set_on_pairing_init_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_pairing_resp ----
-        {
-            NotifyRelayCore.OnPairingRespCb cb = (uuidPtr, spake2PubPtr, ltPubPtr, ipPtr, battery, deviceTypePtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var spake2Pub = Marshal.PtrToStringUTF8(spake2PubPtr);
-                var ltPub = Marshal.PtrToStringUTF8(ltPubPtr);
-                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || spake2Pub == null || ltPub == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                _ = ns.HandlePairingRespAsync(uuid, spake2Pub, ltPub, ip, battery, deviceType);
-            };
-            NotifyRelayCore.nrc_set_on_pairing_resp_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_accept ----
-        {
-            NotifyRelayCore.OnAcceptCb cb = (uuidPtr, ltPubKeyPtr, ipPtr, battery, deviceTypePtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var ltPubKey = Marshal.PtrToStringUTF8(ltPubKeyPtr);
-                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null || ltPubKey == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                _ = ns.HandlePairingAcceptAsync(uuid, ltPubKey, ip, battery, deviceType);
-            };
-            NotifyRelayCore.nrc_set_on_accept_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_reject ----
-        {
-            NotifyRelayCore.OnRejectCb cb = (uuidPtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                if (uuid == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                _ = ns.HandleRejectAsync(uuid);
-            };
-            NotifyRelayCore.nrc_set_on_reject_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_pairing_result ----
-        {
-            NotifyRelayCore.OnPairingResultCb cb = (uuidPtr, success, errorMsgPtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var errorMsg = Marshal.PtrToStringUTF8(errorMsgPtr) ?? "";
-                if (uuid == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                _ = ns.HandlePairingResultAsync(uuid, success, errorMsg);
-            };
-            NotifyRelayCore.nrc_set_on_pairing_result_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_heartbeat_udp ----
-        {
-            NotifyRelayCore.OnHeartbeatUdpCb cb = (uuidPtr, namePtr, port, battery, deviceTypePtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var name = Marshal.PtrToStringUTF8(namePtr);
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null) return;
-                var hp = HeartbeatProcessor;
-                if (hp == null) return;
-                hp.HandleUdpHeartbeat(uuid, name, port, battery, deviceType);
-            };
-            NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
-
-        // ---- on_heartbeat_tcp ----
-        {
-            NotifyRelayCore.OnHeartbeatTcpCb cb = (uuidPtr, namePtr, port, battery, deviceTypePtr, ipPtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var name = Marshal.PtrToStringUTF8(namePtr);
-                var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
-                if (uuid == null) return;
-                var device = DeviceManager?.FindDeviceById(uuid);
-                if (device != null)
-                {
-                    device.LastHeartbeat = DateTime.UtcNow;
-                    if (!string.IsNullOrEmpty(name))
+                case "HANDSHAKE":
                     {
-                        device.Name = name;
-                        DeviceManager?.SaveDevice(device);
+                        if (data == null) return;
+                        string pubKey = "", ip = "", deviceType = "unknown";
+                        try
+                        {
+                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            pubKey = doc.RootElement.GetProperty("pub_key").GetString() ?? "";
+                            ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
+                            deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                        }
+                        catch { }
+                        var ns = NetworkService;
+                        if (ns == null) return;
+                        _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, intValue, deviceType);
                     }
-                }
-            };
-            NotifyRelayCore.nrc_set_on_heartbeat_tcp_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
+                    break;
+                case "PAIRING_INIT":
+                    {
+                        System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: PAIRING_INIT 进入");
+                        if (data == null) return;
+                        string spake2Pub = "", ip = "", deviceType = "unknown";
+                        try
+                        {
+                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
+                            ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
+                            deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                        }
+                        catch { }
+                        var ns = NetworkService;
+                        if (ns == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: NetworkService=null"); return; }
+                        System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: PAIRING_INIT 调用 HandlePairingInitAsync");
+                        _ = ns.HandlePairingInitAsync(uuid, spake2Pub, ip, intValue, deviceType);
+                    }
+                    break;
+                case "PAIRING_RESP":
+                    {
+                        if (data == null) return;
+                        string spake2Pub = "", ltPub = "", ip = "", deviceType = "unknown";
+                        try
+                        {
+                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
+                            ltPub = doc.RootElement.GetProperty("lt_pub").GetString() ?? "";
+                            ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
+                            deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                        }
+                        catch { }
+                        var ns = NetworkService;
+                        if (ns == null) return;
+                        _ = ns.HandlePairingRespAsync(uuid, spake2Pub, ltPub, ip, intValue, deviceType);
+                    }
+                    break;
+                case "ACCEPT":
+                    {
+                        if (data == null) return;
+                        string ltPubKey = "", ip = "", deviceType = "unknown";
+                        try
+                        {
+                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            ltPubKey = doc.RootElement.GetProperty("lt_pub_key").GetString() ?? "";
+                            ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
+                            deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                        }
+                        catch { }
+                        var ns = NetworkService;
+                        if (ns == null) return;
+                        _ = ns.HandlePairingAcceptAsync(uuid, ltPubKey, ip, intValue, deviceType);
+                    }
+                    break;
+                case "REJECT":
+                    {
+                        var ns = NetworkService;
+                        if (ns == null) return;
+                        _ = ns.HandleRejectAsync(uuid);
+                    }
+                    break;
+                case "RESULT":
+                    {
+                        var ns = NetworkService;
+                        if (ns == null) return;
+                        _ = ns.HandlePairingResultAsync(uuid, intValue, extra ?? "");
+                    }
+                    break;
+                case "HEARTBEAT_TCP":
+                    {
+                        var device = DeviceManager?.FindDeviceById(uuid);
+                        if (device != null)
+                        {
+                            device.LastHeartbeat = DateTime.UtcNow;
+                            if (!string.IsNullOrEmpty(extra))
+                            {
+                                device.Name = extra;
+                                DeviceManager?.SaveDevice(device);
+                            }
+                        }
+                    }
+                    break;
+            }
+        };
+        NotifyRelayCore.nrc_set_on_pairing_cb(_ctx, onPairingCb);
+        _callbackRefs.Add(onPairingCb);
 
-        // ---- on_device_timeout ----
+        NotifyRelayCore.OnDataCb onDataCb = (uuidPtr, msgTypePtr, plaintextPtr, userData) =>
         {
-            NotifyRelayCore.OnDeviceTimeoutCb cb = (uuidPtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                if (uuid == null) return;
-                var dispatcher = App.MainWindow?.DispatcherQueue;
-                if (dispatcher != null && !dispatcher.HasThreadAccess)
-                {
-                    dispatcher.TryEnqueue(() => HandleDeviceTimeout(uuid));
-                }
-                else
-                {
-                    HandleDeviceTimeout(uuid);
-                }
-            };
-            NotifyRelayCore.nrc_set_on_device_timeout_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
+            var device = FindDevice(uuidPtr);
+            var msgType = Marshal.PtrToStringUTF8(msgTypePtr);
+            var text = Marshal.PtrToStringUTF8(plaintextPtr);
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_data: type={msgType}, uuid={device?.Id}, text_len={text?.Length}, device_found={device != null}");
+            if (device == null || text == null || msgType == null) return;
 
-        // ---- on_device_connected ----
-        {
-            NotifyRelayCore.OnDeviceConnectedCb cb = (uuidPtr, ipPtr, userData) =>
+            switch (msgType)
             {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
-                if (uuid == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                // 设备连接事件由 Rust 内核处理，平台端只需记录日志
-                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_connected: uuid={uuid}, ip={ip}");
-            };
-            NotifyRelayCore.nrc_set_on_device_connected_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
+                case "NOTIFICATION":
+                    _ = ProtocolRouter?.OnDataNotificationAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "MEDIAPLAY":
+                    _ = ProtocolRouter?.OnDataMediaPlayAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "ICON_REQUEST":
+                    _ = ProtocolRouter?.OnDataIconRequestAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "ICON_RESPONSE":
+                    _ = ProtocolRouter?.OnDataIconResponseAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "APP_LIST_REQUEST":
+                    _ = ProtocolRouter?.OnDataAppListRequestAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "APP_LIST_RESPONSE":
+                    _ = ProtocolRouter?.OnDataAppListResponseAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "MEDIA_CONTROL":
+                    _ = ProtocolRouter?.OnDataMediaControlAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "FTP":
+                    _ = ProtocolRouter?.OnDataFtpAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "CLIPBOARD":
+                    _ = ProtocolRouter?.OnDataClipboardAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "STATUS":
+                    _ = ProtocolRouter?.OnDataStatusAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "APP_LAUNCH":
+                    _ = ProtocolRouter?.OnDataAppListRequestAsync(device, text) ?? Task.CompletedTask;
+                    break;
+                case "SUPERISLAND":
+                    _ = ProtocolRouter?.OnDataSuperIslandAsync(device, text) ?? Task.CompletedTask;
+                    break;
+            }
+        };
+        NotifyRelayCore.nrc_set_on_data_cb(_ctx, onDataCb);
+        _callbackRefs.Add(onDataCb);
 
-        // ---- on_device_disconnected ----
+        NotifyRelayCore.OnHeartbeatUdpCb onHeartbeatUdpCb = (uuidPtr, namePtr, port, battery, deviceTypePtr, userData) =>
         {
-            NotifyRelayCore.OnDeviceDisconnectedCb cb = (uuidPtr, userData) =>
-            {
-                var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-                if (uuid == null) return;
-                var ns = NetworkService;
-                if (ns == null) return;
-                // 设备断开事件由 Rust 内核处理，平台端只需记录日志
-                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_disconnected: uuid={uuid}");
-            };
-            NotifyRelayCore.nrc_set_on_device_disconnected_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            var name = Marshal.PtrToStringUTF8(namePtr);
+            var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+            if (uuid == null) return;
+            var hp = HeartbeatProcessor;
+            if (hp == null) return;
+            hp.HandleUdpHeartbeat(uuid, name, port, battery, deviceType);
+        };
+        NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, onHeartbeatUdpCb);
+        _callbackRefs.Add(onHeartbeatUdpCb);
 
-        // ---- on_tcp_error ----
+        NotifyRelayCore.OnDeviceTimeoutCb onDeviceTimeoutCb = (uuidPtr, userData) =>
         {
-            NotifyRelayCore.OnTcpErrorCb cb = (errorPtr, userData) =>
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            if (uuid == null) return;
+            var dispatcher = App.MainWindow?.DispatcherQueue;
+            if (dispatcher != null && !dispatcher.HasThreadAccess)
             {
-                var error = Marshal.PtrToStringUTF8(errorPtr) ?? "unknown";
-                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_tcp_error: {error}");
-            };
-            NotifyRelayCore.nrc_set_on_tcp_error_cb(_ctx, cb); _callbackRefs.Add(cb);
-        }
+                dispatcher.TryEnqueue(() => HandleDeviceTimeout(uuid));
+            }
+            else
+            {
+                HandleDeviceTimeout(uuid);
+            }
+        };
+        NotifyRelayCore.nrc_set_on_device_timeout_cb(_ctx, onDeviceTimeoutCb);
+        _callbackRefs.Add(onDeviceTimeoutCb);
+
+        NotifyRelayCore.OnDeviceConnectedCb onDeviceConnectedCb = (uuidPtr, ipPtr, userData) =>
+        {
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
+            if (uuid == null) return;
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_connected: uuid={uuid}, ip={ip}");
+        };
+        NotifyRelayCore.nrc_set_on_device_connected_cb(_ctx, onDeviceConnectedCb);
+        _callbackRefs.Add(onDeviceConnectedCb);
+
+        NotifyRelayCore.OnDeviceDisconnectedCb onDeviceDisconnectedCb = (uuidPtr, userData) =>
+        {
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            if (uuid == null) return;
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_disconnected: uuid={uuid}");
+        };
+        NotifyRelayCore.nrc_set_on_device_disconnected_cb(_ctx, onDeviceDisconnectedCb);
+        _callbackRefs.Add(onDeviceDisconnectedCb);
+
+        NotifyRelayCore.OnTcpErrorCb onTcpErrorCb = (errorPtr, userData) =>
+        {
+            var error = Marshal.PtrToStringUTF8(errorPtr) ?? "unknown";
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_tcp_error: {error}");
+        };
+        NotifyRelayCore.nrc_set_on_tcp_error_cb(_ctx, onTcpErrorCb);
+        _callbackRefs.Add(onTcpErrorCb);
     }
 
     // ======== Heartbeat sender ========

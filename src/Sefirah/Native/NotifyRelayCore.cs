@@ -91,9 +91,6 @@ public static class NotifyRelayCore
     public static extern int nrc_validate_pairing_code(IntPtr ctx, IntPtr code);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_heartbeat_tcp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_heartbeat_udp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -118,9 +115,6 @@ public static class NotifyRelayCore
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_restart_udp_listener(IntPtr ctx);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_send_to_device(IntPtr ctx, IntPtr uuid, IntPtr message);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_broadcast_message(IntPtr ctx, IntPtr message);
@@ -195,97 +189,6 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_known_device_scanner(IntPtr ctx);
 
-    // ======== Callback delegate types ========
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnHandshakeCb(IntPtr uuid, IntPtr pubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnPairingInitCb(IntPtr uuid, IntPtr tmpPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnPairingRespCb(IntPtr uuid, IntPtr spake2Pub, IntPtr ltPub, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnAcceptCb(IntPtr uuid, IntPtr ltPubKey, IntPtr ip, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnRejectCb(IntPtr uuid, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnHeartbeatTcpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnDataCb(IntPtr localUuid, IntPtr plaintext, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnLogCb(int level, IntPtr message);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnPairingResultCb(IntPtr uuid, int success, IntPtr errorMsg, IntPtr userData);
-
-    // ======== Callback setters ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_log_callback(IntPtr cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_handshake_cb(IntPtr ctx, OnHandshakeCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_pairing_init_cb(IntPtr ctx, OnPairingInitCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_pairing_resp_cb(IntPtr ctx, OnPairingRespCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_accept_cb(IntPtr ctx, OnAcceptCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_reject_cb(IntPtr ctx, OnRejectCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_heartbeat_tcp_cb(IntPtr ctx, OnHeartbeatTcpCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_notification_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_media_play_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_icon_request_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_icon_response_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_app_list_request_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_app_list_response_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_media_control_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_ftp_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_clipboard_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_status_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_app_launch_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_superisland_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_unknown_data_cb(IntPtr ctx, OnDataCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_pairing_result_cb(IntPtr ctx, OnPairingResultCb cb);
-    // ======== Dedup ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_dedup_check_and_pend(IntPtr ctx, IntPtr dedupKey, long ttlMs);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_dedup_mark_sent(IntPtr ctx, IntPtr dedupKey);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_dedup_clear_pending(IntPtr ctx, IntPtr dedupKey);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_dedup_cleanup(IntPtr ctx, long nowMs, long ttlMs);
-
     // ======== Filter ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr configJson);
@@ -316,6 +219,26 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_generate_random_password();
 
+    // ======== Dedup unified ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_dedup(IntPtr ctx, int action, IntPtr dedupKey, long arg1Ms, long arg2Ms);
+
+    // ======== Callback delegate types ========
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnPairingCb(IntPtr uuid, IntPtr messageType, IntPtr data, int intValue, IntPtr extra, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDataCb(IntPtr uuid, IntPtr messageType, IntPtr plaintext, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention = CallingConvention.Cdecl)]
+    public delegate void OnLogCb(int level, IntPtr message);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
+
     // ======== Network callbacks ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceConnectedCb(IntPtr uuid, IntPtr ip, IntPtr userData);
@@ -324,6 +247,17 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnTcpErrorCb(IntPtr error, IntPtr userData);
 
+    // ======== Callback setters ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_log_callback(IntPtr cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_pairing_cb(IntPtr ctx, OnPairingCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_data_cb(IntPtr ctx, OnDataCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_connected_cb(IntPtr ctx, OnDeviceConnectedCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -451,13 +385,6 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static void SendHeartbeatTcp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_heartbeat_tcp(ctx, u, n, port, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
-        }
-
         public static void SendHeartbeatUdp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
         {
             var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
@@ -551,31 +478,14 @@ public static class NotifyRelayCore
 
         public static void SetUserData(IntPtr ctx, IntPtr userData) => NotifyRelayCore.nrc_set_user_data(ctx, userData);
 
-        // ======== Dedup ========
-        public static int DedupCheckAndPend(IntPtr ctx, string dedupKey, long ttlMs)
+        // ======== Dedup unified ========
+        public static int Dedup(IntPtr ctx, int action, string dedupKey, long arg1Ms, long arg2Ms)
         {
             var k = StringToPtr(dedupKey);
-            var result = NotifyRelayCore.nrc_dedup_check_and_pend(ctx, k, ttlMs);
+            var result = NotifyRelayCore.nrc_dedup(ctx, action, k, arg1Ms, arg2Ms);
             Marshal.FreeHGlobal(k);
             return result;
         }
-
-        public static void DedupMarkSent(IntPtr ctx, string dedupKey)
-        {
-            var k = StringToPtr(dedupKey);
-            NotifyRelayCore.nrc_dedup_mark_sent(ctx, k);
-            Marshal.FreeHGlobal(k);
-        }
-
-        public static void DedupClearPending(IntPtr ctx, string dedupKey)
-        {
-            var k = StringToPtr(dedupKey);
-            NotifyRelayCore.nrc_dedup_clear_pending(ctx, k);
-            Marshal.FreeHGlobal(k);
-        }
-
-        public static void DedupCleanup(IntPtr ctx, long nowMs, long ttlMs)
-            => NotifyRelayCore.nrc_dedup_cleanup(ctx, nowMs, ttlMs);
 
         // ======== Filter ========
         public static int SetFilterConfig(IntPtr ctx, string configJson)
@@ -679,14 +589,6 @@ public static class NotifyRelayCore
         public static int StartTcpServer(IntPtr ctx, ushort port) => NotifyRelayCore.nrc_start_tcp_server(ctx, port);
         public static int StopTcpServer(IntPtr ctx) => NotifyRelayCore.nrc_stop_tcp_server(ctx);
         public static int RestartUdpListener(IntPtr ctx) => NotifyRelayCore.nrc_restart_udp_listener(ctx);
-
-        public static int SendToDevice(IntPtr ctx, string uuid, string message)
-        {
-            var u = StringToPtr(uuid); var m = StringToPtr(message);
-            var result = NotifyRelayCore.nrc_send_to_device(ctx, u, m);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(m);
-            return result;
-        }
 
         public static int BroadcastMessage(IntPtr ctx, string message)
         {
