@@ -49,7 +49,7 @@ public static partial class Win32Helper
         Marshal.StructureToPtr(windowPos, lParam, false);
     }
 
-    public static nint GetPrimaryMonitorHandle()
+    public static IntPtr GetPrimaryMonitorHandle()
     {
         var hMonitor = MonitorFromPoint(new POINT(0, 0), MonitorFlags.MONITOR_DEFAULTTOPRIMARY);
         return hMonitor.DangerousGetHandle();

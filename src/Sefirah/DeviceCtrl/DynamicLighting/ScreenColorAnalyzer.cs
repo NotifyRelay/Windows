@@ -1,7 +1,9 @@
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Graphics.Capture;
 using Windows.Graphics.DirectX;
-using Windows.Graphics.DirectX.Direct3D11;
+using Windows.Graphics.Imaging;
+using Windows.Storage.Streams;
 using Windows.UI;
 
 namespace NotifyRelay.DeviceCtrl.DynamicLighting;
@@ -12,12 +14,15 @@ public class ScreenColorAnalyzer
     private Direct3D11CaptureFramePool? _framePool;
     private bool _isCapturing;
     private readonly ILogger<ScreenColorAnalyzer>? _logger;
+    private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
 
     public event EventHandler<Color>? ColorChanged;
 
     public bool IsCaptureSupported => GraphicsCaptureSession.IsSupported();
 
     public bool IsCapturing => _isCapturing;
+
+    public Color CurrentCapturedColor => _currentCapturedColor;
 
     public async Task StartCaptureAsync()
     {
@@ -29,13 +34,19 @@ public class ScreenColorAnalyzer
 
         try
         {
-            var picker = new GraphicsCapturePicker();
-            var hwnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-            WinRT.Interop.InitializeWithWindow.Initialize(picker, hwnd);
-            
-            var item = await picker.PickSingleItemAsync();
-            if (item == null)
+            var monitorHandle = NotifyRelay.Platforms.Windows.Helpers.Win32Helper.GetPrimaryMonitorHandle();
+            if (monitorHandle == IntPtr.Zero)
+            {
+                _logger?.LogError("Failed to get primary monitor handle");
                 return;
+            }
+
+            var item = CreateCaptureItemForMonitor(monitorHandle);
+            if (item == null)
+            {
+                _logger?.LogError("Failed to create capture item for monitor");
+                return;
+            }
 
             var d3dDevice = CreateDirect3DDevice();
             if (d3dDevice == null)
@@ -57,6 +68,7 @@ public class ScreenColorAnalyzer
 
             _session.StartCapture();
             _isCapturing = true;
+            _logger?.LogInformation("Screen capture started");
         }
         catch (Exception ex)
         {
@@ -73,7 +85,11 @@ public class ScreenColorAnalyzer
         _framePool?.Dispose();
         _framePool = null;
 
+        _session?.Dispose();
+        _session = null;
+
         _isCapturing = false;
+        _logger?.LogInformation("Screen capture stopped");
     }
 
     private async void FramePool_FrameArrived(Direct3D11CaptureFramePool sender, object args)
@@ -85,6 +101,7 @@ public class ScreenColorAnalyzer
                 return;
 
             var screenColor = await AnalyzeFrameAsync(frame);
+            _currentCapturedColor = screenColor;
             ColorChanged?.Invoke(this, screenColor);
         }
         catch (Exception ex)
@@ -98,37 +115,36 @@ public class ScreenColorAnalyzer
         var width = (int)frame.ContentSize.Width;
         var height = (int)frame.ContentSize.Height;
 
-        using var stream = new Windows.Storage.Streams.InMemoryRandomAccessStream();
-        var encoder = await Windows.Graphics.Imaging.BitmapEncoder.CreateAsync(
-            Windows.Graphics.Imaging.BitmapEncoder.PngEncoderId, stream);
+        using var frameBitmap = await SoftwareBitmap.CreateCopyFromSurfaceAsync(frame.Surface);
+        using var convertedBitmap = SoftwareBitmap.Convert(frameBitmap, BitmapPixelFormat.Bgra8, BitmapAlphaMode.Ignore);
 
-        encoder.SetPixelData(
-            Windows.Graphics.Imaging.BitmapPixelFormat.Bgra8,
-            Windows.Graphics.Imaging.BitmapAlphaMode.Ignore,
-            (uint)width,
-            (uint)height,
-            96,
-            96,
-            new byte[width * height * 4]);
+        var pixelBuffer = convertedBitmap.LockBuffer(BitmapBufferAccessMode.Read);
+        var stride = pixelBuffer.GetPlaneDescription(0).Stride;
 
-        await encoder.FlushAsync();
+        using var reference = pixelBuffer.CreateReference();
+        
+        byte[] pixelData;
+        ((IMemoryBufferByteAccess)reference).GetBuffer(out var data, out var length);
+        pixelData = new byte[length];
+        Marshal.Copy(data, pixelData, 0, (int)length);
 
-        stream.Seek(0);
-
-        var decoder = await Windows.Graphics.Imaging.BitmapDecoder.CreateAsync(stream);
-        var pixelDataProvider = await decoder.GetPixelDataAsync();
-        var pixelData = pixelDataProvider.DetachPixelData();
-
-        return CalculateDominantColor(pixelData, width, height);
+        return CalculateDominantColor(pixelData, width, height, stride);
     }
 
-    private Color CalculateDominantColor(byte[] pixelData, int width, int height)
+    [ComImport]
+    [Guid("5B0D3235-4DBA-4D44-865E-8F1D0E4FD04D")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IMemoryBufferByteAccess
+    {
+        void GetBuffer(out IntPtr buffer, out uint capacity);
+    }
+
+    private Color CalculateDominantColor(byte[] pixelData, int width, int height, int stride)
     {
         long rSum = 0, gSum = 0, bSum = 0;
         int pixelCount = 0;
 
         int sampleStep = Math.Max(1, width * height / 10000);
-        int stride = width * 4;
 
         for (int y = 0; y < height; y += sampleStep)
         {
@@ -155,7 +171,23 @@ public class ScreenColorAnalyzer
         return new Color { A = 255, R = r, G = g, B = b };
     }
 
-    private IDirect3DDevice? CreateDirect3DDevice()
+    private GraphicsCaptureItem? CreateCaptureItemForMonitor(IntPtr monitorHandle)
+    {
+        try
+        {
+            var interop = GraphicsCaptureItem.As<IGraphicsCaptureItemInterop>();
+            Guid guid = typeof(GraphicsCaptureItem).GUID;
+            interop.CreateForMonitor(monitorHandle, ref guid, out object item);
+            return item as GraphicsCaptureItem;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to create capture item for monitor");
+            return null;
+        }
+    }
+
+    private Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice? CreateDirect3DDevice()
     {
         try
         {
@@ -172,6 +204,21 @@ public class ScreenColorAnalyzer
                 IntPtr.Zero);
 
             if (hr != 0 || pDevice == IntPtr.Zero)
+            {
+                hr = D3D11CreateDevice(
+                    IntPtr.Zero,
+                    D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_WARP,
+                    IntPtr.Zero,
+                    D3D11_CREATE_DEVICE_BGRA_SUPPORT,
+                    null,
+                    0,
+                    D3D11_SDK_VERSION,
+                    out pDevice,
+                    IntPtr.Zero,
+                    IntPtr.Zero);
+            }
+
+            if (hr != 0 || pDevice == IntPtr.Zero)
                 return null;
 
             object? d3dDevice = null;
@@ -182,10 +229,11 @@ public class ScreenColorAnalyzer
             if (hr != 0 || d3dDevice == null)
                 return null;
 
-            return d3dDevice as IDirect3DDevice;
+            return d3dDevice as Windows.Graphics.DirectX.Direct3D11.IDirect3DDevice;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogError(ex, "Failed to create Direct3D device");
             return null;
         }
     }
@@ -219,6 +267,14 @@ public class ScreenColorAnalyzer
     private static extern int CreateDirect3D11DeviceFromDXGIDevice(
         IntPtr dxgiDevice,
         ref object? graphicsDevice);
+
+    [ComImport]
+    [Guid("3628e81b-3c7c-4a09-a8f5-7d90794116dd")]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IGraphicsCaptureItemInterop
+    {
+        void CreateForMonitor([In] IntPtr monitorHandle, [In] ref Guid riid, [Out, MarshalAs(UnmanagedType.IUnknown)] out object graphicsCaptureItem);
+    }
 
     public ScreenColorAnalyzer(ILogger<ScreenColorAnalyzer>? logger = null)
     {

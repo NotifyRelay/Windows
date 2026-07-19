@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
+using Windows.Graphics.Capture;
 using Windows.UI;
 using NotifyRelay.DeviceCtrl.DynamicLighting;
 using NotifyRelay.Data.Contracts;
@@ -14,7 +15,6 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 {
     private readonly DynamicLightingService _lightingService;
     private readonly IGeneralSettingsService _settingsService;
-    private readonly ScreenColorAnalyzer _colorAnalyzer;
 
     private bool _isEnabled;
     private bool _isAutoRGBEnabled;
@@ -23,6 +23,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     private int _selectedIntervalIndex;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
     private bool _isCaptureSupported;
+    private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -121,6 +122,22 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     public SolidColorBrush CurrentColorBrush => new SolidColorBrush(_currentColor);
 
+    public Color CurrentCapturedColor
+    {
+        get => _currentCapturedColor;
+        set
+        {
+            if (_currentCapturedColor != value)
+            {
+                _currentCapturedColor = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(CurrentCapturedColorBrush));
+            }
+        }
+    }
+
+    public SolidColorBrush CurrentCapturedColorBrush => new SolidColorBrush(_currentCapturedColor);
+
     public bool IsCaptureSupported
     {
         get => _isCaptureSupported;
@@ -155,14 +172,13 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     {
         _lightingService = Ioc.Default.GetRequiredService<DynamicLightingService>();
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _colorAnalyzer = new ScreenColorAnalyzer();
 
         LoadSettings();
-        IsCaptureSupported = _colorAnalyzer.IsCaptureSupported;
+        IsCaptureSupported = GraphicsCaptureSession.IsSupported();
 
         _lightingService.DevicesChanged += OnDevicesChanged;
         _lightingService.ColorChanged += OnColorChanged;
-        _colorAnalyzer.ColorChanged += OnScreenColorChanged;
+        _lightingService.CapturedColorChanged += OnCapturedColorChanged;
     }
 
     private void LoadSettings()
@@ -233,30 +249,31 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         _settingsService.DynamicLightingColor = e.ToString();
     }
 
-    private void OnScreenColorChanged(object? sender, Color e)
+    private void OnCapturedColorChanged(object? sender, Color e)
     {
-        _lightingService.HandleAutoRGBColor(e);
+        CurrentCapturedColor = e;
     }
 
-    private async void ToggleAutoRGB(bool enable)
+    private void ToggleAutoRGB(bool enable)
     {
         if (enable)
         {
             if (IsCaptureSupported)
             {
                 _lightingService.StartAutoRGB();
-                await _colorAnalyzer.StartCaptureAsync();
             }
         }
         else
         {
             _lightingService.StopAutoRGB();
-            _colorAnalyzer.StopCapture();
         }
     }
 
     public void ApplyColor(Color color)
     {
+        if (_lightingService.IsAutoRGBEnabled)
+            return;
+
         _lightingService.CurrentColor = color;
         CurrentColor = color;
         _settingsService.DynamicLightingColor = color.ToString();
@@ -264,12 +281,18 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     public void TurnOff()
     {
+        if (_lightingService.IsAutoRGBEnabled)
+            return;
+
         _lightingService.TurnOffAllDevices();
         CurrentColor = new Color { A = 255, R = 0, G = 0, B = 0 };
     }
 
     public void StartEffect(int effectIndex)
     {
+        if (_lightingService.IsAutoRGBEnabled)
+            return;
+
         switch (effectIndex)
         {
             case 1:

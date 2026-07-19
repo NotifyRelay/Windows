@@ -2,6 +2,7 @@ using Windows.Devices.Enumeration;
 using Windows.Devices.Lights;
 using Windows.Devices.Lights.Effects;
 using Windows.UI;
+using NotifyRelay.Data.Contracts;
 using NotifyRelay.DeviceCtrl.DynamicLighting.Interfaces;
 
 namespace NotifyRelay.DeviceCtrl.DynamicLighting;
@@ -9,16 +10,20 @@ namespace NotifyRelay.DeviceCtrl.DynamicLighting;
 public class DynamicLightingService
 {
     private readonly ILogger<DynamicLightingService> _logger;
+    private readonly IGeneralSettingsService _settingsService;
     private DeviceWatcher? _deviceWatcher;
     private readonly ObservableCollection<LampArrayDeviceInfo> _attachedDevices = new();
     private IReadOnlyList<LampArrayEffectPlaylist> _currentPlaylists = Array.Empty<LampArrayEffectPlaylist>();
     private bool _isAutoRGBEnabled;
     private double _brightness = 1.0;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
+    private Color _manualColor;
     private readonly List<ILightingInputProvider> _inputProviders = new();
+    private ScreenColorAnalyzer? _screenColorAnalyzer;
 
     public event EventHandler? DevicesChanged;
     public event EventHandler<Color>? ColorChanged;
+    public event EventHandler<Color>? CapturedColorChanged;
 
     public ObservableCollection<LampArrayDeviceInfo> AttachedDevices => _attachedDevices;
 
@@ -40,20 +45,27 @@ public class DynamicLightingService
         set
         {
             _currentColor = value;
+            if (!_isAutoRGBEnabled)
+                _manualColor = value;
             ApplyColorToDevices(value);
             ColorChanged?.Invoke(this, value);
         }
     }
 
-    public DynamicLightingService(ILogger<DynamicLightingService> logger)
+    public Color? CurrentCapturedColor => _screenColorAnalyzer?.CurrentCapturedColor;
+
+    public DynamicLightingService(ILogger<DynamicLightingService> logger, IGeneralSettingsService settingsService)
     {
         _logger = logger;
+        _settingsService = settingsService;
     }
 
     public void Initialize()
     {
         try
         {
+            LoadSettings();
+
             _deviceWatcher = DeviceInformation.CreateWatcher(LampArray.GetDeviceSelector());
             _deviceWatcher.Added += DeviceWatcher_Added;
             _deviceWatcher.Removed += DeviceWatcher_Removed;
@@ -64,6 +76,34 @@ public class DynamicLightingService
         {
             _logger.LogError(ex, "Failed to initialize dynamic lighting service");
         }
+    }
+
+    private void LoadSettings()
+    {
+        _brightness = _settingsService.DynamicLightingBrightness;
+        _settingsService.EnableDynamicLighting = true;
+
+        var colorString = _settingsService.DynamicLightingColor;
+        if (!string.IsNullOrEmpty(colorString) && colorString.StartsWith("#"))
+        {
+            try
+            {
+                var hex = colorString.TrimStart('#');
+                var bytes = Convert.FromHexString(hex);
+                if (bytes.Length == 4)
+                    _currentColor = new Color { A = bytes[0], R = bytes[1], G = bytes[2], B = bytes[3] };
+                else if (bytes.Length == 3)
+                    _currentColor = new Color { A = 255, R = bytes[0], G = bytes[1], B = bytes[2] };
+            }
+            catch
+            {
+            }
+        }
+
+        _manualColor = _currentColor;
+
+        _logger.LogInformation("Dynamic lighting settings loaded: Color={Color}, Brightness={Brightness}",
+            _currentColor, _brightness);
     }
 
     public void Cleanup()
@@ -300,7 +340,22 @@ public class DynamicLightingService
             return;
 
         StopAllEffects();
+        _manualColor = _currentColor;
         _isAutoRGBEnabled = true;
+
+        try
+        {
+            var analyzerLogger = Ioc.Default.GetService<ILogger<ScreenColorAnalyzer>>();
+            _screenColorAnalyzer = new ScreenColorAnalyzer(analyzerLogger);
+            _screenColorAnalyzer.ColorChanged += ScreenColorAnalyzer_ColorChanged;
+            _ = _screenColorAnalyzer.StartCaptureAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to start AutoRGB screen capture");
+            _isAutoRGBEnabled = false;
+        }
+
         _logger.LogInformation("AutoRGB mode started");
     }
 
@@ -310,7 +365,32 @@ public class DynamicLightingService
             return;
 
         _isAutoRGBEnabled = false;
-        _logger.LogInformation("AutoRGB mode stopped");
+
+        try
+        {
+            if (_screenColorAnalyzer != null)
+            {
+                _screenColorAnalyzer.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
+                _screenColorAnalyzer.StopCapture();
+                _screenColorAnalyzer = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to stop AutoRGB screen capture");
+        }
+
+        ApplyColorToDevices(_manualColor);
+        _currentColor = _manualColor;
+        ColorChanged?.Invoke(this, _manualColor);
+
+        _logger.LogInformation("AutoRGB mode stopped, restored manual color");
+    }
+
+    private void ScreenColorAnalyzer_ColorChanged(object? sender, Color color)
+    {
+        HandleAutoRGBColor(color);
+        CapturedColorChanged?.Invoke(this, color);
     }
 
     public void HandleAutoRGBColor(Color color)
