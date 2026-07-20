@@ -22,6 +22,9 @@ public class VirtualSpeakerService : IDisposable
     private TcpListener? _audioListener;
     private TcpClient? _audioClient;
     private NetworkStream? _audioStream;
+    private TcpListener? _heartbeatListener;
+    private CancellationTokenSource? _heartbeatCts;
+    private string? _targetSpeakerIp;
 
     private WasapiLoopbackCapture? _capture;
     private CancellationTokenSource? _streamingCts;
@@ -72,10 +75,6 @@ public class VirtualSpeakerService : IDisposable
                 SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.MulticastSendPort);
 
             var probeBytes = Encoding.UTF8.GetBytes(_playerUuid);
-            await _discoveryClient.SendAsync(probeBytes, probeBytes.Length,
-                SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.MulticastListenPort);
-            _logger.LogInformation("已发送发现探测包");
-
             var listenTask = Task.Run(async () =>
             {
                 while (!token.IsCancellationRequested)
@@ -114,13 +113,33 @@ public class VirtualSpeakerService : IDisposable
                 }
             }, token);
 
-            await Task.Delay(timeoutMs, token);
+            var probeTask = Task.Run(async () =>
+            {
+                var endTime = DateTime.UtcNow.AddMilliseconds(timeoutMs);
+                while (!token.IsCancellationRequested && DateTime.UtcNow < endTime)
+                {
+                    try
+                    {
+                        await _discoveryClient.SendAsync(probeBytes, probeBytes.Length,
+                            SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.MulticastListenPort);
+                        await Task.Delay(800, token);
+                    }
+                    catch { break; }
+                }
+            }, token);
+
+            await Task.WhenAny(Task.Delay(timeoutMs, token), probeTask);
             _discoveryCts.Cancel();
 
             try { await listenTask; } catch { }
+            try { await probeTask; } catch { }
 
             lock (_speakersLock)
             {
+                if (_discoveredSpeakers.Count == 0)
+                {
+                    TryProbeLocalSpeaker();
+                }
                 _logger.LogInformation("发现完成，找到 {Count} 个 SoundSeeder 设备", _discoveredSpeakers.Count);
                 return [.. _discoveredSpeakers];
             }
@@ -134,6 +153,63 @@ public class VirtualSpeakerService : IDisposable
         {
             StopDiscovery();
         }
+    }
+
+    private void TryProbeLocalSpeaker()
+    {
+        var probeIps = new[] { "127.0.0.1", "192.168.31.137" };
+        foreach (var ip in probeIps)
+        {
+            try
+            {
+                using var testClient = new TcpClient();
+                var connectTask = testClient.ConnectAsync(ip, SoundSeederProtocol.ControlPort);
+                if (connectTask.Wait(TimeSpan.FromSeconds(1)))
+                {
+                    var localUuid = "SE" + SoundSeederProtocol.JavaStringHashCode(ip);
+                    var info = new SoundSeederDeviceInfo
+                    {
+                        Uuid = localUuid,
+                        Name = $"本地 Speaker ({ip})",
+                        IpAddress = ip,
+                        Version = SoundSeederProtocol.PlayerVersion
+                    };
+                    _discoveredSpeakers.Add(info);
+                    SpeakerDiscovered?.Invoke(this, info);
+                    _logger.LogInformation("发现本地 Speaker: {Ip}", ip);
+                }
+            }
+            catch { }
+        }
+    }
+
+    private void StartHeartbeatListener()
+    {
+        try { _heartbeatListener?.Stop(); } catch { }
+        _heartbeatListener = null;
+        try { _heartbeatCts?.Cancel(); } catch { }
+        _heartbeatCts?.Dispose();
+        _heartbeatCts = null;
+
+        _heartbeatCts = new CancellationTokenSource();
+        var token = _heartbeatCts.Token;
+        _heartbeatListener = new TcpListener(IPAddress.Any, SoundSeederProtocol.HeartbeatPort);
+        _heartbeatListener.Start();
+        _logger.LogInformation("心跳监听已启动 :{Port}", SoundSeederProtocol.HeartbeatPort);
+
+        Task.Run(async () =>
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    using var client = await _heartbeatListener.AcceptTcpClientAsync(token);
+                }
+                catch (OperationCanceledException) { break; }
+                catch (ObjectDisposedException) { break; }
+                catch { }
+            }
+        }, token);
     }
 
     private void StopDiscovery()
@@ -210,30 +286,49 @@ public class VirtualSpeakerService : IDisposable
             _logger.LogInformation("控制通道已连接 {Ip}:{Port}",
                 targetSpeaker.IpAddress, SoundSeederProtocol.ControlPort);
 
-            StartAudioListener();
-
-            await SendControlAsync("$setPlayer$",
-                $"[\"{_playerUuid}\",\"{Dns.GetHostName()}\",{SoundSeederProtocol.PlayerVersion}]");
-            await SendControlAsync("$idP$", _playerUuid);
-            await SendControlAsync("$setv$", "15");
-            await SendControlAsync("$setch$", "1");
-            await SendControlAsync("$setOffM$", "0");
-
-            await SendControlAsync("$con$");
-            _logger.LogInformation("已请求音频连接");
-
-            if (!await WaitForAudioConnectionAsync(token, TimeSpan.FromSeconds(20)))
-            {
-                _logger.LogError("扬声器未在超时内连接音频通道。请检查：1) Windows防火墙是否阻止了5353端口入站连接 2) 扬声器设备是否与PC在同一网络 3) 扬声器音频通道端口是否非默认");
-                await StopStreamingAsyncCore();
-                return;
-            }
-            _logger.LogInformation("音频通道已建立");
+            _targetSpeakerIp = targetSpeaker.IpAddress;
 
             _capture = new WasapiLoopbackCapture();
             _sampleRate = _capture.WaveFormat.SampleRate;
             _channels = _capture.WaveFormat.Channels;
             _logger.LogInformation("音频捕获格式: {Rate}Hz {Channels}ch", _sampleRate, _channels);
+
+            StartHeartbeatListener();
+
+            _audioListener = new TcpListener(IPAddress.Any, SoundSeederProtocol.AudioPort);
+            _audioListener.Start();
+            _logger.LogInformation("音频服务已启动，等待 Speaker 连接 :{Port}", SoundSeederProtocol.AudioPort);
+
+            await SendControlAsync("$setPlayer$",
+                $"[\"{_playerUuid}\",\"{Dns.GetHostName()}\",{SoundSeederProtocol.PlayerVersion}]");
+            await SendControlAsync("$idP$", _playerUuid);
+            await SendControlAsync("$setv$", "15");
+            var channelConf = _channels >= 2 ? "1" : "0"; // 0=Mono, 1=Stereo, 2=Left, 3=Right
+            await SendControlAsync("$setch$", channelConf);
+            await SendControlAsync("$setOffM$", "0");
+
+            await SendControlAsync("$con$");
+            _logger.LogInformation("已请求音频连接，等待 Speaker 连接...");
+
+            try
+            {
+                using var acceptCts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                _audioClient = await _audioListener.AcceptTcpClientAsync(acceptCts.Token);
+                _audioStream = _audioClient.GetStream();
+                _isFirstPacket = true;
+                _streamTimestamp = 0;
+                _logger.LogInformation("Speaker 音频通道已连接");
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogError("等待 Speaker 音频连接超时");
+                return;
+            }
+            finally
+            {
+                try { _audioListener?.Stop(); } catch { }
+                _audioListener = null;
+            }
 
             _capture.DataAvailable += OnDataAvailable;
             _capture.RecordingStopped += OnRecordingStopped;
@@ -259,31 +354,6 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
-    private async Task<bool> WaitForAudioConnectionAsync(CancellationToken token, TimeSpan timeout)
-    {
-        if (_audioListener == null) return false;
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        linkedCts.CancelAfter(timeout);
-
-        try
-        {
-            var acceptTask = _audioListener.AcceptTcpClientAsync();
-
-            using var reg = linkedCts.Token.Register(() =>
-            {
-                try { _audioListener?.Stop(); } catch { }
-            });
-
-            _audioClient = await acceptTask;
-            _audioStream = _audioClient.GetStream();
-            return true;
-        }
-        catch (SocketException) { return false; }
-        catch (ObjectDisposedException) { return false; }
-        catch (OperationCanceledException) { return false; }
-    }
-
     private async Task SendControlAsync(string command, string? param = null)
     {
         if (_controlStream == null) return;
@@ -297,28 +367,6 @@ public class VirtualSpeakerService : IDisposable
             await _controlStream.WriteAsync(paramBytes, 0, paramBytes.Length);
             await _controlStream.FlushAsync();
         }
-    }
-
-    private void StartAudioListener()
-    {
-        _audioListener = new TcpListener(IPAddress.Any, SoundSeederProtocol.AudioPort);
-        _audioListener.Start();
-        _logger.LogInformation("音频监听器已启动，端口: {Port}", SoundSeederProtocol.AudioPort);
-    }
-
-    private void StopAudioListener()
-    {
-        try { _audioStream?.Close(); } catch { }
-        try { _audioStream?.Dispose(); } catch { }
-        _audioStream = null;
-
-        try { _audioClient?.Close(); } catch { }
-        try { _audioClient?.Dispose(); } catch { }
-        _audioClient = null;
-
-        try { _audioListener?.Stop(); } catch { }
-        try { _audioListener?.Dispose(); } catch { }
-        _audioListener = null;
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
@@ -358,13 +406,13 @@ public class VirtualSpeakerService : IDisposable
                 }
 
                 var pcm16 = SoundSeederProtocol.Float32ToPcm16(floatBuffer, bytesRecorded);
-                var samples = bytesRecorded / 4;
+                var frames = bytesRecorded / (4 * _channels);
 
                 var packet = SoundSeederProtocol.BuildAudioPacket(
                     _isFirstPacket, _sampleRate, _channels, 16,
                     _streamTimestamp, pcm16);
                 _isFirstPacket = false;
-                _streamTimestamp += samples * 1000L / _sampleRate;
+                _streamTimestamp += frames * 1000L / _sampleRate;
 
                 if (_audioStream != null)
                 {
@@ -373,10 +421,10 @@ public class VirtualSpeakerService : IDisposable
                         _audioStream.Write(packet, 0, packet.Length);
                         _audioStream.Flush();
                     }
-                    catch (IOException)
+                    catch (IOException ex)
                     {
-                        _logger.LogWarning("音频连接断开，等待重连...");
-                        WaitForAudioReconnection(token);
+                        _logger.LogWarning(ex, "音频连接断开");
+                        ReconnectAudio(token);
                     }
                     catch (ObjectDisposedException) { break; }
                 }
@@ -389,7 +437,7 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
-    private void WaitForAudioReconnection(CancellationToken token)
+    private void ReconnectAudio(CancellationToken token)
     {
         try { _audioStream?.Close(); } catch { }
         try { _audioStream?.Dispose(); } catch { }
@@ -398,32 +446,38 @@ public class VirtualSpeakerService : IDisposable
         try { _audioClient?.Dispose(); } catch { }
         _audioClient = null;
         _isFirstPacket = true;
+        _streamTimestamp = 0;
 
-        if (_audioListener == null) return;
-
-        using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(token);
-        linkedCts.CancelAfter(TimeSpan.FromSeconds(30));
-
-        try
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!token.IsCancellationRequested && DateTime.UtcNow < deadline)
         {
-            var acceptTask = _audioListener.AcceptTcpClientAsync();
-
-            using var reg = linkedCts.Token.Register(() =>
+            try
             {
-                try { _audioListener?.Stop(); } catch { }
-            });
+                _audioListener = new TcpListener(IPAddress.Any, SoundSeederProtocol.AudioPort);
+                _audioListener.Start();
+                _logger.LogInformation("等待 Speaker 重新连接...");
 
-            _audioClient = acceptTask.GetAwaiter().GetResult();
-            _audioStream = _audioClient.GetStream();
-            _logger.LogInformation("音频连接已重新建立");
+                using var acceptCts = CancellationTokenSource.CreateLinkedTokenSource(token);
+                acceptCts.CancelAfter(TimeSpan.FromSeconds(10));
+                _audioClient = _audioListener.AcceptTcpClientAsync(acceptCts.Token)
+                    .GetAwaiter().GetResult();
+                _audioStream = _audioClient.GetStream();
+                _isFirstPacket = true;
+                _streamTimestamp = 0;
+                _logger.LogInformation("音频连接已重新建立");
+                return;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "音频重连失败，2秒后重试");
+                try { _audioClient?.Dispose(); } catch { }
+                _audioClient = null;
+                try { _audioListener?.Stop(); } catch { }
+                _audioListener = null;
+                Thread.Sleep(2000);
+            }
         }
-        catch (SocketException) { }
-        catch (ObjectDisposedException) { }
-        catch (OperationCanceledException) { }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "等待音频重连异常");
-        }
+        _logger.LogWarning("音频重连超时");
     }
 
     public async Task StopStreamingAsync()
@@ -438,6 +492,12 @@ public class VirtualSpeakerService : IDisposable
         {
             _streamingCts?.Cancel();
 
+            try { _heartbeatCts?.Cancel(); } catch { }
+            try { _heartbeatListener?.Stop(); } catch { }
+            _heartbeatListener = null;
+            _heartbeatCts?.Dispose();
+            _heartbeatCts = null;
+
             try { if (_controlStream != null) await SendControlAsync("$disc$"); } catch { }
 
             try { _controlStream?.Close(); } catch { }
@@ -449,7 +509,7 @@ public class VirtualSpeakerService : IDisposable
 
             RestoreSystemMute();
             CleanupCapture();
-            StopAudioListener();
+            CleanupAudioConnection();
 
             _isRunning = false;
             _isFirstPacket = true;
@@ -493,6 +553,18 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
+    private void CleanupAudioConnection()
+    {
+        try { _audioStream?.Close(); } catch { }
+        try { _audioStream?.Dispose(); } catch { }
+        _audioStream = null;
+        try { _audioClient?.Close(); } catch { }
+        try { _audioClient?.Dispose(); } catch { }
+        _audioClient = null;
+        try { _audioListener?.Stop(); } catch { }
+        _audioListener = null;
+    }
+
     public void Dispose()
     {
         if (_isDisposed) return;
@@ -502,7 +574,7 @@ public class VirtualSpeakerService : IDisposable
         {
             RestoreSystemMute();
             CleanupCapture();
-            StopAudioListener();
+            CleanupAudioConnection();
             _streamingCts?.Cancel();
             _streamingCts?.Dispose();
             _isRunning = false;
@@ -516,6 +588,8 @@ public class VirtualSpeakerService : IDisposable
         try { _controlStream?.Dispose(); } catch { }
         try { _controlClient?.Dispose(); } catch { }
         try { _discoveryClient?.Dispose(); } catch { }
+        try { _heartbeatCts?.Dispose(); } catch { }
+        try { _heartbeatListener?.Stop(); } catch { }
         _audioDataReady.Dispose();
     }
 }

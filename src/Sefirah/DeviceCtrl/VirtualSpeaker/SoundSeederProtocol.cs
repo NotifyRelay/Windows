@@ -9,7 +9,8 @@ public static class SoundSeederProtocol
     public const int MulticastSendPort = 33323;
     public const int MulticastListenPort = 33324;
     public const int ControlPort = 42440;
-    public const int AudioPort = 5353;
+    public const int AudioPort = 42441;
+    public const int HeartbeatPort = 5353;
     public const int PlayerVersion = 130;
     public const string MulticastAddress = "233.3.33.23";
 
@@ -64,6 +65,22 @@ public static class SoundSeederProtocol
         _ => 2,
     };
 
+    private static void WriteInt32BE(BinaryWriter writer, int value)
+    {
+        var bytes = BitConverter.GetBytes(value);
+        if (BitConverter.IsLittleEndian)
+            Array.Reverse(bytes);
+        writer.Write(bytes);
+    }
+
+    private static void WriteInt64BE(BinaryWriter writer, long value)
+    {
+        var bytes = BitConverter.GetBytes(value);
+        if (BitConverter.IsLittleEndian)
+            Array.Reverse(bytes);
+        writer.Write(bytes);
+    }
+
     public static byte[] BuildAudioPacket(
         bool isReset,
         int sampleRate,
@@ -79,12 +96,12 @@ public static class SoundSeederProtocol
         using var writer = new BinaryWriter(ms);
 
         writer.Write(isReset);
-        writer.Write(sampleRate);
-        writer.Write(formatCode);
-        writer.Write(channelCode);
-        writer.Write(timestamp);
-        writer.Write(0L); // offset
-        writer.Write(pcmData.Length);
+        WriteInt32BE(writer, sampleRate);
+        WriteInt32BE(writer, formatCode);
+        WriteInt32BE(writer, channelCode);
+        WriteInt64BE(writer, timestamp);
+        WriteInt64BE(writer, 0L); // offset
+        WriteInt32BE(writer, pcmData.Length);
         writer.Write(pcmData);
 
         return ms.ToArray();
