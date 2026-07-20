@@ -41,7 +41,9 @@ public class VirtualSpeakerService : IDisposable
     private int _sampleRate;
     private int _channels;
     private bool _isFirstPacket = true;
-    private long _streamTimestamp;
+
+    // 积累发送：累积 500ms WASAI 数据后一次性发，所有包 timestamp=0 跳过 Speaker 时序计算
+    private const int TargetPacketMs = 500;
 
     private readonly List<SoundSeederDeviceInfo> _discoveredSpeakers = [];
     private readonly object _speakersLock = new();
@@ -263,7 +265,6 @@ public class VirtualSpeakerService : IDisposable
 
         _playerUuid = SoundSeederProtocol.GenerateUuid();
         _isFirstPacket = true;
-        _streamTimestamp = 0;
 
         try
         {
@@ -316,7 +317,6 @@ public class VirtualSpeakerService : IDisposable
                 _audioClient = await _audioListener.AcceptTcpClientAsync(acceptCts.Token);
                 _audioStream = _audioClient.GetStream();
                 _isFirstPacket = true;
-                _streamTimestamp = 0;
                 _logger.LogInformation("Speaker 音频通道已连接");
             }
             catch (OperationCanceledException)
@@ -389,11 +389,24 @@ public class VirtualSpeakerService : IDisposable
 
     private void AudioWriterLoop(CancellationToken token)
     {
+        var accumulatedPcmStream = new MemoryStream();
+        long accumulatedFrames = 0;
+        var targetFrames = _sampleRate * TargetPacketMs / 1000;
+
         while (!token.IsCancellationRequested)
         {
             try
             {
-                if (!_audioDataReady.WaitOne(100)) continue;
+                if (!_audioDataReady.WaitOne(100))
+                {
+                    if (accumulatedPcmStream.Length > 0)
+                    {
+                        FlushAccumulatedPacket(accumulatedPcmStream, accumulatedFrames, token);
+                        accumulatedPcmStream.SetLength(0);
+                        accumulatedFrames = 0;
+                    }
+                    continue;
+                }
 
                 byte[]? floatBuffer;
                 int bytesRecorded;
@@ -407,26 +420,14 @@ public class VirtualSpeakerService : IDisposable
 
                 var pcm16 = SoundSeederProtocol.Float32ToPcm16(floatBuffer, bytesRecorded);
                 var frames = bytesRecorded / (4 * _channels);
+                accumulatedPcmStream.Write(pcm16, 0, pcm16.Length);
+                accumulatedFrames += frames;
 
-                var packet = SoundSeederProtocol.BuildAudioPacket(
-                    _isFirstPacket, _sampleRate, _channels, 16,
-                    _streamTimestamp, pcm16);
-                _isFirstPacket = false;
-                _streamTimestamp += frames * 1000L / _sampleRate;
-
-                if (_audioStream != null)
+                if (accumulatedFrames >= targetFrames)
                 {
-                    try
-                    {
-                        _audioStream.Write(packet, 0, packet.Length);
-                        _audioStream.Flush();
-                    }
-                    catch (IOException ex)
-                    {
-                        _logger.LogWarning(ex, "音频连接断开");
-                        ReconnectAudio(token);
-                    }
-                    catch (ObjectDisposedException) { break; }
+                    FlushAccumulatedPacket(accumulatedPcmStream, accumulatedFrames, token);
+                    accumulatedPcmStream.SetLength(0);
+                    accumulatedFrames = 0;
                 }
             }
             catch (OperationCanceledException) { break; }
@@ -434,6 +435,31 @@ public class VirtualSpeakerService : IDisposable
             {
                 _logger.LogDebug(ex, "音频写入异常");
             }
+        }
+    }
+
+    private void FlushAccumulatedPacket(MemoryStream pcmStream, long frames, CancellationToken token)
+    {
+        var pcmData = pcmStream.ToArray();
+        // 所有包用 timestamp=0 跳过 Speaker 时序计算
+        // 仅第一包 isReset=true 初始化 SourceDataLine
+        var packet = SoundSeederProtocol.BuildAudioPacket(
+            _isFirstPacket, _sampleRate, _channels, 16, 0, pcmData);
+        _isFirstPacket = false;
+
+        if (_audioStream != null)
+        {
+            try
+            {
+                _audioStream.Write(packet, 0, packet.Length);
+                _audioStream.Flush();
+            }
+            catch (IOException ex)
+            {
+                _logger.LogWarning(ex, "音频连接断开");
+                ReconnectAudio(token);
+            }
+            catch (ObjectDisposedException) { }
         }
     }
 
@@ -446,7 +472,6 @@ public class VirtualSpeakerService : IDisposable
         try { _audioClient?.Dispose(); } catch { }
         _audioClient = null;
         _isFirstPacket = true;
-        _streamTimestamp = 0;
 
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (!token.IsCancellationRequested && DateTime.UtcNow < deadline)
@@ -463,7 +488,6 @@ public class VirtualSpeakerService : IDisposable
                     .GetAwaiter().GetResult();
                 _audioStream = _audioClient.GetStream();
                 _isFirstPacket = true;
-                _streamTimestamp = 0;
                 _logger.LogInformation("音频连接已重新建立");
                 return;
             }
