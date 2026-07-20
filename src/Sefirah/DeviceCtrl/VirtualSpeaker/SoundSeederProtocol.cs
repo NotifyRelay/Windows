@@ -11,7 +11,7 @@ public static class SoundSeederProtocol
     public const int ControlPort = 42440;
     public const int AudioPort = 42441;
     public const int HeartbeatPort = 5353;
-    public const int PlayerVersion = 130;
+    public const int PlayerVersion = 191;
     public const string MulticastAddress = "233.3.33.23";
 
     public static int JavaStringHashCode(string str)
@@ -83,7 +83,8 @@ public static class SoundSeederProtocol
         int channels,
         int bitsPerSample,
         long timestamp,
-        byte[] pcmData)
+        byte[] pcmData,
+        long cumulativeOffsetMs = 0)
     {
         var formatCode = ChannelsToFormatCode(channels);
         var channelCode = BitsToChannelCode(bitsPerSample);
@@ -96,7 +97,7 @@ public static class SoundSeederProtocol
         WriteInt32BE(writer, formatCode);
         WriteInt32BE(writer, channelCode);
         WriteInt64BE(writer, timestamp);
-        WriteInt64BE(writer, 0L);
+        WriteInt64BE(writer, cumulativeOffsetMs);
         WriteInt32BE(writer, pcmData.Length);
         writer.Write(pcmData);
 

@@ -64,11 +64,12 @@ public class VirtualSpeakerService : IDisposable
     private bool _isFirstPacket = true;
     private long _timestampBase;
     private long _clockOffsetMs;
+    private double _cumulativeOffsetMs;
 
     private static long NowMs => Stopwatch.GetTimestamp() * 1000L / Stopwatch.Frequency;
 
-    // 可通过 UI 下拉框切换的流式策略（默认 AccumZero200）
-    private StreamingStrategy _strategy = StreamingStrategy.AccumZero200;
+    // 可通过 UI 下拉框切换的流式策略（默认 Official，匹配抓包特征）
+    private StreamingStrategy _strategy = StreamingStrategy.Official;
     public StreamingStrategy Strategy { get => _strategy; set => _strategy = value; }
 
     private readonly List<SoundSeederDeviceInfo> _discoveredSpeakers = [];
@@ -296,6 +297,7 @@ public class VirtualSpeakerService : IDisposable
 
         _playerUuid = SoundSeederProtocol.GenerateUuid();
         _isFirstPacket = true;
+        _cumulativeOffsetMs = 0;
         ClearAudioQueue();
         _targetSpeakerIp = targetSpeaker.IpAddress;
 
@@ -530,14 +532,17 @@ public class VirtualSpeakerService : IDisposable
         while (_audioQueue.TryDequeue(out var entry))
         {
             if ((now - entry.CapturedAt).TotalMilliseconds > MaxAudioAgeMs)
-                continue; // 丢弃过期数据
+                continue;
 
             var pcm16 = SoundSeederProtocol.Float32ToPcm16(entry.Buffer, entry.Buffer.Length);
+            var frames = entry.Buffer.Length / (4 * _channels);
 
             var packet = SoundSeederProtocol.BuildAudioPacket(
                 _isFirstPacket, _sampleRate, _channels, 16,
-                NowMs + _clockOffsetMs + PerCallbackBufMs, pcm16);
+                NowMs + _clockOffsetMs + PerCallbackBufMs, pcm16,
+                (long)_cumulativeOffsetMs);
             _isFirstPacket = false;
+            _cumulativeOffsetMs += (double)frames / _sampleRate * 1000.0;
 
             WritePacket(packet, token);
         }
@@ -631,17 +636,19 @@ public class VirtualSpeakerService : IDisposable
         }
         else
         {
-            // 使用墙钟时间确保 Speaker 的 sleep = bufMs - this.d > 0
-            // this.d ≈ 10-11ms（取决于采样率），bufMs 需 > this.d
             timestamp = NowMs + _clockOffsetMs + (useTimestampBuf ? bufMs : PerCallbackBufMs);
         }
 
+        var frames = pcmData.Length / (2 * _channels);
+
         var packet = SoundSeederProtocol.BuildAudioPacket(
-            _isFirstPacket, _sampleRate, _channels, 16, timestamp, pcmData);
+            _isFirstPacket, _sampleRate, _channels, 16, timestamp, pcmData,
+            (long)_cumulativeOffsetMs);
         _isFirstPacket = false;
+        _cumulativeOffsetMs += (double)frames / _sampleRate * 1000.0;
 
         if (!useTimestampZero)
-            streamTimestamp += pcmData.Length / (2 * _channels) * 1000L / _sampleRate;
+            streamTimestamp += frames * 1000L / _sampleRate;
 
         WritePacket(packet, token);
     }
@@ -673,6 +680,7 @@ public class VirtualSpeakerService : IDisposable
         try { _audioClient?.Dispose(); } catch { }
         _audioClient = null;
         _isFirstPacket = true;
+        _cumulativeOffsetMs = 0;
         ClearAudioQueue();
 
         var deadline = DateTime.UtcNow.AddSeconds(30);
@@ -742,6 +750,7 @@ public class VirtualSpeakerService : IDisposable
 
             _isRunning = false;
             _isFirstPacket = true;
+            _cumulativeOffsetMs = 0;
             ClearAudioQueue();
             _generalSettingsService.EnableVirtualSpeaker = false;
             _logger.LogInformation("虚拟扬声器已停止");
