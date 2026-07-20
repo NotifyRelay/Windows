@@ -230,7 +230,7 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDataCb(IntPtr uuid, IntPtr messageType, IntPtr plaintext, IntPtr userData);
 
-    [UnmanagedFunctionPointer(CallingConvention = CallingConvention.Cdecl)]
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnLogCb(int level, IntPtr message);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
