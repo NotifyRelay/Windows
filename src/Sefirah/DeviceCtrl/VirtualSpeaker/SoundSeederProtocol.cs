@@ -6,8 +6,8 @@ namespace NotifyRelay.DeviceCtrl.VirtualSpeaker;
 
 public static class SoundSeederProtocol
 {
-    public const int MulticastSendPort = 33323;
-    public const int MulticastListenPort = 33324;
+    public const int PlayerListenPort = 33323;
+    public const int SpeakerListenPort = 33324;
     public const int ControlPort = 42440;
     public const int AudioPort = 42441;
     public const int HeartbeatPort = 5353;
@@ -18,18 +18,14 @@ public static class SoundSeederProtocol
     {
         int hash = 0;
         foreach (char c in str)
-        {
             hash = 31 * hash + c;
-        }
         return hash;
     }
 
     public static string GenerateUuid(string? ip = null)
     {
         if (ip == null)
-        {
             ip = GetLocalIpAddress();
-        }
         return "SE" + JavaStringHashCode(ip ?? "unknown");
     }
 
@@ -100,7 +96,7 @@ public static class SoundSeederProtocol
         WriteInt32BE(writer, formatCode);
         WriteInt32BE(writer, channelCode);
         WriteInt64BE(writer, timestamp);
-        WriteInt64BE(writer, 0L); // offset
+        WriteInt64BE(writer, 0L);
         WriteInt32BE(writer, pcmData.Length);
         writer.Write(pcmData);
 
@@ -122,5 +118,81 @@ public static class SoundSeederProtocol
         }
 
         return pcm16;
+    }
+
+    public static async Task<string?> SendShortCommandAsync(
+        string ip, int port, string command, string? param = null, bool readResponse = false, int timeoutMs = 5000)
+    {
+        using var client = new TcpClient();
+        using var connectCts = new CancellationTokenSource(timeoutMs);
+        await client.ConnectAsync(ip, port, connectCts.Token);
+        client.ReceiveTimeout = timeoutMs;
+        using var stream = client.GetStream();
+
+        var cmdBytes = Encoding.UTF8.GetBytes(command + "\n");
+        await stream.WriteAsync(cmdBytes, 0, cmdBytes.Length);
+        await stream.FlushAsync();
+
+        if (param != null)
+        {
+            var paramBytes = Encoding.UTF8.GetBytes(param + "\n");
+            await stream.WriteAsync(paramBytes, 0, paramBytes.Length);
+            await stream.FlushAsync();
+        }
+
+        if (readResponse)
+        {
+            using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);
+            using var responseCts = new CancellationTokenSource(timeoutMs);
+            return await reader.ReadLineAsync(responseCts.Token);
+        }
+
+        return null;
+    }
+
+    public static async Task SendShortCommandNoResponseAsync(
+        string ip, int port, string command, string? param = null, int timeoutMs = 5000)
+    {
+        await SendShortCommandAsync(ip, port, command, param, false, timeoutMs);
+    }
+
+    public static async Task<string?> SendShortCommandWithResponseAsync(
+        string ip, int port, string command, string? param = null, int timeoutMs = 5000)
+    {
+        return await SendShortCommandAsync(ip, port, command, param, true, timeoutMs);
+    }
+
+    public static async Task<List<string>> SendMultiCommandWithResponsesAsync(
+        string ip, int port, IEnumerable<(string Command, string? Param)> commands, int timeoutMs = 5000)
+    {
+        using var client = new TcpClient();
+        using var connectCts = new CancellationTokenSource(timeoutMs);
+        await client.ConnectAsync(ip, port, connectCts.Token);
+        client.ReceiveTimeout = timeoutMs;
+        using var stream = client.GetStream();
+
+        var responses = new List<string>();
+        using var reader = new StreamReader(stream, Encoding.UTF8, leaveOpen: false);
+
+        foreach (var (cmd, param) in commands)
+        {
+            var cmdBytes = Encoding.UTF8.GetBytes(cmd + "\n");
+            await stream.WriteAsync(cmdBytes, 0, cmdBytes.Length);
+            await stream.FlushAsync();
+
+            if (param != null)
+            {
+                var paramBytes = Encoding.UTF8.GetBytes(param + "\n");
+                await stream.WriteAsync(paramBytes, 0, paramBytes.Length);
+                await stream.FlushAsync();
+            }
+
+            // 读取响应（所有命令都有响应，即使是空行）
+            using var responseCts = new CancellationTokenSource(timeoutMs);
+            var response = await reader.ReadLineAsync(responseCts.Token);
+            responses.Add(response ?? "");
+        }
+
+        return responses;
     }
 }

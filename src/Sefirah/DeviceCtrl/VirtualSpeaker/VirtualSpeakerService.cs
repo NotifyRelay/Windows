@@ -36,9 +36,6 @@ public class VirtualSpeakerService : IDisposable
     private UdpClient? _discoveryClient;
     private CancellationTokenSource? _discoveryCts;
 
-    private TcpClient? _controlClient;
-    private NetworkStream? _controlStream;
-
     private TcpListener? _audioListener;
     private TcpClient? _audioClient;
     private NetworkStream? _audioStream;
@@ -51,18 +48,22 @@ public class VirtualSpeakerService : IDisposable
     private Thread? _audioWriterThread;
     private readonly AutoResetEvent _audioDataReady = new(false);
     private readonly ConcurrentQueue<(byte[] Buffer, DateTime CapturedAt)> _audioQueue = new();
-    private const int MaxAudioAgeMs = 2000; // 超过2秒的音频直接丢弃
-    private const long PerCallbackBufMs = 25; // 缓冲(ms)，需 > Speaker this.d + 网络RTT/2
+    private const int MaxAudioAgeMs = 2000;
+    private const long PerCallbackBufMs = 25;
 
     private bool _isRunning;
     private bool _isDisposed;
     private bool _systemWasMuted;
     private string? _playerUuid;
+    private string? _speakerName;
+    private int _speakerVersion;
+    private int _speakerType;
+    private int _speakerVolume;
     private int _sampleRate;
     private int _channels;
     private bool _isFirstPacket = true;
     private long _timestampBase;
-    private long _clockOffsetMs; // Speaker nanoTime 偏移量
+    private long _clockOffsetMs;
 
     private static long NowMs => Stopwatch.GetTimestamp() * 1000L / Stopwatch.Frequency;
 
@@ -96,10 +97,10 @@ public class VirtualSpeakerService : IDisposable
 
         try
         {
-            _discoveryClient = new UdpClient(SoundSeederProtocol.MulticastSendPort);
+            _discoveryClient = new UdpClient(SoundSeederProtocol.PlayerListenPort);
             _discoveryClient.JoinMulticastGroup(IPAddress.Parse(SoundSeederProtocol.MulticastAddress));
             _logger.LogInformation("已加入多播组 {Address}:{Port}",
-                SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.MulticastSendPort);
+                SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.PlayerListenPort);
 
             var probeBytes = Encoding.UTF8.GetBytes(_playerUuid);
             var listenTask = Task.Run(async () =>
@@ -148,7 +149,7 @@ public class VirtualSpeakerService : IDisposable
                     try
                     {
                         await _discoveryClient.SendAsync(probeBytes, probeBytes.Length,
-                            SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.MulticastListenPort);
+                            SoundSeederProtocol.MulticastAddress, SoundSeederProtocol.SpeakerListenPort);
                         await Task.Delay(800, token);
                     }
                     catch { break; }
@@ -296,6 +297,7 @@ public class VirtualSpeakerService : IDisposable
         _playerUuid = SoundSeederProtocol.GenerateUuid();
         _isFirstPacket = true;
         ClearAudioQueue();
+        _targetSpeakerIp = targetSpeaker.IpAddress;
 
         try
         {
@@ -311,39 +313,45 @@ public class VirtualSpeakerService : IDisposable
 
             _streamingCts = new CancellationTokenSource();
             var token = _streamingCts.Token;
-
-            _controlClient = new TcpClient();
-            await _controlClient.ConnectAsync(targetSpeaker.IpAddress, SoundSeederProtocol.ControlPort);
-            _controlStream = _controlClient.GetStream();
-            _logger.LogInformation("控制通道已连接 {Ip}:{Port}",
-                targetSpeaker.IpAddress, SoundSeederProtocol.ControlPort);
-
-            _targetSpeakerIp = targetSpeaker.IpAddress;
+            var speakerIp = targetSpeaker.IpAddress;
 
             _capture = new WasapiLoopbackCapture();
             _sampleRate = _capture.WaveFormat.SampleRate;
             _channels = _capture.WaveFormat.Channels;
             _logger.LogInformation("音频捕获格式: {Rate}Hz {Channels}ch", _sampleRate, _channels);
 
+            // Phase 1: 查询 Speaker 信息（短连接）
+            await QuerySpeakerInfoAsync(speakerIp);
+
+            // Phase 2: 启动必要监听
             StartHeartbeatListener();
 
             _audioListener = new TcpListener(IPAddress.Any, SoundSeederProtocol.AudioPort);
             _audioListener.Start();
             _logger.LogInformation("音频服务已启动，等待 Speaker 连接 :{Port}", SoundSeederProtocol.AudioPort);
 
-            await SendControlAsync("$setPlayer$",
-                $"[\"{_playerUuid}\",\"{Dns.GetHostName()}\",{SoundSeederProtocol.PlayerVersion}]");
-            await SendControlAsync("$idP$", _playerUuid);
-            await SendControlAsync("$setv$", "15");
-            var channelConf = _channels >= 2 ? "1" : "0"; // 0=Mono, 1=Stereo, 2=Left, 3=Right
-            await SendControlAsync("$setch$", channelConf);
-            await SendControlAsync("$setOffM$", "0");
+            // Phase 3: 通过短连接发送配置命令
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$setPlayer$",
+                $"[\"{_playerUuid}\",\"{Dns.GetHostName()}\",{SoundSeederProtocol.PlayerVersion},true]");
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$idP$", _playerUuid);
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$setv$", "15");
+            var channelConf = _channels >= 2 ? "1" : "0";
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$setch$", channelConf);
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$setOffM$", "0");
 
-            // 时钟同步：获取 Speaker 的 nanoTime 以校正两端时钟差
-            var speakerNanoTimeStr = await SendControlWithResponseAsync("$off$");
+            // 时钟同步：短连接获取 Speaker nanoTime
+            var speakerNanoTimeStr = await SoundSeederProtocol.SendShortCommandWithResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$off$");
             SyncClocks(speakerNanoTimeStr);
 
-            await SendControlAsync("$con$");
+            // Phase 4: 发送 $con$ 触发 Speaker 连接音频端口
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(speakerIp,
+                SoundSeederProtocol.ControlPort, "$con$");
             _logger.LogInformation("已请求音频连接，等待 Speaker 连接...");
 
             try
@@ -390,36 +398,63 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
-    private async Task SendControlAsync(string command, string? param = null)
+    private async Task QuerySpeakerInfoAsync(string speakerIp)
     {
-        if (_controlStream == null) return;
-        var cmdBytes = Encoding.UTF8.GetBytes(command + "\n");
-        await _controlStream.WriteAsync(cmdBytes, 0, cmdBytes.Length);
-        await _controlStream.FlushAsync();
-
-        if (param != null)
+        try
         {
-            var paramBytes = Encoding.UTF8.GetBytes(param + "\n");
-            await _controlStream.WriteAsync(paramBytes, 0, paramBytes.Length);
-            await _controlStream.FlushAsync();
+            var responses = await SoundSeederProtocol.SendMultiCommandWithResponsesAsync(
+                speakerIp, SoundSeederProtocol.ControlPort,
+                [
+                    ("$getVersion$", null),
+                    ("$getType$", null),
+                    ("$getName$", null),
+                    ("$getStSp$", null),
+                    ("$getv$", null),
+                ]);
+
+            if (responses.Count >= 5)
+            {
+                _speakerVersion = int.TryParse(responses[0], out var ver) ? ver : 0;
+                _speakerType = int.TryParse(responses[1], out var type) ? type : 0;
+                _speakerName = responses[2] ?? "Unknown";
+                // responses[3] = start/stop state (true/false)
+                _speakerVolume = int.TryParse(responses[4], out var vol) ? vol : 12;
+
+                _logger.LogInformation(
+                    "Speaker 信息: Version={Ver}, Type={Type}, Name={Name}, Volume={Vol}",
+                    _speakerVersion, _speakerType, _speakerName, _speakerVolume);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "Speaker 信息查询失败（非致命）");
         }
     }
 
-    private async Task<string?> SendControlWithResponseAsync(string command, string? param = null)
+    public async Task SendSongInfoAsync(long id, string title, string artist, int duration, long coverId, string album)
     {
-        if (_controlStream == null) return null;
-        var cmdBytes = Encoding.UTF8.GetBytes(command + "\n");
-        await _controlStream.WriteAsync(cmdBytes, 0, cmdBytes.Length);
-        if (param != null)
+        if (string.IsNullOrEmpty(_targetSpeakerIp))
         {
-            var paramBytes = Encoding.UTF8.GetBytes(param + "\n");
-            await _controlStream.WriteAsync(paramBytes, 0, paramBytes.Length);
+            _logger.LogWarning("未连接 Speaker，无法发送歌曲信息");
+            return;
         }
-        await _controlStream.FlushAsync();
 
-        using var reader = new StreamReader(_controlStream, Encoding.UTF8, leaveOpen: true);
-        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-        return await reader.ReadLineAsync(cts.Token);
+        try
+        {
+            var songJson = $"[{id},\"{title}\",\"{artist}\",{duration},{coverId},\"{album}\"]";
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(
+                _targetSpeakerIp, SoundSeederProtocol.ControlPort, "$idP$",
+                _playerUuid ?? SoundSeederProtocol.GenerateUuid());
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(
+                _targetSpeakerIp, SoundSeederProtocol.ControlPort, "$setSong$", songJson);
+            await SoundSeederProtocol.SendShortCommandNoResponseAsync(
+                _targetSpeakerIp, SoundSeederProtocol.ControlPort, "$diqu$");
+            _logger.LogInformation("歌曲信息已发送: {Title}", title);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送歌曲信息失败");
+        }
     }
 
     private void SyncClocks(string? speakerNanoTimeStr)
@@ -690,14 +725,16 @@ public class VirtualSpeakerService : IDisposable
             _heartbeatCts?.Dispose();
             _heartbeatCts = null;
 
-            try { if (_controlStream != null) await SendControlAsync("$disc$"); } catch { }
-
-            try { _controlStream?.Close(); } catch { }
-            try { _controlStream?.Dispose(); } catch { }
-            _controlStream = null;
-            try { _controlClient?.Close(); } catch { }
-            try { _controlClient?.Dispose(); } catch { }
-            _controlClient = null;
+            // 通过短连接发送断开命令
+            if (!string.IsNullOrEmpty(_targetSpeakerIp))
+            {
+                try
+                {
+                    await SoundSeederProtocol.SendShortCommandNoResponseAsync(
+                        _targetSpeakerIp, SoundSeederProtocol.ControlPort, "$disc$");
+                }
+                catch { }
+            }
 
             RestoreSystemMute();
             CleanupCapture();
@@ -778,8 +815,6 @@ public class VirtualSpeakerService : IDisposable
             _streamingCts?.Dispose();
         }
 
-        try { _controlStream?.Dispose(); } catch { }
-        try { _controlClient?.Dispose(); } catch { }
         try { _discoveryClient?.Dispose(); } catch { }
         try { _heartbeatCts?.Dispose(); } catch { }
         try { _heartbeatListener?.Stop(); } catch { }
