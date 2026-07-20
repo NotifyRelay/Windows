@@ -52,7 +52,7 @@ public class VirtualSpeakerService : IDisposable
     private readonly AutoResetEvent _audioDataReady = new(false);
     private readonly ConcurrentQueue<(byte[] Buffer, DateTime CapturedAt)> _audioQueue = new();
     private const int MaxAudioAgeMs = 2000; // 超过2秒的音频直接丢弃
-    private const long PerCallbackBufMs = 15; // PerCallback 缓冲(ms)，需 > Speaker this.d (10ms@48kHz stereo)
+    private const long PerCallbackBufMs = 25; // 缓冲(ms)，需 > Speaker this.d + 网络RTT/2
 
     private bool _isRunning;
     private bool _isDisposed;
@@ -530,8 +530,8 @@ public class VirtualSpeakerService : IDisposable
         long bufMs = _strategy switch
         {
             StreamingStrategy.AccumBuf200 => 25,
-            StreamingStrategy.AccumTrue200 => 15,
-            StreamingStrategy.Official => 15,
+            StreamingStrategy.AccumTrue200 => 25,
+            StreamingStrategy.Official => 25,
             _ => 0
         };
         var targetFrames = _sampleRate * targetMs / 1000;
