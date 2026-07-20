@@ -150,14 +150,19 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     int WallpaperOverlayX { get; set; }
 
     /// <summary>
-    /// Gets or sets the target DLNA device ID for virtual speaker.
+    /// Gets or sets the target SoundSeeder device UUID for virtual speaker.
     /// </summary>
     string? VirtualSpeakerTargetDeviceId { get; set; }
 
     /// <summary>
-    /// Gets or sets the target DLNA device name for virtual speaker.
+    /// Gets or sets the target SoundSeeder device name for virtual speaker.
     /// </summary>
     string? VirtualSpeakerTargetDeviceName { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target SoundSeeder device IP for virtual speaker.
+    /// </summary>
+    string? VirtualSpeakerTargetDeviceIp { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether virtual speaker is enabled.
@@ -213,4 +218,9 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets the AutoRGB update interval in milliseconds.
     /// </summary>
     int AutoRGBUpdateInterval { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to send media notifications to connected devices.
+    /// </summary>
+    bool EnableSendMediaNotifications { get; set; }
 }

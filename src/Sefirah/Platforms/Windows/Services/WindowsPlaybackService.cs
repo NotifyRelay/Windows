@@ -20,7 +20,8 @@ public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
     ISessionManager sessionManager,
     IDeviceManager deviceManager,
-    IProtocolSender protocolSender) : IPlaybackService, IMMNotificationClient
+    IProtocolSender protocolSender,
+    IGeneralSettingsService generalSettings) : IPlaybackService, IMMNotificationClient
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
@@ -427,6 +428,8 @@ public class WindowsPlaybackService(
         session.TimelinePropertiesChanged -= Session_TimelinePropertiesChanged;
         lastTimelinePosition.Remove(session.SourceAppUserModelId);
 
+        if (!generalSettings.EnableSendMediaNotifications) return;
+
         // 发送媒体结束通知，使用与Android兼容的DATA_MEDIAPLAY格式
         foreach (var device in deviceManager.PairedDevices)
         {
@@ -461,13 +464,12 @@ public class WindowsPlaybackService(
     {
         try
         {
-            logger.LogInformation("媒体属性已变更：{SourceAppUserModelId}", sender.SourceAppUserModelId);
+            if (!generalSettings.EnableSendMediaNotifications) return;
             await UpdatePlaybackDataAsync(sender);
 
         }
         catch (COMException comEx)
         {
-            // 忽略WinRT COM异常，避免频繁触发日志
             logger.LogDebug(comEx, "WinRT COM异常（媒体属性变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
         }
         catch (Exception ex)
@@ -480,12 +482,11 @@ public class WindowsPlaybackService(
     {
         try
         {
-            // 播放状态变化时，获取完整的媒体信息
+            if (!generalSettings.EnableSendMediaNotifications) return;
             await UpdatePlaybackDataAsync(sender);
         }
         catch (COMException comEx)
         {
-            // 忽略WinRT COM异常，避免频繁触发日志
             logger.LogDebug(comEx, "WinRT COM异常（播放信息变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
         }
         catch (Exception ex)
@@ -567,6 +568,8 @@ public class WindowsPlaybackService(
 
     private void SendPlaybackData(string playbackJson)
     {
+        if (!generalSettings.EnableSendMediaNotifications) return;
+
         try
         {
             using var doc = JsonDocument.Parse(playbackJson);

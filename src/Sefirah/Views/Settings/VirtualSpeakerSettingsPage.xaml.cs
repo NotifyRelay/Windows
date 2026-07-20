@@ -63,7 +63,7 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
     {
         ScanButton.IsEnabled = false;
         ScanButton.Content = "扫描中...";
-        ViewModel.DiscoveryStatus = "正在扫描DLNA设备...";
+        ViewModel.DiscoveryStatus = "正在扫描SoundSeeder设备...";
 
         await ViewModel.ScanDevicesAsync();
 
@@ -79,7 +79,7 @@ public class VirtualSpeakerViewModel
 
     public event EventHandler? StatusChanged;
 
-    public ObservableCollection<DlnaRendererInfo> AvailableRenderers { get; } = new();
+    public ObservableCollection<SoundSeederDeviceInfo> AvailableSpeakers { get; } = new();
 
     private string _discoveryStatus = string.Empty;
     public string DiscoveryStatus
@@ -100,8 +100,9 @@ public class VirtualSpeakerViewModel
             _generalSettingsService.VirtualSpeakerTargetDeviceId = value;
             if (value != null)
             {
-                var device = AvailableRenderers.FirstOrDefault(r => r.Id == value);
+                var device = AvailableSpeakers.FirstOrDefault(r => r.Uuid == value);
                 _generalSettingsService.VirtualSpeakerTargetDeviceName = device?.Name;
+                _generalSettingsService.VirtualSpeakerTargetDeviceIp = device?.IpAddress;
             }
         }
     }
@@ -115,11 +116,21 @@ public class VirtualSpeakerViewModel
         {
             if (value && !_virtualSpeakerService.IsRunning)
             {
-                _ = _virtualSpeakerService.StartStreaming();
+                _ = _virtualSpeakerService.StartStreaming().ContinueWith(_ =>
+                {
+                    OnPropertyChanged(nameof(IsEnabled));
+                }, TaskScheduler.FromCurrentSynchronizationContext());
             }
             else if (!value && _virtualSpeakerService.IsRunning)
             {
-                _ = _virtualSpeakerService.StopStreamingAsync();
+                _ = _virtualSpeakerService.StopStreamingAsync().ContinueWith(_ =>
+                {
+                    OnPropertyChanged(nameof(IsEnabled));
+                }, TaskScheduler.FromCurrentSynchronizationContext());
+            }
+            else
+            {
+                OnPropertyChanged(nameof(IsEnabled));
             }
         }
     }
@@ -146,15 +157,15 @@ public class VirtualSpeakerViewModel
     {
         try
         {
-            var renderers = await _virtualSpeakerService.DiscoverRenderersAsync();
-            AvailableRenderers.Clear();
-            foreach (var renderer in renderers)
+            var speakers = await _virtualSpeakerService.DiscoverSpeakersAsync();
+            AvailableSpeakers.Clear();
+            foreach (var speaker in speakers)
             {
-                AvailableRenderers.Add(renderer);
+                AvailableSpeakers.Add(speaker);
             }
-            DiscoveryStatus = renderers.Any()
-                ? $"发现 {renderers.Count} 个DLNA设备"
-                : "未发现DLNA设备";
+            DiscoveryStatus = speakers.Any()
+                ? $"发现 {speakers.Count} 个SoundSeeder设备"
+                : "未发现SoundSeeder设备";
         }
         catch (Exception ex)
         {

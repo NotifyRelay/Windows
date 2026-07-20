@@ -306,6 +306,12 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    public string? VirtualSpeakerTargetDeviceIp
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
     public bool EnableVirtualSpeaker
     {
         get => Get(false);
@@ -351,7 +357,13 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public int AutoRGBUpdateInterval
     {
-        get => Get(100);
+        get => Get(5000);
+        set => Set(value);
+    }
+
+    public bool EnableSendMediaNotifications
+    {
+        get => Get(true);
         set => Set(value);
     }
 }

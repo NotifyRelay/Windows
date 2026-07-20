@@ -34,7 +34,7 @@
                 </BreadcrumbBar.ItemTemplate>
             </BreadcrumbBar>
 
-            <wuc:SettingsCard Header="扫描DLNA设备" Description="{x:Bind ViewModel.DiscoveryStatus, Mode=OneWay}">
+            <wuc:SettingsCard Header="扫描SoundSeeder设备" Description="{x:Bind ViewModel.DiscoveryStatus, Mode=OneWay}">
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE995;" />
                 </wuc:SettingsCard.HeaderIcon>
@@ -43,7 +43,7 @@
                 </StackPanel>
             </wuc:SettingsCard>
 
-            <wuc:SettingsCard Header="选择目标设备" Description="选择DLNA音频接收设备">
+            <wuc:SettingsCard Header="选择目标设备" Description="选择SoundSeeder音频接收设备">
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE8B0;" />
                 </wuc:SettingsCard.HeaderIcon>
@@ -51,11 +51,11 @@
                     x:Name="DeviceComboBox"
                     Width="240"
                     HorizontalAlignment="Left"
-                    ItemsSource="{x:Bind ViewModel.AvailableRenderers, Mode=OneWay}"
+                    ItemsSource="{x:Bind ViewModel.AvailableSpeakers, Mode=OneWay}"
                     DisplayMemberPath="Name"
-                    SelectedValuePath="Id"
+                    SelectedValuePath="Uuid"
                     SelectedValue="{x:Bind ViewModel.SelectedDeviceId, Mode=TwoWay}"
-                    PlaceholderText="选择DLNA设备" />
+                    PlaceholderText="选择SoundSeeder设备" />
             </wuc:SettingsCard>
 
             <wuc:SettingsCard Header="启用虚拟扬声器" Description="{helpers:ResourceString Name=VirtualSpeaker/EnableDescription}">

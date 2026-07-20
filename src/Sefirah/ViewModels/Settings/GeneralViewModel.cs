@@ -176,6 +176,19 @@ public sealed partial class GeneralViewModel : BaseViewModel
         }
     }
 
+    public bool EnableSendMediaNotifications
+    {
+        get => UserSettingsService.GeneralSettingsService.EnableSendMediaNotifications;
+        set
+        {
+            if (value != UserSettingsService.GeneralSettingsService.EnableSendMediaNotifications)
+            {
+                UserSettingsService.GeneralSettingsService.EnableSendMediaNotifications = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public string RemoteStoragePath
     {
         get => UserSettingsService.GeneralSettingsService.RemoteStoragePath;
