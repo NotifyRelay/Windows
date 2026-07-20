@@ -97,26 +97,47 @@ public partial class Notification : ObservableObject
 
 
     #region Helpers
-    public static async Task<Notification> FromMessage(NotificationMessage message)
+    public static async Task<Notification> FromMessage(string payload)
     {
+        using var doc = JsonDocument.Parse(payload);
+        var root = doc.RootElement;
+
+        var key = root.TryGetProperty("notificationKey", out var kp) && kp.ValueKind == JsonValueKind.String ? kp.GetString()! : Guid.NewGuid().ToString();
+        var timeStamp = root.TryGetProperty("timeStamp", out var tp) && tp.ValueKind == JsonValueKind.String ? tp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        var type = root.TryGetProperty("notificationType", out var typ) && typ.ValueKind == JsonValueKind.String
+            ? Enum.TryParse<NotificationType>(typ.GetString(), true, out var nt) ? nt : NotificationType.New
+            : NotificationType.New;
+        var appName = root.TryGetProperty("appName", out var an) ? an.GetString() : null;
+        var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
+            ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+        var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
+        var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
+        var tag = root.TryGetProperty("tag", out var tg) ? tg.GetString() : null;
+        var groupKey = root.TryGetProperty("groupKey", out var gk) ? gk.GetString() : null;
+
+        List<JsonElement>? messagesList = null;
+        if (root.TryGetProperty("messages", out var msgsProp) && msgsProp.ValueKind == JsonValueKind.Array)
+        {
+            messagesList = msgsProp.EnumerateArray().ToList();
+        }
+
         var notification = new Notification
         {
-            Key = message.NotificationKey,
-            TimeStamp = message.TimeStamp,
-            Type = message.NotificationType,
-            AppName = message.AppName,
-            AppPackage = message.AppPackage,
-            Title = message.Title,
-            Text = message.Text,
-            GroupedMessages = GroupBySender(message.Messages),
-            Tag = message.Tag,
-            GroupKey = message.GroupKey
+            Key = key,
+            TimeStamp = timeStamp,
+            Type = type,
+            AppName = appName,
+            AppPackage = appPackage,
+            Title = title,
+            Text = text,
+            GroupedMessages = GroupBySender(messagesList),
+            Tag = tag,
+            GroupKey = groupKey
         };
 
-        // 设置图标路径，复用应用列表的已有图标
-        if (!string.IsNullOrEmpty(message.AppPackage))
+        if (!string.IsNullOrEmpty(appPackage))
         {
-            notification.IconPath = IconUtils.GetAppIconPath(message.AppPackage);
+            notification.IconPath = IconUtils.GetAppIconPath(appPackage);
             await notification.LoadIconAsync();
         }
 
@@ -172,23 +193,25 @@ public partial class Notification : ObservableObject
         }
     }
 
-    internal static List<NotificationGroup> GroupBySender(List<NotificationTextMessage>? messages)
+    internal static List<NotificationGroup> GroupBySender(List<JsonElement>? messages)
     {
         if (messages == null || messages.Count == 0) return [];
 
         List<NotificationGroup> result = [];
         NotificationGroup? currentGroup = null;
 
-        foreach (var message in messages)
+        foreach (var msg in messages)
         {
-            if (currentGroup?.Sender != message.Sender)
+            var sender = msg.TryGetProperty("sender", out var sProp) ? sProp.GetString() : null;
+            var text = msg.TryGetProperty("text", out var tProp) ? tProp.GetString() : null;
+            if (currentGroup?.Sender != sender)
             {
-                currentGroup = new NotificationGroup(message.Sender, []);
+                currentGroup = new NotificationGroup(sender ?? "", []);
                 result.Add(currentGroup);
             }
-            if (!string.IsNullOrEmpty(message.Text))
+            if (!string.IsNullOrEmpty(text))
             {
-                currentGroup.Messages.Add(message.Text);
+                currentGroup.Messages.Add(text);
             }
         }
         return result;

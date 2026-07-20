@@ -45,7 +45,7 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
         }
     }
 
-    private void OnSyncStatusChanged(object sender, EventArgs e)
+    private void OnSyncStatusChanged(object? sender, EventArgs e)
     {
         UpdateSyncStatusUI();
     }
@@ -164,7 +164,7 @@ public class MonitorBrightnessViewModel
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly MonitorBrightnessService _monitorBrightnessService;
 
-    public event EventHandler SyncStatusChanged;
+    public event EventHandler? SyncStatusChanged;
 
     public string ControlMyMonitorPath
     {

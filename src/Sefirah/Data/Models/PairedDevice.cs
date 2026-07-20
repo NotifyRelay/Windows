@@ -68,7 +68,7 @@ public partial class PairedDevice : ObservableObject
                     // 只有当HasSentftpRequest为true时才启动计时器
                     if (HasSentftpRequest)
                     {
-                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器", Name, Id);
+                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器");
 
                         // 确保之前的计时器已被释放
                         autoftpTimer?.Stop();
@@ -206,18 +206,12 @@ public partial class PairedDevice : ObservableObject
                     try
                     {
                         var deviceRepository = Ioc.Default.GetRequiredService<DeviceRepository>();
-                        var deviceEntity = new RemoteDeviceEntity
+                        if (deviceRepository.HasDevice(Id, out var deviceEntity))
                         {
-                            DeviceId = Id,
-                            Name = Name,
-                            Model = Model,
-                            IpAddresses = IpAddresses,
-                            SharedSecret = SharedSecret,
-                            PublicKey = RemotePublicKey,
-                            HasSentftpRequest = value
-                        };
-                        deviceRepository.AddOrUpdateRemoteDevice(deviceEntity);
-                        logger.LogDebug("HasSentftpRequest属性已保存到数据库");
+                            deviceEntity.HasSentftpRequest = value;
+                            deviceRepository.AddOrUpdateRemoteDevice(deviceEntity);
+                            logger.LogDebug("HasSentftpRequest属性已保存到数据库");
+                        }
                     }
                     catch (Exception ex)
                     {

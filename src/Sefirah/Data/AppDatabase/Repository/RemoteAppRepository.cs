@@ -104,14 +104,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         }
         else
         {
-            var newAppInfo = new ApplicationInfoMessage
-            {
-                PackageName = appPackage,
-                AppName = appName ?? appPackage,
-                AppIcon = appIcon ?? null,
-            };
-
-            var appEntity = await ApplicationInfoEntity.FromApplicationInfoMessage(newAppInfo, deviceId);
+            var appEntity = await ApplicationInfoEntity.FromApplicationInfo(appPackage, appName ?? appPackage, deviceId);
             context.Database.Insert(appEntity);
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() => Applications.Add(appEntity.ToApplicationInfo(deviceId)));
         }
@@ -179,13 +172,13 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         }
     }
 
-    public async void UpdateApplicationList(PairedDevice pairedDevice, ApplicationList applicationList)
+    public async void UpdateApplicationList(PairedDevice pairedDevice, List<(string PackageName, string AppName)> appEntries)
     {
         try
         {
-            foreach (var appInfo in applicationList.AppList)
+            foreach (var (packageName, appName) in appEntries)
             {
-                var appEntity = await ApplicationInfoEntity.FromApplicationInfoMessage(appInfo, pairedDevice.Id);
+                var appEntity = await ApplicationInfoEntity.FromApplicationInfo(packageName, appName, pairedDevice.Id);
                 await AddOrUpdateApplicationForDevice(appEntity, pairedDevice.Id);
             }
 

@@ -1,0 +1,3 @@
+[submodule "notify-relay-core"]
+	path = notify-relay-core
+	url = git@github.com:NotifyRelay/core.git

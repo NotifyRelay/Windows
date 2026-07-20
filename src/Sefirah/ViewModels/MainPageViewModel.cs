@@ -2,6 +2,7 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
 
@@ -472,7 +473,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     }
 
     [RelayCommand]
-    public async void SetRingerMode(string? modeStr)
+    public async Task SetRingerMode(string? modeStr)
     {
         if (int.TryParse(modeStr, out int mode))
         {
@@ -559,7 +560,8 @@ public sealed partial class MainPageViewModel : BaseViewModel
 
     public async Task OpenApp(Notification notification, string? deviceId = null)
     {
-        Debug.WriteLine($"[调试] MainPageViewModel.OpenApp 被调用：notification.Key={notification?.Key} deviceId={deviceId}");
+        ArgumentNullException.ThrowIfNull(notification);
+        Debug.WriteLine($"[调试] MainPageViewModel.OpenApp 被调用：notification.Key={notification.Key} deviceId={deviceId}");
 
         // 如果未指定设备ID，使用当前活跃设备
         var targetDevice = deviceId != null ? DeviceManager.FindDeviceById(deviceId) : Device;
@@ -569,11 +571,15 @@ public sealed partial class MainPageViewModel : BaseViewModel
             return;
         }
 
-        var notificationToInvoke = new NotificationMessage
+        var rawJson = JsonSerializer.Serialize(new
         {
-            NotificationType = NotificationType.Invoke,
-            NotificationKey = notification.Key,
-        };
+            type = "DATA_NOTIFICATION",
+            notificationType = "Invoke",
+            notificationKey = notification.Key ?? string.Empty,
+        });
+        var notificationJson = rawJson;
+        if (notificationJson == null) return;
+
         string? appIcon = string.Empty;
         if (!string.IsNullOrEmpty(notification.AppPackage))
         {
@@ -585,13 +591,11 @@ public sealed partial class MainPageViewModel : BaseViewModel
 
         Debug.WriteLine($"[调试] ScreenMirrorService.StartScrcpy 返回: started={started}");
 
-        // Scrcpy doesn't have a way of opening notifications afaik, so we will just have the notification listener on Android to open it for us
-        // Plus we have to wait (2s will do ig?) until the app is actually launched to send the intent for launching the notification since Google added a lot more restrictions in this particular case
         if (started && targetDevice.ConnectionStatus)
         {
             Debug.WriteLine($"[调试] scrcpy 已启动且设备连接，等待 2s 然后发送通知调用到设备 {targetDevice.Id}");
             await Task.Delay(2000);
-            SessionManager.SendMessage(targetDevice.Id, SocketMessageSerializer.Serialize(notificationToInvoke));
+            SessionManager.SendMessage(targetDevice.Id, notificationJson);
         }
     }
 

@@ -2,13 +2,11 @@ using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models;
-#if WINDOWS
+using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
-#else
-using NotifyRelay.Platforms.Desktop;
-#endif
 using NotifyRelay.Services;
+using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.Services.Socket;
 using NotifyRelay.ViewModels;
@@ -96,19 +94,72 @@ public static class AppLifecycleHelper
         logger.LogInformation("WindowsNotificationHandler注册成功");
 #endif
 
-        // 3. 生成并初始化UUID，确保所有服务启动前UUID已可用
-        logger.LogInformation("步骤13：开始生成并初始化UUID");
-        localDevice = await deviceManager.GetLocalDeviceAsync();
-        logger.LogInformation("步骤13：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
+        // 3. 初始化 Rust Core（必须在调用任何 NativeCore 方法之前）
+        logger.LogInformation("步骤13：初始化 Rust Core...");
+        NativeCore.Initialize();
+        NativeCore.SetLogCallback(logger);
+        NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
+        NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
+        NativeCore.RegisterCallbacks();
+        NativeCore.NetworkService = (NetworkService?)Ioc.Default.GetService<INetworkService>();
+        NativeCore.HeartbeatProcessor = Ioc.Default.GetService<HeartbeatProcessor>();
+        logger.LogInformation("步骤13：Rust Core 初始化完成，回调已注册");
 
-        // 4. 初始化设备管理器和通知服务
-        logger.LogInformation("步骤14：初始化设备管理器...");
+        // 4. 生成并初始化UUID，确保所有服务启动前UUID已可用
+        logger.LogInformation("步骤14：开始生成并初始化UUID");
+        localDevice = await deviceManager.GetLocalDeviceAsync();
+        logger.LogInformation("步骤14：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
+
+        // 5. 初始化设备管理器和通知服务
+        logger.LogInformation("步骤15：初始化设备管理器...");
         await deviceManager.Initialize();
-        logger.LogInformation("步骤14：设备管理器初始化完成");
+        logger.LogInformation("步骤15：设备管理器初始化完成");
+
+        // 5a. 迁移已有设备的共享密钥
+        logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
+        int migratedCount = 0;
+        foreach (var device in deviceManager.PairedDevices)
+        {
+            if (device.SharedSecret != null && device.SharedSecret.Length == 32)
+            {
+                NativeCore.MigrateSharedSecret(device.Id, device.SharedSecret);
+                migratedCount++;
+            }
+        }
+        logger.LogInformation("步骤14a：Rust Core 初始化完成，已迁移 {count} 个设备密钥", migratedCount);
 
         logger.LogInformation("步骤15：初始化通知服务...");
         notificationService.Initialize();
         logger.LogInformation("步骤15：通知服务初始化完成");
+
+        // 15a. 初始化过滤配置
+        logger.LogInformation("步骤15a：初始化通知过滤配置...");
+        try
+        {
+            var filterConfigRepository = Ioc.Default.GetRequiredService<FilterConfigRepository>();
+            var filterConfig = filterConfigRepository.LoadOrCreateDefault();
+            var remoteFilter = Ioc.Default.GetRequiredService<BackendRemoteFilter>();
+            filterConfig.ApplyTo(remoteFilter);
+            filterConfig.ApplyLocalFilter();
+            logger.LogInformation("步骤15a：通知过滤配置初始化完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15a：初始化通知过滤配置失败");
+        }
+
+        // 15b. 启动本地通知监听
+        logger.LogInformation("步骤15b：启动本地通知监听服务...");
+        try
+        {
+            var localListener = Ioc.Default.GetRequiredService<ILocalNotificationListenerService>();
+            localListener.Start();
+            logger.LogInformation("步骤15b：本地通知监听服务启动完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15b：启动本地通知监听服务失败");
+        }
 
         // 5. 为LocalSocketRelayServer设置logger并启动服务器
         logger.LogInformation("步骤16：设置并启动LocalSocketRelayServer...");
@@ -241,13 +292,10 @@ public static class AppLifecycleHelper
                 .AddSingleton<DeviceRepository>()
                 .AddSingleton<RemoteAppRepository>()
                 .AddSingleton<NotificationRepository>()
+                .AddSingleton<FilterConfigRepository>()
 
                 // Platform-specific services
-#if WINDOWS
                 .AddWindowsServices()
-#else
-                .AddDesktopServices()
-#endif
                 // Services
                 // 1. 首先注册基础服务
                 .AddSingleton<ISystemInfoService, SystemInfoService>()
@@ -256,6 +304,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<IAdbService, AdbService>()
                 .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
                 .AddSingleton<IFileTransferService, FileTransferService>()
+                .AddSingleton<IProtocolSender, ProtocolSender>()
                 .AddSingleton<IClipboardService, ClipboardService>()
                 .AddSingleton<IRemoteAppService, RemoteAppService>()
 
@@ -265,18 +314,22 @@ public static class AppLifecycleHelper
                 .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
 #endif
                 .AddSingleton<ProtocolRouter>()
+                .AddSingleton<HeartbeatProcessor>()
 
                 // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
                 .AddSingleton<INetworkService, NetworkService>()
                 .AddSingleton<Func<INetworkService>>(sp => () => sp.GetRequiredService<INetworkService>())
 
-                // 5. 注册ISessionManager和ITcpServerProvider，它们由INetworkService实现
+                // 5. 注册ISessionManager，由INetworkService实现
                 .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
-                .AddSingleton<ITcpServerProvider>(sp => (ITcpServerProvider)sp.GetRequiredService<INetworkService>())
 
                 // 6. 注册INotificationService，它依赖ISessionManager
                 .AddSingleton<INotificationService, NotificationService>()
                 .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
+                .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
+
+                // 注册通知过滤服务
+                .AddSingleton<BackendRemoteFilter>()
 
                 // 注册其他需要的工厂
                 .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
@@ -299,6 +352,7 @@ public static class AppLifecycleHelper
                 .AddSingleton<MainPageViewModel>()
                 .AddSingleton<DevicesViewModel>()
                 .AddSingleton<AppsViewModel>()
+                .AddSingleton<LocalNotificationHistoryViewModel>()
                 )
             );
     }

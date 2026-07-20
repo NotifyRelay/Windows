@@ -121,11 +121,6 @@ public class SyncProviderPool(
             var syncProvider = scope.ServiceProvider.GetRequiredService<SyncProvider>();
             await syncProvider.Run(cancellation);
         }
-        catch (ExecutionEngineException ex)
-        {
-            logger.LogCritical(ex, "同步提供程序运行时发生执行引擎异常：{id}", syncRootInfo.Id);
-            // 记录异常但不重新抛出，避免整个应用崩溃
-        }
         catch (Exception ex)
         {
             logger.LogError(ex, "同步提供程序运行失败：{id}", syncRootInfo.Id);

@@ -2,6 +2,7 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Extensions;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
@@ -158,7 +159,6 @@ public class ClipboardService : IClipboardService
                     {
                         var bitmapRef = await dataPackageView.GetBitmapAsync();
                         var bitmap = await bitmapRef.OpenReadAsync();
-#if WINDOWS
                         var stream = new MemoryStream();
                         var decoder = await BitmapDecoder.CreateAsync(bitmap);
                         var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
@@ -166,9 +166,6 @@ public class ClipboardService : IClipboardService
                         encoder.SetSoftwareBitmap(softwareBitmap);
                         await encoder.FlushAsync();
                         stream.Position = 0;
-#else
-                        var stream = bitmap.AsStream();
-#endif
                         await HandleSmallImageTransfer(stream, "image/png", devicesWithImageSync);
                     }
                 }
@@ -191,20 +188,14 @@ public class ClipboardService : IClipboardService
         // Convert Windows CRLF to Unix LF 
         text = text.Replace("\r\n", "\n");
 
-        // 创建剪贴板消息内容
-        var clipboardContent = new ClipboardMessage
+        var rawJson = JsonSerializer.Serialize(new
         {
-            ClipboardType = "text/plain",
-            Content = text
-        };
-        // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
-        var jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = false,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-        var serializedMessage = JsonSerializer.Serialize(clipboardContent, jsonOptions);
+            type = "DATA_CLIPBOARD",
+            clipboardType = "text",
+            content = text
+        });
+        var serializedMessage = rawJson;
+        if (serializedMessage == null) return;
         foreach (var device in devices)
         {
             if (device.ConnectionStatus)
@@ -239,20 +230,14 @@ public class ClipboardService : IClipboardService
         byte[] buffer = new byte[stream.Length];
         await stream.ReadExactlyAsync(buffer);
 
-        // 创建剪贴板消息内容
-        var clipboardContent = new ClipboardMessage
+        var rawJson = JsonSerializer.Serialize(new
         {
-            ClipboardType = mimeType,
-            Content = Convert.ToBase64String(buffer)
-        };
-        // 使用与SocketMessageSerializer相同的JsonSerializerOptions配置
-        var jsonOptions = new JsonSerializerOptions
-        {
-            WriteIndented = false,
-            PropertyNameCaseInsensitive = true,
-            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
-        };
-        var serializedMessage = JsonSerializer.Serialize(clipboardContent, jsonOptions);
+            type = "DATA_CLIPBOARD",
+            clipboardType = mimeType,
+            content = Convert.ToBase64String(buffer)
+        });
+        var serializedMessage = rawJson;
+        if (serializedMessage == null) return;
 
         foreach (var device in devices)
         {
@@ -287,7 +272,6 @@ public class ClipboardService : IClipboardService
                         // 检查是否为图片类型的 Base64 编码
                         if (textContent.Length > 20 && textContent.IsBase64String())
                         {
-#if WINDOWS
                             // 尝试将 Base64 字符串转换为 Bitmap
                             var bitmap = await ConvertBase64ToBitmapAsync(textContent);
                             if (bitmap is not null)
@@ -302,11 +286,6 @@ public class ClipboardService : IClipboardService
                                 dataPackage.SetText(textContent);
                                 logger.LogWarning("无法将 Base64 字符串转换为图片，作为文本处理");
                             }
-#else
-                            // 在非 Windows 平台上，直接将 Base64 字符串作为文本处理
-                            dataPackage.SetText(textContent);
-                            logger.LogInformation("当前平台不支持图片剪贴板功能，将 Base64 字符串作为文本处理");
-#endif
                         }
                         else
                         {
@@ -360,7 +339,6 @@ public class ClipboardService : IClipboardService
     /// </summary>
     /// <param name="base64String">Base64 字符串</param>
     /// <returns>Bitmap 对象</returns>
-#if WINDOWS
     private async Task<RandomAccessStreamReference?> ConvertBase64ToBitmapAsync(string base64String)
     {
         try
@@ -393,22 +371,6 @@ public class ClipboardService : IClipboardService
             return null;
         }
     }
-#else
-    private async Task<object?> ConvertBase64ToBitmapAsync(string base64String)
-    {
-        try
-        {
-            // 在非 Windows 平台上，暂时不支持图片剪贴板功能
-            logger.LogInformation("当前平台不支持图片剪贴板功能");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "将 Base64 字符串转换为 Bitmap 时出错");
-            return null;
-        }
-    }
-#endif
 
     public static bool IsValidWebUrl(Uri? uri)
     {
@@ -426,10 +388,10 @@ public class ClipboardService : IClipboardService
             using var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
 
-            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text/plain";
+            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text";
             var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
 
-            await SetContentAsync(content, device);
+            await SetContentAsync(content ?? string.Empty, device);
             logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
         }
         catch (JsonException ex)

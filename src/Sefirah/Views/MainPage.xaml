@@ -265,7 +265,7 @@
                                                     FontWeight="SemiBold"
                                                     Foreground="White"
                                                     HorizontalTextAlignment="Center"
-                                                    Text="{x:Bind Mode=OneWay}" />
+                                                    Text="{x:Bind Mode=OneTime}" />
                                                 <TextBlock
                                                     FontSize="10"
                                                     FontWeight="Normal"
@@ -377,6 +377,11 @@
                         <NavigationViewItem Content="应用" Tag="Apps" IsSelected="True">
                             <NavigationViewItem.Icon>
                                 <SymbolIcon Symbol="AllApps" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
+                        <NavigationViewItem Content="本机通知历史" Tag="LocalNotificationHistory">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE8BD;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                         <NavigationViewItem Content="显示器亮度" Tag="MonitorBrightness">

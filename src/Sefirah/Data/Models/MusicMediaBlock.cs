@@ -8,10 +8,10 @@ namespace NotifyRelay.Data.Models;
 /// </summary>
 public class MusicMediaBlock : INotifyPropertyChanged
 {
-    private string _deviceId;
-    private string _deviceName;
-    private string _title;
-    private string _text;
+    private string _deviceId = string.Empty;
+    private string _deviceName = string.Empty;
+    private string _title = string.Empty;
+    private string _text = string.Empty;
     private string? _coverUrl;
     private DateTime _lastUpdateTime;
     private bool _isVisible;

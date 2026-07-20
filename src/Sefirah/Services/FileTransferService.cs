@@ -597,7 +597,7 @@ public class FileTransferService(
                 serverInfo = new ServerInfo
                 {
                     Port = port,
-                    Password = EcdhHelper.GenerateRandomPassword()
+                    Password = NotifyCryptoHelper.GenerateRandomPassword()
                 };
 
                 logger.Info($"文件传输服务器已在 {serverInfo.IpAddress}:{serverInfo.Port} 初始化");

@@ -1,3 +1,4 @@
+using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Utils.Serialization;
 using NotifyRelay.Utils.Serialization.Implementation;
@@ -6,23 +7,23 @@ namespace NotifyRelay.Services.Settings;
 
 internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsService
 {
-    private IGeneralSettingsService _generalSettingsService;
+    private IGeneralSettingsService _generalSettingsService = null!;
     public IGeneralSettingsService GeneralSettingsService
     {
         get => GetSettingsService(ref _generalSettingsService);
     }
 
+    private readonly DatabaseContext _dbContext;
+
     // Cache for device-specific settings
     private readonly Dictionary<string, IDeviceSettingsService> _deviceSettingsCache = [];
 
-    public UserSettingsService()
+    public UserSettingsService(DatabaseContext dbContext)
     {
-        SettingsSerializer = new SettingsSerializer();
-
-        Initialize(Path.Combine(ApplicationData.Current.LocalFolder.Path, Constants.LocalSettings.SettingsFolderName, Constants.LocalSettings.UserSettingsFileName));
-
+        _dbContext = dbContext;
         JsonSettingsSerializer = new JsonSettingsSerializer();
-        JsonSettingsDatabase = new CachingJsonSettingsDatabase(SettingsSerializer, JsonSettingsSerializer);
+        JsonSettingsDatabase = new SqliteSettingsDatabase(dbContext, deviceId: null);
+        IsAvailable = true;
     }
 
     public IDeviceSettingsService GetDeviceSettings(string deviceId)
@@ -36,8 +37,8 @@ internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsServi
             return cachedSettings;
         }
 
-        // Create new device-specific settings instance (it manages its own file)
-        var deviceSettings = new DeviceSettingsService(deviceId, this);
+        // Create new device-specific settings instance
+        var deviceSettings = new DeviceSettingsService(deviceId, this, _dbContext);
         _deviceSettingsCache[deviceId] = deviceSettings;
 
         return deviceSettings;

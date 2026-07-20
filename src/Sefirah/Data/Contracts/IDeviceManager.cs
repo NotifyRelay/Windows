@@ -27,11 +27,6 @@ public interface IDeviceManager
     Task<PairedDevice> UpdateOrAddDeviceAsync(PairedDevice device, Action<PairedDevice>? updateAction = null);
 
     /// <summary>
-    /// Gets the device info.
-    /// </summary>
-    Task<RemoteDeviceEntity> GetDeviceInfoAsync(string deviceId);
-
-    /// <summary>
     /// Gets the last connected device.
     /// </summary>
     Task<PairedDevice?> GetLastConnectedDevice();
@@ -42,9 +37,9 @@ public interface IDeviceManager
     void RemoveDevice(PairedDevice device);
 
     /// <summary>
-    /// Updates the device in the database.
+    /// 持久化设备变更（名称、IP等）到数据库
     /// </summary>
-    Task UpdateDevice(RemoteDeviceEntity device);
+    void SaveDevice(PairedDevice device);
 
     /// <summary>
     /// Updates the device properties (battery..)
@@ -69,4 +64,19 @@ public interface IDeviceManager
     /// Event fired when the local device name changes
     /// </summary>
     event EventHandler<string>? LocalDeviceNameChanged;
+
+    /// <summary>
+    /// 生成6位配对码，有效期5分钟
+    /// </summary>
+    string GeneratePairingCode();
+
+    /// <summary>
+    /// 获取当前有效的配对码，已过期返回null
+    /// </summary>
+    string? GetCurrentPairingCode();
+
+    /// <summary>
+    /// 验证配对码，验证成功后清除
+    /// </summary>
+    bool VerifyPairingCode(string code);
 }

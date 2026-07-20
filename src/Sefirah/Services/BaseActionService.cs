@@ -12,7 +12,6 @@ public abstract class BaseActionService(
 {
     public virtual Task InitializeAsync()
     {
-        sessionManager.ConnectionStatusChanged += OnConnectionStatusChanged;
         if (ApplicationData.Current.LocalSettings.Values["DefaultActionsLoaded"] == null)
         {
             ApplicationData.Current.LocalSettings.Values["DefaultActionsLoaded"] = true;
@@ -21,12 +20,6 @@ public abstract class BaseActionService(
         }
 
         return Task.CompletedTask;
-    }
-
-    private void OnConnectionStatusChanged(object? sender, (PairedDevice Device, bool IsConnected) args)
-    {
-        // 仅处理连接状态变化，不再自动发送所有动作
-        // 应用列表和图标同步通过专用方法处理
     }
 
     public virtual void HandleActionMessage(ActionMessage action)

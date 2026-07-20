@@ -8,24 +8,25 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows.Interop;
-using NotifyRelay.Services;
 using Windows.Media;
 using Windows.Media.Control;
+using NotifyRelay.Services;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
 public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
     ISessionManager sessionManager,
-    IDeviceManager deviceManager) : IPlaybackService, IMMNotificationClient
+    IDeviceManager deviceManager,
+    IProtocolSender protocolSender) : IPlaybackService, IMMNotificationClient
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
     private GlobalSystemMediaTransportControlsSessionManager? manager;
 
     // Local SMTC for remote media display
-    private string? _currentRemoteDeviceId;
 
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
@@ -44,6 +45,18 @@ public class WindowsPlaybackService(
         public string? Artist { get; set; }
         public string? Thumbnail { get; set; }
         public DateTime SentTime { get; set; }
+    }
+
+    // 内部播放数据类，替代已删除的 PlaybackSession
+    private class PlaybackData
+    {
+        public SessionType SessionType { get; set; }
+        public string? Source { get; set; }
+        public string? TrackTitle { get; set; }
+        public string? Artist { get; set; }
+        public string? Thumbnail { get; set; }
+        public bool IsPlaying { get; set; }
+        public double? Position { get; set; }
     }
 
     /// <inheritdoc/>
@@ -123,13 +136,16 @@ public class WindowsPlaybackService(
         }
     }
 
-    public async Task HandleMediaActionAsync(PlaybackAction mediaAction)
+    public async Task HandleMediaActionAsync(string mediaActionJson)
     {
+        var (source, actionType, value) = ParseMediaActionData(mediaActionJson);
+        if (source == null) return;
+
         // 尝试根据Source字段查找对应的媒体会话
-        var session = activeSessions.Values.FirstOrDefault(s => s.SourceAppUserModelId == mediaAction.Source);
+        var session = activeSessions.Values.FirstOrDefault(s => s.SourceAppUserModelId == source);
 
         // 如果找不到匹配的会话，或者Source是"MediaControl"（来自外部设备的控制指令），则使用当前活动的媒体会话
-        if (session == null || mediaAction.Source == "MediaControl")
+        if (session == null || source == "MediaControl")
         {
             session = manager?.GetCurrentSession();
         }
@@ -151,13 +167,30 @@ public class WindowsPlaybackService(
         }
 
         // 执行媒体操作并发送响应
-        bool success = await ExecuteSessionActionAsync(session, mediaAction);
+        bool success = await ExecuteSessionActionAsync(session, source, actionType, value);
 
         // 发送媒体操作响应
-        SendMediaControlResponse(mediaAction.Source, mediaAction.PlaybackActionType.ToString(), success);
+        SendMediaControlResponse(source, actionType, success);
     }
 
-    private async Task<bool> ExecuteSessionActionAsync(GlobalSystemMediaTransportControlsSession? session, PlaybackAction mediaAction)
+    private static (string? Source, string? ActionType, double? Value) ParseMediaActionData(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var source = root.TryGetProperty("source", out var s) ? s.GetString() : null;
+            var actionType = root.TryGetProperty("playbackActionType", out var a) ? a.GetString() : null;
+            double? value = root.TryGetProperty("value", out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+            return (source, actionType, value);
+        }
+        catch
+        {
+            return (null, null, null);
+        }
+    }
+
+    private async Task<bool> ExecuteSessionActionAsync(GlobalSystemMediaTransportControlsSession? session, string? source, string? actionType, double? value)
     {
         bool success = false;
 
@@ -167,16 +200,16 @@ public class WindowsPlaybackService(
             {
                 if (session == null)
                 {
-                    logger.LogWarning("没有活跃的媒体会话，无法执行操作：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                    logger.LogWarning("没有活跃的媒体会话，无法执行操作：{actionType}", actionType);
                     success = false;
                     return;
                 }
 
-                switch (mediaAction.PlaybackActionType)
+                switch (actionType)
                 {
-                    case PlaybackActionType.Play:
-                        // 如果是来自外部设备的playPause指令（Source为"MediaControl"），则根据当前状态切换播放/暂停
-                        if (mediaAction.Source == "MediaControl")
+                    case "Play":
+                    case "playPause":
+                        if (source == "MediaControl")
                         {
                             var playbackInfo = session?.GetPlaybackInfo();
                             if (playbackInfo != null)
@@ -194,82 +227,79 @@ public class WindowsPlaybackService(
                             }
                             else
                             {
-                                // 如果无法获取播放状态，默认尝试播放
                                 var result = await session?.TryPlayAsync();
                                 success = result == true;
                             }
                         }
                         else
                         {
-                            // 普通Play指令，直接播放
                             var result = await session?.TryPlayAsync();
                             success = result == true;
                         }
                         break;
-                    case PlaybackActionType.Pause:
+                    case "Pause":
                         var pauseResult = await session?.TryPauseAsync();
                         success = pauseResult == true;
                         break;
-                    case PlaybackActionType.Next:
+                    case "Next":
                         var nextResult = await session?.TrySkipNextAsync();
                         success = nextResult == true;
                         break;
-                    case PlaybackActionType.Previous:
+                    case "Previous":
                         var prevResult = await session?.TrySkipPreviousAsync();
                         success = prevResult == true;
                         break;
-                    case PlaybackActionType.Seek:
-                        if (mediaAction.Value.HasValue)
+                    case "Seek":
+                        if (value.HasValue)
                         {
-                            // We need to use Ticks here
-                            TimeSpan position = TimeSpan.FromMilliseconds(mediaAction.Value.Value);
+                            TimeSpan position = TimeSpan.FromMilliseconds(value.Value);
                             var seekResult = await session?.TryChangePlaybackPositionAsync(position.Ticks);
                             success = seekResult == true;
                         }
                         break;
-                    case PlaybackActionType.Shuffle:
+                    case "Shuffle":
                         var shuffleResult = await session?.TryChangeShuffleActiveAsync(true);
                         success = shuffleResult == true;
                         break;
-                    case PlaybackActionType.Repeat:
-                        if (mediaAction.Value.HasValue)
+                    case "Repeat":
+                        if (value.HasValue)
                         {
-                            if (mediaAction.Value == 1.0)
+                            if (value.Value == 1.0)
                             {
                                 var repeatResult = await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.Track);
                                 success = repeatResult == true;
                             }
-                            else if (mediaAction.Value == 2.0)
+                            else if (value.Value == 2.0)
                             {
                                 var repeatResult = await session?.TryChangeAutoRepeatModeAsync(MediaPlaybackAutoRepeatMode.List);
                                 success = repeatResult == true;
                             }
                         }
                         break;
-                    case PlaybackActionType.DefaultDevice:
-                        SetDefaultAudioDevice(mediaAction.Source);
+                    case "DefaultDevice":
+                        SetDefaultAudioDevice(source);
                         success = true;
                         break;
-                    case PlaybackActionType.VolumeUpdate:
-                        if (mediaAction.Value.HasValue)
+                    case "VolumeUpdate":
+                        if (value.HasValue)
                         {
-                            SetVolume(mediaAction.Source, Convert.ToSingle(mediaAction.Value.Value));
+                            SetVolume(source, Convert.ToSingle(value.Value));
                             success = true;
                         }
                         break;
-                    case PlaybackActionType.ToggleMute:
-                        ToggleMute(mediaAction.Source);
+                    case "ToggleMute":
+                        ToggleMute(source);
                         success = true;
                         break;
                     default:
-                        logger.LogWarning("未处理的媒体操作：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                        logger.LogWarning("未处理的媒体操作：{actionType}", actionType);
                         success = false;
                         break;
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "执行媒体操作时出错：{PlaybackActionType}", mediaAction.PlaybackActionType);
+                logger.LogError(ex, "执行媒体操作时出错：{actionType}", actionType);
                 success = false;
             }
         });
@@ -366,13 +396,17 @@ public class WindowsPlaybackService(
 
                 // 时间线变化时只发送位置信息，不发送完整媒体信息以减少网络流量
                 // 如果需要完整信息，会通过MediaPropertiesChanged事件发送
-                var message = new PlaybackSession
+                var rawJson = JsonSerializer.Serialize(new
                 {
-                    SessionType = SessionType.TimelineUpdate,
-                    Source = sender.SourceAppUserModelId,
-                    Position = currentPosition
-                };
-                SendPlaybackData(message);
+                    type = "DATA_MEDIAPLAY",
+                    source = sender.SourceAppUserModelId,
+                    position = currentPosition
+                });
+                var json = rawJson;
+                if (json != null)
+                {
+                    SendPlaybackData(json);
+                }
             }
         }
         catch (COMException comEx)
@@ -399,27 +433,26 @@ public class WindowsPlaybackService(
             if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
             {
                 // 构造媒体结束包
-                var endPayload = new MediaPlayNotification
+                var rawJson = JsonSerializer.Serialize(new
                 {
-                    PackageName = "MusicIsland",
-                    AppName = "Music Island",
-                    Title = "No media playing",
-                    Text = "",
-                    CoverUrl = "",
-                    Time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    IsLocked = false,
-                    MediaType = "FULL",
-                    Terminate = true,
-                    TerminateValue = "__END__",
-                    FeatureKeyName = "si_feature_id",
-                    FeatureKeyValue = "media_island_global"
-                };
+                    type = "DATA_MEDIAPLAY",
+                    packageName = "MusicIsland",
+                    appName = "Music Island",
+                    title = "No media playing",
+                    text = "",
+                    coverUrl = "",
+                    time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                    isLocked = false,
+                    mediaType = "FULL",
+                    terminate = true,
+                    terminateValue = "__END__",
+                    featureKeyName = "si_feature_id",
+                    featureKeyValue = "media_island_global"
+                });
+                string endPayloadJson = rawJson;
+                if (endPayloadJson == null) continue;
 
-                // 序列化为JSON字符串
-                string endPayloadJson = JsonSerializer.Serialize(endPayload);
-
-                // 使用 ProtocolSender 发送媒体结束包
-                _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, endPayloadJson);
+                _ = protocolSender.SendMessageAsync(device.Id, endPayloadJson);
             }
         }
     }
@@ -468,10 +501,10 @@ public class WindowsPlaybackService(
             await dispatcher.EnqueueAsync(async () =>
             {
 
-                var playbackSession = await GetPlaybackSessionAsync(session);
-                if (playbackSession is null || !activeSessions.ContainsKey(session.SourceAppUserModelId)) return;
+                var playbackJson = await GetPlaybackSessionAsync(session);
+                if (playbackJson is null || !activeSessions.ContainsKey(session.SourceAppUserModelId)) return;
 
-                SendPlaybackData(playbackSession);
+                SendPlaybackData(playbackJson);
             });
         }
         catch (Exception ex)
@@ -480,7 +513,7 @@ public class WindowsPlaybackService(
         }
     }
 
-    private async Task<PlaybackSession?> GetPlaybackSessionAsync(GlobalSystemMediaTransportControlsSession session)
+    private async Task<string?> GetPlaybackSessionAsync(GlobalSystemMediaTransportControlsSession session)
     {
         try
         {
@@ -490,18 +523,33 @@ public class WindowsPlaybackService(
 
             lastTimelinePosition[session.SourceAppUserModelId] = timelineProperties.Position.TotalMilliseconds;
 
-            var playbackSession = new PlaybackSession
-            {
-                Source = session.SourceAppUserModelId,
-                TrackTitle = mediaProperties.Title,
-                Artist = mediaProperties.Artist ?? "Unknown Artist"
-            };
+            var source = session.SourceAppUserModelId;
+            var trackTitle = mediaProperties.Title;
+            var artist = mediaProperties.Artist ?? "Unknown Artist";
+            string? thumbnail = null;
 
             // 只获取封面图片，其他字段不需要
             if (mediaProperties.Thumbnail is not null)
-                playbackSession.Thumbnail = await mediaProperties.Thumbnail.ToBase64Async();
+                thumbnail = await mediaProperties.Thumbnail.ToBase64Async();
 
-            return playbackSession;
+            bool isPlaying = false;
+            try
+            {
+                var pbInfo = session.GetPlaybackInfo();
+                isPlaying = pbInfo?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+            }
+            catch { }
+
+            var rawJson = JsonSerializer.Serialize(new
+            {
+                type = "DATA_MEDIAPLAY",
+                source = source,
+                trackTitle = trackTitle,
+                artist = artist,
+                thumbnail = thumbnail,
+                isPlaying = isPlaying
+            });
+            return rawJson;
         }
         catch (COMException comEx)
         {
@@ -517,12 +565,21 @@ public class WindowsPlaybackService(
     }
 
 
-    private void SendPlaybackData(PlaybackSession playbackSession)
+    private void SendPlaybackData(string playbackJson)
     {
         try
         {
+            using var doc = JsonDocument.Parse(playbackJson);
+            var root = doc.RootElement;
+
+            var source = root.TryGetProperty("source", out var srcProp) ? srcProp.GetString() : null;
+            var trackTitle = root.TryGetProperty("trackTitle", out var titleProp) ? titleProp.GetString() : null;
+            var artist = root.TryGetProperty("artist", out var artistProp) ? artistProp.GetString() : null;
+            var thumbnail = root.TryGetProperty("thumbnail", out var thumbProp) ? thumbProp.GetString() : null;
+            var isPlaying = root.TryGetProperty("isPlaying", out var playProp) && playProp.GetBoolean();
+
             // 生成唯一键，用于区分不同会话的不同消息类型
-            string key = $"{playbackSession.Source}|{playbackSession.SessionType}";
+            string key = $"{source}|{(root.TryGetProperty("sessionType", out var stProp) ? stProp.GetString() : "default")}";
 
             // 检查是否需要节流
             if (lastSessionUpdateTime.TryGetValue(key, out var lastTime))
@@ -530,104 +587,102 @@ public class WindowsPlaybackService(
                 var elapsed = DateTime.Now - lastTime;
                 if (elapsed.TotalMilliseconds < MinUpdateIntervalMs)
                 {
-                    // 发送频率过高，跳过本次发送
                     return;
                 }
             }
 
-            // 更新最后发送时间
             lastSessionUpdateTime[key] = DateTime.Now;
 
-            // 获取NetworkService，用于发送与Android兼容的媒体会话
-            var networkService = Ioc.Default.GetRequiredService<INetworkService>();
-
-            // 构造当前媒体状态
             var currentState = new MediaPlayState
             {
-                Title = playbackSession.TrackTitle,
-                Artist = playbackSession.Artist,
-                Thumbnail = playbackSession.Thumbnail,
+                Title = trackTitle,
+                Artist = artist,
+                Thumbnail = thumbnail,
                 SentTime = DateTime.Now
             };
 
-            // 获取上次发送的媒体状态
             bool sendFullPayload = true;
-            string title = playbackSession.TrackTitle ?? string.Empty;
-            string artist = playbackSession.Artist ?? string.Empty;
+            string title = trackTitle ?? string.Empty;
+            string artistStr = artist ?? string.Empty;
             string text = string.Empty;
-            string coverUrl = playbackSession.Thumbnail ?? string.Empty;
+            string coverUrl = thumbnail ?? string.Empty;
 
-            if (lastMediaState.TryGetValue(playbackSession.Source, out var oldState))
+            var sourceKey = source ?? string.Empty;
+            if (lastMediaState.TryGetValue(sourceKey, out var oldState))
             {
-                // 计算差异
                 bool titleChanged = oldState.Title != currentState.Title;
                 bool artistChanged = oldState.Artist != currentState.Artist;
                 bool coverChanged = oldState.Thumbnail != currentState.Thumbnail;
 
-                // 判断是否需要发送全量包：首次发送、封面变化或超过15秒
                 var now = DateTime.Now;
                 sendFullPayload = coverChanged || (now - oldState.SentTime).TotalSeconds > 15;
 
-                // 如果只发送差异包，只包含变化的字段
                 if (!sendFullPayload)
                 {
-                    // 差异包：只包含变化的字段，没有变化的字段使用空字符串
-                    if (!titleChanged)
-                    {
-                        title = string.Empty; // 差异包中不包含未变化的标题
-                    }
-                    if (!artistChanged)
-                    {
-                        artist = string.Empty; // 差异包中不包含未变化的艺术家
-                    }
-                    if (!coverChanged)
-                    {
-                        coverUrl = string.Empty; // 差异包中不包含未变化的封面，使用空字符串而非null
-                    }
+                    if (!titleChanged) title = string.Empty;
+                    if (!artistChanged) artistStr = string.Empty;
+                    if (!coverChanged) coverUrl = string.Empty;
                 }
             }
 
-            // 更新上次发送的媒体状态
-            lastMediaState[playbackSession.Source] = currentState;
+            lastMediaState[sourceKey] = currentState;
 
-            // 构建文本内容
-            if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artist))
+            if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artistStr))
             {
-                text = $"{artist} - {title}";
+                text = $"{artistStr} - {title}";
             }
             else if (!string.IsNullOrEmpty(title))
             {
                 text = title;
             }
-            else if (!string.IsNullOrEmpty(artist))
+            else if (!string.IsNullOrEmpty(artistStr))
             {
-                text = artist;
+                text = artistStr;
             }
 
-            // 修复appName提取逻辑：如果Source是"QQMusic.exe"，则整个作为appName
-            string appName = playbackSession.Source ?? "Unknown App";
+            string appName = source ?? "Unknown App";
 
             foreach (var device in deviceManager.PairedDevices)
             {
                 if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
                 {
-                    // 构造与Android兼容的媒体播放通知对象
-                    var requestObj = new MediaPlayNotification
+                    var rawJson = JsonSerializer.Serialize(new
                     {
-                        PackageName = playbackSession.Source,
-                        AppName = appName,
-                        Title = title,
-                        Text = text,
-                        CoverUrl = coverUrl, // 始终包含封面URL，避免安卓端清理图标
-                        Time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        IsLocked = false,
-                        MediaType = sendFullPayload ? "FULL" : "DELTA"
-                    };
-
-                    string requestJson = JsonSerializer.Serialize(requestObj);
-                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, requestJson);
+                        type = "DATA_MEDIAPLAY",
+                        packageName = source,
+                        appName = appName,
+                        title = title,
+                        text = text,
+                        coverUrl = coverUrl,
+                        time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                        isLocked = false,
+                        mediaType = sendFullPayload ? "FULL" : "DELTA"
+                    });
+                    string requestJson = rawJson;
+                    if (requestJson == null) continue;
+                    _ = protocolSender.SendMessageAsync(device.Id, requestJson);
                 }
             }
+
+            try
+            {
+                _ = LocalSocketRelayServer.SendMediaInfoAsync(
+                    source ?? "local",
+                    "本机",
+                    trackTitle ?? "",
+                    artist ?? "",
+                    thumbnail ?? "",
+                    isPlaying
+                );
+            }
+            catch (Exception gamebarEx)
+            {
+                logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
+            }
+        }
+        catch (JsonException)
+        {
+            logger.LogWarning("SendPlaybackData: 无法解析媒体播放数据 JSON");
         }
         catch (Exception ex)
         {
@@ -635,7 +690,7 @@ public class WindowsPlaybackService(
         }
     }
 
-    public Task HandleRemotePlaybackMessageAsync(PlaybackSession data)
+    public Task HandleRemotePlaybackMessageAsync(string data)
     {
         throw new NotImplementedException();
     }
@@ -807,12 +862,14 @@ public class WindowsPlaybackService(
     /// <inheritdoc/>
     public void SendMediaControlRequest(string deviceId, string controlType)
     {
-        var requestObj = new MediaControlRequest
+        var rawJson = JsonSerializer.Serialize(new
         {
-            Action = controlType
-        };
-        string requestJson = JsonSerializer.Serialize(requestObj);
-        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
+            type = "DATA_MEDIA_CONTROL",
+            action = controlType
+        });
+        string requestJson = rawJson;
+        if (requestJson == null) return;
+        _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 
     /// <summary>
@@ -825,23 +882,22 @@ public class WindowsPlaybackService(
     {
         try
         {
-            // 构造响应对象
-            var responseObj = new MediaControlResponse
+            var rawJson = JsonSerializer.Serialize(new
             {
-                OriginalHeader = "DATA_MEDIA_CONTROL",
-                Action = action,
-                Result = success ? "success" : "error",
-                ErrorMessage = success ? string.Empty : "媒体操作失败"
-            };
+                type = "DATA_STATUS",
+                originalHeader = "DATA_MEDIA_CONTROL",
+                action = action,
+                result = success ? "success" : "error",
+                errorMessage = success ? string.Empty : "媒体操作失败"
+            });
+            string responseJson = rawJson;
+            if (responseJson == null) return;
 
-            string responseJson = JsonSerializer.Serialize(responseObj);
-
-            // 发送响应消息
             foreach (var device in deviceManager.PairedDevices)
             {
                 if (device.ConnectionStatus)
                 {
-                    _ = ProtocolSender.SendMessageAsync(logger, deviceManager, device.Id, responseJson, "DATA_STATUS");
+                    _ = protocolSender.SendMessageAsync(device.Id, responseJson, "DATA_STATUS");
                 }
             }
 
@@ -859,15 +915,15 @@ public class WindowsPlaybackService(
     private class MediaControlResponse
     {
         [JsonPropertyName("originalHeader")]
-        public string OriginalHeader { get; set; }
+        public string OriginalHeader { get; set; } = string.Empty;
 
         [JsonPropertyName("action")]
-        public string Action { get; set; }
+        public string Action { get; set; } = string.Empty;
 
         [JsonPropertyName("result")]
-        public string Result { get; set; }
+        public string Result { get; set; } = string.Empty;
 
         [JsonPropertyName("errorMessage")]
-        public string ErrorMessage { get; set; }
+        public string ErrorMessage { get; set; } = string.Empty;
     }
 }

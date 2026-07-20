@@ -6,7 +6,7 @@
     xmlns:local="using:NotifyRelay.Dialogs"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     DefaultButton="Primary"
-    IsPrimaryButtonEnabled="{x:Bind IsFormValid, Mode=OneWay}"
+    IsPrimaryButtonEnabled="{x:Bind IsFormValid, Mode=OneTime}"
     PrimaryButtonClick="ContentDialog_PrimaryButtonClick"
     PrimaryButtonText="{helpers:ResourceString Name=Save}"
     SecondaryButtonClick="ContentDialog_SecondaryButtonClick"

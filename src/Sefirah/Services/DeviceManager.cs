@@ -1,11 +1,12 @@
 using System.Text;
+using System.Text.Json;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Dialogs;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -68,11 +69,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         return await tcs.Task;
     }
 
-    public Task<RemoteDeviceEntity> GetDeviceInfoAsync(string deviceId)
-    {
-        throw new NotImplementedException();
-    }
-
     public List<string> GetRemoteDeviceIpAddresses()
     {
         return repository.GetRemoteDeviceIpAddresses();
@@ -85,15 +81,23 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
 
     public void RemoveDevice(PairedDevice device)
     {
+        logger.LogInformation("RemoveDevice: 开始移除设备 {deviceId} {deviceName}", device.Id, device.Name);
+        NativeCore.RemoveDevice(device.Id);
+
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
             try
             {
                 var existing = PairedDevices.FirstOrDefault(d => d.Id == device.Id);
-                if (existing is null) return;
+                if (existing is null)
+                {
+                    logger.LogWarning("RemoveDevice: PairedDevices 中未找到设备 {deviceId}", device.Id);
+                    return;
+                }
 
                 PairedDevices.Remove(existing);
                 repository.DeletePairedDevice(existing.Id);
+                logger.LogInformation("RemoveDevice: 设备 {deviceId} 已从内存和数据库移除", device.Id);
 
                 if (ActiveDevice?.Id == existing.Id)
                 {
@@ -107,9 +111,19 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         });
     }
 
-    public Task UpdateDevice(RemoteDeviceEntity device)
+    public void SaveDevice(PairedDevice device)
     {
-        throw new NotImplementedException();
+        var entity = new RemoteDeviceEntity
+        {
+            DeviceId = device.Id,
+            Name = device.Name,
+            Model = device.Model,
+            IpAddresses = device.IpAddresses,
+            SharedSecret = device.SharedSecret,
+            PublicKey = device.RemotePublicKey,
+            HasSentftpRequest = device.HasSentftpRequest,
+        };
+        repository.AddOrUpdateRemoteDevice(entity);
     }
 
     public void UpdateDeviceStatus(PairedDevice device, DeviceStatus deviceStatus)
@@ -125,9 +139,19 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     {
         try
         {
-            var localDevice = await GetLocalDeviceAsync();
-            var localKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-            var sharedSecretBytes = NotifyCryptoHelper.GenerateSharedSecretBytes(localKey, remotePublicKey);
+            var keyJson = NativeCore.ExportDeviceKey(deviceId);
+            if (keyJson == null)
+            {
+                logger.LogError("导出设备密钥失败: {deviceId}", deviceId);
+                return null;
+            }
+            var aesB64 = JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString();
+            if (string.IsNullOrEmpty(aesB64))
+            {
+                logger.LogError("解析设备 AES 密钥失败: {deviceId}", deviceId);
+                return null;
+            }
+            var sharedSecretBytes = Convert.FromBase64String(aesB64);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
@@ -147,48 +171,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 return pairedDevice;
             }
 
-            var tcs = new TaskCompletionSource<PairedDevice?>();
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
-            {
-                try
-                {
-                    var frame = (Frame)App.MainWindow.Content!;
-                    var dialog = new ConnectionRequestDialog(deviceName ?? deviceId, frame)
-                    {
-                        XamlRoot = App.MainWindow.Content!.XamlRoot
-                    };
-
-                    var result = await dialog.ShowAsync();
-
-                    if (result is not ContentDialogResult.Primary)
-                    {
-                        logger.LogInformation("用户拒绝了设备验证");
-                        tcs.SetResult(null);
-                        return;
-                    }
-
-                    var newDevice = new RemoteDeviceEntity
-                    {
-                        DeviceId = deviceId,
-                        Name = deviceName ?? deviceId,
-                        LastConnected = DateTime.Now,
-                        Model = string.Empty,
-                        SharedSecret = sharedSecretBytes,
-                        PublicKey = remotePublicKey,
-                        WallpaperBytes = null,
-                        IpAddresses = ipAddress is not null ? [ipAddress] : [],
-                    };
-
-                    repository.AddOrUpdateRemoteDevice(newDevice);
-                    tcs.SetResult(await newDevice.ToPairedDevice());
-                }
-                catch (Exception ex)
-                {
-                    tcs.SetException(ex);
-                }
-            });
-
-            return await tcs.Task;
+            logger.LogWarning("未知设备尝试通过 HANDSHAKE 连接，拒绝: {deviceId}", deviceId);
+            return null;
         }
         catch (Exception ex)
         {
@@ -205,33 +189,33 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             int retryCount = 0;
             const int maxRetries = 3;
 
-            // 尝试多次获取本地设备，确保数据库连接稳定
             while (localDevice is null && retryCount < maxRetries)
             {
                 localDevice = repository.GetLocalDevice();
                 if (localDevice is null)
                 {
                     retryCount++;
-                    await Task.Delay(100); // 等待100毫秒后重试
+                    await Task.Delay(100);
                 }
             }
 
             if (localDevice is null)
             {
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
-                var publicKey = NotifyCryptoHelper.GeneratePublicKey();
+                NativeCore.GenerateKeypair();
+                var publicKeyBase64 = NativeCore.GetPublicKey();
+                var deviceId = Guid.NewGuid().ToString();
+                var stateJson = NativeCore.ExportState();
+                var encryptedState = stateJson != null ? NativeCore.EncryptLocalState(stateJson, deviceId) : null;
                 localDevice = new LocalDeviceEntity
                 {
-                    DeviceId = Guid.NewGuid().ToString(),
+                    DeviceId = deviceId,
                     DeviceName = name,
-                    PublicKey = Encoding.UTF8.GetBytes(publicKey),
-                    PrivateKey = Array.Empty<byte>(),
+                    PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
+                    StateJson = encryptedState ?? string.Empty,
                 };
-
-                // 保存本地设备到数据库
                 repository.AddOrUpdateLocalDevice(localDevice);
 
-                // 验证保存是否成功
                 var savedDevice = repository.GetLocalDevice();
                 if (savedDevice is null || savedDevice.DeviceId != localDevice.DeviceId)
                 {
@@ -240,12 +224,48 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             }
             else
             {
-                var currentKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
-                var normalizedKey = NotifyCryptoHelper.NormalizePublicKey(currentKey);
-                if (!string.Equals(currentKey, normalizedKey, StringComparison.Ordinal))
+                var rustPubKey = NativeCore.GetPublicKey();
+                if (rustPubKey == null)
                 {
-                    localDevice.PublicKey = Encoding.UTF8.GetBytes(normalizedKey);
-                    repository.AddOrUpdateLocalDevice(localDevice);
+                    bool stateRestored = false;
+                    if (!string.IsNullOrEmpty(localDevice.StateJson))
+                    {
+                        try
+                        {
+                            var decrypted = NativeCore.DecryptLocalState(localDevice.StateJson, localDevice.DeviceId);
+                            if (decrypted != null && NativeCore.ImportState(decrypted) == 0)
+                            {
+                                rustPubKey = NativeCore.GetPublicKey();
+                                var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
+                                if (rustPubKey != null && rustPubKey == cachedPubKey)
+                                    stateRestored = true;
+                            }
+                        }
+                        catch { }
+                    }
+
+                    if (!stateRestored)
+                    {
+                        logger.LogWarning("本地密钥状态未找到或已损坏，正在生成新密钥对。现有配对的设备需要重新配对。");
+                        NativeCore.GenerateKeypair();
+                        rustPubKey = NativeCore.GetPublicKey();
+                        if (rustPubKey != null)
+                            localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
+                        var newState = NativeCore.ExportState();
+                        localDevice.StateJson = newState != null ? NativeCore.EncryptLocalState(newState, localDevice.DeviceId) ?? string.Empty : string.Empty;
+                        repository.AddOrUpdateLocalDevice(localDevice);
+                    }
+                }
+                else
+                {
+                    var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);
+                    if (rustPubKey != cachedPubKey)
+                    {
+                        localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
+                        var updatedState = NativeCore.ExportState();
+                        localDevice.StateJson = updatedState != null ? NativeCore.EncryptLocalState(updatedState, localDevice.DeviceId) ?? string.Empty : string.Empty;
+                        repository.AddOrUpdateLocalDevice(localDevice);
+                    }
                 }
             }
 
@@ -289,5 +309,20 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         }
 
         ActiveDevice = PairedDevices.FirstOrDefault();
+    }
+
+    public string GeneratePairingCode()
+    {
+        return PairingCodeHelper.GenerateCode();
+    }
+
+    public string? GetCurrentPairingCode()
+    {
+        return PairingCodeHelper.GetCurrentCode();
+    }
+
+    public bool VerifyPairingCode(string code)
+    {
+        return PairingCodeHelper.VerifyCode(code);
     }
 }

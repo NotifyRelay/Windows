@@ -1,6 +1,6 @@
 <Project Sdk="Uno.Sdk">
     <PropertyGroup>
-        <TargetFrameworks>net9.0-windows10.0.26100;net9.0-desktop</TargetFrameworks>
+        <TargetFramework>net9.0-windows10.0.26100</TargetFramework>
 
         <OutputType>Exe</OutputType>
         <UnoSingleProject>true</UnoSingleProject>
@@ -65,13 +65,7 @@
         <UnoIconForegroundFile>Assets\Icons\icon_foreground.svg</UnoIconForegroundFile>
         <UnoIconBackgroundColor Condition="'$(IsWinAppSdk)' == 'true'">Transparent</UnoIconBackgroundColor>
         <DefaultLanguage>zh-cn</DefaultLanguage>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
         <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
-    </PropertyGroup>
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-desktop'">
-        <StartupObject>Program</StartupObject>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
@@ -116,7 +110,6 @@
         <PackageReference Include="SQLitePCLRaw.provider.sqlite3" />
         <PackageReference Include="SSH.NET" />
         <PackageReference Include="System.Management" />
-        <PackageReference Include="Tmds.DBus" />
         <PackageReference Include="UPnP" />
         <PackageReference Include="Vanara.PInvoke.CldApi" />
         <PackageReference Include="Vanara.PInvoke.Ole" />
@@ -127,4 +120,22 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </UnoSplashScreen>
     </ItemGroup>
+    <!-- 构建 Rust 原生库 -->
+    <Target Name="BuildRustNative" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+        <PropertyGroup>
+            <RustProjectDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\notify-relay-core'))</RustProjectDir>
+            <RustTargetDir>$([MSBuild]::NormalizeDirectory('$(RustProjectDir)build\target\release'))</RustTargetDir>
+            <RustDllPath>$([MSBuild]::NormalizePath('$(RustTargetDir)notify_relay_core.dll'))</RustDllPath>
+        </PropertyGroup>
+        <ItemGroup>
+            <RustSourceFiles Include="$(RustProjectDir)src\**\*.rs" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.toml" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.lock" />
+        </ItemGroup>
+        <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
+        <Exec Command="cargo build --release" WorkingDirectory="$(RustProjectDir)" ConsoleToMSBuild="true" />
+        <Message Text="复制 DLL 到输出目录: $(RustDllPath) -> $(OutDir)" Importance="high" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
+    </Target>
 </Project>

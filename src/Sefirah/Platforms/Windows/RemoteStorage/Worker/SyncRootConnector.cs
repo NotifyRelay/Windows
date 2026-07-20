@@ -21,7 +21,7 @@ public sealed class SyncRootConnector(
     private readonly string _rootDirectory = contextAccessor.Context.RootDirectory;
 
     // 实例字段，防止回调被垃圾回收
-    private CF_CALLBACK_REGISTRATION[] _callbackRegistrations;
+    private CF_CALLBACK_REGISTRATION[] _callbackRegistrations = null!;
 
     public CF_CONNECTION_KEY Connect()
     {
@@ -54,12 +54,6 @@ public sealed class SyncRootConnector(
             );
 
             return connectionKey;
-        }
-        catch (ExecutionEngineException ex)
-        {
-            logger.LogCritical(ex, "同步提供程序连接时发生执行引擎异常：{syncRootPath}", _rootDirectory);
-            // 执行引擎异常是严重错误，重新抛出让上层处理
-            throw;
         }
         catch (Exception ex)
         {

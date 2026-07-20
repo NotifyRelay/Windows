@@ -1,7 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
 #endif
@@ -68,146 +68,95 @@ public class ProtocolRouter
         return device != null && (device.RemoteDeviceType?.Equals(DeviceTypeAndroid, StringComparison.OrdinalIgnoreCase) ?? true);
     }
 
-    /// <summary>
-    /// 处理DATA_*加密业务消息
-    /// </summary>
-    /// <param name="device">设备</param>
-    /// <param name="message">完整消息</param>
-    public async Task ProcessDataMessageAsync(PairedDevice device, string message)
+    // ========= 已由 Rust 回调驱动的 DATA_* 独立处理方法 =========
+
+    public Task OnDataNotificationAsync(PairedDevice device, string plaintext)
+        => notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
+
+    public async Task OnDataMediaPlayAsync(PairedDevice device, string plaintext)
     {
+        if (!ShouldProcessMediaMessage(device))
+        {
+            logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
+            var rawJson = JsonSerializer.Serialize(new { type = "DATA_MEDIAPLAY", mediaType = "END", time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
+            var json = rawJson;
+            if (json != null)
+            {
+                await notificationService.Value.HandleMediaPlayNotification(device, json);
+            }
+            return;
+        }
+        await notificationService.Value.ProcessMediaPlayMessageAsync(device, plaintext);
+    }
+
+    public Task OnDataAppListResponseAsync(PairedDevice device, string plaintext)
+        => remoteAppService.Value.ProcessAppListResponseAsync(device, plaintext);
+
+    public Task OnDataIconResponseAsync(PairedDevice device, string plaintext)
+        => notificationService.Value.ProcessIconResponseAsync(device, plaintext);
+
+    public Task OnDataAudioRequestAsync(PairedDevice device, string plaintext)
+        => notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
+
+    public async Task OnDataMediaControlAsync(PairedDevice device, string plaintext)
+    {
+        logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {plaintext}", plaintext);
         try
         {
-            var parts = message.Split(':');
-            if (parts.Length < 4)
+            using var doc = JsonDocument.Parse(plaintext);
+            if (doc.RootElement.TryGetProperty("action", out var actionProp))
             {
-                logger.LogWarning("无效的 DATA 帧格式: {message}", message.Length > 50 ? message[..50] + "..." : message);
-                return;
-            }
-
-            if (device.SharedSecret is null)
-            {
-                logger.LogWarning("设备 {id} 缺少共享密钥，无法处理加密消息", device.Id);
-                return;
-            }
-
-            var messageType = parts[0];
-            var encryptedPayload = string.Join(":", parts.Skip(3));
-            var decryptedPayload = NotifyCryptoHelper.Decrypt(encryptedPayload, device.SharedSecret);
-            // 根据具体的DATA_*报文头进行分流处理
-            switch (messageType)
-            {
-                case "DATA_APP_LIST_REQUEST":
-                    // 应用列表请求
-                    await HandleAppListRequestAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_ICON_REQUEST":
-                    // 图标请求
-                    await HandleIconRequestAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_NOTIFICATION":
-                    // 普通通知
-                    await notificationService.Value.ProcessNotificationMessageAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_MEDIAPLAY":
-                    // 媒体播放信息
-                    if (!ShouldProcessMediaMessage(device))
+                var action = actionProp.GetString();
+                if (action == "audioRequest")
+                {
+                    await screenMirrorService.ProcessAudioRequestAsync(device);
+                }
+                else
+                {
+                    PlaybackActionType actionType = action switch
                     {
-                        logger.LogDebug("已忽略DATA_MEDIAPLAY消息: deviceId={deviceId} mode={mode}", device.Id, generalSettingsService.MediaMessageReceiveMode);
-                        await notificationService.Value.HandleMediaPlayNotification(device, new NotificationMessage
-                        {
-                            NotificationKey = Guid.NewGuid().ToString(),
-                            NotificationType = NotificationType.New,
-                            MediaType = "END"
-                        });
-                        break;
-                    }
-                    await notificationService.Value.ProcessMediaPlayMessageAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_APP_LIST_RESPONSE":
-                    // 应用列表响应
-                    await remoteAppService.Value.ProcessAppListResponseAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_ICON_RESPONSE":
-                    // 图标响应
-                    await notificationService.Value.ProcessIconResponseAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_AUDIO_REQUEST":
-                    // 音频请求
-                    await notificationService.Value.ProcessNotificationMessageAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_SUPERISLAND":
-                    await HandleSuperIslandAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_MEDIA_CONTROL":
-                    // 媒体控制指令，解析后分发
-                    logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {decryptedPayload}", decryptedPayload);
-                    try
+                        "playPause" => PlaybackActionType.Play,
+                        "next" => PlaybackActionType.Next,
+                        "previous" => PlaybackActionType.Previous,
+                        _ => PlaybackActionType.Play
+                    };
+                    var actionJson = JsonSerializer.Serialize(new
                     {
-                        using (JsonDocument doc = JsonDocument.Parse(decryptedPayload))
-                        {
-                            if (doc.RootElement.TryGetProperty("action", out var actionProp))
-                            {
-                                var action = actionProp.GetString();
-                                if (action == "audioRequest")
-                                {
-                                    await screenMirrorService.ProcessAudioRequestAsync(device);
-                                }
-                                else
-                                {
-                                    // 其他动作 (playPause, next, previous) 交给 PlaybackService
-                                    PlaybackActionType actionType = action switch
-                                    {
-                                        "playPause" => PlaybackActionType.Play,
-                                        "next" => PlaybackActionType.Next,
-                                        "previous" => PlaybackActionType.Previous,
-                                        _ => PlaybackActionType.Play
-                                    };
-                                    await playbackService.Value.HandleMediaActionAsync(new PlaybackAction
-                                    {
-                                        PlaybackActionType = actionType,
-                                        Source = "MediaControl"
-                                    });
-                                }
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "处理DATA_MEDIA_CONTROL分发时出错");
-                    }
-                    break;
-#if WINDOWS
-                case "DATA_FTP":
-                    await networkDriveMapper.Value.ProcessFtpMessageAsync(device, decryptedPayload);
-                    break;
-#endif
-                case "DATA_CLIPBOARD":
-                    await clipboardService.Value.ProcessClipboardMessageAsync(device, decryptedPayload);
-                    break;
-
-                case "DATA_STATUS":
-                    // 处理状态响应消息
-                    await HandleStatusMessageAsync(device, decryptedPayload);
-                    break;
-
-                default:
-                    logger.LogWarning("不支持的 DATA 消息类型: {messageType}", messageType);
-                    break;
+                        playbackActionType = actionType.ToString(),
+                        source = "MediaControl"
+                    });
+                    await playbackService.Value.HandleMediaActionAsync(actionJson);
+                }
             }
         }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理DATA消息时出错");
-        }
+        catch (Exception ex) { logger.LogError(ex, "处理DATA_MEDIA_CONTROL分发时出错"); }
     }
+
+#if WINDOWS
+    public Task OnDataFtpAsync(PairedDevice device, string plaintext)
+        => networkDriveMapper.Value.ProcessFtpMessageAsync(device, plaintext);
+#endif
+
+    public Task OnDataClipboardAsync(PairedDevice device, string plaintext)
+        => clipboardService.Value.ProcessClipboardMessageAsync(device, plaintext);
+
+    public Task OnDataStatusAsync(PairedDevice device, string plaintext)
+        => HandleStatusMessageAsync(device, plaintext);
+
+    public Task OnDataAppListRequestAsync(PairedDevice device, string plaintext)
+    {
+        logger.LogDebug("收到应用列表请求，暂时不处理");
+        return Task.CompletedTask;
+    }
+
+    public Task OnDataIconRequestAsync(PairedDevice device, string plaintext)
+    {
+        logger.LogDebug("收到图标请求，暂时不处理");
+        return Task.CompletedTask;
+    }
+
+    public Task OnDataSuperIslandAsync(PairedDevice device, string plaintext)
+        => HandleSuperIslandAsync(device, plaintext);
 
     private bool ShouldProcessMediaMessage(PairedDevice device)
     {
@@ -218,38 +167,6 @@ public class ProtocolRouter
             MediaMessageReceiveMode.AudioOnly => screenMirrorService.IsAudioOnlyRunning(device.Id),
             _ => true
         };
-    }
-
-    /// <summary>
-    /// 处理应用列表请求
-    /// </summary>
-    private async Task HandleAppListRequestAsync(PairedDevice device, string decryptedPayload)
-    {
-        try
-        {
-            // 应用列表请求暂时不处理，直接返回
-            logger.LogDebug("收到应用列表请求，暂时不处理");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理应用列表请求时出错");
-        }
-    }
-
-    /// <summary>
-    /// 处理图标请求
-    /// </summary>
-    private async Task HandleIconRequestAsync(PairedDevice device, string decryptedPayload)
-    {
-        try
-        {
-            // 图标请求暂时不处理，直接返回
-            logger.LogDebug("收到图标请求，暂时不处理");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理图标请求时出错");
-        }
     }
 
     /// <summary>
@@ -267,9 +184,9 @@ public class ProtocolRouter
 
                 // 提取关键信息
                 var originalHeader = root.TryGetProperty("originalHeader", out var originalHeaderProp) ? originalHeaderProp.GetString() : string.Empty;
-                var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() : string.Empty;
-                var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() : string.Empty;
-                var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() : string.Empty;
+                var result = root.TryGetProperty("result", out var resultProp) ? resultProp.GetString() ?? string.Empty : string.Empty;
+                var errorMessage = root.TryGetProperty("errorMessage", out var errorMessageProp) ? errorMessageProp.GetString() ?? string.Empty : string.Empty;
+                var action = root.TryGetProperty("action", out var actionProp) ? actionProp.GetString() ?? string.Empty : string.Empty;
 
                 logger.LogDebug("DATA_STATUS消息详情: originalHeader={originalHeader}, result={result}, action={action}", originalHeader, result, action);
 
@@ -277,12 +194,10 @@ public class ProtocolRouter
                 switch (originalHeader)
                 {
                     case "DATA_MEDIA_CONTROL":
-                        // 处理媒体控制响应
-                        await HandleMediaControlResponseAsync(device, root, result, errorMessage, action);
+                        logger.LogDebug("媒体控制状态响应: action={action}, result={result}", action, result);
                         break;
                     case "DATA_FTP":
-                        // 处理FTP响应
-                        HandleFtpResponse(device, root, result, errorMessage, action);
+                        logger.LogDebug("FTP状态响应: action={action}, result={result}", action, result);
                         break;
                     default:
                         // 处理其他类型的状态响应
@@ -421,61 +336,5 @@ public class ProtocolRouter
         return pics.Count > 0 ? pics : null;
     }
 
-    /// <summary>
-    /// 处理媒体控制响应
-    /// </summary>
-    private async Task HandleMediaControlResponseAsync(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
-    {
-        try
-        {
-            logger.LogDebug("处理媒体控制响应: action={action}, result={result}", action, result);
-
-            // 这里可以添加媒体控制响应的处理逻辑
-            // 例如：更新媒体控制状态、显示提示信息等
-
-            if (!string.IsNullOrEmpty(errorMessage))
-            {
-                logger.LogWarning("媒体控制响应错误: {errorMessage}", errorMessage);
-                // 可以添加错误处理逻辑
-            }
-            else if (result == "success")
-            {
-                logger.LogDebug("媒体控制操作成功: {action}", action);
-                // 可以添加成功处理逻辑
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理媒体控制响应时出错");
-        }
-    }
-
-    /// <summary>
-    /// 处理FTP响应
-    /// </summary>
-    private void HandleFtpResponse(PairedDevice device, JsonElement root, string result, string errorMessage, string action)
-    {
-        try
-        {
-            logger.LogDebug("处理FTP响应: action={action}, result={result}", action, result);
-
-            // 这里可以添加FTP响应的处理逻辑
-            // 例如：更新FTP状态、显示提示信息等
-
-            if (!string.IsNullOrEmpty(errorMessage))
-            {
-                logger.LogWarning("FTP响应错误: {errorMessage}", errorMessage);
-                // 可以添加错误处理逻辑
-            }
-            else if (result == "success")
-            {
-                logger.LogDebug("FTP操作成功: {action}", action);
-                // 可以添加成功处理逻辑
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理FTP响应时出错");
-        }
-    }
 }
+

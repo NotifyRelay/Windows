@@ -30,27 +30,6 @@ public static class IconUtils
     }
 
     /// <summary>
-    /// Saves a base64 encoded image to a file and returns the URI
-    /// </summary>
-    /// <param name="base64">Base64 encoded image data</param>
-    /// <param name="fileName">Name of the file to save</param>
-    /// <returns>URI to the saved file</returns>
-    public static async Task<Uri> SaveBase64ToFileAsync(string base64, string fileName)
-    {
-        var bytes = Convert.FromBase64String(base64);
-        var localFolder = ApplicationData.Current.LocalFolder;
-        var file = await localFolder.CreateFileAsync(fileName, CreationCollisionOption.ReplaceExisting);
-
-        using var stream = await file.OpenAsync(FileAccessMode.ReadWrite);
-        using var dataWriter = new DataWriter(stream);
-        dataWriter.WriteBytes(bytes);
-        await dataWriter.StoreAsync();
-
-        return new Uri($"ms-appdata:///local/{fileName}");
-    }
-
-
-    /// <summary>
     /// Gets the URI for an app icon file in the AppIcons folder
     /// </summary>
     /// <param name="packageName">Name of the app icon file</param>
@@ -203,20 +182,4 @@ public static class IconUtils
         }
     }
 
-    /// <summary>
-    /// 构建图标请求对象
-    /// </summary>
-    /// <param name="packageName">应用包名</param>
-    /// <returns>图标请求 JSON 字符串</returns>
-    public static string BuildIconRequest(string packageName)
-    {
-        var requestObj = new
-        {
-            type = "ICON_REQUEST",
-            packageName = packageName,
-            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        };
-
-        return JsonSerializer.Serialize(requestObj);
-    }
 }

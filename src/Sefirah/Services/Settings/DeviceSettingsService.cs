@@ -1,10 +1,11 @@
+using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.Services.Settings;
 
-internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSharingContext settingsSharingContext) : BaseDeviceAwareJsonSettings(deviceId, settingsSharingContext), IDeviceSettingsService
+internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSharingContext settingsSharingContext, DatabaseContext dbContext) : BaseDeviceAwareJsonSettings(deviceId, settingsSharingContext, dbContext), IDeviceSettingsService
 {
     public bool ClipboardSyncEnabled
     {
@@ -56,13 +57,13 @@ internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSh
 
     public string RemoteStoragePath
     {
-        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath);
+        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
         set => Set(value);
     }
 
     public string ReceivedFilesPath
     {
-        get => Get(Constants.UserEnvironmentPaths.DownloadsPath);
+        get => Get(Constants.UserEnvironmentPaths.DownloadsPath)!;
         set => Set(value);
     }
 

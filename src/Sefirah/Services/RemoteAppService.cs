@@ -1,6 +1,7 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -8,7 +9,8 @@ namespace NotifyRelay.Services;
 public class RemoteAppService(
     ILogger<RemoteAppService> logger,
     RemoteAppRepository remoteAppRepository,
-    IDeviceManager deviceManager) : IRemoteAppService
+    IDeviceManager deviceManager,
+    IProtocolSender protocolSender) : IRemoteAppService
 {
     public async Task ProcessAppListResponseAsync(PairedDevice device, string payload)
     {
@@ -20,13 +22,12 @@ public class RemoteAppService(
                 return;
             }
 
-            // 首先尝试解析JSON
             using var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
 
             logger.LogDebug("处理APP_LIST_RESPONSE消息");
 
-            var appList = new ApplicationList { AppList = new List<ApplicationInfoMessage>() };
+            var appEntries = new List<(string PackageName, string AppName)>();
 
             if (root.TryGetProperty("apps", out var appsArray))
             {
@@ -38,26 +39,23 @@ public class RemoteAppService(
                         if (!string.IsNullOrEmpty(packageName))
                         {
                             var appName = appElement.TryGetProperty("appName", out var appNameProp) ? appNameProp.GetString() ?? packageName : packageName;
-                            var appInfo = new ApplicationInfoMessage { PackageName = packageName, AppName = appName };
-                            appList.AppList.Add(appInfo);
+                            appEntries.Add((packageName, appName));
                         }
                     }
                 }
 
-                remoteAppRepository.UpdateApplicationList(device, appList);
-                logger.LogDebug("已更新应用列表，共 {Count} 个应用", appList.AppList.Count);
+                remoteAppRepository.UpdateApplicationList(device, appEntries);
+                logger.LogDebug("已更新应用列表，共 {Count} 个应用", appEntries.Count);
 
-                // 收集所有没有图标的应用的包名
                 var packageNamesWithoutIcons = new List<string>();
-                foreach (var appInfo in appList.AppList)
+                foreach (var (packageName, _) in appEntries)
                 {
-                    if (!IconUtils.AppIconExists(appInfo.PackageName))
+                    if (!IconUtils.AppIconExists(packageName))
                     {
-                        packageNamesWithoutIcons.Add(appInfo.PackageName);
+                        packageNamesWithoutIcons.Add(packageName);
                     }
                 }
 
-                // 发送批量图标请求
                 if (packageNamesWithoutIcons.Count > 0)
                 {
                     logger.LogDebug("发送 {Count} 个图标请求", packageNamesWithoutIcons.Count);
@@ -75,46 +73,32 @@ public class RemoteAppService(
         }
     }
 
-    /// <summary>
-    /// 发送应用列表请求
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
     public void SendAppListRequest(string deviceId)
     {
-        // 构建应用列表请求对象
-        var request = new ApplicationListRequest();
-
-        // 序列化为 JSON
-        string requestJson = JsonSerializer.Serialize(request);
-
-        // 调用通用发送方法
-        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
+        var rawJson = JsonSerializer.Serialize(new
+        {
+            type = "DATA_APP_LIST_REQUEST",
+            scope = "user",
+            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+        var requestJson = rawJson;
+        if (requestJson == null) return;
+        _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 
-    /// <summary>
-    /// 发送图标请求
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="packageNames">应用包名列表</param>
     public void SendIconRequest(string deviceId, List<string> packageNames)
     {
         logger.LogInformation("开始发送图标请求：deviceId={deviceId}, packageCount={packageCount}", deviceId, packageNames.Count);
 
-        // 构建图标请求对象（支持单个或多个包名）
-        var request = new IconRequest();
-        if (packageNames.Count == 1)
+        var rawJson = JsonSerializer.Serialize(new
         {
-            request.PackageName = packageNames.First();
-        }
-        else
-        {
-            request.PackageNames = packageNames;
-        }
-
-        // 序列化为 JSON
-        string requestJson = JsonSerializer.Serialize(request);
-
-        // 调用通用发送方法
-        _ = ProtocolSender.SendMessageAsync(logger, deviceManager, deviceId, requestJson);
+            type = "DATA_ICON_REQUEST",
+            packageName = packageNames.Count == 1 ? packageNames.First() : null,
+            packageNames = packageNames.Count > 1 ? packageNames : null,
+            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        });
+        var requestJson = rawJson;
+        if (requestJson == null) return;
+        _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 }

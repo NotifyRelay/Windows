@@ -159,7 +159,6 @@ public class PlaceholdersService(
 
         // 检查文件是否已经是占位符，如果不是，尝试复用现有文件而不是强制转换
         bool isPlaceholder = placeholderState.HasFlag(CldApi.CF_PLACEHOLDER_STATE.CF_PLACEHOLDER_STATE_PLACEHOLDER);
-        bool canConvertToPlaceholder = true;
 
         if (!isPlaceholder)
         {
@@ -172,7 +171,6 @@ public class PlaceholdersService(
             catch (Win32Exception ex) when (ex.NativeErrorCode == 380) // ERROR_INVALID_PARAMETER
             {
                 //logger.LogDebug("无法将文件转换为占位符，将复用现有文件：{path}，错误：{error}", relativeFile, ex.Message);
-                canConvertToPlaceholder = false;
             }
             catch (Exception ex)
             {

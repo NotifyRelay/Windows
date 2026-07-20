@@ -1,18 +1,8 @@
 {
   "profiles": {
-    "Sefirah (WinAppSDK Unpackaged)": {
+    "NotifyRelay (WinAppSDK Unpackaged)": {
       "commandName": "Project",
       "compatibleTargetFramework": "windows"
-    },
-    "Sefirah (Desktop)": {
-      "commandName": "Project",
-      "compatibleTargetFramework": "desktop"
-    },
-    "Sefirah (Desktop WSL2)": {
-      "commandName": "WSL2",
-      "commandLineArgs": "{ProjectDir}/bin/Debug/net9.0-desktop/NotifyRelay.dll",
-      "distributionName": "",
-      "compatibleTargetFramework": "desktop"
     },
     "NotifyRelay (WinAppSDK Packaged)": {
       "commandName": "MsixPackage",

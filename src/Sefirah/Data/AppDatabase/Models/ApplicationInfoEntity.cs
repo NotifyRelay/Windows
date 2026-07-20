@@ -29,14 +29,13 @@ public partial class ApplicationInfoEntity
         return new ApplicationInfo(PackageName, AppName, IconUtils.GetAppIconPath(PackageName), deviceInfo);
     }
 
-    internal static async Task<ApplicationInfoEntity> FromApplicationInfoMessage(ApplicationInfoMessage info, string deviceId)
+    internal static async Task<ApplicationInfoEntity> FromApplicationInfo(string packageName, string appName, string deviceId)
     {
         List<AppDeviceInfo> appDeviceInfoList = new List<AppDeviceInfo> { new(deviceId, NotificationFilter.ToastFeed) };
-        await IconUtils.SaveAppIconToPathAsync(info.AppIcon, info.PackageName);
         return new ApplicationInfoEntity
         {
-            PackageName = info.PackageName,
-            AppName = info.AppName,
+            PackageName = packageName,
+            AppName = appName,
             AppDeviceInfoJson = JsonSerializer.Serialize(appDeviceInfoList)
         };
     }

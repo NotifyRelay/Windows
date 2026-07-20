@@ -204,7 +204,7 @@ internal sealed partial class StringToImageSourceConverter : IValueConverter
                 System.Diagnostics.Debug.WriteLine($"StringToImageSourceConverter: {ex.Message}");
             }
         }
-        return null;
+        return null!;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)

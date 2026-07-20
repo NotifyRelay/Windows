@@ -8,7 +8,6 @@ public static class UserInformation
     /// <returns>Tuple containing (name, avatar base64 string)</returns>
     public static async Task<(string name, string? avatar)> GetCurrentUserInfoAsync()
     {
-#if WINDOWS
         try
         {
             string name = string.Empty;
@@ -100,21 +99,6 @@ public static class UserInformation
             Debug.WriteLine($"Error getting user info: {ex}");
             return (GetFallbackUserName(), null);
         }
-#else
-        // For other platforms (Linux/Skia, etc.)
-        string username = Environment.UserName;
-
-        // On Linux, we can try to get a more friendly name from the USER or USERNAME env vars
-        if (string.IsNullOrEmpty(username))
-        {
-            username = Environment.GetEnvironmentVariable("USER") ??
-                      Environment.GetEnvironmentVariable("USERNAME") ??
-                      "User";
-        }
-
-        // We don't have a way to get the avatar in other platforms
-        return (username, null);
-#endif
     }
 
     private static string GetFallbackUserName()

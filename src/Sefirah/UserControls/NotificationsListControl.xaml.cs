@@ -6,7 +6,7 @@ namespace NotifyRelay.UserControls;
 
 public sealed partial class NotificationsListControl : UserControl
 {
-    public MainPageViewModel ViewModel { get; set; }
+    public MainPageViewModel ViewModel { get; set; } = null!;
     private double lastScrollOffset = 0;
     private bool isScrolling = false;
     private System.Threading.Timer? scrollTimer;
@@ -99,11 +99,14 @@ public sealed partial class NotificationsListControl : UserControl
         else if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add)
         {
             // 为新添加的分组订阅IsCollapsed属性变化事件
-            foreach (var newItem in e.NewItems)
+            if (e.NewItems != null)
             {
-                if (newItem is Data.Models.GroupedNotification newGroup)
+                foreach (var newItem in e.NewItems)
                 {
-                    newGroup.PropertyChanged += OnGroupPropertyChanged;
+                    if (newItem is Data.Models.GroupedNotification newGroup)
+                    {
+                        newGroup.PropertyChanged += OnGroupPropertyChanged;
+                    }
                 }
             }
         }

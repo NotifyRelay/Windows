@@ -3,7 +3,6 @@ using NotifyRelay.Platforms.Windows.Helpers;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using Vanara.InteropServices;
 using Vanara.PInvoke;
-using static Vanara.PInvoke.Gdi32;
 using static Vanara.PInvoke.Shell32;
 
 namespace NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
@@ -49,18 +48,19 @@ public class LocalThumbnailProvider(
     }
 
     // This doesn't get called for some reason: https://github.com/dahall/WinClassicSamplesCS/issues/6
-    public HRESULT GetThumbnail(uint cx, out SafeHBITMAP phbmp, out WTS_ALPHATYPE pdwAlpha)
+    public HRESULT GetThumbnail(uint cx, out HBITMAP phbmp, out WTS_ALPHATYPE pdwAlpha)
     {
         logger.LogDebug("为 {path} 获取缩略图", _serverItem!.GetDisplayName(SIGDN.SIGDN_FILESYSPATH));
         try
         {
             using var tps = ComReleaserFactory.Create(_serverItem!.BindToHandler<IThumbnailProvider>(default, BHID.BHID_ThumbnailHandler.Guid()));
-            tps.Item.GetThumbnail(cx, out phbmp, out pdwAlpha).ThrowIfFailed();
+            tps.Item.GetThumbnail(cx, out var hbmp, out pdwAlpha).ThrowIfFailed();
+            phbmp = hbmp.DangerousGetHandle();
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "获取缩略图失败");
-            phbmp = new SafeHBITMAP(nint.Zero, false);
+            phbmp = nint.Zero;
             pdwAlpha = WTS_ALPHATYPE.WTSAT_UNKNOWN;
             return ex.HResult;
         }

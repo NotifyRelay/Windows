@@ -19,8 +19,8 @@ public interface INotificationService
     /// </summary>  
     void Initialize();
 
-    Task HandleNotificationMessage(PairedDevice device, NotificationMessage notificationMessage);
-    Task HandleMediaPlayNotification(PairedDevice device, NotificationMessage notificationMessage);
+    Task HandleNotificationMessage(PairedDevice device, string payload);
+    Task HandleMediaPlayNotification(PairedDevice device, string payload);
     void RemoveNotification(PairedDevice device, Notification notification);
 
     /// <summary>

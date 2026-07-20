@@ -15,7 +15,6 @@ using WinRT.Interop;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
 #if WINDOWS
-using NotifyRelay.Platforms.Windows.Helpers;
 #endif
 
 namespace NotifyRelay;

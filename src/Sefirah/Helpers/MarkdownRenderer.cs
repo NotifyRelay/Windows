@@ -1,12 +1,8 @@
-using System;
-using System.Linq;
 using Markdig;
 using Markdig.Syntax;
 using Markdig.Syntax.Inlines;
 using Microsoft.UI;
-using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Documents;
-using Microsoft.UI.Xaml.Media;
 
 namespace NotifyRelay.Helpers;
 
