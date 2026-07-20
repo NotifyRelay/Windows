@@ -399,6 +399,11 @@
                                 <FontIcon Glyph="&#xE7F0;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
+                        <NavigationViewItem Content="动态光效" Tag="DynamicLighting">
+                            <NavigationViewItem.Icon>
+                                <FontIcon Glyph="&#xE739;" />
+                            </NavigationViewItem.Icon>
+                        </NavigationViewItem>
                     </NavigationView.MenuItems>
 
                     <Frame x:Name="ContentFrame" />

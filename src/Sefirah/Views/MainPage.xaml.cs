@@ -29,7 +29,8 @@ public sealed partial class MainPage : Page
         { "LocalNotificationHistory", typeof(LocalNotificationHistoryPage) },
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
         { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
-        { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) }
+        { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) },
+        { "DynamicLighting", typeof(Settings.DynamicLightingSettingsPage) }
     };
 
     // Track the current animation to prevent conflicts

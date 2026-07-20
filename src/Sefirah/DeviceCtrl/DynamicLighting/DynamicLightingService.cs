@@ -424,7 +424,7 @@ public class DynamicLightingService
 
         _lastCapturedColor = avgColor;
 
-        _logger.LogDebug("Captured color: R={R}, G={G}, B={B}", avgColor.R, avgColor.G, avgColor.B);
+        // _logger.LogDebug("Captured color: R={R}, G={G}, B={B}", avgColor.R, avgColor.G, avgColor.B);
 
         HandleAutoRGBColor(avgColor);
 

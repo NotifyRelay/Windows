@@ -24,9 +24,6 @@ public sealed partial class SettingsPage : Page
             case "AboutPage":
                 SettingsContentFrame.Navigate(typeof(Settings.AboutPage));
                 break;
-            case "DynamicLightingSettingsPage":
-                SettingsContentFrame.Navigate(typeof(Settings.DynamicLightingSettingsPage));
-                break;
         }
     }
 }
