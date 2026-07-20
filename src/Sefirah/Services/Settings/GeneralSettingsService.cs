@@ -292,4 +292,29 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         get => Get(600);
         set => Set(value);
     }
+
+    // 虚拟扬声器设置
+    public string? VirtualSpeakerTargetDeviceId
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public string? VirtualSpeakerTargetDeviceName
+    {
+        get => Get<string?>(null);
+        set => Set(value);
+    }
+
+    public bool EnableVirtualSpeaker
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public bool VirtualSpeakerMuteOnStart
+    {
+        get => Get(false);
+        set => Set(value);
+    }
 }
