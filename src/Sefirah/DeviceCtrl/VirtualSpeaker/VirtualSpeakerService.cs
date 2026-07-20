@@ -42,8 +42,8 @@ public class VirtualSpeakerService : IDisposable
     private int _channels;
     private bool _isFirstPacket = true;
 
-    // 积累发送：累积 500ms WASAI 数据后一次性发，所有包 timestamp=0 跳过 Speaker 时序计算
-    private const int TargetPacketMs = 500;
+    // 积累发送：累积 100ms WASAPI 数据后一次性发，所有包 timestamp=0 跳过 Speaker 时序计算
+    private const int TargetPacketMs = 50;
 
     private readonly List<SoundSeederDeviceInfo> _discoveredSpeakers = [];
     private readonly object _speakersLock = new();
