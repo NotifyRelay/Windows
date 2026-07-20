@@ -30,6 +30,7 @@ public sealed partial class MainPage : Page
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
         { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
         { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) },
+{ "DynamicLighting", typeof(Settings.DynamicLightingSettingsPage) },
         { "VirtualSpeaker", typeof(Settings.VirtualSpeakerSettingsPage) }
     };
 

@@ -48,4 +48,10 @@ public static partial class Win32Helper
         windowPos.flags |= SetWindowPosFlags.SWP_NOZORDER;
         Marshal.StructureToPtr(windowPos, lParam, false);
     }
+
+    public static IntPtr GetPrimaryMonitorHandle()
+    {
+        var hMonitor = MonitorFromPoint(new POINT(0, 0), MonitorFlags.MONITOR_DEFAULTTOPRIMARY);
+        return hMonitor.DangerousGetHandle();
+    }
 }

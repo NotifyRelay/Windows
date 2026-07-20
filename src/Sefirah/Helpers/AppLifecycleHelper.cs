@@ -224,7 +224,20 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤19：初始化 DeepSeek 余额监控服务失败");
         }
 
-        // 10. 初始化虚拟扬声器服务
+// 10. 初始化动态光效服务
+        logger.LogInformation("步骤19：初始化动态光效服务...");
+        try
+        {
+            var dynamicLightingService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.DynamicLighting.DynamicLightingService>();
+            dynamicLightingService.Initialize();
+            logger.LogInformation("步骤19：动态光效服务初始化完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤19：初始化动态光效服务失败");
+        }
+
+        // 11. 初始化虚拟扬声器服务
         logger.LogInformation("步骤20：初始化虚拟扬声器服务...");
         try
         {
@@ -246,7 +259,7 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤20：初始化虚拟扬声器服务失败");
         }
 
-        // 11. 完成初始化，关闭启动画面
+        // 12. 完成初始化，关闭启动画面
         logger.LogInformation("步骤21：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
@@ -344,6 +357,9 @@ public static class AppLifecycleHelper
 
                 // DeepSeek Balance Service
                 .AddSingleton<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>()
+
+// Dynamic Lighting Service
+                .AddSingleton<NotifyRelay.DeviceCtrl.DynamicLighting.DynamicLightingService>()
 
                 // Virtual Speaker Service
                 .AddSingleton<NotifyRelay.DeviceCtrl.VirtualSpeaker.VirtualSpeakerService>()

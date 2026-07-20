@@ -183,4 +183,34 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     /// Gets or sets the height of the wallpaper overlay window.
     /// </summary>
     int WallpaperOverlayHeight { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether dynamic lighting is enabled.
+    /// </summary>
+    bool EnableDynamicLighting { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether AutoRGB mode is enabled.
+    /// </summary>
+    bool EnableAutoRGB { get; set; }
+
+    /// <summary>
+    /// Gets or sets the dynamic lighting brightness level (0-1).
+    /// </summary>
+    double DynamicLightingBrightness { get; set; }
+
+    /// <summary>
+    /// Gets or sets the dynamic lighting color.
+    /// </summary>
+    string? DynamicLightingColor { get; set; }
+
+    /// <summary>
+    /// Gets or sets the selected dynamic lighting effect.
+    /// </summary>
+    string? DynamicLightingEffect { get; set; }
+
+    /// <summary>
+    /// Gets or sets the AutoRGB update interval in milliseconds.
+    /// </summary>
+    int AutoRGBUpdateInterval { get; set; }
 }

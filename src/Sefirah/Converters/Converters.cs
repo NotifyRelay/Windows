@@ -627,3 +627,90 @@ internal sealed partial class BoolToOpacityConverter : ValueConverter<bool, doub
         throw new NotSupportedException();
     }
 }
+
+internal sealed partial class LampArrayKindToGlyphConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is Windows.Devices.Lights.LampArrayKind kind)
+        {
+            string kindName = kind.ToString();
+            return kindName switch
+            {
+                "Keyboard" => "\uE94E",
+                "Mouse" => "\uE94F",
+                "Microphone" => "\uE724",
+                "Headset" => "\uE72E",
+                _ => "\uE7CB"
+            };
+        }
+        return "\uE7CB";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class BoolToStatusConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        return value is bool b && b ? "可用" : "不可用";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class BoolToStatusColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        return value is bool b && b 
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green)
+            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Gray);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class DoubleToPercentConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is double d)
+        {
+            return $"{Math.Round(d * 100)}%";
+        }
+        return "0%";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+internal sealed partial class ColorToStringConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is Windows.UI.Color color)
+        {
+            return $"#{color.A:X2}{color.R:X2}{color.G:X2}{color.B:X2}";
+        }
+        return "#00000000";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language)
+    {
+        throw new NotImplementedException();
+    }
+}
