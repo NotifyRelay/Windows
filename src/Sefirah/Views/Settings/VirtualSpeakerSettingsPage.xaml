@@ -102,8 +102,10 @@
                     <ComboBoxItem Content="原始逐包 (PerCallback)"/>
                     <ComboBoxItem Content="积累200ms + timestamp=0 (AccumZero200)"/>
                     <ComboBoxItem Content="积累500ms + timestamp=0 (AccumZero500)"/>
+                    <ComboBoxItem Content="积累1000ms + timestamp=0 (AccumZero1000)"/>
                     <ComboBoxItem Content="积累200ms + 正常timestamp (AccumTrue200)"/>
                     <ComboBoxItem Content="积累200ms + 正常timestamp+buffer (AccumBuf200)"/>
+                    <ComboBoxItem Content="模仿官方 ~23ms逐包 + 正常timestamp (Official)"/>
                 </ComboBox>
             </wuc:SettingsCard>
         </StackPanel>

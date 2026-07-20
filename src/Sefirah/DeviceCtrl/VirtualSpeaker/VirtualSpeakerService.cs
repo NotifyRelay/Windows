@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -15,10 +17,14 @@ public enum StreamingStrategy
     AccumZero200,
     /// <summary>积累 500ms + 全部 timestamp=0</summary>
     AccumZero500,
+    /// <summary>积累 1000ms + 全部 timestamp=0</summary>
+    AccumZero1000,
     /// <summary>积累 200ms + 正常递增 timestamp</summary>
     AccumTrue200,
-    /// <summary>积累 200ms + 正常递增 timestamp + 100ms buffer（防 sleep=-2）</summary>
+    /// <summary>积累 200ms + 正常递增 timestamp + 20ms buffer</summary>
     AccumBuf200,
+    /// <summary>模仿官方客户端：~23ms逐包 + 高精度时间戳（44100Hz下约23ms/包）</summary>
+    Official,
 }
 
 public class VirtualSpeakerService : IDisposable
@@ -44,9 +50,9 @@ public class VirtualSpeakerService : IDisposable
     private CancellationTokenSource? _streamingCts;
     private Thread? _audioWriterThread;
     private readonly AutoResetEvent _audioDataReady = new(false);
-    private readonly object _audioDataLock = new();
-    private byte[]? _pendingAudioData;
-    private int _pendingAudioLength;
+    private readonly ConcurrentQueue<(byte[] Buffer, DateTime CapturedAt)> _audioQueue = new();
+    private const int MaxAudioAgeMs = 2000; // 超过2秒的音频直接丢弃
+    private const long PerCallbackBufMs = 15; // PerCallback 缓冲(ms)，需 > Speaker this.d (10ms@48kHz stereo)
 
     private bool _isRunning;
     private bool _isDisposed;
@@ -55,6 +61,10 @@ public class VirtualSpeakerService : IDisposable
     private int _sampleRate;
     private int _channels;
     private bool _isFirstPacket = true;
+    private long _timestampBase;
+    private long _clockOffsetMs; // Speaker nanoTime 偏移量
+
+    private static long NowMs => Stopwatch.GetTimestamp() * 1000L / Stopwatch.Frequency;
 
     // 可通过 UI 下拉框切换的流式策略（默认 AccumZero200）
     private StreamingStrategy _strategy = StreamingStrategy.AccumZero200;
@@ -237,6 +247,11 @@ public class VirtualSpeakerService : IDisposable
         _discoveryClient = null;
     }
 
+    private void ClearAudioQueue()
+    {
+        while (_audioQueue.TryDequeue(out _)) { }
+    }
+
     public async Task StartStreaming()
     {
         if (_isRunning)
@@ -280,6 +295,7 @@ public class VirtualSpeakerService : IDisposable
 
         _playerUuid = SoundSeederProtocol.GenerateUuid();
         _isFirstPacket = true;
+        ClearAudioQueue();
 
         try
         {
@@ -323,6 +339,10 @@ public class VirtualSpeakerService : IDisposable
             await SendControlAsync("$setch$", channelConf);
             await SendControlAsync("$setOffM$", "0");
 
+            // 时钟同步：获取 Speaker 的 nanoTime 以校正两端时钟差
+            var speakerNanoTimeStr = await SendControlWithResponseAsync("$off$");
+            SyncClocks(speakerNanoTimeStr);
+
             await SendControlAsync("$con$");
             _logger.LogInformation("已请求音频连接，等待 Speaker 连接...");
 
@@ -355,6 +375,7 @@ public class VirtualSpeakerService : IDisposable
             };
             _audioWriterThread.Start();
 
+            _timestampBase = NowMs + _clockOffsetMs;
             _capture.StartRecording();
 
             _isRunning = true;
@@ -384,17 +405,51 @@ public class VirtualSpeakerService : IDisposable
         }
     }
 
+    private async Task<string?> SendControlWithResponseAsync(string command, string? param = null)
+    {
+        if (_controlStream == null) return null;
+        var cmdBytes = Encoding.UTF8.GetBytes(command + "\n");
+        await _controlStream.WriteAsync(cmdBytes, 0, cmdBytes.Length);
+        if (param != null)
+        {
+            var paramBytes = Encoding.UTF8.GetBytes(param + "\n");
+            await _controlStream.WriteAsync(paramBytes, 0, paramBytes.Length);
+        }
+        await _controlStream.FlushAsync();
+
+        using var reader = new StreamReader(_controlStream, Encoding.UTF8, leaveOpen: true);
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+        return await reader.ReadLineAsync(cts.Token);
+    }
+
+    private void SyncClocks(string? speakerNanoTimeStr)
+    {
+        if (long.TryParse(speakerNanoTimeStr, out var speakerNanoTime))
+        {
+            // nanoTime → 毫秒
+            var speakerMs = speakerNanoTime / 1_000_000;
+            var localMs = NowMs;
+            _clockOffsetMs = speakerMs - localMs;
+            _logger.LogInformation(
+                "时钟同步完成: Speaker={SpeakerMs}ms, Local={LocalMs}ms, Offset={Offset}ms",
+                speakerMs, localMs, _clockOffsetMs);
+        }
+        else
+        {
+            _logger.LogWarning("时钟同步失败: 无法解析 Speaker 时间 '{Response}'，非零 timestamp 模式可能不工作",
+                speakerNanoTimeStr ?? "(null)");
+            _clockOffsetMs = 0;
+        }
+    }
+
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
         if (e.BytesRecorded == 0) return;
 
-        lock (_audioDataLock)
-        {
-            _pendingAudioData = new byte[e.BytesRecorded];
-            Buffer.BlockCopy(e.Buffer, 0, _pendingAudioData, 0, e.BytesRecorded);
-            _pendingAudioLength = e.BytesRecorded;
-            _audioDataReady.Set();
-        }
+        var buffer = new byte[e.BytesRecorded];
+        Buffer.BlockCopy(e.Buffer, 0, buffer, 0, e.BytesRecorded);
+        _audioQueue.Enqueue((buffer, DateTime.UtcNow));
+        _audioDataReady.Set();
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -418,34 +473,38 @@ public class VirtualSpeakerService : IDisposable
         {
             try
             {
-                if (!_audioDataReady.WaitOne(100)) continue;
-
-                byte[]? floatBuffer;
-                int bytesRecorded;
-                lock (_audioDataLock)
+                if (!_audioDataReady.WaitOne(100))
                 {
-                    if (_pendingAudioData == null) continue;
-                    floatBuffer = _pendingAudioData;
-                    bytesRecorded = _pendingAudioLength;
-                    _pendingAudioData = null;
+                    DrainPerCallback(ref streamTimestamp, token);
+                    continue;
                 }
 
-                var pcm16 = SoundSeederProtocol.Float32ToPcm16(floatBuffer, bytesRecorded);
-                var frames = bytesRecorded / (4 * _channels);
-
-                var packet = SoundSeederProtocol.BuildAudioPacket(
-                    _isFirstPacket, _sampleRate, _channels, 16,
-                    _isFirstPacket ? 0 : streamTimestamp, pcm16);
-                _isFirstPacket = false;
-                streamTimestamp += frames * 1000L / _sampleRate;
-
-                WritePacket(packet, token);
+                DrainPerCallback(ref streamTimestamp, token);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "音频写入异常");
             }
+        }
+    }
+
+    private void DrainPerCallback(ref long streamTimestamp, CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        while (_audioQueue.TryDequeue(out var entry))
+        {
+            if ((now - entry.CapturedAt).TotalMilliseconds > MaxAudioAgeMs)
+                continue; // 丢弃过期数据
+
+            var pcm16 = SoundSeederProtocol.Float32ToPcm16(entry.Buffer, entry.Buffer.Length);
+
+            var packet = SoundSeederProtocol.BuildAudioPacket(
+                _isFirstPacket, _sampleRate, _channels, 16,
+                NowMs + _clockOffsetMs + PerCallbackBufMs, pcm16);
+            _isFirstPacket = false;
+
+            WritePacket(packet, token);
         }
     }
 
@@ -457,14 +516,24 @@ public class VirtualSpeakerService : IDisposable
 
         int targetMs = _strategy switch
         {
+            StreamingStrategy.Official => 23,
             StreamingStrategy.AccumZero500 => 500,
+            StreamingStrategy.AccumZero1000 => 1000,
             _ => 200,
         };
         bool useTimestampZero = _strategy == StreamingStrategy.AccumZero200
-                             || _strategy == StreamingStrategy.AccumZero500;
-        bool useTimestampBuf = _strategy == StreamingStrategy.AccumBuf200;
-        long bufMs = useTimestampBuf ? 100 : 0;
-
+                             || _strategy == StreamingStrategy.AccumZero500
+                             || _strategy == StreamingStrategy.AccumZero1000;
+        bool useTimestampBuf = _strategy == StreamingStrategy.AccumBuf200
+                            || _strategy == StreamingStrategy.AccumTrue200
+                            || _strategy == StreamingStrategy.Official;
+        long bufMs = _strategy switch
+        {
+            StreamingStrategy.AccumBuf200 => 25,
+            StreamingStrategy.AccumTrue200 => 15,
+            StreamingStrategy.Official => 15,
+            _ => 0
+        };
         var targetFrames = _sampleRate * targetMs / 1000;
 
         while (!token.IsCancellationRequested)
@@ -473,43 +542,45 @@ public class VirtualSpeakerService : IDisposable
             {
                 if (!_audioDataReady.WaitOne(100))
                 {
-                    if (accumulatedPcmStream.Length > 0)
-                    {
-                        SendAccumulated(accumulatedPcmStream, token,
-                            useTimestampZero, useTimestampBuf, bufMs, ref streamTimestamp);
-                        accumulatedPcmStream.SetLength(0);
-                        accumulatedFrames = 0;
-                    }
+                    DrainAccumulate(accumulatedPcmStream, ref accumulatedFrames,
+                        targetFrames, useTimestampZero, useTimestampBuf, bufMs,
+                        ref streamTimestamp, token);
                     continue;
                 }
 
-                byte[]? floatBuffer;
-                int bytesRecorded;
-                lock (_audioDataLock)
-                {
-                    if (_pendingAudioData == null) continue;
-                    floatBuffer = _pendingAudioData;
-                    bytesRecorded = _pendingAudioLength;
-                    _pendingAudioData = null;
-                }
-
-                var pcm16 = SoundSeederProtocol.Float32ToPcm16(floatBuffer, bytesRecorded);
-                var frames = bytesRecorded / (4 * _channels);
-                accumulatedPcmStream.Write(pcm16, 0, pcm16.Length);
-                accumulatedFrames += frames;
-
-                if (accumulatedFrames >= targetFrames)
-                {
-                    SendAccumulated(accumulatedPcmStream, token,
-                        useTimestampZero, useTimestampBuf, bufMs, ref streamTimestamp);
-                    accumulatedPcmStream.SetLength(0);
-                    accumulatedFrames = 0;
-                }
+                DrainAccumulate(accumulatedPcmStream, ref accumulatedFrames,
+                    targetFrames, useTimestampZero, useTimestampBuf, bufMs,
+                    ref streamTimestamp, token);
             }
             catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 _logger.LogDebug(ex, "音频写入异常");
+            }
+        }
+    }
+
+    private void DrainAccumulate(MemoryStream accStream, ref long accFrames,
+        int targetFrames, bool useTimestampZero, bool useTimestampBuf, long bufMs,
+        ref long streamTimestamp, CancellationToken token)
+    {
+        var now = DateTime.UtcNow;
+        while (_audioQueue.TryDequeue(out var entry))
+        {
+            if ((now - entry.CapturedAt).TotalMilliseconds > MaxAudioAgeMs)
+                continue; // 丢弃过期数据
+
+            var pcm16 = SoundSeederProtocol.Float32ToPcm16(entry.Buffer, entry.Buffer.Length);
+            var frames = entry.Buffer.Length / (4 * _channels);
+            accStream.Write(pcm16, 0, pcm16.Length);
+            accFrames += frames;
+
+            if (accFrames >= targetFrames)
+            {
+                SendAccumulated(accStream, token,
+                    useTimestampZero, useTimestampBuf, bufMs, ref streamTimestamp);
+                accStream.SetLength(0);
+                accFrames = 0;
             }
         }
     }
@@ -525,7 +596,9 @@ public class VirtualSpeakerService : IDisposable
         }
         else
         {
-            timestamp = _isFirstPacket ? 0 : streamTimestamp + (useTimestampBuf ? bufMs : 0);
+            // 使用墙钟时间确保 Speaker 的 sleep = bufMs - this.d > 0
+            // this.d ≈ 10-11ms（取决于采样率），bufMs 需 > this.d
+            timestamp = NowMs + _clockOffsetMs + (useTimestampBuf ? bufMs : PerCallbackBufMs);
         }
 
         var packet = SoundSeederProtocol.BuildAudioPacket(
@@ -565,6 +638,7 @@ public class VirtualSpeakerService : IDisposable
         try { _audioClient?.Dispose(); } catch { }
         _audioClient = null;
         _isFirstPacket = true;
+        ClearAudioQueue();
 
         var deadline = DateTime.UtcNow.AddSeconds(30);
         while (!token.IsCancellationRequested && DateTime.UtcNow < deadline)
@@ -581,6 +655,7 @@ public class VirtualSpeakerService : IDisposable
                     .GetAwaiter().GetResult();
                 _audioStream = _audioClient.GetStream();
                 _isFirstPacket = true;
+                _timestampBase = NowMs + _clockOffsetMs;
                 _logger.LogInformation("音频连接已重新建立");
                 return;
             }
@@ -630,6 +705,7 @@ public class VirtualSpeakerService : IDisposable
 
             _isRunning = false;
             _isFirstPacket = true;
+            ClearAudioQueue();
             _generalSettingsService.EnableVirtualSpeaker = false;
             _logger.LogInformation("虚拟扬声器已停止");
             StatusChanged?.Invoke(this, EventArgs.Empty);
