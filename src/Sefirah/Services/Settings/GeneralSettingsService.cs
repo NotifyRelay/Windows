@@ -324,6 +324,12 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    public int VirtualSpeakerStreamingStrategy
+    {
+        get => Get(1); // 默认 AccumZero200
+        set => Set(value);
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

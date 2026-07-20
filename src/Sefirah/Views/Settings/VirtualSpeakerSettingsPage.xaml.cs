@@ -141,10 +141,22 @@ public class VirtualSpeakerViewModel
         set => _generalSettingsService.VirtualSpeakerMuteOnStart = value;
     }
 
+    public int SelectedStrategyIndex
+    {
+        get => _generalSettingsService.VirtualSpeakerStreamingStrategy;
+        set
+        {
+            _generalSettingsService.VirtualSpeakerStreamingStrategy = value;
+            _virtualSpeakerService.Strategy = (StreamingStrategy)value;
+            OnPropertyChanged();
+        }
+    }
+
     public VirtualSpeakerViewModel()
     {
         _generalSettingsService = Ioc.Default.GetService<IGeneralSettingsService>()!;
         _virtualSpeakerService = Ioc.Default.GetService<VirtualSpeakerService>()!;
+        _virtualSpeakerService.Strategy = (StreamingStrategy)_generalSettingsService.VirtualSpeakerStreamingStrategy;
         _virtualSpeakerService.StatusChanged += (s, e) =>
         {
             StatusChanged?.Invoke(this, EventArgs.Empty);

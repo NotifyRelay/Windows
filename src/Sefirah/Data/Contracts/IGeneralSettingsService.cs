@@ -175,6 +175,11 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     bool VirtualSpeakerMuteOnStart { get; set; }
 
     /// <summary>
+    /// Gets or sets the streaming strategy for virtual speaker.
+    /// </summary>
+    int VirtualSpeakerStreamingStrategy { get; set; }
+
+    /// <summary>
     /// Gets or sets the Y position of the wallpaper overlay window.
     /// </summary>
     int WallpaperOverlayY { get; set; }

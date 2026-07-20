@@ -89,6 +89,23 @@
                     OnContent=""
                     OffContent="" />
             </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="流式策略" Description="切换调试不同发包策略">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE8B0;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ComboBox
+                    x:Name="StrategyComboBox"
+                    Width="280"
+                    HorizontalAlignment="Left"
+                    SelectedIndex="{x:Bind ViewModel.SelectedStrategyIndex, Mode=TwoWay}">
+                    <ComboBoxItem Content="原始逐包 (PerCallback)"/>
+                    <ComboBoxItem Content="积累200ms + timestamp=0 (AccumZero200)"/>
+                    <ComboBoxItem Content="积累500ms + timestamp=0 (AccumZero500)"/>
+                    <ComboBoxItem Content="积累200ms + 正常timestamp (AccumTrue200)"/>
+                    <ComboBoxItem Content="积累200ms + 正常timestamp+buffer (AccumBuf200)"/>
+                </ComboBox>
+            </wuc:SettingsCard>
         </StackPanel>
     </ScrollViewer>
 </Page>
