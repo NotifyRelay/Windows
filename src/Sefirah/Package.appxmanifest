@@ -6,6 +6,7 @@
     xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
     xmlns:uap4="http://schemas.microsoft.com/appx/manifest/uap/windows10/4"
     xmlns:uap5="http://schemas.microsoft.com/appx/manifest/uap/windows10/5"
+    xmlns:uap6="http://schemas.microsoft.com/appx/manifest/uap/windows10/6"
     xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
     xmlns:uap11="http://schemas.microsoft.com/appx/manifest/uap/windows10/11"
    
@@ -131,6 +132,7 @@
         <uap3:Capability Name="userNotificationListener"/>
         <uap:Capability Name="userAccountInformation"/>
         <uap:Capability Name="removableStorage"/>
+        <uap6:Capability Name="graphicsCapture"/>
         <DeviceCapability Name="bluetooth"/>
     </Capabilities>
 </Package>

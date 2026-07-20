@@ -1,3 +1,4 @@
+using System.Linq;
 using Windows.Devices.Enumeration;
 using Windows.Devices.Lights;
 using Windows.Devices.Lights.Effects;
@@ -18,6 +19,9 @@ public class DynamicLightingService
     private double _brightness = 1.0;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
     private Color _manualColor;
+    private Color _lastCapturedColor;
+    private readonly Queue<Color> _colorWindow = new(5);
+    private const int ColorWindowSize = 5;
     private readonly List<ILightingInputProvider> _inputProviders = new();
     private ScreenColorAnalyzer? _screenColorAnalyzer;
 
@@ -45,10 +49,12 @@ public class DynamicLightingService
         set
         {
             _currentColor = value;
+            _manualColor = value;
             if (!_isAutoRGBEnabled)
-                _manualColor = value;
-            ApplyColorToDevices(value);
-            ColorChanged?.Invoke(this, value);
+            {
+                ApplyColorToDevices(value);
+                ColorChanged?.Invoke(this, value);
+            }
         }
     }
 
@@ -65,6 +71,11 @@ public class DynamicLightingService
         try
         {
             LoadSettings();
+
+            if (_settingsService.EnableAutoRGB)
+            {
+                StartAutoRGB();
+            }
 
             _deviceWatcher = DeviceInformation.CreateWatcher(LampArray.GetDeviceSelector());
             _deviceWatcher.Added += DeviceWatcher_Added;
@@ -198,7 +209,7 @@ public class DynamicLightingService
 
     public void ApplyColorToDevices(Color color)
     {
-        foreach (var device in _attachedDevices)
+        foreach (var device in _attachedDevices.ToList())
         {
             if (device.IsAvailable && device.LampArray != null)
             {
@@ -348,7 +359,7 @@ public class DynamicLightingService
             var analyzerLogger = Ioc.Default.GetService<ILogger<ScreenColorAnalyzer>>();
             _screenColorAnalyzer = new ScreenColorAnalyzer(analyzerLogger);
             _screenColorAnalyzer.ColorChanged += ScreenColorAnalyzer_ColorChanged;
-            _ = _screenColorAnalyzer.StartCaptureAsync();
+            _screenColorAnalyzer.StartCapture();
         }
         catch (Exception ex)
         {
@@ -389,8 +400,38 @@ public class DynamicLightingService
 
     private void ScreenColorAnalyzer_ColorChanged(object? sender, Color color)
     {
-        HandleAutoRGBColor(color);
-        CapturedColorChanged?.Invoke(this, color);
+        _colorWindow.Enqueue(color);
+        if (_colorWindow.Count > ColorWindowSize)
+            _colorWindow.Dequeue();
+
+        int totalR = 0, totalG = 0, totalB = 0;
+        foreach (var c in _colorWindow)
+        {
+            totalR += c.R; totalG += c.G; totalB += c.B;
+        }
+        var avgColor = new Color
+        {
+            A = 255,
+            R = (byte)(totalR / _colorWindow.Count),
+            G = (byte)(totalG / _colorWindow.Count),
+            B = (byte)(totalB / _colorWindow.Count)
+        };
+
+        if (avgColor.R == _lastCapturedColor.R &&
+            avgColor.G == _lastCapturedColor.G &&
+            avgColor.B == _lastCapturedColor.B)
+            return;
+
+        _lastCapturedColor = avgColor;
+
+        _logger.LogDebug("Captured color: R={R}, G={G}, B={B}", avgColor.R, avgColor.G, avgColor.B);
+
+        HandleAutoRGBColor(avgColor);
+
+        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        {
+            CapturedColorChanged?.Invoke(this, avgColor);
+        });
     }
 
     public void HandleAutoRGBColor(Color color)
@@ -398,8 +439,10 @@ public class DynamicLightingService
         if (_isAutoRGBEnabled)
         {
             ApplyColorToDevices(color);
-            _currentColor = color;
-            ColorChanged?.Invoke(this, color);
+        }
+        else
+        {
+            _logger.LogWarning("AutoRGB color received but auto mode is disabled, ignoring");
         }
     }
 

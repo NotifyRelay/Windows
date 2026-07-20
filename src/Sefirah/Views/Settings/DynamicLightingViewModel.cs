@@ -1,10 +1,10 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Windows.Graphics.Capture;
 using Windows.UI;
 using NotifyRelay.DeviceCtrl.DynamicLighting;
 using NotifyRelay.Data.Contracts;
@@ -174,11 +174,16 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
 
         LoadSettings();
-        IsCaptureSupported = GraphicsCaptureSession.IsSupported();
+        IsCaptureSupported = CheckGdiCaptureSupported();
 
         _lightingService.DevicesChanged += OnDevicesChanged;
         _lightingService.ColorChanged += OnColorChanged;
         _lightingService.CapturedColorChanged += OnCapturedColorChanged;
+
+        if (_isAutoRGBEnabled && IsCaptureSupported)
+        {
+            _lightingService.StartAutoRGB();
+        }
     }
 
     private void LoadSettings()
@@ -271,9 +276,6 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     public void ApplyColor(Color color)
     {
-        if (_lightingService.IsAutoRGBEnabled)
-            return;
-
         _lightingService.CurrentColor = color;
         CurrentColor = color;
         _settingsService.DynamicLightingColor = color.ToString();
@@ -316,4 +318,25 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
+
+    private static bool CheckGdiCaptureSupported()
+    {
+        try
+        {
+            var dc = GetDC(IntPtr.Zero);
+            if (dc == IntPtr.Zero) return false;
+            ReleaseDC(IntPtr.Zero, dc);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetDC(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 }

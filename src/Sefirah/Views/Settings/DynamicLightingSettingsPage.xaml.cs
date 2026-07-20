@@ -8,6 +8,7 @@ namespace NotifyRelay.Views.Settings;
 public sealed partial class DynamicLightingSettingsPage : Page
 {
     private DynamicLightingViewModel ViewModel { get; }
+    private bool _isColorDialogOpen;
 
     public DynamicLightingSettingsPage()
     {
@@ -19,6 +20,10 @@ public sealed partial class DynamicLightingSettingsPage : Page
 
     private void ColorPickerButton_Click(object sender, RoutedEventArgs e)
     {
+        if (_isColorDialogOpen)
+            return;
+        _isColorDialogOpen = true;
+
         var colorPicker = new ColorPicker
         {
             Color = ViewModel.CurrentColor,
@@ -38,6 +43,8 @@ public sealed partial class DynamicLightingSettingsPage : Page
         {
             ViewModel.ApplyColor(colorPicker.Color);
         };
+
+        dialog.Closed += (s, args) => _isColorDialogOpen = false;
 
         _ = dialog.ShowAsync();
     }
