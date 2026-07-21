@@ -47,7 +47,7 @@ public class AudioRelayService : IDisposable
 
         try
         {
-            var result = NativeCore.AudioStart("send", "", sampleRate, channels, remoteUuid);
+            var result = NativeCore.AudioStart("send", remoteIp, sampleRate, channels, remoteUuid);
             if (result != 0)
             {
                 _logger.LogError("音频中继: AudioStart(send) 返回 {Result}", result);
