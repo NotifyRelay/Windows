@@ -102,7 +102,6 @@
         <PackageReference Include="CommunityToolkit.WinUI.Converters" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="H.NotifyIcon.Uno.WinUI" />
-        <PackageReference Include="MeaMod.DNS" />
         <PackageReference Include="NAudio" />
         <PackageReference Include="NetCoreServer" />
         <PackageReference Include="sqlite-net-pcl" />

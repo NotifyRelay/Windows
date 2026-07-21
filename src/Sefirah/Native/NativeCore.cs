@@ -459,18 +459,35 @@ public static class NativeCore
         NotifyRelayCore.nrc_set_on_data_cb(_ctx, onDataCb);
         _callbackRefs.Add(onDataCb);
 
-        NotifyRelayCore.OnHeartbeatUdpCb onHeartbeatUdpCb = (uuidPtr, namePtr, port, battery, deviceTypePtr, userData) =>
+        NotifyRelayCore.OnHeartbeatUdpCb onHeartbeatUdpCb = (uuidPtr, namePtr, port, battery, deviceTypePtr, ipPtr, userData) =>
         {
             var uuid = Marshal.PtrToStringUTF8(uuidPtr);
             var name = Marshal.PtrToStringUTF8(namePtr);
             var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+            var ip = Marshal.PtrToStringUTF8(ipPtr);
             if (uuid == null) return;
             var hp = HeartbeatProcessor;
             if (hp == null) return;
-            hp.HandleUdpHeartbeat(uuid, name, port, battery, deviceType);
+            hp.HandleUdpHeartbeat(uuid, name, port, battery, deviceType, ip);
         };
         NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, onHeartbeatUdpCb);
         _callbackRefs.Add(onHeartbeatUdpCb);
+
+        NotifyRelayCore.OnMdnsDiscoveredCb onMdnsDiscoveredCb = (uuidPtr, namePtr, ipPtr, port, deviceTypePtr, userData) =>
+        {
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            var name = Marshal.PtrToStringUTF8(namePtr);
+            var ip = Marshal.PtrToStringUTF8(ipPtr);
+            var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
+            if (uuid == null || ip == null) return;
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_mdns_discovered: uuid={uuid}, ip={ip}, name={name}, port={port}");
+
+            var hp = HeartbeatProcessor;
+            if (hp == null) return;
+            hp.HandleMdnsDiscovered(uuid, name, ip, port, deviceType);
+        };
+        NotifyRelayCore.nrc_set_on_mdns_discovered_cb(_ctx, onMdnsDiscoveredCb);
+        _callbackRefs.Add(onMdnsDiscoveredCb);
 
         NotifyRelayCore.OnDeviceTimeoutCb onDeviceTimeoutCb = (uuidPtr, userData) =>
         {
@@ -619,6 +636,27 @@ public static class NativeCore
         NotifyRelayCore.nrc_start_known_device_scanner(_ctx);
     }
 
+    // ======== mDNS ========
+    public static int StartMdnsAdvertiser(string uuid, string name, ushort port, string pubKey, string deviceType)
+    {
+        return NotifyRelayCore.Safe.StartMdnsAdvertiser(_ctx, uuid, name, port, pubKey, deviceType);
+    }
+
+    public static void StopMdnsAdvertiser()
+    {
+        NotifyRelayCore.Safe.StopMdnsAdvertiser(_ctx);
+    }
+
+    public static int StartMdnsDiscovery()
+    {
+        return NotifyRelayCore.Safe.StartMdnsDiscovery(_ctx);
+    }
+
+    public static void StopMdnsDiscovery()
+    {
+        NotifyRelayCore.Safe.StopMdnsDiscovery(_ctx);
+    }
+
     // ======== Diff ========
     public static string? ComputeSuperIslandDiff(string oldState, string newState)
     {
@@ -648,6 +686,34 @@ public static class NativeCore
         StopSenderQueue();
         NotifyRelayCore.nrc_stop_offline_detector(_ctx);
         NotifyRelayCore.nrc_stop_known_device_scanner(_ctx);
+    }
+
+    public static int AudioStart(string direction, string deviceIp, int sampleRate, int channels, string remoteUuid)
+    {
+        return NotifyRelayCore.Safe.AudioStart(_ctx, direction, deviceIp, 23335, sampleRate, channels, remoteUuid);
+    }
+
+    public static int AudioWriteFrame(byte[] pcm)
+    {
+        return NotifyRelayCore.Safe.AudioWriteFrame(_ctx, pcm, pcm.Length);
+    }
+
+    public static int AudioStop()
+    {
+        return NotifyRelayCore.Safe.AudioStop(_ctx);
+    }
+
+    public static int AudioIsActive()
+    {
+        return NotifyRelayCore.Safe.AudioIsActive(_ctx);
+    }
+
+    public static void RegisterAudioCallbacks(NotifyRelayCore.AudioDataCallback dataCb, NotifyRelayCore.AudioEventCallback eventCb)
+    {
+        NotifyRelayCore.Safe.RegisterAudioDataCb(_ctx, dataCb);
+        NotifyRelayCore.Safe.RegisterAudioEventCb(_ctx, eventCb);
+        _callbackRefs.Add(dataCb);
+        _callbackRefs.Add(eventCb);
     }
 
     private static void HandleDeviceTimeout(string uuid)

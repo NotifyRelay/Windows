@@ -170,6 +170,19 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_get_local_ip();
 
+    // ======== mDNS ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_start_mdns_advertiser(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, IntPtr pubKey, IntPtr deviceType);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_mdns_advertiser(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_start_mdns_discovery(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_stop_mdns_discovery(IntPtr ctx);
+
     // ======== Discovery ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_add_known_device(IntPtr ctx, IntPtr uuid, IntPtr ip);
@@ -234,7 +247,10 @@ public static class NotifyRelayCore
     public delegate void OnLogCb(int level, IntPtr message);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr userData);
+    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void OnMdnsDiscoveredCb(IntPtr uuid, IntPtr name, IntPtr ip, ushort port, IntPtr deviceType, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
@@ -257,6 +273,8 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_mdns_discovered_cb(IntPtr ctx, OnMdnsDiscoveredCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_connected_cb(IntPtr ctx, OnDeviceConnectedCb cb);
@@ -264,6 +282,32 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_device_disconnected_cb(IntPtr ctx, OnDeviceDisconnectedCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_tcp_error_cb(IntPtr ctx, OnTcpErrorCb cb);
+
+    // ======== Audio stream ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_audio_start(IntPtr ctx, IntPtr direction, IntPtr deviceIp, int port, int sampleRate, int channels, IntPtr remoteUuid);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_audio_write_frame(IntPtr ctx, [In] byte[] pcmData, int pcmLen);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_audio_stop(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_audio_is_active(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_register_audio_data_cb(IntPtr ctx, AudioDataCallback cb);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_register_audio_event_cb(IntPtr ctx, AudioEventCallback cb);
+
+    // ======== Audio callback delegate types ========
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void AudioDataCallback(IntPtr deviceUuid, IntPtr pcmData, int pcmLen, int sampleRate, int channels, IntPtr userData);
+
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate void AudioEventCallback(IntPtr deviceUuid, IntPtr eventStr, IntPtr errorMsg, IntPtr userData);
 
     public static string? PtrToStringAndFree(IntPtr ptr)
     {
@@ -681,6 +725,30 @@ public static class NotifyRelayCore
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
         }
 
+        // ======== mDNS ========
+        public static int StartMdnsAdvertiser(IntPtr ctx, string uuid, string name, ushort port, string pubKey, string deviceTypeStr)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var pk = StringToPtr(pubKey); var dt = StringToPtr(deviceTypeStr);
+            var result = NotifyRelayCore.nrc_start_mdns_advertiser(ctx, u, n, port, pk, dt);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(pk); Marshal.FreeHGlobal(dt);
+            return result;
+        }
+
+        public static void StopMdnsAdvertiser(IntPtr ctx)
+        {
+            NotifyRelayCore.nrc_stop_mdns_advertiser(ctx);
+        }
+
+        public static int StartMdnsDiscovery(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_start_mdns_discovery(ctx);
+        }
+
+        public static void StopMdnsDiscovery(IntPtr ctx)
+        {
+            NotifyRelayCore.nrc_stop_mdns_discovery(ctx);
+        }
+
         // ======== Diff ========
         public static string? ComputeSuperIslandDiff(string oldState, string newState)
         {
@@ -688,6 +756,44 @@ public static class NotifyRelayCore
             var result = NotifyRelayCore.nrc_compute_superisland_diff(o, n);
             Marshal.FreeHGlobal(o); Marshal.FreeHGlobal(n);
             return PtrToStringAndFree(result);
+        }
+
+        // ======== Audio stream ========
+        public static int AudioStart(IntPtr ctx, string direction, string deviceIp, int port, int sampleRate, int channels, string remoteUuid)
+        {
+            var d = StringToPtr(direction);
+            var ip = StringToPtr(deviceIp);
+            var u = StringToPtr(remoteUuid);
+            var result = NotifyRelayCore.nrc_audio_start(ctx, d, ip, port, sampleRate, channels, u);
+            Marshal.FreeHGlobal(d);
+            Marshal.FreeHGlobal(ip);
+            Marshal.FreeHGlobal(u);
+            return result;
+        }
+
+        public static int AudioWriteFrame(IntPtr ctx, byte[] pcmData, int pcmLen)
+        {
+            return NotifyRelayCore.nrc_audio_write_frame(ctx, pcmData, pcmLen);
+        }
+
+        public static int AudioStop(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_audio_stop(ctx);
+        }
+
+        public static int AudioIsActive(IntPtr ctx)
+        {
+            return NotifyRelayCore.nrc_audio_is_active(ctx);
+        }
+
+        public static void RegisterAudioDataCb(IntPtr ctx, AudioDataCallback cb)
+        {
+            NotifyRelayCore.nrc_register_audio_data_cb(ctx, cb);
+        }
+
+        public static void RegisterAudioEventCb(IntPtr ctx, AudioEventCallback cb)
+        {
+            NotifyRelayCore.nrc_register_audio_event_cb(ctx, cb);
         }
     }
 }

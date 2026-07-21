@@ -9,7 +9,9 @@ public class HeartbeatProcessor
     private readonly ILogger _logger;
     private readonly IDeviceManager _deviceManager;
 
-    public event Action<string, string?, ushort, int, string>? DeviceDiscovered;
+    public event Action<string, string?, ushort, int, string, string?>? DeviceDiscovered;
+
+    public event Action<string, string?, string, ushort, string>? MdnsDeviceDiscovered;
 
     public HeartbeatProcessor(
         ILogger logger,
@@ -19,13 +21,12 @@ public class HeartbeatProcessor
         _deviceManager = deviceManager;
     }
 
-    public void HandleUdpHeartbeat(string uuid, string? name, ushort port, int battery, string deviceType)
+    public void HandleUdpHeartbeat(string uuid, string? name, ushort port, int battery, string deviceType, string? ip)
     {
-        DeviceDiscovered?.Invoke(uuid, name, port, battery, deviceType);
+        DeviceDiscovered?.Invoke(uuid, name, port, battery, deviceType, ip);
 
-        // 记录到 Rust core 的发现状态中
-        var ip = NativeCore.GetLocalIp() ?? "0.0.0.0";
-        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, battery, deviceType);
+        var actualIp = ip ?? NativeCore.GetLocalIp() ?? "0.0.0.0";
+        NativeCore.RecordDiscoveredDevice(uuid, name, actualIp, port, battery, deviceType);
 
         var targetDevice = _deviceManager.FindDeviceById(uuid);
         if (targetDevice == null) return;
@@ -56,6 +57,12 @@ public class HeartbeatProcessor
         {
             _logger.LogWarning(ex, "处理 UDP 心跳包失败");
         }
+    }
+
+    public void HandleMdnsDiscovered(string uuid, string? name, string ip, ushort port, string deviceType)
+    {
+        MdnsDeviceDiscovered?.Invoke(uuid, name, ip, port, deviceType);
+        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, -1, deviceType);
     }
 
     private void MarkDeviceAlive(PairedDevice device)

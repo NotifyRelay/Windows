@@ -102,7 +102,6 @@ public partial class AboutViewModel : ObservableObject
 
         // Networking & Server
         new("https://github.com/chronoxor/NetCoreServer", "NetCoreServer"),
-        new("https://github.com/meamod/MeaMod.DNS", "MeaMod.DNS"),
         new("https://github.com/PrimalZed/CloudSync", "CloudSync"),
         
         // ADB

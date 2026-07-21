@@ -16,7 +16,6 @@
     <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.251219" />
     <PackageVersion Include="H.NotifyIcon.Uno.WinUI" Version="2.3.0" />
     <PackageVersion Include="Markdig" Version="1.2.0" />
-    <PackageVersion Include="MeaMod.DNS" Version="1.0.71" />
     <PackageVersion Include="NAudio" Version="2.3.0" />
     <PackageVersion Include="NetCoreServer" Version="8.0.7" />
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
