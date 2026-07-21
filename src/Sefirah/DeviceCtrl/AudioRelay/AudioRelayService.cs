@@ -16,6 +16,7 @@ public class AudioRelayService : IDisposable
 
     private bool _isRunning;
     private bool _isDisposed;
+    private bool _isStopping;
 
     public bool IsActive => _isRunning;
     public event EventHandler? StatusChanged;
@@ -163,30 +164,39 @@ public class AudioRelayService : IDisposable
 
     private void StopInternal()
     {
+        if (_isStopping) return;
+        _isStopping = true;
         try
         {
-            _cts?.Cancel();
-        }
-        catch { }
-
-        try
-        {
-            if (_isRunning || NativeCore.AudioIsActive() != 0)
+            try
             {
-                NativeCore.AudioStop();
+                _cts?.Cancel();
             }
+            catch { }
+
+            try
+            {
+                if (_isRunning || NativeCore.AudioIsActive() != 0)
+                {
+                    NativeCore.AudioStop();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "音频中继: AudioStop 异常");
+            }
+
+            CleanupCapture();
+            CleanupPlayback();
+
+            _isRunning = false;
+            _logger.LogInformation("音频中继: 已停止");
+            StatusChanged?.Invoke(this, EventArgs.Empty);
         }
-        catch (Exception ex)
+        finally
         {
-            _logger.LogDebug(ex, "音频中继: AudioStop 异常");
+            _isStopping = false;
         }
-
-        CleanupCapture();
-        CleanupPlayback();
-
-        _isRunning = false;
-        _logger.LogInformation("音频中继: 已停止");
-        StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
     private void OnCaptureDataAvailable(WaveInEventArgs e, CancellationToken token)
