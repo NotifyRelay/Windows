@@ -4,8 +4,8 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.DeviceCtrl.AudioRelay;
 using NotifyRelay.DeviceCtrl.DeepSeekBalance;
-using NotifyRelay.DeviceCtrl.VirtualSpeaker;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
 #endif
@@ -20,33 +20,19 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
     private DeepSeekBalanceService DeepSeekBalanceService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
     private IGeneralSettingsService GeneralSettingsService { get; } = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-    private VirtualSpeakerService VirtualSpeakerService { get; } = Ioc.Default.GetRequiredService<VirtualSpeakerService>();
+    private AudioRelayService AudioRelayService { get; } = Ioc.Default.GetRequiredService<AudioRelayService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
 
-    private bool _isVirtualSpeakerEnabled;
-    public bool IsVirtualSpeakerEnabled
+    private bool _isAudioRelayActive;
+    public bool IsAudioRelayActive
     {
-        get => _isVirtualSpeakerEnabled;
+        get => _isAudioRelayActive;
         set
         {
-            if (_isVirtualSpeakerEnabled != value)
+            if (_isAudioRelayActive != value)
             {
-                _isVirtualSpeakerEnabled = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsVirtualSpeakerEnabled)));
-            }
-        }
-    }
-
-    private bool _isMuteOnStartEnabled;
-    public bool IsMuteOnStartEnabled
-    {
-        get => _isMuteOnStartEnabled;
-        set
-        {
-            if (_isMuteOnStartEnabled != value)
-            {
-                _isMuteOnStartEnabled = value;
-                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsMuteOnStartEnabled)));
+                _isAudioRelayActive = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsAudioRelayActive)));
             }
         }
     }
@@ -57,10 +43,9 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     {
         InitializeComponent();
 
-        _isMuteOnStartEnabled = GeneralSettingsService.VirtualSpeakerMuteOnStart;
-        VirtualSpeakerService.StatusChanged += (s, e) =>
+        AudioRelayService.StatusChanged += (s, e) =>
         {
-            IsVirtualSpeakerEnabled = VirtualSpeakerService.IsRunning;
+            IsAudioRelayActive = AudioRelayService.IsActive;
         };
 
         UpdateTrayIcon(uiSettings);
@@ -137,23 +122,20 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     }
 
     [RelayCommand]
-    public async Task ToggleVirtualSpeaker()
+    public async Task ToggleAudioRelay()
     {
-        if (VirtualSpeakerService.IsRunning)
+        if (AudioRelayService.IsActive)
         {
-            await VirtualSpeakerService.StopStreamingAsync();
+            await AudioRelayService.StopAsync();
         }
         else
         {
-            await VirtualSpeakerService.StartStreaming();
+            var device = DeviceManager.ActiveDevice;
+            if (device != null)
+            {
+                await AudioRelayService.StartSendAsync(device.Id, device.RemoteIpAddress ?? "");
+            }
         }
-    }
-
-    [RelayCommand]
-    public void ToggleMuteOnStart()
-    {
-        GeneralSettingsService.VirtualSpeakerMuteOnStart = !GeneralSettingsService.VirtualSpeakerMuteOnStart;
-        IsMuteOnStartEnabled = GeneralSettingsService.VirtualSpeakerMuteOnStart;
     }
 
     [RelayCommand]
@@ -162,11 +144,9 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
         App.HandleClosedEvents = false;
         TrayIcon.Dispose();
 
-        // Close window and exit app
         App.MainWindow?.Close();
         App.Current.Exit();
 
-        // Force termination if still needed
         Process.GetCurrentProcess().Kill();
     }
 }

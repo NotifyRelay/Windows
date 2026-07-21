@@ -237,26 +237,16 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤19：初始化动态光效服务失败");
         }
 
-        // 11. 初始化虚拟扬声器服务
-        logger.LogInformation("步骤20：初始化虚拟扬声器服务...");
+        // 11. 初始化音频中继服务
+        logger.LogInformation("步骤20：初始化音频中继服务...");
         try
         {
-            var virtualSpeakerService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.VirtualSpeaker.VirtualSpeakerService>();
-            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-
-            if (generalSettingsService.EnableVirtualSpeaker && !string.IsNullOrEmpty(generalSettingsService.VirtualSpeakerTargetDeviceId))
-            {
-                await virtualSpeakerService.StartStreaming();
-                logger.LogInformation("步骤20：虚拟扬声器服务启动成功");
-            }
-            else
-            {
-                logger.LogInformation("步骤20：虚拟扬声器服务未启用或未配置目标设备");
-            }
+            var audioRelayService = Ioc.Default.GetRequiredService<DeviceCtrl.AudioRelay.AudioRelayService>();
+            logger.LogInformation("步骤20：音频中继服务已就绪");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤20：初始化虚拟扬声器服务失败");
+            logger.LogError(ex, "步骤20：初始化音频中继服务失败");
         }
 
         // 12. 完成初始化，关闭启动画面
@@ -360,8 +350,8 @@ public static class AppLifecycleHelper
 // Dynamic Lighting Service
                 .AddSingleton<NotifyRelay.DeviceCtrl.DynamicLighting.DynamicLightingService>()
 
-                // Virtual Speaker Service
-                .AddSingleton<NotifyRelay.DeviceCtrl.VirtualSpeaker.VirtualSpeakerService>()
+                // Audio Relay Service
+                .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
 
                 // ViewModels
                 .AddSingleton<MainPageViewModel>()

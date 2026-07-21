@@ -2,7 +2,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
-using NotifyRelay.DeviceCtrl.VirtualSpeaker;
+using NotifyRelay.DeviceCtrl.AudioRelay;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -47,147 +48,105 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
     private void UpdateStatusUI()
     {
-        if (ViewModel.IsStreaming)
-        {
-            StatusTextBlock.Text = "状态：运行中";
-            StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Green);
-        }
-        else
-        {
-            StatusTextBlock.Text = "状态：未启动";
-            StatusTextBlock.Foreground = new SolidColorBrush(Microsoft.UI.Colors.Gray);
-        }
+        ViewModel.OnPropertyChanged(nameof(ViewModel.IsActive));
+        ViewModel.OnPropertyChanged(nameof(ViewModel.CanStart));
+        ViewModel.OnPropertyChanged(nameof(ViewModel.StatusText));
     }
 
-    private async void ScanButton_Click(object sender, RoutedEventArgs e)
+    private async void StartSendButton_Click(object sender, RoutedEventArgs e)
     {
-        ScanButton.IsEnabled = false;
-        ScanButton.Content = "扫描中...";
-        ViewModel.DiscoveryStatus = "正在扫描SoundSeeder设备...";
+        StartSendButton.IsEnabled = false;
+        ViewModel.StatusText = "正在启动音频发送...";
+        await ViewModel.StartSendAsync();
+        UpdateStatusUI();
+    }
 
-        await ViewModel.ScanDevicesAsync();
+    private async void StartRecvButton_Click(object sender, RoutedEventArgs e)
+    {
+        StartRecvButton.IsEnabled = false;
+        ViewModel.StatusText = "正在请求远端音频...";
+        await ViewModel.StartReceiveAsync();
+        UpdateStatusUI();
+    }
 
-        ScanButton.Content = "开始扫描";
-        ScanButton.IsEnabled = true;
+    private async void StopButton_Click(object sender, RoutedEventArgs e)
+    {
+        await ViewModel.StopAsync();
+        UpdateStatusUI();
     }
 }
 
 public class VirtualSpeakerViewModel
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly VirtualSpeakerService _virtualSpeakerService;
+    private readonly AudioRelayService _audioRelayService;
+    private readonly IDeviceManager _deviceManager;
 
     public event EventHandler? StatusChanged;
 
-    public ObservableCollection<SoundSeederDeviceInfo> AvailableSpeakers { get; } = new();
-
-    private string _discoveryStatus = string.Empty;
-    public string DiscoveryStatus
+    private string _statusText = "状态：未启动";
+    public string StatusText
     {
-        get => _discoveryStatus;
+        get => _statusText;
         set
         {
-            _discoveryStatus = value;
+            _statusText = value;
             OnPropertyChanged();
         }
     }
 
-    public string? SelectedDeviceId
-    {
-        get => _generalSettingsService.VirtualSpeakerTargetDeviceId;
-        set
-        {
-            _generalSettingsService.VirtualSpeakerTargetDeviceId = value;
-            if (value != null)
-            {
-                var device = AvailableSpeakers.FirstOrDefault(r => r.Uuid == value);
-                _generalSettingsService.VirtualSpeakerTargetDeviceName = device?.Name;
-                _generalSettingsService.VirtualSpeakerTargetDeviceIp = device?.IpAddress;
-            }
-        }
-    }
-
-    public bool IsStreaming => _virtualSpeakerService.IsRunning;
-
-    public bool IsEnabled
-    {
-        get => _virtualSpeakerService.IsRunning;
-        set
-        {
-            if (value && !_virtualSpeakerService.IsRunning)
-            {
-                _ = _virtualSpeakerService.StartStreaming().ContinueWith(_ =>
-                {
-                    OnPropertyChanged(nameof(IsEnabled));
-                }, TaskScheduler.FromCurrentSynchronizationContext());
-            }
-            else if (!value && _virtualSpeakerService.IsRunning)
-            {
-                _ = _virtualSpeakerService.StopStreamingAsync().ContinueWith(_ =>
-                {
-                    OnPropertyChanged(nameof(IsEnabled));
-                }, TaskScheduler.FromCurrentSynchronizationContext());
-            }
-            else
-            {
-                OnPropertyChanged(nameof(IsEnabled));
-            }
-        }
-    }
-
-    public bool MuteOnStart
-    {
-        get => _generalSettingsService.VirtualSpeakerMuteOnStart;
-        set => _generalSettingsService.VirtualSpeakerMuteOnStart = value;
-    }
-
-    public int SelectedStrategyIndex
-    {
-        get => _generalSettingsService.VirtualSpeakerStreamingStrategy;
-        set
-        {
-            _generalSettingsService.VirtualSpeakerStreamingStrategy = value;
-            _virtualSpeakerService.Strategy = (StreamingStrategy)value;
-            OnPropertyChanged();
-        }
-    }
+    public bool IsActive => _audioRelayService.IsActive;
+    public bool CanStart => !IsActive && NativeCore.Context != IntPtr.Zero;
 
     public VirtualSpeakerViewModel()
     {
         _generalSettingsService = Ioc.Default.GetService<IGeneralSettingsService>()!;
-        _virtualSpeakerService = Ioc.Default.GetService<VirtualSpeakerService>()!;
-        _virtualSpeakerService.Strategy = (StreamingStrategy)_generalSettingsService.VirtualSpeakerStreamingStrategy;
-        _virtualSpeakerService.StatusChanged += (s, e) =>
+        _audioRelayService = Ioc.Default.GetService<AudioRelayService>()!;
+        _deviceManager = Ioc.Default.GetService<IDeviceManager>()!;
+
+        _audioRelayService.StatusChanged += (s, e) =>
         {
             StatusChanged?.Invoke(this, EventArgs.Empty);
-            OnPropertyChanged(nameof(IsStreaming));
-            OnPropertyChanged(nameof(IsEnabled));
+            StatusText = _audioRelayService.IsActive ? "状态：运行中" : "状态：未启动";
+            OnPropertyChanged(nameof(IsActive));
+            OnPropertyChanged(nameof(CanStart));
+            OnPropertyChanged(nameof(StatusText));
         };
     }
 
-    public async Task ScanDevicesAsync()
+    public async Task StartSendAsync()
     {
-        try
+        var device = _deviceManager.ActiveDevice;
+        if (device == null)
         {
-            var speakers = await _virtualSpeakerService.DiscoverSpeakersAsync();
-            AvailableSpeakers.Clear();
-            foreach (var speaker in speakers)
-            {
-                AvailableSpeakers.Add(speaker);
-            }
-            DiscoveryStatus = speakers.Any()
-                ? $"发现 {speakers.Count} 个SoundSeeder设备"
-                : "未发现SoundSeeder设备";
+            StatusText = "未选择目标设备";
+            return;
         }
-        catch (Exception ex)
+        await _audioRelayService.StartSendAsync(device.Id, device.RemoteIpAddress ?? device.IpAddresses?.FirstOrDefault() ?? "");
+        StatusText = _audioRelayService.IsActive ? "状态：发送中" : "启动发送失败";
+    }
+
+    public async Task StartReceiveAsync()
+    {
+        var device = _deviceManager.ActiveDevice;
+        if (device == null)
         {
-            DiscoveryStatus = $"扫描失败: {ex.Message}";
+            StatusText = "未选择目标设备";
+            return;
         }
+        await _audioRelayService.StartReceiveAsync(device.Id, device.RemoteIpAddress ?? device.IpAddresses?.FirstOrDefault() ?? "");
+        StatusText = _audioRelayService.IsActive ? "状态：接收中" : "启动接收失败";
+    }
+
+    public async Task StopAsync()
+    {
+        await _audioRelayService.StopAsync();
+        StatusText = "状态：未启动";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    public void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }

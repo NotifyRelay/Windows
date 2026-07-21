@@ -2,8 +2,6 @@ namespace NotifyRelay;
 
 public static class Constants
 {
-    public const int VirtualSpeakerHttpPort = 18888;
-
     public static class Notification
     {
         public const string FileTransferGroup = "file-transfer";

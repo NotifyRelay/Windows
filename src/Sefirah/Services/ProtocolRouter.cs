@@ -1,6 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.DeviceCtrl.AudioRelay;
 using NotifyRelay.Native;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
@@ -27,6 +28,7 @@ public class ProtocolRouter
     private readonly Lazy<IClipboardService> clipboardService;
     private readonly Lazy<IRemoteAppService> remoteAppService;
     private readonly Lazy<IPlaybackService> playbackService;
+    private readonly AudioRelayService _audioRelayService;
 #if WINDOWS
     private readonly Lazy<NetworkDriveMapper> networkDriveMapper;
 #endif
@@ -39,7 +41,8 @@ public class ProtocolRouter
         Func<INotificationService> notificationServiceFactory,
         Func<IClipboardService> clipboardServiceFactory,
         Func<IRemoteAppService> remoteAppServiceFactory,
-        Func<IPlaybackService> playbackServiceFactory
+        Func<IPlaybackService> playbackServiceFactory,
+        AudioRelayService audioRelayService
 #if WINDOWS
         , Func<NetworkDriveMapper> networkDriveMapperFactory
 #endif
@@ -53,6 +56,7 @@ public class ProtocolRouter
         this.clipboardService = new Lazy<IClipboardService>(clipboardServiceFactory);
         this.remoteAppService = new Lazy<IRemoteAppService>(remoteAppServiceFactory);
         this.playbackService = new Lazy<IPlaybackService>(playbackServiceFactory);
+        this._audioRelayService = audioRelayService;
 #if WINDOWS
         if (networkDriveMapperFactory == null)
         {
@@ -110,6 +114,19 @@ public class ProtocolRouter
                 if (action == "audioRequest")
                 {
                     await screenMirrorService.ProcessAudioRequestAsync(device);
+                }
+                else if (action == "audioStart")
+                {
+                    var sr = doc.RootElement.TryGetProperty("sampleRate", out var srProp) ? srProp.GetInt32() : 48000;
+                    var ch = doc.RootElement.TryGetProperty("channels", out var chProp) ? chProp.GetInt32() : 2;
+                    var ip = device.RemoteIpAddress ?? device.IpAddresses?.FirstOrDefault() ?? "";
+                    logger.LogInformation("收到 audioStart, 启动音频接收: 远端={DeviceId}, IP={Ip}, 采样率={Sr}, 声道={Ch}", device.Id, ip, sr, ch);
+                    await _audioRelayService.StartReceiveAsync(device.Id, ip, sr, ch);
+                }
+                else if (action == "audioStop")
+                {
+                    logger.LogInformation("收到 audioStop, 停止音频中继");
+                    await _audioRelayService.StopAsync();
                 }
                 else
                 {

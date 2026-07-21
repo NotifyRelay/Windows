@@ -404,7 +404,7 @@
                                 <FontIcon Glyph="&#xE739;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
-                        <NavigationViewItem Content="虚拟扬声器" Tag="VirtualSpeaker">
+                        <NavigationViewItem Content="音频中继" Tag="AudioRelay">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE995;" />
                             </NavigationViewItem.Icon>

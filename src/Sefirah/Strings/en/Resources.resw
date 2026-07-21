@@ -738,40 +738,19 @@ input text %pwd%</value>
   <data name="Devices.Description" xml:space="preserve">
     <value>Managed devices</value>
   </data>
-  <data name="VirtualSpeaker/Title" xml:space="preserve">
-    <value>Virtual Speaker</value>
+  <data name="AudioRelay/Title" xml:space="preserve">
+    <value>Audio Relay</value>
   </data>
-  <data name="VirtualSpeaker/Description" xml:space="preserve">
-    <value>Stream system audio to DLNA devices</value>
+  <data name="AudioRelay/Description" xml:space="preserve">
+    <value>Relay PCM audio via Rust core</value>
   </data>
-  <data name="VirtualSpeaker/Enable" xml:space="preserve">
-    <value>Enable Virtual Speaker</value>
+  <data name="AudioRelay/StartSend" xml:space="preserve">
+    <value>Send Audio</value>
   </data>
-  <data name="VirtualSpeaker/EnableDescription" xml:space="preserve">
-    <value>Stream system audio to the selected DLNA device</value>
+  <data name="AudioRelay/StartRecv" xml:space="preserve">
+    <value>Receive Audio</value>
   </data>
-  <data name="VirtualSpeaker/MuteOnStart" xml:space="preserve">
-    <value>Mute on start</value>
-  </data>
-  <data name="VirtualSpeaker/MuteOnStartDescription" xml:space="preserve">
-    <value>Mute system sound when virtual speaker starts</value>
-  </data>
-  <data name="VirtualSpeaker/ScanDevices" xml:space="preserve">
-    <value>Scan DLNA devices</value>
-  </data>
-  <data name="VirtualSpeaker/SelectDevice" xml:space="preserve">
-    <value>Select target device</value>
-  </data>
-  <data name="VirtualSpeaker/StatusRunning" xml:space="preserve">
-    <value>Status: Running</value>
-  </data>
-  <data name="VirtualSpeaker/StatusStopped" xml:space="preserve">
-    <value>Status: Stopped</value>
-  </data>
-  <data name="VirtualSpeaker/NoDevicesFound" xml:space="preserve">
-    <value>No DLNA devices found</value>
-  </data>
-  <data name="VirtualSpeaker/TrayMenuTitle" xml:space="preserve">
-    <value>Virtual Speaker</value>
+  <data name="AudioRelay/Stop" xml:space="preserve">
+    <value>Stop</value>
   </data>
 </root>

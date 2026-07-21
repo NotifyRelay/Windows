@@ -6,7 +6,6 @@
     xmlns:helpers="using:NotifyRelay.Helpers"
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
-    xmlns:dev="using:NotifyRelay.DeviceCtrl.VirtualSpeaker"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
@@ -34,33 +33,9 @@
                 </BreadcrumbBar.ItemTemplate>
             </BreadcrumbBar>
 
-            <wuc:SettingsCard Header="扫描SoundSeeder设备" Description="{x:Bind ViewModel.DiscoveryStatus, Mode=OneWay}">
+            <wuc:SettingsCard Header="音频中继" Description="通过 Rust 核心直接中继 PCM 音频">
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE995;" />
-                </wuc:SettingsCard.HeaderIcon>
-                <StackPanel Spacing="8" Orientation="Horizontal">
-                    <Button x:Name="ScanButton" Click="ScanButton_Click" Content="开始扫描" />
-                </StackPanel>
-            </wuc:SettingsCard>
-
-            <wuc:SettingsCard Header="选择目标设备" Description="选择SoundSeeder音频接收设备">
-                <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE8B0;" />
-                </wuc:SettingsCard.HeaderIcon>
-                <ComboBox
-                    x:Name="DeviceComboBox"
-                    Width="240"
-                    HorizontalAlignment="Left"
-                    ItemsSource="{x:Bind ViewModel.AvailableSpeakers, Mode=OneWay}"
-                    DisplayMemberPath="Name"
-                    SelectedValuePath="Uuid"
-                    SelectedValue="{x:Bind ViewModel.SelectedDeviceId, Mode=TwoWay}"
-                    PlaceholderText="选择SoundSeeder设备" />
-            </wuc:SettingsCard>
-
-            <wuc:SettingsCard Header="启用虚拟扬声器" Description="{helpers:ResourceString Name=VirtualSpeaker/EnableDescription}">
-                <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE706;" />
                 </wuc:SettingsCard.HeaderIcon>
                 <StackPanel Spacing="8">
                     <Grid ColumnDefinitions="*, Auto">
@@ -68,45 +43,42 @@
                             x:Name="StatusTextBlock"
                             VerticalAlignment="Center"
                             FontSize="14"
-                            Text="状态：未启动"
-                            Grid.Column="0" />
-                        <ToggleSwitch
-                            x:Name="EnableToggle"
-                            IsOn="{x:Bind ViewModel.IsEnabled, Mode=TwoWay}"
-                            OnContent=""
-                            OffContent=""
-                            Grid.Column="1" />
+                            Text="{x:Bind ViewModel.StatusText, Mode=OneWay}" />
                     </Grid>
                 </StackPanel>
             </wuc:SettingsCard>
 
-            <wuc:SettingsCard Header="启动时静音系统声音" Description="{helpers:ResourceString Name=VirtualSpeaker/MuteOnStartDescription}">
+            <wuc:SettingsCard Header="发送本端音频到对端" Description="将本机系统音频通过中继发送到远端设备播放">
                 <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE74F;" />
+                    <FontIcon Glyph="&#xE706;" />
                 </wuc:SettingsCard.HeaderIcon>
-                <ToggleSwitch
-                    IsOn="{x:Bind ViewModel.MuteOnStart, Mode=TwoWay}"
-                    OnContent=""
-                    OffContent="" />
+                <Button
+                    x:Name="StartSendButton"
+                    IsEnabled="{x:Bind ViewModel.CanStart, Mode=OneWay}"
+                    Click="StartSendButton_Click"
+                    Content="发送音频" />
             </wuc:SettingsCard>
 
-            <wuc:SettingsCard Header="流式策略" Description="切换调试不同发包策略">
+            <wuc:SettingsCard Header="接收对端音频并播放" Description="请求远端设备发送音频到本机播放">
                 <wuc:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE8B0;" />
                 </wuc:SettingsCard.HeaderIcon>
-                <ComboBox
-                    x:Name="StrategyComboBox"
-                    Width="280"
-                    HorizontalAlignment="Left"
-                    SelectedIndex="{x:Bind ViewModel.SelectedStrategyIndex, Mode=TwoWay}">
-                    <ComboBoxItem Content="原始逐包 (PerCallback)"/>
-                    <ComboBoxItem Content="积累200ms + timestamp=0 (AccumZero200)"/>
-                    <ComboBoxItem Content="积累500ms + timestamp=0 (AccumZero500)"/>
-                    <ComboBoxItem Content="积累1000ms + timestamp=0 (AccumZero1000)"/>
-                    <ComboBoxItem Content="积累200ms + 正常timestamp (AccumTrue200)"/>
-                    <ComboBoxItem Content="积累200ms + 正常timestamp+buffer (AccumBuf200)"/>
-                    <ComboBoxItem Content="模仿官方 ~23ms逐包 + 正常timestamp (Official)"/>
-                </ComboBox>
+                <Button
+                    x:Name="StartRecvButton"
+                    IsEnabled="{x:Bind ViewModel.CanStart, Mode=OneWay}"
+                    Click="StartRecvButton_Click"
+                    Content="接收音频" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="停止音频转发" Description="停止当前音频中继转发">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE74F;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <Button
+                    x:Name="StopButton"
+                    IsEnabled="{x:Bind ViewModel.IsActive, Mode=OneWay}"
+                    Click="StopButton_Click"
+                    Content="停止" />
             </wuc:SettingsCard>
         </StackPanel>
     </ScrollViewer>

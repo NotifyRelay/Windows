@@ -293,43 +293,6 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
-// 虚拟扬声器设置
-    public string? VirtualSpeakerTargetDeviceId
-    {
-        get => Get<string?>(null);
-        set => Set(value);
-    }
-
-    public string? VirtualSpeakerTargetDeviceName
-    {
-        get => Get<string?>(null);
-        set => Set(value);
-    }
-
-    public string? VirtualSpeakerTargetDeviceIp
-    {
-        get => Get<string?>(null);
-        set => Set(value);
-    }
-
-    public bool EnableVirtualSpeaker
-    {
-        get => Get(false);
-        set => Set(value);
-    }
-
-    public bool VirtualSpeakerMuteOnStart
-    {
-        get => Get(false);
-        set => Set(value);
-    }
-
-    public int VirtualSpeakerStreamingStrategy
-    {
-        get => Get(1); // 默认 AccumZero200
-        set => Set(value);
-    }
-
     // 动态光效设置
     public bool EnableDynamicLighting
     {

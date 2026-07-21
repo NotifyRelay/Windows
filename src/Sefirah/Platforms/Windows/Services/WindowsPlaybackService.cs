@@ -12,7 +12,7 @@ using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows.Interop;
 using Windows.Media;
 using Windows.Media.Control;
-using NotifyRelay.DeviceCtrl.VirtualSpeaker;
+
 using NotifyRelay.Services;
 
 namespace NotifyRelay.Platforms.Windows.Services;
@@ -22,8 +22,7 @@ public class WindowsPlaybackService(
     ISessionManager sessionManager,
     IDeviceManager deviceManager,
     IProtocolSender protocolSender,
-    IGeneralSettingsService generalSettings,
-    VirtualSpeakerService virtualSpeaker) : IPlaybackService, IMMNotificationClient
+    IGeneralSettingsService generalSettings) : IPlaybackService, IMMNotificationClient
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
@@ -685,25 +684,6 @@ public class WindowsPlaybackService(
                 logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
             }
 
-            // 向 VirtualSpeaker 转发歌曲信息
-            if (virtualSpeaker.IsRunning && !string.IsNullOrEmpty(trackTitle))
-            {
-                try
-                {
-                    _ = virtualSpeaker.SendSongInfoAsync(
-                        DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        trackTitle ?? "",
-                        artist ?? "",
-                        0,
-                        0,
-                        ""
-                    );
-                }
-                catch (Exception ssEx)
-                {
-                    logger.LogDebug(ssEx, "发送歌曲信息到 VirtualSpeaker 失败");
-                }
-            }
         }
         catch (JsonException)
         {

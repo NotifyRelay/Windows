@@ -150,36 +150,6 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     int WallpaperOverlayX { get; set; }
 
     /// <summary>
-    /// Gets or sets the target SoundSeeder device UUID for virtual speaker.
-    /// </summary>
-    string? VirtualSpeakerTargetDeviceId { get; set; }
-
-    /// <summary>
-    /// Gets or sets the target SoundSeeder device name for virtual speaker.
-    /// </summary>
-    string? VirtualSpeakerTargetDeviceName { get; set; }
-
-    /// <summary>
-    /// Gets or sets the target SoundSeeder device IP for virtual speaker.
-    /// </summary>
-    string? VirtualSpeakerTargetDeviceIp { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether virtual speaker is enabled.
-    /// </summary>
-    bool EnableVirtualSpeaker { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to mute system sound when virtual speaker starts.
-    /// </summary>
-    bool VirtualSpeakerMuteOnStart { get; set; }
-
-    /// <summary>
-    /// Gets or sets the streaming strategy for virtual speaker.
-    /// </summary>
-    int VirtualSpeakerStreamingStrategy { get; set; }
-
-    /// <summary>
     /// Gets or sets the Y position of the wallpaper overlay window.
     /// </summary>
     int WallpaperOverlayY { get; set; }
