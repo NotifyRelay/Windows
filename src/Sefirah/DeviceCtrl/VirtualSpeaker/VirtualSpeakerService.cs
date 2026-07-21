@@ -608,19 +608,32 @@ public class VirtualSpeakerService : IDisposable
         while (_audioQueue.TryDequeue(out var entry))
         {
             if ((now - entry.CapturedAt).TotalMilliseconds > MaxAudioAgeMs)
-                continue; // 丢弃过期数据
+                continue;
 
             var pcm16 = SoundSeederProtocol.Float32ToPcm16(entry.Buffer, entry.Buffer.Length);
-            var frames = entry.Buffer.Length / (4 * _channels);
-            accStream.Write(pcm16, 0, pcm16.Length);
-            accFrames += frames;
+            var entryFrames = entry.Buffer.Length / (4 * _channels);
+            var entryBytes = pcm16.Length;
+            var entryOffset = 0;
 
-            if (accFrames >= targetFrames)
+            while (entryOffset < entryBytes)
             {
-                SendAccumulated(accStream, token,
-                    useTimestampZero, useTimestampBuf, bufMs, ref streamTimestamp);
-                accStream.SetLength(0);
-                accFrames = 0;
+                var spaceFrames = targetFrames - accFrames;
+                var takeBytes = (int)(spaceFrames * 2 * _channels);
+                if (takeBytes > entryBytes - entryOffset)
+                    takeBytes = entryBytes - entryOffset;
+
+                accStream.Write(pcm16, entryOffset, takeBytes);
+                var takenFrames = takeBytes / (2 * _channels);
+                accFrames += takenFrames;
+                entryOffset += takeBytes;
+
+                if (accFrames >= targetFrames)
+                {
+                    SendAccumulated(accStream, token,
+                        useTimestampZero, useTimestampBuf, bufMs, ref streamTimestamp);
+                    accStream.SetLength(0);
+                    accFrames = 0;
+                }
             }
         }
     }
