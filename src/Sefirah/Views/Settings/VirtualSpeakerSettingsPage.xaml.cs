@@ -43,7 +43,7 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
     private void OnStatusChanged(object? sender, EventArgs e)
     {
-        UpdateStatusUI();
+        DispatcherQueue.TryEnqueue(UpdateStatusUI);
     }
 
     private void UpdateStatusUI()
@@ -55,24 +55,19 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
     private async void StartSendButton_Click(object sender, RoutedEventArgs e)
     {
-        StartSendButton.IsEnabled = false;
         ViewModel.StatusText = "正在启动音频发送...";
         await ViewModel.StartSendAsync();
-        UpdateStatusUI();
     }
 
     private async void StartRecvButton_Click(object sender, RoutedEventArgs e)
     {
-        StartRecvButton.IsEnabled = false;
         ViewModel.StatusText = "正在请求远端音频...";
         await ViewModel.StartReceiveAsync();
-        UpdateStatusUI();
     }
 
     private async void StopButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.StopAsync();
-        UpdateStatusUI();
     }
 }
 
@@ -110,7 +105,6 @@ public class VirtualSpeakerViewModel
             StatusText = _audioRelayService.IsActive ? "状态：运行中" : "状态：未启动";
             OnPropertyChanged(nameof(IsActive));
             OnPropertyChanged(nameof(CanStart));
-            OnPropertyChanged(nameof(StatusText));
         };
     }
 
@@ -123,7 +117,6 @@ public class VirtualSpeakerViewModel
             return;
         }
         await _audioRelayService.StartSendAsync(device.Id, device.RemoteIpAddress ?? device.IpAddresses?.FirstOrDefault() ?? "");
-        StatusText = _audioRelayService.IsActive ? "状态：发送中" : "启动发送失败";
     }
 
     public async Task StartReceiveAsync()
@@ -135,13 +128,11 @@ public class VirtualSpeakerViewModel
             return;
         }
         await _audioRelayService.StartReceiveAsync(device.Id, device.RemoteIpAddress ?? device.IpAddresses?.FirstOrDefault() ?? "");
-        StatusText = _audioRelayService.IsActive ? "状态：接收中" : "启动接收失败";
     }
 
     public async Task StopAsync()
     {
         await _audioRelayService.StopAsync();
-        StatusText = "状态：未启动";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
