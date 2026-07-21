@@ -48,26 +48,32 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
     private void UpdateStatusUI()
     {
-        ViewModel.OnPropertyChanged(nameof(ViewModel.IsActive));
-        ViewModel.OnPropertyChanged(nameof(ViewModel.CanStart));
-        ViewModel.OnPropertyChanged(nameof(ViewModel.StatusText));
+        StartSendButton.IsEnabled = ViewModel.CanStart;
+        StartRecvButton.IsEnabled = ViewModel.CanStart;
+        StopButton.IsEnabled = ViewModel.IsActive;
+        StatusTextBlock.Text = ViewModel.StatusText;
     }
 
     private async void StartSendButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.StatusText = "正在启动音频发送...";
+        UpdateStatusUI();
         await ViewModel.StartSendAsync();
+        UpdateStatusUI();
     }
 
     private async void StartRecvButton_Click(object sender, RoutedEventArgs e)
     {
         ViewModel.StatusText = "正在请求远端音频...";
+        UpdateStatusUI();
         await ViewModel.StartReceiveAsync();
+        UpdateStatusUI();
     }
 
     private async void StopButton_Click(object sender, RoutedEventArgs e)
     {
         await ViewModel.StopAsync();
+        UpdateStatusUI();
     }
 }
 
