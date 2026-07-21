@@ -51,6 +51,7 @@ public class AudioRelayService : IDisposable
             if (result != 0)
             {
                 _logger.LogError("音频中继: AudioStart(send) 返回 {Result}", result);
+                StopInternal();
                 return Task.CompletedTask;
             }
 
@@ -135,6 +136,7 @@ public class AudioRelayService : IDisposable
             {
                 _logger.LogError("音频中继: AudioStart(recv) 返回 {Result}", result);
                 CleanupPlayback();
+                StopInternal();
                 return Task.CompletedTask;
             }
 
