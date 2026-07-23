@@ -14,9 +14,9 @@ public class AudioRelayService : IDisposable
     private BufferedWaveProvider? _waveProvider;
     private CancellationTokenSource? _cts;
 
-    private bool _isRunning;
+    private volatile bool _isRunning;
     private bool _isDisposed;
-    private bool _isStopping;
+    private volatile bool _isStopping;
 
     public bool IsActive => _isRunning;
     public event EventHandler? StatusChanged;
@@ -46,6 +46,8 @@ public class AudioRelayService : IDisposable
         _cts = new CancellationTokenSource();
         var token = _cts.Token;
 
+        _isRunning = true;
+
         try
         {
             var result = NativeCore.AudioStart("send", remoteIp, sampleRate, channels, remoteUuid);
@@ -65,7 +67,6 @@ public class AudioRelayService : IDisposable
             };
 
             _capture.StartRecording();
-            _isRunning = true;
             _logger.LogInformation("音频中继: 发送模式已启动, 捕获格式: {Rate}Hz {Channels}ch",
                 _capture.WaveFormat.SampleRate, _capture.WaveFormat.Channels);
             StatusChanged?.Invoke(this, EventArgs.Empty);
@@ -90,6 +91,8 @@ public class AudioRelayService : IDisposable
         _logger.LogInformation("音频中继: 启动接收模式, 远端UUID={RemoteUuid}, IP={DeviceIp}", remoteUuid, deviceIp);
 
         _cts = new CancellationTokenSource();
+
+        _isRunning = true;
 
         try
         {
@@ -140,8 +143,6 @@ public class AudioRelayService : IDisposable
                 StopInternal();
                 return Task.CompletedTask;
             }
-
-            _isRunning = true;
             _logger.LogInformation("音频中继: 接收模式已启动");
             StatusChanged?.Invoke(this, EventArgs.Empty);
         }
