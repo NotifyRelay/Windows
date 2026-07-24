@@ -285,7 +285,7 @@ public static class NotifyRelayCore
 
     // ======== Audio stream ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_audio_start(IntPtr ctx, IntPtr direction, IntPtr deviceIp, int port, int sampleRate, int channels, IntPtr remoteUuid);
+    public static extern int nrc_audio_start(IntPtr ctx, IntPtr direction, int port, int sampleRate, int channels, IntPtr remoteUuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_audio_write_frame(IntPtr ctx, [In] byte[] pcmData, int pcmLen);
@@ -759,14 +759,12 @@ public static class NotifyRelayCore
         }
 
         // ======== Audio stream ========
-        public static int AudioStart(IntPtr ctx, string direction, string deviceIp, int port, int sampleRate, int channels, string remoteUuid)
+        public static int AudioStart(IntPtr ctx, string direction, int port, int sampleRate, int channels, string remoteUuid)
         {
             var d = StringToPtr(direction);
-            var ip = StringToPtr(deviceIp);
             var u = StringToPtr(remoteUuid);
-            var result = NotifyRelayCore.nrc_audio_start(ctx, d, ip, port, sampleRate, channels, u);
+            var result = NotifyRelayCore.nrc_audio_start(ctx, d, port, sampleRate, channels, u);
             Marshal.FreeHGlobal(d);
-            Marshal.FreeHGlobal(ip);
             Marshal.FreeHGlobal(u);
             return result;
         }

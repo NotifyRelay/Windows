@@ -50,7 +50,7 @@ public class AudioRelayService : IDisposable
 
         try
         {
-            var result = NativeCore.AudioStart("send", remoteIp, sampleRate, channels, remoteUuid);
+            var result = NativeCore.AudioStart("send", sampleRate, channels, remoteUuid);
             if (result != 0)
             {
                 _logger.LogError("音频中继: AudioStart(send) 返回 {Result}", result);
@@ -135,7 +135,7 @@ public class AudioRelayService : IDisposable
 
             NativeCore.RegisterAudioCallbacks(_dataCb, _eventCb);
 
-            var result = NativeCore.AudioStart("recv", deviceIp, sampleRate, channels, remoteUuid);
+            var result = NativeCore.AudioStart("recv", sampleRate, channels, remoteUuid);
             if (result != 0)
             {
                 _logger.LogError("音频中继: AudioStart(recv) 返回 {Result}", result);

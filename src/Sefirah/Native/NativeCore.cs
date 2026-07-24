@@ -688,9 +688,9 @@ public static class NativeCore
         NotifyRelayCore.nrc_stop_known_device_scanner(_ctx);
     }
 
-    public static int AudioStart(string direction, string deviceIp, int sampleRate, int channels, string remoteUuid)
+    public static int AudioStart(string direction, int sampleRate, int channels, string remoteUuid)
     {
-        return NotifyRelayCore.Safe.AudioStart(_ctx, direction, deviceIp, 23335, sampleRate, channels, remoteUuid);
+        return NotifyRelayCore.Safe.AudioStart(_ctx, direction, 23335, sampleRate, channels, remoteUuid);
     }
 
     public static int AudioWriteFrame(byte[] pcm)
