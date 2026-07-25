@@ -21,6 +21,17 @@ public class WorkerService : BackgroundService
     {
         _logger.LogInformation("Worker service starting");
 
+        _pipeServer.MessageHandler = async (message) =>
+        {
+            if (message.Type == "configPush")
+            {
+                if (message.Config != null)
+                    await _serviceHost.PushConfigAsync(message.Config);
+                return IpcMessage.CreateResponse("config", true);
+            }
+            return await _serviceHost.ExecuteCommandAsync(message);
+        };
+
         _serviceHost.Initialize();
 
         await _pipeServer.StartAsync(stoppingToken);

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
@@ -19,6 +20,8 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<string>> _pendingRequests = new();
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
 
     public event EventHandler<BalanceHistoryItem>? DeepSeekBalanceUpdated;
     public event EventHandler? DeepSeekStatusChanged;
@@ -37,7 +40,7 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
             _pipe = new NamedPipeClientStream(".", PipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
             await _pipe.ConnectAsync((int)timeout.TotalMilliseconds);
             _listenCts = new CancellationTokenSource();
-            _ = ListenAsync(_listenCts.Token);
+            _ = ReadLoopAsync(_listenCts.Token);
             return true;
         }
         catch (Exception)
@@ -49,6 +52,9 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
     public void Disconnect()
     {
         _listenCts?.Cancel();
+        foreach (var kvp in _pendingRequests)
+            kvp.Value.TrySetCanceled();
+        _pendingRequests.Clear();
         _pipe?.Dispose();
         _pipe = null;
     }
@@ -58,27 +64,33 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         if (!IsConnected) return default;
 
         var id = Guid.NewGuid().ToString("N");
-        var command = new
-        {
-            type = "command",
-            id,
-            service,
-            method,
-            @params = parameters
-        };
-
-        var json = JsonSerializer.Serialize(command, _jsonOptions);
-        var bytes = Encoding.UTF8.GetBytes(json);
-
-        await _pipe!.WriteAsync(bytes, 0, bytes.Length);
-        await _pipe.FlushAsync();
-
-        var responseBytes = new byte[4096];
-        var readCount = await _pipe.ReadAsync(responseBytes, 0, responseBytes.Length);
-        var responseJson = Encoding.UTF8.GetString(responseBytes, 0, readCount);
+        var tcs = new TaskCompletionSource<string>();
+        _pendingRequests[id] = tcs;
 
         try
         {
+            var command = new
+            {
+                type = "command",
+                id,
+                service,
+                method,
+                @params = parameters
+            };
+
+            var json = JsonSerializer.Serialize(command, _jsonOptions);
+            var bytes = Encoding.UTF8.GetBytes(json);
+
+            await _writeLock.WaitAsync();
+            try
+            {
+                await _pipe!.WriteAsync(bytes, 0, bytes.Length);
+                await _pipe.FlushAsync();
+            }
+            finally { _writeLock.Release(); }
+
+            var responseJson = await tcs.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
             var response = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(responseJson, _jsonOptions);
             if (response != null && response.TryGetValue("data", out var data))
             {
@@ -86,6 +98,10 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
             }
         }
         catch { }
+        finally
+        {
+            _pendingRequests.TryRemove(id, out _);
+        }
 
         return default;
     }
@@ -98,8 +114,13 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         var json = JsonSerializer.Serialize(msg, _jsonOptions);
         var bytes = Encoding.UTF8.GetBytes(json);
 
-        await _pipe!.WriteAsync(bytes, 0, bytes.Length);
-        await _pipe.FlushAsync();
+        await _writeLock.WaitAsync();
+        try
+        {
+            await _pipe!.WriteAsync(bytes, 0, bytes.Length);
+            await _pipe.FlushAsync();
+        }
+        finally { _writeLock.Release(); }
     }
 
     public async Task StartWorkerProcessAsync()
@@ -107,20 +128,6 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         var workerPath = Path.Combine(
             AppContext.BaseDirectory,
             "NotifyRelay.Worker.exe");
-
-        if (!File.Exists(workerPath))
-            workerPath = Path.Combine(
-                AppContext.BaseDirectory,
-                "..", "NotifyRelay.Worker",
-                "bin", "Debug", "net9.0-windows10.0.26100",
-                "NotifyRelay.Worker.exe");
-
-        if (!File.Exists(workerPath))
-        {
-            // Try to find in solution directory
-            var solutionDir = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "NotifyRelay.Worker"));
-            workerPath = Path.Combine(solutionDir, "bin", "Debug", "net9.0-windows10.0.26100", "NotifyRelay.Worker.exe");
-        }
 
         if (!File.Exists(workerPath))
         {
@@ -158,11 +165,16 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
                 var json = JsonSerializer.Serialize(shutdown, _jsonOptions);
                 var bytes = Encoding.UTF8.GetBytes(json);
 
-                if (_pipe?.IsConnected == true)
+                await _writeLock.WaitAsync();
+                try
                 {
-                    await _pipe.WriteAsync(bytes, 0, bytes.Length);
-                    await _pipe.FlushAsync();
+                    if (_pipe?.IsConnected == true)
+                    {
+                        await _pipe.WriteAsync(bytes, 0, bytes.Length);
+                        await _pipe.FlushAsync();
+                    }
                 }
+                finally { _writeLock.Release(); }
 
                 if (!_workerProcess.WaitForExit(5000))
                     _workerProcess.Kill();
@@ -173,7 +185,7 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         Disconnect();
     }
 
-    private async Task ListenAsync(CancellationToken token)
+    private async Task ReadLoopAsync(CancellationToken token)
     {
         var buffer = new byte[4096];
 
@@ -184,18 +196,26 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
                 var readCount = await _pipe.ReadAsync(buffer, 0, buffer.Length, token);
                 if (readCount == 0) break;
 
-                var json = Encoding.UTF8.GetString(buffer, 0, readCount);
-                var message = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, _jsonOptions);
+                var json = Encoding.UTF8.GetString(buffer, 0, readCount).TrimEnd('\0');
+                if (string.IsNullOrEmpty(json)) continue;
 
+                var message = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(json, _jsonOptions);
                 if (message == null) continue;
 
                 var type = message.GetValueOrDefault("type").GetString();
-                if (type != "event") continue;
 
-                var service = message.GetValueOrDefault("service").GetString();
-                var eventName = message.GetValueOrDefault("event").GetString();
-
-                DispatchEvent(service, eventName, message.GetValueOrDefault("data"));
+                if (type == "event")
+                {
+                    var service = message.GetValueOrDefault("service").GetString();
+                    var eventName = message.GetValueOrDefault("eventName").GetString();
+                    DispatchEvent(service, eventName, message.GetValueOrDefault("data"));
+                }
+                else if (type == "response")
+                {
+                    var id = message.GetValueOrDefault("id").GetString();
+                    if (id != null && _pendingRequests.TryRemove(id, out var tcs))
+                        tcs.TrySetResult(json);
+                }
             }
             catch (OperationCanceledException) { break; }
             catch (IOException) { break; }
@@ -283,6 +303,9 @@ public class WorkerBridgeService : IWorkerBridge, IDisposable
         if (_disposed) return;
         _disposed = true;
         _listenCts?.Cancel();
+        foreach (var kvp in _pendingRequests)
+            kvp.Value.TrySetCanceled();
+        _pendingRequests.Clear();
         _pipe?.Dispose();
         _workerProcess?.Dispose();
     }

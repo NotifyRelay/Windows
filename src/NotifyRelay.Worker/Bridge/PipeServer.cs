@@ -7,18 +7,19 @@ namespace NotifyRelay.Worker.Bridge;
 public class PipeServer
 {
     private const string PipeName = "NotifyRelayWorker";
-    private readonly ServiceHost _serviceHost;
     private readonly ILogger<PipeServer> _logger;
     private NamedPipeServerStream? _currentPipe;
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
+    public Func<IpcMessage, Task<IpcMessage?>>? MessageHandler { get; set; }
 
     public event EventHandler? ClientConnected;
     public event EventHandler? ClientDisconnected;
 
     public bool IsClientConnected => _currentPipe?.IsConnected ?? false;
 
-    public PipeServer(ServiceHost serviceHost, ILogger<PipeServer> logger)
+    public PipeServer(ILogger<PipeServer> logger)
     {
-        _serviceHost = serviceHost;
         _logger = logger;
     }
 
@@ -28,9 +29,10 @@ public class PipeServer
 
         while (!stoppingToken.IsCancellationRequested)
         {
+            NamedPipeServerStream? pipe = null;
             try
             {
-                using var pipe = new NamedPipeServerStream(
+                pipe = new NamedPipeServerStream(
                     PipeName, PipeDirection.InOut, 1,
                     PipeTransmissionMode.Message, PipeOptions.Asynchronous);
 
@@ -57,6 +59,7 @@ public class PipeServer
             {
                 ClientDisconnected?.Invoke(this, EventArgs.Empty);
                 _currentPipe = null;
+                pipe?.Dispose();
             }
         }
     }
@@ -88,8 +91,13 @@ public class PipeServer
                 if (response != null)
                 {
                     var responseBytes = Encoding.UTF8.GetBytes(response.Serialize());
-                    await pipe.WriteAsync(responseBytes, 0, responseBytes.Length, stoppingToken);
-                    await pipe.FlushAsync(stoppingToken);
+                    await _writeLock.WaitAsync(stoppingToken);
+                    try
+                    {
+                        await pipe.WriteAsync(responseBytes, 0, responseBytes.Length, stoppingToken);
+                        await pipe.FlushAsync(stoppingToken);
+                    }
+                    finally { _writeLock.Release(); }
                 }
             }
             catch (OperationCanceledException)
@@ -124,15 +132,11 @@ public class PipeServer
                 return null;
 
             case "command":
-                return await _serviceHost.ExecuteCommandAsync(message);
-
             case "configPush":
-                if (message.Config != null)
-                {
-                    await _serviceHost.PushConfigAsync(message.Config);
-                    return IpcMessage.CreateResponse("config", true);
-                }
-                return IpcMessage.CreateResponse("config", false);
+                if (MessageHandler != null)
+                    return await MessageHandler(message);
+                _logger.LogWarning("No message handler registered");
+                return IpcMessage.CreateResponse(message.Id ?? "unknown", false);
 
             case "ping":
                 return new IpcMessage { Type = "pong" };
@@ -151,8 +155,13 @@ public class PipeServer
         try
         {
             var bytes = Encoding.UTF8.GetBytes(message.Serialize());
-            await _currentPipe.WriteAsync(bytes, 0, bytes.Length);
-            await _currentPipe.FlushAsync();
+            await _writeLock.WaitAsync();
+            try
+            {
+                await _currentPipe.WriteAsync(bytes, 0, bytes.Length);
+                await _currentPipe.FlushAsync();
+            }
+            finally { _writeLock.Release(); }
         }
         catch (Exception ex)
         {

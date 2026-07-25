@@ -188,10 +188,10 @@ public static class AppLifecycleHelper
             await workerBridge.StartWorkerProcessAsync();
 
             // 等待 Worker 启动并连接管道
-            for (int i = 0; i < 30; i++)
+            for (int i = 0; i < 60; i++)
             {
-                await Task.Delay(200);
-                if (await workerBridge.ConnectAsync(TimeSpan.FromSeconds(1)))
+                await Task.Delay(500);
+                if (await workerBridge.ConnectAsync(TimeSpan.FromSeconds(2)))
                 {
                     logger.LogInformation("步骤18：Worker 进程连接成功");
                     break;
