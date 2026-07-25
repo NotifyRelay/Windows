@@ -2,6 +2,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.Windows.AppLifecycle;
 using NotifyRelay.Extensions;
 using NotifyRelay.Platforms.Windows.Interop;
+using System.Runtime.InteropServices;
 using AppInstance = Microsoft.Windows.AppLifecycle.AppInstance;
 
 namespace NotifyRelay.Platforms.Windows;
@@ -17,33 +18,42 @@ internal class Program
         // Get current process
         var proc = Process.GetCurrentProcess();
 
-        // Get app activation arguments
-        var activatedArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
+        AppActivationArguments? activatedArgs = null;
 
-        // Get current active PID
-        var activePid = ApplicationData.Current.LocalSettings.Values.Get("INSTANCE_ACTIVE", -1);
-
-        // Get current active PID's instance
-        var instance = AppInstance.FindOrRegisterForKey(activePid.ToString());
-
-        // If that instance is not current window's own, the app will redirect to that instance
-        // so that the app would not create more than one window
-        if (!instance.IsCurrent)
+        try
         {
-            RedirectActivationTo(instance, activatedArgs);
+            // Packaged MSIX path
+            activatedArgs = AppInstance.GetCurrent().GetActivatedEventArgs();
 
-            // End process
-            return;
+            // Get current active PID
+            var activePid = ApplicationData.Current.LocalSettings.Values.Get("INSTANCE_ACTIVE", -1);
+
+            // Get current active PID's instance
+            var instance = AppInstance.FindOrRegisterForKey(activePid.ToString());
+
+            // If that instance is not current window's own, the app will redirect to that instance
+            // so that the app would not create more than one window
+            if (!instance.IsCurrent)
+            {
+                RedirectActivationTo(instance, activatedArgs);
+
+                // End process
+                return;
+            }
+
+            // Get this current instance
+            var currentInstance = AppInstance.FindOrRegisterForKey((-proc.Id).ToString());
+
+            if (currentInstance.IsCurrent)
+                currentInstance.Activated += OnActivated;
+
+            // Set this current active process's PID
+            ApplicationData.Current.LocalSettings.Values["INSTANCE_ACTIVE"] = -proc.Id;
         }
-
-        // Get this current instance
-        var currentInstance = AppInstance.FindOrRegisterForKey((-proc.Id).ToString());
-
-        if (currentInstance.IsCurrent)
-            currentInstance.Activated += OnActivated;
-
-        // Set this current active process's PID
-        ApplicationData.Current.LocalSettings.Values["INSTANCE_ACTIVE"] = -proc.Id;
+        catch (COMException)
+        {
+            // Unpackaged fallback: start normally without AppInstance redirection.
+        }
 
         // Start WinUI
         Application.Start((p) =>

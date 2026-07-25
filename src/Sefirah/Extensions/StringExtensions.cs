@@ -7,8 +7,6 @@ namespace NotifyRelay.Extensions;
 /// </summary>
 public static class StringExtensions
 {
-    private static readonly IStringLocalizer stringLocalizer = Ioc.Default.GetRequiredService<IStringLocalizer>();
-
     private static readonly ConcurrentDictionary<string, string> cachedResources = new();
 
     /// <summary>
@@ -23,9 +21,16 @@ public static class StringExtensions
             return value;
         }
 
-        if (string.IsNullOrEmpty(value))
+        var stringLocalizer = Ioc.Default.GetService<IStringLocalizer>();
+        if (stringLocalizer is null)
         {
-            value = stringLocalizer[resourceKey];
+            return resourceKey;
+        }
+
+        value = stringLocalizer[resourceKey].Value;
+        if (!string.IsNullOrEmpty(value))
+        {
+            cachedResources.TryAdd(resourceKey, value);
         }
 
         return value ?? string.Empty;
