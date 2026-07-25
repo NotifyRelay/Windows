@@ -32,90 +32,48 @@ public static class AppLifecycleHelper
         var logger = Ioc.Default.GetRequiredService<ILogger<App>>();
         logger.LogInformation("开始初始化应用组件...");
 
-        // 1. 首先初始化数据库上下文，确保数据库连接稳定
-        logger.LogInformation("步骤1：获取DatabaseContext...");
+        logger.LogInformation("步骤1-3：初始化数据库并预热...");
         var databaseContext = Ioc.Default.GetRequiredService<DatabaseContext>();
-        logger.LogInformation("DatabaseContext获取成功");
-
-        logger.LogInformation("步骤2：获取DeviceRepository...");
         var deviceRepository = Ioc.Default.GetRequiredService<DeviceRepository>();
-        logger.LogInformation("DeviceRepository获取成功");
-
-        // 2. 预热数据库，确保表结构正确
-        logger.LogInformation("步骤3：预热数据库，获取本地设备...");
         var localDevice = deviceRepository.GetLocalDevice();
         if (localDevice is null)
-        {
             logger.LogInformation("数据库预热：本地设备不存在，将在后续生成");
-        }
         else
-        {
             logger.LogInformation("数据库预热：找到本地设备，DeviceId: {deviceId}", localDevice.DeviceId);
-        }
         logger.LogInformation("数据库预热完成");
 
-        // 3. 获取其他服务
-        logger.LogInformation("步骤4：获取NetworkService...");
+        logger.LogInformation("步骤4-11：获取服务...");
         var networkService = Ioc.Default.GetRequiredService<INetworkService>();
-        logger.LogInformation("NetworkService获取成功");
-
-        logger.LogInformation("步骤5：获取DiscoveryService...");
         var discoveryService = Ioc.Default.GetRequiredService<IDiscoveryService>();
-        logger.LogInformation("DiscoveryService获取成功");
-
-        logger.LogInformation("步骤6：获取NotificationService...");
         var notificationService = Ioc.Default.GetRequiredService<INotificationService>();
-        logger.LogInformation("NotificationService获取成功");
-
-        logger.LogInformation("步骤7：获取DeviceManager...");
         var deviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
-        logger.LogInformation("DeviceManager获取成功");
-
-        logger.LogInformation("步骤8：获取AdbService...");
         var adbService = Ioc.Default.GetRequiredService<IAdbService>();
-        logger.LogInformation("AdbService获取成功");
-
-        logger.LogInformation("步骤9：获取PlaybackService...");
         var playbackService = Ioc.Default.GetRequiredService<IPlaybackService>();
-        logger.LogInformation("PlaybackService获取成功");
-
-        logger.LogInformation("步骤10：获取ActionService...");
         var actionService = Ioc.Default.GetRequiredService<IActionService>();
-        logger.LogInformation("ActionService获取成功");
-
-        logger.LogInformation("步骤11：获取UpdateService...");
         var updateService = Ioc.Default.GetRequiredService<IUpdateService>();
-        logger.LogInformation("UpdateService获取成功");
+        logger.LogInformation("服务获取成功");
 
-#if WINDOWS
-        logger.LogInformation("步骤12：获取并注册WindowsNotificationHandler...");
-        var windowsNotificationHandler = Ioc.Default.GetRequiredService<IPlatformNotificationHandler>();
-        await windowsNotificationHandler.RegisterForNotifications();
-        logger.LogInformation("WindowsNotificationHandler注册成功");
-#endif
+        // ===== 并行阶段A：无依赖服务同时启动 =====
+        logger.LogInformation("步骤12-13-16-18-19：并行启动无依赖服务...");
+        await Task.WhenAll(
+            RegisterWindowsNotificationAsync(logger),
+            InitRustCoreAsync(logger),
+            StartLocalSocketRelayAsync(logger),
+            InitWorkerConfigAsync(logger),
+            InitAudioRelayAsync(logger)
+        );
+        logger.LogInformation("无依赖服务并行启动完成");
 
-        // 3. 初始化 Rust Core（必须在调用任何 NativeCore 方法之前）
-        logger.LogInformation("步骤13：初始化 Rust Core...");
-        NativeCore.Initialize();
-        NativeCore.SetLogCallback(logger);
-        NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
-        NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
-        NativeCore.RegisterCallbacks();
-        NativeCore.NetworkService = (NetworkService?)Ioc.Default.GetService<INetworkService>();
-        NativeCore.HeartbeatProcessor = Ioc.Default.GetService<HeartbeatProcessor>();
-        logger.LogInformation("步骤13：Rust Core 初始化完成，回调已注册");
-
-        // 4. 生成并初始化UUID，确保所有服务启动前UUID已可用
-        logger.LogInformation("步骤14：开始生成并初始化UUID");
+        // ===== 串行阶段B：依赖 Rust Core 的关键链 =====
+        logger.LogInformation("步骤14：生成并初始化UUID...");
         localDevice = await deviceManager.GetLocalDeviceAsync();
         logger.LogInformation("步骤14：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
 
-        // 5. 初始化设备管理器和通知服务
         logger.LogInformation("步骤15：初始化设备管理器...");
         await deviceManager.Initialize();
         logger.LogInformation("步骤15：设备管理器初始化完成");
 
-        // 5a. 迁移已有设备的共享密钥
+        // 密钥迁移（轻量同步操作，必须在服务启动前完成）
         logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
         int migratedCount = 0;
         foreach (var device in deviceManager.PairedDevices)
@@ -126,13 +84,13 @@ public static class AppLifecycleHelper
                 migratedCount++;
             }
         }
-        logger.LogInformation("步骤14a：Rust Core 初始化完成，已迁移 {count} 个设备密钥", migratedCount);
+        logger.LogInformation("步骤15a：已迁移 {count} 个设备密钥", migratedCount);
 
         logger.LogInformation("步骤15：初始化通知服务...");
         notificationService.Initialize();
         logger.LogInformation("步骤15：通知服务初始化完成");
 
-        // 15a. 初始化过滤配置
+        // 过滤配置
         logger.LogInformation("步骤15a：初始化通知过滤配置...");
         try
         {
@@ -148,40 +106,80 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "步骤15a：初始化通知过滤配置失败");
         }
 
-        // 15b. 启动本地通知监听
-        logger.LogInformation("步骤15b：启动本地通知监听服务...");
-        try
-        {
-            var localListener = Ioc.Default.GetRequiredService<ILocalNotificationListenerService>();
-            localListener.Start();
-            logger.LogInformation("步骤15b：本地通知监听服务启动完成");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "步骤15b：启动本地通知监听服务失败");
-        }
+        // 本地通知监听后台启动
+        _ = StartLocalNotificationListenerAsync(logger);
 
-        // 5. 为LocalSocketRelayServer设置logger并启动服务器
-        logger.LogInformation("步骤16：设置并启动LocalSocketRelayServer...");
-        var socketLogger = Ioc.Default.GetRequiredService<ILogger>();
-        LocalSocketRelayServer.SetLogger(socketLogger);
-        LocalSocketRelayServer.Start();
-        logger.LogInformation("步骤16：LocalSocketRelayServer启动完成");
-
-        // 6. 启动各种服务
-        logger.LogInformation("步骤17：开始启动各种服务...");
+        // ===== 并行阶段C：核心服务启动 =====
+        logger.LogInformation("步骤17：启动核心服务...");
         await Task.WhenAll(
             networkService.StartServerAsync(),
             discoveryService.StartDiscoveryAsync(),
             playbackService.InitializeAsync(),
-            actionService.InitializeAsync(),
-            adbService.StartAsync(),
-            updateService.CheckForUpdatesAsync()
+            adbService.StartAsync()
         );
-        logger.LogInformation("步骤17：所有服务启动完成");
+        logger.LogInformation("步骤17：核心服务启动完成");
 
-        // 8. 初始化 Worker 服务配置
-        logger.LogInformation("步骤18：初始化 Worker 服务配置...");
+        // 非关键服务后台启动（不阻塞主流程）
+        _ = actionService.InitializeAsync();
+        _ = updateService.CheckForUpdatesAsync();
+
+        logger.LogInformation("步骤21：初始化完成，关闭启动画面");
+        App.SplashScreenLoadingTCS?.TrySetResult();
+        logger.LogInformation("应用组件初始化全部完成");
+    }
+
+    private static async Task RegisterWindowsNotificationAsync(ILogger logger)
+    {
+#if WINDOWS
+        try
+        {
+            var handler = Ioc.Default.GetRequiredService<IPlatformNotificationHandler>();
+            await handler.RegisterForNotifications();
+            logger.LogInformation("Windows通知注册成功");
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "注册Windows通知失败");
+        }
+#endif
+    }
+
+    private static async Task InitRustCoreAsync(ILogger logger)
+    {
+        try
+        {
+            NativeCore.Initialize();
+            NativeCore.SetLogCallback(logger);
+            NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
+            NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
+            NativeCore.RegisterCallbacks();
+            NativeCore.NetworkService = (NetworkService?)Ioc.Default.GetService<INetworkService>();
+            NativeCore.HeartbeatProcessor = Ioc.Default.GetService<HeartbeatProcessor>();
+            logger.LogInformation("Rust Core 初始化完成，回调已注册");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "初始化 Rust Core 失败");
+        }
+    }
+
+    private static async Task StartLocalSocketRelayAsync(ILogger logger)
+    {
+        try
+        {
+            var socketLogger = Ioc.Default.GetRequiredService<ILogger>();
+            LocalSocketRelayServer.SetLogger(socketLogger);
+            LocalSocketRelayServer.Start();
+            logger.LogInformation("LocalSocketRelayServer启动完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "启动LocalSocketRelayServer失败");
+        }
+    }
+
+    private static async Task InitWorkerConfigAsync(ILogger logger)
+    {
         try
         {
             var config = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Configuration.WorkerConfiguration>();
@@ -199,29 +197,39 @@ public static class AppLifecycleHelper
             config.EnableAutoRGB = settings.EnableAutoRGB;
             config.AutoRGBUpdateInterval = settings.AutoRGBUpdateInterval;
 
-            logger.LogInformation("步骤18：Worker 服务配置已初始化");
+            logger.LogInformation("Worker 服务配置已初始化");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤18：初始化 Worker 服务配置失败");
+            logger.LogError(ex, "初始化 Worker 服务配置失败");
         }
+    }
 
-        // 9. 初始化音频中继服务
-        logger.LogInformation("步骤19：初始化音频中继服务...");
+    private static async Task InitAudioRelayAsync(ILogger logger)
+    {
         try
         {
             var audioRelayService = Ioc.Default.GetRequiredService<DeviceCtrl.AudioRelay.AudioRelayService>();
-            logger.LogInformation("步骤19：音频中继服务已就绪");
+            logger.LogInformation("音频中继服务已就绪");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤19：初始化音频中继服务失败");
+            logger.LogError(ex, "初始化音频中继服务失败");
         }
+    }
 
-        // 12. 完成初始化，关闭启动画面
-        logger.LogInformation("步骤21：初始化完成，关闭启动画面");
-        App.SplashScreenLoadingTCS?.TrySetResult();
-        logger.LogInformation("应用组件初始化全部完成");
+    private static async Task StartLocalNotificationListenerAsync(ILogger logger)
+    {
+        try
+        {
+            var localListener = Ioc.Default.GetRequiredService<ILocalNotificationListenerService>();
+            localListener.Start();
+            logger.LogInformation("本地通知监听服务启动完成");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "启动本地通知监听服务失败");
+        }
     }
 
     public static IApplicationBuilder ConfigureApp(this App app, LaunchActivatedEventArgs args)
