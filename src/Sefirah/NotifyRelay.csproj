@@ -94,14 +94,8 @@
         </Content>
     </ItemGroup>
     <ItemGroup>
-        <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" ReferenceOutputAssembly="false" />
+        <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" />
     </ItemGroup>
-    <Target Name="CopyWorkerOutput" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
-        <ItemGroup>
-            <WorkerFiles Include="$(MSBuildThisFileDirectory)..\NotifyRelay.Worker\bin\$(Configuration)\$(TargetFramework)\**\*" />
-        </ItemGroup>
-        <Copy SourceFiles="@(WorkerFiles)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
-    </Target>
     <ItemGroup>
         <PackageReference Include="AdvancedSharpAdbClient" />
         <PackageReference Include="BouncyCastle.Cryptography" />

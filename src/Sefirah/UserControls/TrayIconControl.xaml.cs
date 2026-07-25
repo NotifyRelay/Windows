@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Worker.Services;
 using NotifyRelay.DeviceCtrl.AudioRelay;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
@@ -19,7 +20,7 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     private bool _isDeepSeekPolling;
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private IWorkerBridge WorkerBridge { get; } = Ioc.Default.GetRequiredService<IWorkerBridge>();
+    private DeepSeekBalanceService DeepSeekService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
     private IGeneralSettingsService GeneralSettingsService { get; } = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
     private AudioRelayService AudioRelayService { get; } = Ioc.Default.GetRequiredService<AudioRelayService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
@@ -55,19 +56,19 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
         UpdateTrayIcon(uiSettings);
         uiSettings.ColorValuesChanged += UpdateTrayIcon;
 
-        WorkerBridge.DeepSeekBalanceUpdated += OnBalanceUpdated;
-        WorkerBridge.DeepSeekStatusChanged += OnDeepSeekStatusChanged;
+        DeepSeekService.BalanceUpdated += OnBalanceUpdated;
+        DeepSeekService.StatusChanged += OnDeepSeekStatusChanged;
         UpdateTrayTooltip();
     }
 
-    private void OnBalanceUpdated(object? sender, NotifyRelay.Data.Models.BalanceHistoryItem e)
+    private void OnBalanceUpdated(double balance)
     {
-        _currentDeepSeekBalance = e.Balance;
+        _currentDeepSeekBalance = balance;
         _isDeepSeekPolling = true;
         UpdateTrayTooltip();
     }
 
-    private void OnDeepSeekStatusChanged(object? sender, EventArgs e)
+    private void OnDeepSeekStatusChanged()
     {
         _isDeepSeekPolling = true;
         UpdateTrayTooltip();

@@ -3,16 +3,23 @@ using Windows.Devices.Lights;
 using Windows.Devices.Lights.Effects;
 using Windows.UI;
 using Microsoft.Extensions.Logging;
-using NotifyRelay.Worker.Bridge;
 using NotifyRelay.Worker.Configuration;
 
 namespace NotifyRelay.Worker.Services;
+
+public class LampArrayDeviceDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
+    public bool IsAvailable { get; set; }
+    public int LampCount { get; set; }
+    public string Kind { get; set; } = string.Empty;
+}
 
 public class DynamicLightingService
 {
     private readonly ILogger _logger;
     private readonly WorkerConfiguration _config;
-    private readonly PipeServer _pipeServer;
     private DeviceWatcher? _deviceWatcher;
     private readonly List<LampArrayDeviceInfo> _attachedDevices = [];
     private readonly object _devicesLock = new();
@@ -25,6 +32,10 @@ public class DynamicLightingService
     private readonly Queue<Color> _colorWindow = new(5);
     private const int ColorWindowSize = 5;
     private ScreenColorAnalyzer? _screenColorAnalyzer;
+
+    public event Action<Color>? ColorChanged;
+    public event Action<Color>? CapturedColorChanged;
+    public event Action? DevicesChanged;
 
     public bool IsAutoRGBEnabled => _isAutoRGBEnabled;
     public Color CurrentColor => _currentColor;
@@ -39,11 +50,10 @@ public class DynamicLightingService
         }
     }
 
-    public DynamicLightingService(ILogger logger, WorkerConfiguration config, PipeServer pipeServer)
+    public DynamicLightingService(ILogger logger, WorkerConfiguration config)
     {
         _logger = logger;
         _config = config;
-        _pipeServer = pipeServer;
     }
 
     public void Initialize()
@@ -107,7 +117,7 @@ public class DynamicLightingService
             if (!_isAutoRGBEnabled)
             {
                 ApplyColorToDevices(color);
-                _ = NotifyColorChangedAsync(color);
+                NotifyColorChanged(color);
             }
         }
         catch { }
@@ -162,7 +172,7 @@ public class DynamicLightingService
                 deviceInfo.LampArray.SetColor(_currentColor);
             }
 
-            _ = NotifyDevicesChangedAsync();
+            NotifyDevicesChanged();
             _logger.LogInformation("LampArray added: {Name}", args.Name);
         }
         catch (Exception ex)
@@ -182,7 +192,7 @@ public class DynamicLightingService
                 _logger.LogInformation("LampArray removed: {Name}", device.Name);
             }
         }
-        _ = NotifyDevicesChangedAsync();
+        NotifyDevicesChanged();
     }
 
     private void LampArray_AvailabilityChanged(LampArray sender, object args)
@@ -193,7 +203,7 @@ public class DynamicLightingService
             if (device != null)
                 device.IsAvailable = sender.IsAvailable;
         }
-        _ = NotifyDevicesChangedAsync();
+        NotifyDevicesChanged();
     }
 
     public void ApplyColorToDevices(Color color)
@@ -349,7 +359,7 @@ public class DynamicLightingService
 
         ApplyColorToDevices(_manualColor);
         _currentColor = _manualColor;
-        _ = NotifyColorChangedAsync(_manualColor);
+        NotifyColorChanged(_manualColor);
     }
 
     private void ScreenColorAnalyzer_ColorChanged(object? sender, Color color)
@@ -378,7 +388,7 @@ public class DynamicLightingService
 
         _lastCapturedColor = avgColor;
         HandleAutoRGBColor(avgColor);
-        _ = NotifyCapturedColorChangedAsync(avgColor);
+        NotifyCapturedColorChanged(avgColor);
     }
 
     public void HandleAutoRGBColor(Color color)
@@ -387,56 +397,33 @@ public class DynamicLightingService
             ApplyColorToDevices(color);
     }
 
-    public List<object> GetDevices()
+    public List<LampArrayDeviceDto> GetDevices()
     {
         lock (_devicesLock)
         {
-            return _attachedDevices.Select(d => new
+            return _attachedDevices.Select(d => new LampArrayDeviceDto
             {
-                d.Id,
-                d.Name,
-                d.IsAvailable,
-                d.LampCount,
-                kind = d.Kind.ToString()
-            } as object).ToList();
-        }
-    }
-
-    private async Task NotifyColorChangedAsync(Color color)
-    {
-        await _pipeServer.SendEventAsync(IpcMessage.CreateEvent("lighting", "colorChanged", new
-        {
-            color = color.ToString(),
-            r = color.R,
-            g = color.G,
-            b = color.B
-        }));
-    }
-
-    private async Task NotifyCapturedColorChangedAsync(Color color)
-    {
-        await _pipeServer.SendEventAsync(IpcMessage.CreateEvent("lighting", "capturedColorChanged", new
-        {
-            color = color.ToString(),
-            r = color.R,
-            g = color.G,
-            b = color.B
-        }));
-    }
-
-    private async Task NotifyDevicesChangedAsync()
-    {
-        lock (_devicesLock)
-        {
-            var deviceList = _attachedDevices.Select(d => new
-            {
-                d.Id,
-                d.Name,
-                d.IsAvailable,
-                d.LampCount,
-                kind = d.Kind.ToString()
+                Id = d.Id,
+                Name = d.Name,
+                IsAvailable = d.IsAvailable,
+                LampCount = d.LampCount,
+                Kind = d.Kind.ToString()
             }).ToList();
-            _ = _pipeServer.SendEventAsync(IpcMessage.CreateEvent("lighting", "devicesChanged", new { devices = deviceList }));
         }
+    }
+
+    private void NotifyColorChanged(Color color)
+    {
+        ColorChanged?.Invoke(color);
+    }
+
+    private void NotifyCapturedColorChanged(Color color)
+    {
+        CapturedColorChanged?.Invoke(color);
+    }
+
+    private void NotifyDevicesChanged()
+    {
+        DevicesChanged?.Invoke();
     }
 }

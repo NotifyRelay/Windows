@@ -6,7 +6,7 @@
     xmlns:helpers="using:NotifyRelay.Helpers"
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
-    xmlns:models="using:NotifyRelay.Data.Models"
+    xmlns:worker="using:NotifyRelay.Worker.Services"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
@@ -88,7 +88,7 @@
                                 <ScrollViewer MaxHeight="200">
                                     <ItemsControl x:Name="MonitorsItemsControl" ItemsSource="{x:Bind ViewModel.AvailableMonitors, Mode=OneWay}">
                                         <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="models:MonitorInfo">
+                                            <DataTemplate x:DataType="worker:MonitorInfo">
                                                 <CheckBox Content="{x:Bind Name}" Tag="{x:Bind Id}" Checked="MonitorCheckBox_Checked" Unchecked="MonitorCheckBox_Unchecked"/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>

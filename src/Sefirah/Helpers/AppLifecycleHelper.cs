@@ -180,48 +180,30 @@ public static class AppLifecycleHelper
         );
         logger.LogInformation("步骤17：所有服务启动完成");
 
-        // 8. 连接 Worker 进程并推送配置
-        logger.LogInformation("步骤18：启动 Worker 进程...");
+        // 8. 初始化 Worker 服务配置
+        logger.LogInformation("步骤18：初始化 Worker 服务配置...");
         try
         {
-            var workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
-            await workerBridge.StartWorkerProcessAsync();
+            var config = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Configuration.WorkerConfiguration>();
+            var settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
 
-            // 等待 Worker 启动并连接管道
-            for (int i = 0; i < 60; i++)
-            {
-                await Task.Delay(500);
-                if (await workerBridge.ConnectAsync(TimeSpan.FromSeconds(2)))
-                {
-                    logger.LogInformation("步骤18：Worker 进程连接成功");
-                    break;
-                }
-            }
+            config.DeepSeekApiToken = settings.DeepSeekApiToken;
+            config.DeepSeekBalancePollingInterval = settings.DeepSeekBalancePollingInterval;
+            config.DeepSeekBalanceHistoryJson = settings.DeepSeekBalanceHistoryJson;
+            config.ControlMyMonitorPath = settings.ControlMyMonitorPath;
+            config.SelectedMonitors = settings.SelectedMonitors;
+            config.EnableMonitorBrightnessSync = settings.EnableMonitorBrightnessSync;
+            config.DynamicLightingBrightness = settings.DynamicLightingBrightness;
+            config.DynamicLightingColor = settings.DynamicLightingColor;
+            config.DynamicLightingEffect = settings.DynamicLightingEffect;
+            config.EnableAutoRGB = settings.EnableAutoRGB;
+            config.AutoRGBUpdateInterval = settings.AutoRGBUpdateInterval;
 
-            if (workerBridge.IsConnected)
-            {
-                var generalSettings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-                var config = new Dictionary<string, object?>
-                {
-                    ["deepSeekApiToken"] = generalSettings.DeepSeekApiToken,
-                    ["deepSeekBalancePollingInterval"] = generalSettings.DeepSeekBalancePollingInterval,
-                    ["deepSeekBalanceHistoryJson"] = generalSettings.DeepSeekBalanceHistoryJson,
-                    ["controlMyMonitorPath"] = generalSettings.ControlMyMonitorPath,
-                    ["selectedMonitors"] = generalSettings.SelectedMonitors,
-                    ["enableMonitorBrightnessSync"] = generalSettings.EnableMonitorBrightnessSync,
-                    ["dynamicLightingBrightness"] = generalSettings.DynamicLightingBrightness,
-                    ["dynamicLightingColor"] = generalSettings.DynamicLightingColor,
-                    ["dynamicLightingEffect"] = generalSettings.DynamicLightingEffect,
-                    ["enableAutoRGB"] = generalSettings.EnableAutoRGB,
-                    ["autoRGBUpdateInterval"] = generalSettings.AutoRGBUpdateInterval
-                };
-                await workerBridge.PushConfigAsync(config);
-                logger.LogInformation("步骤18：配置已推送至 Worker");
-            }
+            logger.LogInformation("步骤18：Worker 服务配置已初始化");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤18：启动 Worker 进程失败");
+            logger.LogError(ex, "步骤18：初始化 Worker 服务配置失败");
         }
 
         // 9. 初始化音频中继服务
@@ -328,8 +310,11 @@ public static class AppLifecycleHelper
                 // 7. 注册IDiscoveryService，它依赖INetworkService
                 .AddSingleton<IDiscoveryService, DiscoveryService>()
 
-                // Worker Bridge (IPC with Worker process)
-                .AddSingleton<IWorkerBridge, WorkerBridgeService>()
+                // Worker Services
+                .AddSingleton<NotifyRelay.Worker.Configuration.WorkerConfiguration>()
+                .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
+                .AddSingleton<NotifyRelay.Worker.Services.MonitorBrightnessService>()
+                .AddSingleton<NotifyRelay.Worker.Services.DynamicLightingService>()
 
                 // Audio Relay Service
                 .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()

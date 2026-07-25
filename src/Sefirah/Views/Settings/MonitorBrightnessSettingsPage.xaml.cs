@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
-using NotifyRelay.Data.Models;
+using NotifyRelay.Worker.Services;
 using Windows.Storage.Pickers;
 
 namespace NotifyRelay.Views.Settings;
@@ -141,7 +141,7 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 public class MonitorBrightnessViewModel
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly IWorkerBridge _workerBridge;
+    private readonly MonitorBrightnessService _brightnessService;
 
     public event EventHandler? SyncStatusChanged;
 
@@ -178,29 +178,27 @@ public class MonitorBrightnessViewModel
     public MonitorBrightnessViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
-        _workerBridge.BrightnessStatusChanged += (s, e) =>
+        _brightnessService = Ioc.Default.GetRequiredService<MonitorBrightnessService>();
+        _brightnessService.StatusChanged += () =>
         {
+            _isSyncEnabled = _brightnessService.IsRunning;
             SyncStatusChanged?.Invoke(this, EventArgs.Empty);
         };
     }
 
-    public async void LoadMonitors()
+    public void LoadMonitors()
     {
         try
         {
-            var result = await _workerBridge.SendCommandAsync<MonitorsResult>("brightness", "detectMonitors");
-            if (result?.Monitors != null)
-            {
-                AvailableMonitors.Clear();
-                foreach (var m in result.Monitors)
-                    AvailableMonitors.Add(m);
-            }
+            var monitors = _brightnessService.GetAvailableMonitors();
+            AvailableMonitors.Clear();
+            foreach (var m in monitors)
+                AvailableMonitors.Add(m);
         }
         catch { }
     }
 
-    public async void ToggleSync()
+    public void ToggleSync()
     {
         if (_isSyncEnabled)
             StopSync();
@@ -208,24 +206,19 @@ public class MonitorBrightnessViewModel
             StartSync();
     }
 
-    private async void StartSync()
+    private void StartSync()
     {
-        await _workerBridge.SendCommandAsync<object>("brightness", "startSync");
+        _brightnessService.StartSync();
         _generalSettingsService.EnableMonitorBrightnessSync = true;
         _isSyncEnabled = true;
         SyncStatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private async void StopSync()
+    private void StopSync()
     {
-        await _workerBridge.SendCommandAsync<object>("brightness", "stopSync");
+        _brightnessService.StopSync();
         _generalSettingsService.EnableMonitorBrightnessSync = false;
         _isSyncEnabled = false;
         SyncStatusChanged?.Invoke(this, EventArgs.Empty);
     }
-}
-
-public class MonitorsResult
-{
-    public List<MonitorInfo> Monitors { get; set; } = [];
 }

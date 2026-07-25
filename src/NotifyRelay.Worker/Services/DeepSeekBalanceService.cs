@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
-using NotifyRelay.Worker.Bridge;
 using NotifyRelay.Worker.Configuration;
 
 namespace NotifyRelay.Worker.Services;
@@ -18,21 +17,22 @@ public class DeepSeekBalanceService
 {
     private readonly ILogger _logger;
     private readonly WorkerConfiguration _config;
-    private readonly PipeServer _pipeServer;
     private readonly HttpClient _httpClient;
     private CancellationTokenSource? _pollingCts;
     private bool _isPolling;
     private const int MaxHistoryItems = 500;
 
+    public event Action<double>? BalanceUpdated;
+    public event Action? StatusChanged;
+
     public bool IsPolling => _isPolling;
     public double CurrentBalance { get; private set; }
     public List<BalanceHistoryItem> BalanceHistory { get; } = [];
 
-    public DeepSeekBalanceService(ILogger logger, WorkerConfiguration config, PipeServer pipeServer)
+    public DeepSeekBalanceService(ILogger logger, WorkerConfiguration config)
     {
         _logger = logger;
         _config = config;
-        _pipeServer = pipeServer;
         _httpClient = new HttpClient();
         _ = LoadHistoryAsync();
     }
@@ -69,6 +69,7 @@ public class DeepSeekBalanceService
                                 Balance = balance.Value
                             };
                             AddHistoryItem(item);
+                            BalanceUpdated?.Invoke(balance.Value);
                         }
                     }
                     catch (Exception ex)
@@ -84,7 +85,7 @@ public class DeepSeekBalanceService
                 }
             });
 
-            _ = NotifyStatusAsync();
+            StatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -104,7 +105,7 @@ public class DeepSeekBalanceService
             _pollingCts = null;
             _isPolling = false;
             _logger.LogInformation("DeepSeek balance polling stopped");
-            _ = NotifyStatusAsync();
+            StatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -308,14 +309,5 @@ public class DeepSeekBalanceService
         {
             _logger.LogError(ex, "Failed to save DeepSeek balance history");
         }
-    }
-
-    public async Task NotifyStatusAsync()
-    {
-        await _pipeServer.SendEventAsync(IpcMessage.CreateEvent("deepseek", "statusChanged", new
-        {
-            isPolling = _isPolling,
-            currentBalance = CurrentBalance
-        }));
     }
 }

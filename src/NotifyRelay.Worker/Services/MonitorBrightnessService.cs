@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Management;
 using System.Text;
 using Microsoft.Extensions.Logging;
-using NotifyRelay.Worker.Bridge;
 using NotifyRelay.Worker.Configuration;
 
 namespace NotifyRelay.Worker.Services;
@@ -18,18 +17,18 @@ public class MonitorBrightnessService
 {
     private readonly ILogger _logger;
     private readonly WorkerConfiguration _config;
-    private readonly PipeServer _pipeServer;
     private ManagementEventWatcher? _brightnessWatcher;
     private bool _isRunning;
     private List<MonitorInfo> _availableMonitors = [];
 
+    public event Action? StatusChanged;
+
     public bool IsRunning => _isRunning;
 
-    public MonitorBrightnessService(ILogger logger, WorkerConfiguration config, PipeServer pipeServer)
+    public MonitorBrightnessService(ILogger logger, WorkerConfiguration config)
     {
         _logger = logger;
         _config = config;
-        _pipeServer = pipeServer;
     }
 
     public void StartSync()
@@ -59,7 +58,7 @@ public class MonitorBrightnessService
 
             _isRunning = true;
             _logger.LogInformation("Monitor brightness sync started");
-            _ = NotifyStatusAsync();
+            StatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -76,7 +75,7 @@ public class MonitorBrightnessService
             StopBrightnessWatcher();
             _isRunning = false;
             _logger.LogInformation("Monitor brightness sync stopped");
-            _ = NotifyStatusAsync();
+            StatusChanged?.Invoke();
         }
         catch (Exception ex)
         {
@@ -346,14 +345,5 @@ public class MonitorBrightnessService
         {
             _logger.LogError(ex, "Failed to run ControlMyMonitor");
         }
-    }
-
-    private async Task NotifyStatusAsync()
-    {
-        await _pipeServer.SendEventAsync(IpcMessage.CreateEvent("brightness", "statusChanged", new
-        {
-            isRunning = _isRunning,
-            monitors = _availableMonitors
-        }));
     }
 }

@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
-using NotifyRelay.Data.Models;
+using NotifyRelay.Worker.Services;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -88,7 +88,7 @@ public sealed partial class DeepSeekBalanceSettingsPage : Page
 public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly IWorkerBridge _workerBridge;
+    private readonly DeepSeekBalanceService _deepSeekService;
 
     public event EventHandler? StatusChanged;
     public event EventHandler? HistoryChanged;
@@ -121,10 +121,10 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
+        _deepSeekService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
 
-        _workerBridge.DeepSeekStatusChanged += OnWorkerStatusChanged;
-        _workerBridge.DeepSeekBalanceUpdated += OnWorkerBalanceUpdated;
+        _deepSeekService.StatusChanged += OnServiceStatusChanged;
+        _deepSeekService.BalanceUpdated += OnServiceBalanceUpdated;
     }
 
     public void Initialize()
@@ -156,12 +156,7 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     {
         try
         {
-            var result = await _workerBridge.SendCommandAsync<FetchBalanceResult>("deepseek", "fetchBalance");
-            if (result != null)
-            {
-                _generalSettingsService.DeepSeekBalanceHistoryJson = null;
-                return result.Balance;
-            }
+            return await _deepSeekService.FetchBalanceAsync();
         }
         catch { }
         return null;
@@ -169,7 +164,7 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     public void ClearHistory()
     {
-        _ = _workerBridge.SendCommandAsync<object>("deepseek", "clearHistory");
+        _deepSeekService.ClearHistory();
         BalanceHistory.Clear();
         DisplayHistory.Clear();
         UpdateHistoryCountText();
@@ -178,11 +173,7 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     public void StartPolling()
     {
-        _ = _workerBridge.SendCommandAsync<object>("deepseek", "startPolling", new
-        {
-            token = _generalSettingsService.DeepSeekApiToken,
-            interval = _generalSettingsService.DeepSeekBalancePollingInterval
-        });
+        _deepSeekService.StartPolling();
         _generalSettingsService.EnableDeepSeekBalanceMonitor = true;
         IsEnabled = true;
         UpdateStatusText();
@@ -191,7 +182,7 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     public void StopPolling()
     {
-        _ = _workerBridge.SendCommandAsync<object>("deepseek", "stopPolling");
+        _deepSeekService.StopPolling();
         _generalSettingsService.EnableDeepSeekBalanceMonitor = false;
         IsEnabled = false;
         UpdateStatusText();
@@ -204,23 +195,30 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
         else StartPolling();
     }
 
-    private void OnWorkerStatusChanged(object? sender, EventArgs e)
+    private void OnServiceStatusChanged()
     {
-        IsEnabled = true;
+        IsEnabled = _deepSeekService.IsPolling;
         UpdateStatusText();
         StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    private void OnWorkerBalanceUpdated(object? sender, BalanceHistoryItem item)
+    private void OnServiceBalanceUpdated(double balance)
     {
-        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        lock (_deepSeekService.BalanceHistory)
         {
-            BalanceHistory.Add(item);
-            CurrentBalanceText = $"当前余额：{item.Balance:F2} CNY";
-            UpdateHistoryCountText();
-            UpdateDisplayHistory();
-            BalanceUpdated?.Invoke(this, item);
-        });
+            var last = _deepSeekService.BalanceHistory.LastOrDefault();
+            if (last != null)
+            {
+                App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+                {
+                    BalanceHistory.Add(last);
+                    CurrentBalanceText = $"当前余额：{last.Balance:F2} CNY";
+                    UpdateHistoryCountText();
+                    UpdateDisplayHistory();
+                    BalanceUpdated?.Invoke(this, last);
+                });
+            }
+        }
     }
 
     partial void OnIsEnabledChanged(bool value)
@@ -310,9 +308,4 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
                 DisplayHistory.Add(item);
         });
     }
-}
-
-public class FetchBalanceResult
-{
-    public double? Balance { get; set; }
 }

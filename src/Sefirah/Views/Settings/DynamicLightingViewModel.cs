@@ -6,13 +6,13 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Models;
+using NotifyRelay.Worker.Services;
 
 namespace NotifyRelay.Views.Settings;
 
 public class DynamicLightingViewModel : INotifyPropertyChanged
 {
-    private readonly IWorkerBridge _workerBridge;
+    private readonly DynamicLightingService _lightingService;
     private readonly IGeneralSettingsService _settingsService;
 
     private bool _isEnabled;
@@ -24,7 +24,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<LampArrayDeviceInfo> Devices { get; } = new();
+    public ObservableCollection<LampArrayDeviceDto> Devices { get; } = new();
 
     public bool IsEnabled
     {
@@ -38,9 +38,9 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(StatusText));
                 if (value)
-                    _ = _workerBridge.SendCommandAsync<object>("lighting", "initialize");
+                    _lightingService.Initialize();
                 else
-                    _ = _workerBridge.SendCommandAsync<object>("lighting", "cleanup");
+                    _lightingService.Cleanup();
             }
         }
     }
@@ -57,9 +57,9 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AutoRGBStatusText));
                 if (value)
-                    _ = _workerBridge.SendCommandAsync<object>("lighting", "startAutoRGB");
+                    _lightingService.StartAutoRGB();
                 else
-                    _ = _workerBridge.SendCommandAsync<object>("lighting", "stopAutoRGB");
+                    _lightingService.StopAutoRGB();
             }
         }
     }
@@ -75,7 +75,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 _settingsService.DynamicLightingBrightness = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(BrightnessText));
-                _ = _workerBridge.SendCommandAsync<object>("lighting", "setBrightness", new { brightness = value });
+                _lightingService.Brightness = value;
             }
         }
     }
@@ -124,11 +124,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CurrentColorBrush));
                 _settingsService.DynamicLightingColor = value.ToString();
-                _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
-                {
-                    color = value.ToString(),
-                    brightness = _brightness
-                });
+                _lightingService.SetColorFromString(value.ToString());
             }
         }
     }
@@ -164,14 +160,14 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     public DynamicLightingViewModel()
     {
-        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
+        _lightingService = Ioc.Default.GetRequiredService<DynamicLightingService>();
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
 
         LoadSettings();
 
-        _workerBridge.LightingDevicesChanged += OnDevicesChanged;
-        _workerBridge.LightingColorChanged += OnColorChanged;
-        _workerBridge.LightingCapturedColorChanged += OnCapturedColorChanged;
+        _lightingService.DevicesChanged += OnDevicesChanged;
+        _lightingService.ColorChanged += OnColorChanged;
+        _lightingService.CapturedColorChanged += OnCapturedColorChanged;
     }
 
     private void LoadSettings()
@@ -216,46 +212,38 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         }
     }
 
-    private void OnDevicesChanged(object? sender, EventArgs e)
+    private void OnDevicesChanged()
     {
         FetchDevices();
     }
 
-    private void OnColorChanged(object? sender, Color e)
+    private void OnColorChanged(Color e)
     {
         CurrentColor = e;
         _settingsService.DynamicLightingColor = e.ToString();
     }
 
-    private void OnCapturedColorChanged(object? sender, Color e)
+    private void OnCapturedColorChanged(Color e)
     {
         CurrentCapturedColor = e;
     }
 
-    private async void FetchDevices()
+    private void FetchDevices()
     {
         try
         {
-            var result = await _workerBridge.SendCommandAsync<LightingDevicesResult>("lighting", "getDevices");
-            if (result?.Devices != null)
+            var devices = _lightingService.GetDevices();
+            App.MainWindow.DispatcherQueue.TryEnqueue(() =>
             {
-                App.MainWindow.DispatcherQueue.TryEnqueue(() =>
-                {
-                    Devices.Clear();
-                    foreach (var d in result.Devices)
-                        Devices.Add(d);
-                    OnPropertyChanged(nameof(DeviceCountText));
-                    OnPropertyChanged(nameof(DeviceListDescription));
-                    OnPropertyChanged(nameof(HasNoDevices));
-                });
-            }
+                Devices.Clear();
+                foreach (var d in devices)
+                    Devices.Add(d);
+                OnPropertyChanged(nameof(DeviceCountText));
+                OnPropertyChanged(nameof(DeviceListDescription));
+                OnPropertyChanged(nameof(HasNoDevices));
+            });
         }
         catch { }
-    }
-
-    private class LightingDevicesResult
-    {
-        public List<LampArrayDeviceInfo> Devices { get; set; } = [];
     }
 
     private void ApplyEffect(int effectIndex)
@@ -263,15 +251,15 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         switch (effectIndex)
         {
             case 0:
-                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "none" });
+                _lightingService.StopAllEffects();
                 _settingsService.DynamicLightingEffect = null;
                 break;
             case 1:
-                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "rainbow" });
+                _lightingService.StartRainbowEffect();
                 _settingsService.DynamicLightingEffect = "Rainbow";
                 break;
             case 2:
-                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "blink" });
+                _lightingService.StartBlinkEffect(_currentColor);
                 _settingsService.DynamicLightingEffect = "Blink";
                 break;
         }
@@ -281,11 +269,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     {
         CurrentColor = color;
         _settingsService.DynamicLightingColor = color.ToString();
-        _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
-        {
-            color = color.ToString(),
-            brightness = _brightness
-        });
+        _lightingService.SetColorFromString(color.ToString());
     }
 
     public void StartEffect(int effectIndex)
@@ -301,11 +285,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     public void TurnOff()
     {
         if (_isAutoRGBEnabled) return;
-        _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
-        {
-            color = "#FF000000",
-            brightness = _brightness
-        });
+        _lightingService.ApplyColorToDevices(new Color { A = 255, R = 0, G = 0, B = 0 });
         CurrentColor = new Color { A = 255, R = 0, G = 0, B = 0 };
     }
 
