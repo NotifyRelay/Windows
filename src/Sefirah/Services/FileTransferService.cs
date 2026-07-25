@@ -9,8 +9,6 @@ using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
 using NotifyRelay.Utils.Serialization;
-using Uno.Logging;
-
 namespace NotifyRelay.Services;
 
 public class FileTransferService(

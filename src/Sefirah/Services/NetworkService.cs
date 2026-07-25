@@ -8,7 +8,6 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Native;
-using Uno.Logging;
 using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
 using NotifyRelay.Dialogs;

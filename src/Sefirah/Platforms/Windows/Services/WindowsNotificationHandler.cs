@@ -6,7 +6,6 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Extensions;
 using NotifyRelay.Services;
 using NotifyRelay.Utils;
-using Uno.Logging;
 using Windows.System;
 using static NotifyRelay.Constants;
 

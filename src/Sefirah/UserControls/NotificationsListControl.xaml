@@ -7,10 +7,8 @@
     xmlns:local="using:NotifyRelay.UserControls"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:NotifyRelay.Data.Models"
-    xmlns:utu="using:Uno.Toolkit.UI"
     xmlns:viewmodels="using:NotifyRelay.ViewModels"
     xmlns:wctconverters="using:CommunityToolkit.WinUI.Converters"
-    mc:Ignorable="utu"
     x:Name="UserControlRoot">
 
     <UserControl.Resources>

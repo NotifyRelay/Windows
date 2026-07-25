@@ -57,6 +57,11 @@ public sealed partial class MainPage : Page
         }
     }
 
+    private void PhoneFrameOverlay_Tapped(object sender, TappedRoutedEventArgs e)
+    {
+        ViewModel.StartScrcpyCommand.Execute(null);
+    }
+
     private void PhoneFrame_PointerEntered(object sender, PointerRoutedEventArgs e)
     {
         AnimateOverlay(PhoneFrameOverlay, true);

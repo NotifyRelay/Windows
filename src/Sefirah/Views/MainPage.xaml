@@ -8,13 +8,10 @@
     xmlns:local="using:NotifyRelay.Views"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:models="using:NotifyRelay.Data.Models"
-    xmlns:not_win="http://uno.ui/not_win"
     xmlns:userControls="using:NotifyRelay.UserControls"
-    xmlns:utu="using:Uno.Toolkit.UI"
     xmlns:viewmodels="using:NotifyRelay.ViewModels"
     xmlns:win="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     Background="{ThemeResource App.PageBackgroundBrush}"
-    mc:Ignorable="not_win"
     x:Name="PageRoot">
 
     <Page.Resources>
@@ -73,7 +70,7 @@
         <win:Grid Grid.Row="0">
             <userControls:TitleBar />
         </win:Grid>
-        <not_win:Grid Grid.Row="0" Height="8" />
+
         <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="360" />
@@ -145,7 +142,7 @@
                             x:Name="PhoneFrameOverlay"
                             Background="#80000000"
                             Opacity="0"
-                            utu:CommandExtensions.Command="{x:Bind ViewModel.StartScrcpyCommand}"
+                            Tapped="PhoneFrameOverlay_Tapped"
                             Visibility="Collapsed">
                             <FontIcon
                                 Foreground="White"

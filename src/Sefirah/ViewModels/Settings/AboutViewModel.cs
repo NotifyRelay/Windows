@@ -86,9 +86,6 @@ public partial class AboutViewModel : ObservableObject
         new("https://github.com/microsoft/microsoft-ui-xaml", "WinUI 3"),
         new("https://github.com/microsoft/WindowsAppSDK", "Windows App SDK"),
 
-        // Uno Platform
-        new("https://github.com/unoplatform/uno", "Uno Platform"),
-
         // Community Toolkit
         new("https://github.com/CommunityToolkit/dotnet", "CommunityToolkit.Mvvm"),
         new("https://github.com/CommunityToolkit/Windows", "CommunityToolkit.WinUI"),

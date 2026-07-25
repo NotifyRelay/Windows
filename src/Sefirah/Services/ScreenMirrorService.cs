@@ -6,7 +6,6 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
 using NotifyRelay.Extensions;
 using NotifyRelay.Utils;
-using Uno.Logging;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace NotifyRelay.Services;

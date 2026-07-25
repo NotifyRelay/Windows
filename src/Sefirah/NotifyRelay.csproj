@@ -1,9 +1,8 @@
-<Project Sdk="Uno.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <TargetFramework>net9.0-windows10.0.26100</TargetFramework>
 
-        <OutputType>Exe</OutputType>
-        <UnoSingleProject>true</UnoSingleProject>
+        <OutputType>WinExe</OutputType>
 
         <!-- Display name -->
         <ApplicationTitle>NotifyRelay</ApplicationTitle>
@@ -15,57 +14,16 @@
         <!-- Package Publisher -->
         <ApplicationPublisher>xzy-nien</ApplicationPublisher>
         <!-- Package Description -->
-        <Description>NotifyRelay powered by Uno Platform.</Description>
-        <!--
-            If you encounter this error message:
-
-            error NETSDK1148: A referenced assembly was compiled using a newer version of Microsoft.Windows.SDK.NET.dll.
-            Please update to a newer .NET SDK in order to reference this assembly.
-
-            This means that the two packages below must be aligned with the "build" version number of
-            the "Microsoft.Windows.SDK.BuildTools" package above, and the "revision" version number
-            must be the highest found in https://www.nuget.org/packages/Microsoft.Windows.SDK.NET.Ref.
-        -->
-        <!-- <WindowsSdkPackageVersion>10.0.22621.28</WindowsSdkPackageVersion> -->
-
-        <!--
-            UnoFeatures let's you quickly add and manage implicit package references based on the features you want to use.
-            https://aka.platform.uno/singleproject-features
-        -->
-        <UnoFeatures>
-            Lottie;
-            Hosting;
-            Toolkit;
-            Logging;
-            LoggingSerilog;
-            Mvvm;
-            Configuration;
-            Localization;
-            ThemeService;
-            SkiaRenderer;
-        </UnoFeatures>
+        <Description>NotifyRelay</Description>
         <Platforms>x64;ARM64;x86</Platforms>
         <LangVersion>Preview</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    </PropertyGroup>
-
-
-    <PropertyGroup Condition="'$(UapAppxPackageBuildMode)' == 'StoreUpload'">
-        <GenerateTemporaryStoreCertificate>True</GenerateTemporaryStoreCertificate>
-    </PropertyGroup>
-
-    <PropertyGroup Condition="'$(UapAppxPackageBuildMode)' == 'Sideloading'">
-        <GenerateTemporaryStoreCertificate>False</GenerateTemporaryStoreCertificate>
-        <AppxPackageSigningEnabled>True</AppxPackageSigningEnabled>
-        <PackageCertificateKeyFile>Sefirah_TemporaryKey.pfx</PackageCertificateKeyFile>
-        <PackageCertificateThumbprint>276047138A50F9695B57C0E0763E5A414C03B049</PackageCertificateThumbprint>
-    </PropertyGroup>
-
-    <PropertyGroup>
-        <UnoIconForegroundFile>Assets\Icons\icon_foreground.svg</UnoIconForegroundFile>
-        <UnoIconBackgroundColor Condition="'$(IsWinAppSdk)' == 'true'">Transparent</UnoIconBackgroundColor>
         <DefaultLanguage>zh-cn</DefaultLanguage>
         <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
+        <UseWinUI>true</UseWinUI>
+        <TargetPlatformMinVersion>10.0.17763.0</TargetPlatformMinVersion>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
@@ -104,7 +62,14 @@
         <PackageReference Include="Markdig" />
         <PackageReference Include="CommunityToolkit.WinUI.Converters" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
-        <PackageReference Include="H.NotifyIcon.Uno.WinUI" />
+        <PackageReference Include="H.NotifyIcon.WinUI" />
+        <PackageReference Include="Microsoft.WindowsAppSDK" />
+        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Localization" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.File" />
+        <PackageReference Include="WinUIEx" />
         <PackageReference Include="NAudio" />
         <PackageReference Include="NetCoreServer" />
         <PackageReference Include="sqlite-net-pcl" />
@@ -117,9 +82,15 @@
         <PackageReference Include="Vanara.PInvoke.Shell32" />
     </ItemGroup>
     <ItemGroup>
-        <UnoSplashScreen Update="Assets\Splash\splash_screen.svg">
+        <Content Include="Assets\Splash\splash_screen.svg">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </UnoSplashScreen>
+        </Content>
+        <Content Include="appsettings.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="appsettings.development.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
     </ItemGroup>
     <!-- 构建 Rust 原生库 -->
     <Target Name="BuildRustNative" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">

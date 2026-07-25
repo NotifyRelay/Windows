@@ -232,108 +232,116 @@ public static class AppLifecycleHelper
         }
     }
 
-    public static IApplicationBuilder ConfigureApp(this App app, LaunchActivatedEventArgs args)
+    public static IHost BuildHost()
     {
-        return app.CreateBuilder(args)
-            .Configure(host => host
+        return new HostBuilder()
+            .UseContentRoot(AppContext.BaseDirectory)
+            .ConfigureHostConfiguration(config =>
+            {
 #if DEBUG
-                .UseEnvironment(Environments.Development)
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Environment"] = Environments.Development
+                });
 #endif
-                .UseSerilog(
-                    consoleLoggingEnabled: true,
-                    fileLoggingEnabled: true,
-                    configureLogger: config =>
-                    {
-                        config
-                            .MinimumLevel.Debug()
-                            .WriteTo.File(
-                                Path.Combine(ApplicationData.Current.LocalFolder.Path, "Logs", "Log_.log"),
-                                rollingInterval: RollingInterval.Day,
-                                retainedFileCountLimit: 7
-                            );
-                    }
-                )
-                .UseConfiguration(configure: configBuilder =>
-                    configBuilder
-                        .EmbeddedSource<App>()
-                        .Section<AppConfig>()
-                )
-                .UseLocalization()
-                .ConfigureServices((context, services) => services
+            })
+            .ConfigureAppConfiguration((context, config) =>
+            {
+                config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
+                if (context.HostingEnvironment.IsDevelopment())
+                    config.AddJsonFile("appsettings.development.json", optional: true, reloadOnChange: false);
+            })
+            .ConfigureServices((context, services) =>
+            {
+                services.AddLocalization();
+                ConfigureServices(services);
+            })
+            .UseSerilog((context, config) =>
+            {
+                config
+                    .MinimumLevel.Debug()
+                    .WriteTo.File(
+                        Path.Combine(ApplicationData.Current.LocalFolder.Path, "Logs", "Log_.log"),
+                        rollingInterval: RollingInterval.Day,
+                        retainedFileCountLimit: 7
+                    );
+            })
+            .Build();
+    }
 
-                .AddSingleton<ILogger>(sp => sp.GetRequiredService<ILogger<App>>())
+    private static void ConfigureServices(IServiceCollection services)
+    {
+        services.AddSingleton<ILogger>(sp => sp.GetRequiredService<ILogger<App>>())
 
-                // Settings Services
-                .AddSingleton<IUserSettingsService, UserSettingsService>()
-                .AddSingleton<IGeneralSettingsService, GeneralSettingsService>(sp => new GeneralSettingsService(((UserSettingsService)sp.GetRequiredService<IUserSettingsService>()).GetSharingContext()))
+        // Settings Services
+        .AddSingleton<IUserSettingsService, UserSettingsService>()
+        .AddSingleton<IGeneralSettingsService, GeneralSettingsService>(sp => new GeneralSettingsService(((UserSettingsService)sp.GetRequiredService<IUserSettingsService>()).GetSharingContext()))
 
-                // Database and Repositories
-                .AddSingleton<DatabaseContext>()
-                .AddSingleton<DeviceRepository>()
-                .AddSingleton<RemoteAppRepository>()
-                .AddSingleton<NotificationRepository>()
-                .AddSingleton<FilterConfigRepository>()
+        // Database and Repositories
+        .AddSingleton<DatabaseContext>()
+        .AddSingleton<DeviceRepository>()
+        .AddSingleton<RemoteAppRepository>()
+        .AddSingleton<NotificationRepository>()
+        .AddSingleton<FilterConfigRepository>()
 
-                // Platform-specific services
-                .AddWindowsServices()
-                // Services
-                // 1. 首先注册基础服务
-                .AddSingleton<ISystemInfoService, SystemInfoService>()
-                .AddSingleton<IDeviceManager, DeviceManager>()
-                .AddSingleton<IAdbService, AdbService>()
-                .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
-                .AddSingleton<IFileTransferService, FileTransferService>()
-                .AddSingleton<IProtocolSender, ProtocolSender>()
-                .AddSingleton<IClipboardService, ClipboardService>()
-                .AddSingleton<IRemoteAppService, RemoteAppService>()
+        // Platform-specific services
+        .AddWindowsServices()
+        // Services
+        // 1. 首先注册基础服务
+        .AddSingleton<ISystemInfoService, SystemInfoService>()
+        .AddSingleton<IDeviceManager, DeviceManager>()
+        .AddSingleton<IAdbService, AdbService>()
+        .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
+        .AddSingleton<IFileTransferService, FileTransferService>()
+        .AddSingleton<IProtocolSender, ProtocolSender>()
+        .AddSingleton<IClipboardService, ClipboardService>()
+        .AddSingleton<IRemoteAppService, RemoteAppService>()
 
-                // 3. 注册ProtocolRouter
+        // 3. 注册ProtocolRouter
 #if WINDOWS
-                // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
-                .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
+        // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
+        .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
 #endif
-                .AddSingleton<ProtocolRouter>()
-                .AddSingleton<HeartbeatProcessor>()
+        .AddSingleton<ProtocolRouter>()
+        .AddSingleton<HeartbeatProcessor>()
 
-                // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
-                .AddSingleton<INetworkService, NetworkService>()
-                .AddSingleton<Func<INetworkService>>(sp => () => sp.GetRequiredService<INetworkService>())
+        // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
+        .AddSingleton<INetworkService, NetworkService>()
+        .AddSingleton<Func<INetworkService>>(sp => () => sp.GetRequiredService<INetworkService>())
 
-                // 5. 注册ISessionManager，由INetworkService实现
-                .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
+        // 5. 注册ISessionManager，由INetworkService实现
+        .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
 
-                // 6. 注册INotificationService，它依赖ISessionManager
-                .AddSingleton<INotificationService, NotificationService>()
-                .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
-                .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
+        // 6. 注册INotificationService，它依赖ISessionManager
+        .AddSingleton<INotificationService, NotificationService>()
+        .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
+        .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
 
-                // 注册通知过滤服务
-                .AddSingleton<BackendRemoteFilter>()
+        // 注册通知过滤服务
+        .AddSingleton<BackendRemoteFilter>()
 
-                // 注册其他需要的工厂
-                .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
-                .AddSingleton<Func<IRemoteAppService>>(sp => () => sp.GetRequiredService<IRemoteAppService>())
-                .AddSingleton<Func<IPlaybackService>>(sp => () => sp.GetRequiredService<IPlaybackService>())
+        // 注册其他需要的工厂
+        .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
+        .AddSingleton<Func<IRemoteAppService>>(sp => () => sp.GetRequiredService<IRemoteAppService>())
+        .AddSingleton<Func<IPlaybackService>>(sp => () => sp.GetRequiredService<IPlaybackService>())
 
-                // 7. 注册IDiscoveryService，它依赖INetworkService
-                .AddSingleton<IDiscoveryService, DiscoveryService>()
+        // 7. 注册IDiscoveryService，它依赖INetworkService
+        .AddSingleton<IDiscoveryService, DiscoveryService>()
 
-                // Worker Services
-                .AddSingleton<NotifyRelay.Worker.Configuration.WorkerConfiguration>()
-                .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
-                .AddSingleton<NotifyRelay.Worker.Services.MonitorBrightnessService>()
-                .AddSingleton<NotifyRelay.Worker.Services.DynamicLightingService>()
+        // Worker Services
+        .AddSingleton<NotifyRelay.Worker.Configuration.WorkerConfiguration>()
+        .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
+        .AddSingleton<NotifyRelay.Worker.Services.MonitorBrightnessService>()
+        .AddSingleton<NotifyRelay.Worker.Services.DynamicLightingService>()
 
-                // Audio Relay Service
-                .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
+        // Audio Relay Service
+        .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
 
-                // ViewModels
-                .AddSingleton<MainPageViewModel>()
-                .AddSingleton<DevicesViewModel>()
-                .AddSingleton<AppsViewModel>()
-                .AddSingleton<LocalNotificationHistoryViewModel>()
-                )
-            );
+        // ViewModels
+        .AddSingleton<MainPageViewModel>()
+        .AddSingleton<DevicesViewModel>()
+        .AddSingleton<AppsViewModel>()
+        .AddSingleton<LocalNotificationHistoryViewModel>();
     }
 
     /// <summary>

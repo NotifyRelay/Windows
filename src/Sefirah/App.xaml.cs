@@ -14,9 +14,6 @@ using Windows.ApplicationModel.Activation;
 using WinRT.Interop;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
 
-#if WINDOWS
-#endif
-
 namespace NotifyRelay;
 
 public partial class App : Application
@@ -42,25 +39,24 @@ public partial class App : Application
 
         async Task ActivateAsync()
         {
-            var builder = this.ConfigureApp(args);
-            MainWindow = builder.Window;
+            MainWindow = new Window
+            {
+                SystemBackdrop = new MicaBackdrop()
+            };
             MainWindow.AppWindow.Title = "NotifyRelay";
-            MainWindow.SetWindowIcon();
-#if WINDOWS
-            WindowHandle = WindowNative.GetWindowHandle(MainWindow);
             MainWindow.ExtendsContentIntoTitleBar = true;
-            MainWindow.SystemBackdrop = new MicaBackdrop();
-#endif
+            MainWindow.SetWindowIcon();
+            WindowHandle = WindowNative.GetWindowHandle(MainWindow);
 #if DEBUG
             MainWindow.UseStudio();
 #endif
-            Host = builder.Build();
+            var host = AppLifecycleHelper.BuildHost();
+            Host = host;
             Ioc.Default.ConfigureServices(Host.Services);
             await Host.StartAsync();
 
             bool isStartupTask = false;
-#if WINDOWS
-            var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
+            var appActivationArguments = AppInstance.GetCurrent().GetActivatedEventArgs();
             isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
 
             HookEventsForWindow();
@@ -70,7 +66,6 @@ public partial class App : Application
                 await AppLifecycleHelper.HandleStartupTaskAsync(true);
                 ApplicationData.Current.LocalSettings.Values["isStartupRegistered"] = true;
             }
-#endif
             var rootFrame = EnsureWindowIsInitialized();
             if (rootFrame is null)
                 return;
