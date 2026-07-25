@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
-using NotifyRelay.DeviceCtrl.DeepSeekBalance;
+using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -36,24 +36,12 @@ public sealed partial class DeepSeekBalanceSettingsPage : Page
     private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
     {
         if (Frame.CanGoBack)
-        {
             Frame.GoBack();
-        }
     }
 
-    private void OnStatusChanged(object? sender, EventArgs e)
-    {
-        UpdateStatusUI();
-    }
-
-    private void OnHistoryChanged(object? sender, EventArgs e)
-    {
-    }
-
-    private void OnBalanceUpdated(object? sender, BalanceHistoryItem e)
-    {
-        UpdateStatusUI();
-    }
+    private void OnStatusChanged(object? sender, EventArgs e) => UpdateStatusUI();
+    private void OnHistoryChanged(object? sender, EventArgs e) { }
+    private void OnBalanceUpdated(object? sender, BalanceHistoryItem e) => UpdateStatusUI();
 
     private void UpdateStatusUI()
     {
@@ -69,18 +57,12 @@ public sealed partial class DeepSeekBalanceSettingsPage : Page
         }
     }
 
-    private void SaveToken_Click(object sender, RoutedEventArgs e)
-    {
-        ViewModel.SaveToken();
-    }
+    private void SaveToken_Click(object sender, RoutedEventArgs e) => ViewModel.SaveToken();
 
     private async void FetchNow_Click(object sender, RoutedEventArgs e)
     {
         var balance = await ViewModel.FetchBalanceAsync();
-        if (balance.HasValue)
-        {
-            UpdateStatusUI();
-        }
+        if (balance.HasValue) UpdateStatusUI();
     }
 
     private async void ClearHistory_Click(object sender, RoutedEventArgs e)
@@ -99,23 +81,20 @@ public sealed partial class DeepSeekBalanceSettingsPage : Page
 
         var result = await dialog.ShowAsync();
         if (result == ContentDialogResult.Primary)
-        {
             ViewModel.ClearHistory();
-        }
     }
 }
 
 public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly DeepSeekBalanceService _balanceService;
+    private readonly IWorkerBridge _workerBridge;
 
     public event EventHandler? StatusChanged;
     public event EventHandler? HistoryChanged;
     public event EventHandler<BalanceHistoryItem>? BalanceUpdated;
 
-    public ObservableCollection<BalanceHistoryItem> BalanceHistory => _balanceService.BalanceHistory;
-
+    public ObservableCollection<BalanceHistoryItem> BalanceHistory { get; } = new();
     public ObservableCollection<BalanceHistoryItem> DisplayHistory { get; } = new();
 
     [ObservableProperty]
@@ -142,80 +121,69 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _balanceService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
-        _balanceService.HistoryChanged += OnHistoryChangedForDisplay;
+        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
+
+        _workerBridge.DeepSeekStatusChanged += OnWorkerStatusChanged;
+        _workerBridge.DeepSeekBalanceUpdated += OnWorkerBalanceUpdated;
     }
 
     public void Initialize()
     {
         ApiToken = _generalSettingsService.DeepSeekApiToken ?? string.Empty;
-        IsEnabled = _balanceService.IsPolling;
         SelectedIntervalIndex = GetIntervalIndex(_generalSettingsService.DeepSeekBalancePollingInterval);
         IsCollapsed = _generalSettingsService.DeepSeekBalanceHistoryCollapsed;
-        UpdateCurrentBalanceText();
-        UpdateHistoryCountText();
-        UpdateDisplayHistory();
     }
 
-    private int GetIntervalIndex(int intervalMs)
+    private int GetIntervalIndex(int intervalMs) => intervalMs switch
     {
-        return intervalMs switch
-        {
-            1000 => 0,
-            60000 => 1,
-            1800000 => 2,
-            86400000 => 3,
-            _ => 1
-        };
-    }
+        1000 => 0, 60000 => 1, 1800000 => 2, 86400000 => 3, _ => 1
+    };
 
-    private int GetIntervalMs(int index)
+    private int GetIntervalMs(int index) => index switch
     {
-        return index switch
-        {
-            0 => 1000,
-            1 => 60000,
-            2 => 1800000,
-            3 => 86400000,
-            _ => 60000
-        };
-    }
+        0 => 1000, 1 => 60000, 2 => 1800000, 3 => 86400000, _ => 60000
+    };
 
     partial void OnSelectedIntervalIndexChanged(int value)
     {
         _generalSettingsService.DeepSeekBalancePollingInterval = GetIntervalMs(value);
-        if (IsEnabled)
-        {
-            StopPolling();
-            StartPolling();
-        }
+        if (IsEnabled) TogglePolling();
     }
 
-    public void SaveToken()
-    {
-        _generalSettingsService.DeepSeekApiToken = ApiToken;
-    }
+    public void SaveToken() => _generalSettingsService.DeepSeekApiToken = ApiToken;
 
     public async Task<double?> FetchBalanceAsync()
     {
-        var balance = await _balanceService.FetchBalanceAsync();
-        if (balance.HasValue)
+        try
         {
-            UpdateCurrentBalanceText();
+            var result = await _workerBridge.SendCommandAsync<FetchBalanceResult>("deepseek", "fetchBalance");
+            if (result != null)
+            {
+                _generalSettingsService.DeepSeekBalanceHistoryJson = null;
+                return result.Balance;
+            }
         }
-        return balance;
+        catch { }
+        return null;
     }
 
     public void ClearHistory()
     {
-        _balanceService.ClearHistory();
+        _ = _workerBridge.SendCommandAsync<object>("deepseek", "clearHistory");
+        BalanceHistory.Clear();
+        DisplayHistory.Clear();
         UpdateHistoryCountText();
         HistoryChanged?.Invoke(this, EventArgs.Empty);
     }
 
     public void StartPolling()
     {
-        _balanceService.StartPolling();
+        _ = _workerBridge.SendCommandAsync<object>("deepseek", "startPolling", new
+        {
+            token = _generalSettingsService.DeepSeekApiToken,
+            interval = _generalSettingsService.DeepSeekBalancePollingInterval
+        });
+        _generalSettingsService.EnableDeepSeekBalanceMonitor = true;
         IsEnabled = true;
         UpdateStatusText();
         StatusChanged?.Invoke(this, EventArgs.Empty);
@@ -223,43 +191,53 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     public void StopPolling()
     {
-        _balanceService.StopPolling();
+        _ = _workerBridge.SendCommandAsync<object>("deepseek", "stopPolling");
+        _generalSettingsService.EnableDeepSeekBalanceMonitor = false;
         IsEnabled = false;
         UpdateStatusText();
         StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
+    public void TogglePolling()
+    {
+        if (IsEnabled) StopPolling();
+        else StartPolling();
+    }
+
+    private void OnWorkerStatusChanged(object? sender, EventArgs e)
+    {
+        IsEnabled = true;
+        UpdateStatusText();
+        StatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnWorkerBalanceUpdated(object? sender, BalanceHistoryItem item)
+    {
+        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        {
+            BalanceHistory.Add(item);
+            CurrentBalanceText = $"当前余额：{item.Balance:F2} CNY";
+            UpdateHistoryCountText();
+            UpdateDisplayHistory();
+            BalanceUpdated?.Invoke(this, item);
+        });
+    }
+
     partial void OnIsEnabledChanged(bool value)
     {
-        if (value && !_balanceService.IsPolling)
-        {
-            StartPolling();
-        }
-        else if (!value && _balanceService.IsPolling)
-        {
-            StopPolling();
-        }
+        if (value) StartPolling();
+        else StopPolling();
     }
 
-    private void UpdateCurrentBalanceText()
-    {
-        var balance = _balanceService.CurrentBalance;
-        CurrentBalanceText = $"当前余额：{balance:F2} CNY";
-    }
-
-    private void UpdateStatusText()
-    {
+    private void UpdateStatusText() =>
         StatusText = IsEnabled ? "状态：监控中" : "状态：已停止";
-    }
 
-    private void UpdateHistoryCountText()
-    {
-        var count = BalanceHistory.Count;
-        HistoryCountText = count > 0 ? $"共 {count} 条记录" : "暂无历史数据";
-    }
+    private void UpdateHistoryCountText() =>
+        HistoryCountText = BalanceHistory.Count > 0 ? $"共 {BalanceHistory.Count} 条记录" : "暂无历史数据";
 
-    private void OnHistoryChangedForDisplay(object? sender, EventArgs e)
+    partial void OnIsCollapsedChanged(bool value)
     {
+        _generalSettingsService.DeepSeekBalanceHistoryCollapsed = value;
         UpdateDisplayHistory();
     }
 
@@ -275,7 +253,6 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
             if (!isCollapsed)
             {
                 foreach (var item in currentItems)
-                {
                     result.Add(new BalanceHistoryItem
                     {
                         Time = item.Time,
@@ -284,7 +261,6 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
                         ChangeType = item.ChangeType,
                         MergeCount = 1
                     });
-                }
             }
             else
             {
@@ -322,10 +298,7 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
                         };
                     }
                 }
-                if (mergedItem != null)
-                {
-                    result.Add(mergedItem);
-                }
+                if (mergedItem != null) result.Add(mergedItem);
             }
             return result;
         });
@@ -334,15 +307,12 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
         {
             DisplayHistory.Clear();
             foreach (var item in processedItems)
-            {
                 DisplayHistory.Add(item);
-            }
         });
     }
+}
 
-    partial void OnIsCollapsedChanged(bool value)
-    {
-        _generalSettingsService.DeepSeekBalanceHistoryCollapsed = value;
-        UpdateDisplayHistory();
-    }
+public class FetchBalanceResult
+{
+    public double? Balance { get; set; }
 }

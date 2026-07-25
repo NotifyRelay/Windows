@@ -1,6 +1,9 @@
-using NotifyRelay.Data.Contracts;
+using System.Text.Json;
+using Microsoft.Extensions.Logging;
+using NotifyRelay.Worker.Bridge;
+using NotifyRelay.Worker.Configuration;
 
-namespace NotifyRelay.DeviceCtrl.DeepSeekBalance;
+namespace NotifyRelay.Worker.Services;
 
 public class BalanceHistoryItem
 {
@@ -13,42 +16,34 @@ public class BalanceHistoryItem
 
 public class DeepSeekBalanceService
 {
-    private readonly ILogger<DeepSeekBalanceService> _logger;
-    private readonly IGeneralSettingsService _generalSettingsService;
+    private readonly ILogger _logger;
+    private readonly WorkerConfiguration _config;
+    private readonly PipeServer _pipeServer;
     private readonly HttpClient _httpClient;
     private CancellationTokenSource? _pollingCts;
     private bool _isPolling;
     private const int MaxHistoryItems = 500;
 
-    public event EventHandler<BalanceHistoryItem>? BalanceUpdated;
-    public event EventHandler? StatusChanged;
-    public event EventHandler? HistoryChanged;
-
     public bool IsPolling => _isPolling;
-
-    public ObservableCollection<BalanceHistoryItem> BalanceHistory { get; } = new();
-
     public double CurrentBalance { get; private set; }
+    public List<BalanceHistoryItem> BalanceHistory { get; } = [];
 
-    public DeepSeekBalanceService(ILogger<DeepSeekBalanceService> logger, IGeneralSettingsService generalSettingsService)
+    public DeepSeekBalanceService(ILogger logger, WorkerConfiguration config, PipeServer pipeServer)
     {
         _logger = logger;
-        _generalSettingsService = generalSettingsService;
+        _config = config;
+        _pipeServer = pipeServer;
         _httpClient = new HttpClient();
         _ = LoadHistoryAsync();
     }
 
     public void StartPolling()
     {
-        if (_isPolling)
-        {
-            _logger.LogInformation("DeepSeek余额监控已经在运行");
-            return;
-        }
+        if (_isPolling) return;
 
-        if (string.IsNullOrEmpty(_generalSettingsService.DeepSeekApiToken))
+        if (string.IsNullOrEmpty(_config.DeepSeekApiToken))
         {
-            _logger.LogWarning("DeepSeek API Token未设置");
+            _logger.LogWarning("DeepSeek API Token not set");
             return;
         }
 
@@ -56,10 +51,9 @@ public class DeepSeekBalanceService
         {
             _pollingCts = new CancellationTokenSource();
             _isPolling = true;
-            _generalSettingsService.EnableDeepSeekBalanceMonitor = true;
-            _logger.LogInformation("DeepSeek余额监控已启动");
+            _logger.LogInformation("DeepSeek balance polling started");
 
-            Task.Run(async () =>
+            _ = Task.Run(async () =>
             {
                 while (!_pollingCts.Token.IsCancellationRequested)
                 {
@@ -69,50 +63,39 @@ public class DeepSeekBalanceService
                         if (balance.HasValue)
                         {
                             CurrentBalance = balance.Value;
-                            AddHistoryItem(new BalanceHistoryItem
+                            var item = new BalanceHistoryItem
                             {
                                 Time = DateTime.Now,
                                 Balance = balance.Value
-                            });
-                            BalanceUpdated?.Invoke(this, new BalanceHistoryItem
-                            {
-                                Time = DateTime.Now,
-                                Balance = balance.Value
-                            });
+                            };
+                            AddHistoryItem(item);
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "获取DeepSeek余额失败");
+                        _logger.LogError(ex, "Failed to fetch DeepSeek balance");
                     }
 
                     try
                     {
-                        await Task.Delay(_generalSettingsService.DeepSeekBalancePollingInterval, _pollingCts.Token);
+                        await Task.Delay(_config.DeepSeekBalancePollingInterval, _pollingCts.Token);
                     }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
+                    catch (TaskCanceledException) { break; }
                 }
             });
 
-            StatusChanged?.Invoke(this, EventArgs.Empty);
+            _ = NotifyStatusAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "启动DeepSeek余额监控失败");
+            _logger.LogError(ex, "Failed to start DeepSeek balance polling");
             _isPolling = false;
         }
     }
 
     public void StopPolling()
     {
-        if (!_isPolling)
-        {
-            _logger.LogInformation("DeepSeek余额监控未运行");
-            return;
-        }
+        if (!_isPolling) return;
 
         try
         {
@@ -120,24 +103,19 @@ public class DeepSeekBalanceService
             _pollingCts?.Dispose();
             _pollingCts = null;
             _isPolling = false;
-            _generalSettingsService.EnableDeepSeekBalanceMonitor = false;
-            _logger.LogInformation("DeepSeek余额监控已停止");
-            StatusChanged?.Invoke(this, EventArgs.Empty);
+            _logger.LogInformation("DeepSeek balance polling stopped");
+            _ = NotifyStatusAsync();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "停止DeepSeek余额监控失败");
+            _logger.LogError(ex, "Failed to stop DeepSeek balance polling");
         }
     }
 
     public async Task<double?> FetchBalanceAsync()
     {
-        var token = _generalSettingsService.DeepSeekApiToken;
-        if (string.IsNullOrEmpty(token))
-        {
-            _logger.LogWarning("DeepSeek API Token未设置");
-            return null;
-        }
+        var token = _config.DeepSeekApiToken;
+        if (string.IsNullOrEmpty(token)) return null;
 
         try
         {
@@ -148,7 +126,7 @@ public class DeepSeekBalanceService
             var response = await _httpClient.SendAsync(request);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogError($"DeepSeek API返回错误: {response.StatusCode}");
+                _logger.LogError("DeepSeek API returned {StatusCode}", response.StatusCode);
                 return null;
             }
 
@@ -158,7 +136,7 @@ public class DeepSeekBalanceService
             if (doc.RootElement.TryGetProperty("is_available", out var isAvailable) &&
                 isAvailable.ValueKind == JsonValueKind.False)
             {
-                _logger.LogWarning("DeepSeek账户当前没有可用余额");
+                _logger.LogWarning("DeepSeek account has no available balance");
                 return 0;
             }
 
@@ -169,55 +147,43 @@ public class DeepSeekBalanceService
                 foreach (var balanceInfo in balanceInfos.EnumerateArray())
                 {
                     if (balanceInfo.TryGetProperty("currency", out var currency) &&
-                        currency.GetString() == "CNY")
+                        currency.GetString() == "CNY" &&
+                        balanceInfo.TryGetProperty("total_balance", out var totalBalance))
                     {
-                        if (balanceInfo.TryGetProperty("total_balance", out var totalBalance))
-                        {
-                            return ParseBalance(totalBalance);
-                        }
+                        return ParseBalance(totalBalance);
                     }
                 }
 
                 var firstBalance = balanceInfos[0];
                 if (firstBalance.TryGetProperty("total_balance", out var firstTotalBalance))
-                {
                     return ParseBalance(firstTotalBalance);
-                }
             }
 
-            _logger.LogWarning("无法解析DeepSeek余额响应: {Json}", json);
+            _logger.LogWarning("Failed to parse DeepSeek balance response: {Json}", json);
             return null;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "获取DeepSeek余额失败");
+            _logger.LogError(ex, "Failed to fetch DeepSeek balance");
             return null;
         }
     }
 
-    private double? ParseBalance(JsonElement element)
+    private static double? ParseBalance(JsonElement element)
     {
         if (element.ValueKind == JsonValueKind.Number)
-        {
             return element.GetDouble();
-        }
-        else if (element.ValueKind == JsonValueKind.String)
-        {
-            var balanceStr = element.GetString();
-            if (double.TryParse(balanceStr, out var balance))
-            {
-                return balance;
-            }
-        }
+        if (element.ValueKind == JsonValueKind.String &&
+            double.TryParse(element.GetString(), out var balance))
+            return balance;
         return null;
     }
 
     private void AddHistoryItem(BalanceHistoryItem item)
     {
-        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        lock (BalanceHistory)
         {
             var last = BalanceHistory.LastOrDefault();
-
             if (last != null && Math.Abs(last.Balance - item.Balance) < 0.0001)
             {
                 last.Time = item.Time;
@@ -227,34 +193,30 @@ public class DeepSeekBalanceService
                 if (last != null)
                 {
                     item.Change = item.Balance - last.Balance;
-                    item.ChangeType = item.Change > 0 ? "增加" : item.Change < 0 ? "减少" : "不变";
+                    item.ChangeType = item.Change > 0 ? "+" : item.Change < 0 ? "-" : "=";
                 }
                 else
                 {
                     item.Change = 0;
-                    item.ChangeType = "初始";
+                    item.ChangeType = "init";
                 }
                 BalanceHistory.Add(item);
             }
 
             while (BalanceHistory.Count > MaxHistoryItems)
-            {
                 MergeOldestConsecutiveItems();
-            }
+        }
 
-            SaveHistory();
-            HistoryChanged?.Invoke(this, EventArgs.Empty);
-        });
+        SaveHistory();
     }
 
     private void MergeOldestConsecutiveItems()
     {
-        if (BalanceHistory.Count < 2)
-            return;
+        if (BalanceHistory.Count < 2) return;
 
         int mergeCount = BalanceHistory.Count - MaxHistoryItems + 1;
-
         int startIndex = 0;
+
         while (startIndex < BalanceHistory.Count - 1 && mergeCount > 0)
         {
             int endIndex = startIndex;
@@ -262,9 +224,7 @@ public class DeepSeekBalanceService
 
             while (endIndex < BalanceHistory.Count &&
                    BalanceHistory[endIndex].ChangeType == currentType)
-            {
                 endIndex++;
-            }
 
             int consecutiveCount = endIndex - startIndex;
             if (consecutiveCount >= 2)
@@ -287,69 +247,51 @@ public class DeepSeekBalanceService
                 };
 
                 for (int i = endIndex - 1; i >= startIndex; i--)
-                {
                     BalanceHistory.RemoveAt(i);
-                }
                 BalanceHistory.Insert(startIndex, mergedItem);
 
                 mergeCount -= consecutiveCount - 1;
-                if (mergeCount <= 0)
-                    break;
+                if (mergeCount <= 0) break;
             }
-
             startIndex++;
         }
 
         if (mergeCount > 0 && BalanceHistory.Count > MaxHistoryItems)
-        {
             BalanceHistory.RemoveAt(0);
-        }
     }
 
     public void ClearHistory()
     {
-        App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+        lock (BalanceHistory)
         {
             BalanceHistory.Clear();
-            SaveHistory();
-            HistoryChanged?.Invoke(this, EventArgs.Empty);
-        });
+        }
+        SaveHistory();
     }
 
     private async Task LoadHistoryAsync()
     {
         try
         {
-            var json = _generalSettingsService.DeepSeekBalanceHistoryJson;
+            var json = _config.DeepSeekBalanceHistoryJson;
             if (string.IsNullOrEmpty(json)) return;
 
-            List<BalanceHistoryItem>? items = null;
-            await Task.Run(() =>
-            {
-                items = JsonSerializer.Deserialize<List<BalanceHistoryItem>>(json);
-            });
-
+            var items = JsonSerializer.Deserialize<List<BalanceHistoryItem>>(json);
             if (items != null)
             {
-                var orderedItems = items.OrderBy(x => x.Time).ToList();
-                App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+                lock (BalanceHistory)
                 {
                     BalanceHistory.Clear();
-                    foreach (var item in orderedItems)
-                    {
+                    foreach (var item in items.OrderBy(x => x.Time))
                         BalanceHistory.Add(item);
-                    }
                     if (BalanceHistory.Count > 0)
-                    {
                         CurrentBalance = BalanceHistory.Last().Balance;
-                    }
-                    HistoryChanged?.Invoke(this, EventArgs.Empty);
-                });
+                }
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "加载DeepSeek余额历史失败");
+            _logger.LogError(ex, "Failed to load DeepSeek balance history");
         }
     }
 
@@ -357,20 +299,23 @@ public class DeepSeekBalanceService
     {
         try
         {
-            var json = JsonSerializer.Serialize(BalanceHistory.ToList());
-            _generalSettingsService.DeepSeekBalanceHistoryJson = json;
+            lock (BalanceHistory)
+            {
+                _config.DeepSeekBalanceHistoryJson = JsonSerializer.Serialize(BalanceHistory.ToList());
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "保存DeepSeek余额历史失败");
+            _logger.LogError(ex, "Failed to save DeepSeek balance history");
         }
     }
 
-    public void TogglePolling()
+    public async Task NotifyStatusAsync()
     {
-        if (_isPolling)
-            StopPolling();
-        else
-            StartPolling();
+        await _pipeServer.SendEventAsync(IpcMessage.CreateEvent("deepseek", "statusChanged", new
+        {
+            isPolling = _isPolling,
+            currentBalance = CurrentBalance
+        }));
     }
 }

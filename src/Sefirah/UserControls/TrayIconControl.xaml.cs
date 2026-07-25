@@ -5,7 +5,6 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
-using NotifyRelay.DeviceCtrl.DeepSeekBalance;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
 #endif
@@ -16,9 +15,11 @@ namespace NotifyRelay.UserControls;
 public sealed partial class TrayIconControl : UserControl, INotifyPropertyChanged
 {
     private readonly UISettings uiSettings = new();
+    private double _currentDeepSeekBalance;
+    private bool _isDeepSeekPolling;
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private DeepSeekBalanceService DeepSeekBalanceService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
+    private IWorkerBridge WorkerBridge { get; } = Ioc.Default.GetRequiredService<IWorkerBridge>();
     private IGeneralSettingsService GeneralSettingsService { get; } = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
     private AudioRelayService AudioRelayService { get; } = Ioc.Default.GetRequiredService<AudioRelayService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
@@ -54,12 +55,21 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
         UpdateTrayIcon(uiSettings);
         uiSettings.ColorValuesChanged += UpdateTrayIcon;
 
-        DeepSeekBalanceService.BalanceUpdated += OnBalanceUpdated;
+        WorkerBridge.DeepSeekBalanceUpdated += OnBalanceUpdated;
+        WorkerBridge.DeepSeekStatusChanged += OnDeepSeekStatusChanged;
         UpdateTrayTooltip();
     }
 
-    private void OnBalanceUpdated(object? sender, BalanceHistoryItem e)
+    private void OnBalanceUpdated(object? sender, NotifyRelay.Data.Models.BalanceHistoryItem e)
     {
+        _currentDeepSeekBalance = e.Balance;
+        _isDeepSeekPolling = true;
+        UpdateTrayTooltip();
+    }
+
+    private void OnDeepSeekStatusChanged(object? sender, EventArgs e)
+    {
+        _isDeepSeekPolling = true;
         UpdateTrayTooltip();
     }
 
@@ -69,9 +79,9 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
         {
             var tooltip = "NotifyRelay";
 
-            if (DeepSeekBalanceService.IsPolling && DeepSeekBalanceService.CurrentBalance > 0)
+            if (_isDeepSeekPolling && _currentDeepSeekBalance > 0)
             {
-                tooltip = $"NotifyRelay\nDeepSeek 余额: ¥{DeepSeekBalanceService.CurrentBalance:F2}";
+                tooltip = $"NotifyRelay\nDeepSeek 余额: ¥{_currentDeepSeekBalance:F2}";
             }
 
             _ = DispatcherQueue.EnqueueAsync(() => TrayIcon.ToolTipText = tooltip);

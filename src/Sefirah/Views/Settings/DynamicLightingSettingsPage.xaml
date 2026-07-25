@@ -6,7 +6,7 @@
     xmlns:helpers="using:NotifyRelay.Helpers"
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
-    xmlns:dev="using:NotifyRelay.DeviceCtrl.DynamicLighting"
+    xmlns:models="using:NotifyRelay.Data.Models"
     xmlns:converters="using:NotifyRelay.Converters"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
@@ -55,7 +55,7 @@
                 <StackPanel Spacing="4">
                     <ListView x:Name="DeviceListView" ItemsSource="{x:Bind ViewModel.Devices, Mode=OneWay}" IsItemClickEnabled="False" SelectionMode="None">
                         <ListView.ItemTemplate>
-                            <DataTemplate x:DataType="dev:LampArrayDeviceInfo">
+                            <DataTemplate x:DataType="models:LampArrayDeviceInfo">
                                 <Grid ColumnDefinitions="Auto, *, Auto">
                                     <FontIcon Grid.Column="0" Glyph="{x:Bind Kind, Mode=OneWay, Converter={StaticResource LampArrayKindToGlyphConverter}}" Margin="0,0,8,0" />
                                     <StackPanel Grid.Column="1">

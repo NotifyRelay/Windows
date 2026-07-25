@@ -1,4 +1,4 @@
-namespace NotifyRelay.DeviceCtrl.DynamicLighting;
+namespace NotifyRelay.Worker.Services;
 
 public static class ShaderDefines
 {

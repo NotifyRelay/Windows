@@ -180,73 +180,60 @@ public static class AppLifecycleHelper
         );
         logger.LogInformation("步骤17：所有服务启动完成");
 
-        // 8. 初始化显示器亮度同步服务
-        logger.LogInformation("步骤18：初始化显示器亮度同步服务...");
+        // 8. 连接 Worker 进程并推送配置
+        logger.LogInformation("步骤18：启动 Worker 进程...");
         try
         {
-            var monitorBrightnessService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorBrightnessService>();
-            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+            var workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
+            await workerBridge.StartWorkerProcessAsync();
 
-            if (generalSettingsService.EnableMonitorBrightnessSync && !string.IsNullOrEmpty(generalSettingsService.ControlMyMonitorPath) && File.Exists(generalSettingsService.ControlMyMonitorPath))
+            // 等待 Worker 启动并连接管道
+            for (int i = 0; i < 30; i++)
             {
-                monitorBrightnessService.StartSync();
-                logger.LogInformation("步骤18：显示器亮度同步服务启动成功");
+                await Task.Delay(200);
+                if (await workerBridge.ConnectAsync(TimeSpan.FromSeconds(1)))
+                {
+                    logger.LogInformation("步骤18：Worker 进程连接成功");
+                    break;
+                }
             }
-            else
+
+            if (workerBridge.IsConnected)
             {
-                logger.LogInformation("步骤18：显示器亮度同步服务未启用或配置不完整");
+                var generalSettings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+                var config = new Dictionary<string, object?>
+                {
+                    ["deepSeekApiToken"] = generalSettings.DeepSeekApiToken,
+                    ["deepSeekBalancePollingInterval"] = generalSettings.DeepSeekBalancePollingInterval,
+                    ["deepSeekBalanceHistoryJson"] = generalSettings.DeepSeekBalanceHistoryJson,
+                    ["controlMyMonitorPath"] = generalSettings.ControlMyMonitorPath,
+                    ["selectedMonitors"] = generalSettings.SelectedMonitors,
+                    ["enableMonitorBrightnessSync"] = generalSettings.EnableMonitorBrightnessSync,
+                    ["dynamicLightingBrightness"] = generalSettings.DynamicLightingBrightness,
+                    ["dynamicLightingColor"] = generalSettings.DynamicLightingColor,
+                    ["dynamicLightingEffect"] = generalSettings.DynamicLightingEffect,
+                    ["enableAutoRGB"] = generalSettings.EnableAutoRGB,
+                    ["autoRGBUpdateInterval"] = generalSettings.AutoRGBUpdateInterval
+                };
+                await workerBridge.PushConfigAsync(config);
+                logger.LogInformation("步骤18：配置已推送至 Worker");
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤18：初始化显示器亮度同步服务失败");
+            logger.LogError(ex, "步骤18：启动 Worker 进程失败");
         }
 
-        // 9. 初始化 DeepSeek 余额监控服务
-        logger.LogInformation("步骤19：初始化 DeepSeek 余额监控服务...");
-        try
-        {
-            var deepSeekBalanceService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>();
-            var generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-
-            if (generalSettingsService.EnableDeepSeekBalanceMonitor && !string.IsNullOrEmpty(generalSettingsService.DeepSeekApiToken))
-            {
-                deepSeekBalanceService.StartPolling();
-                logger.LogInformation("步骤19：DeepSeek 余额监控服务启动成功");
-            }
-            else
-            {
-                logger.LogInformation("步骤19：DeepSeek 余额监控服务未启用或未配置 Token");
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "步骤19：初始化 DeepSeek 余额监控服务失败");
-        }
-
-// 10. 初始化动态光效服务
-        logger.LogInformation("步骤19：初始化动态光效服务...");
-        try
-        {
-            var dynamicLightingService = Ioc.Default.GetRequiredService<NotifyRelay.DeviceCtrl.DynamicLighting.DynamicLightingService>();
-            dynamicLightingService.Initialize();
-            logger.LogInformation("步骤19：动态光效服务初始化完成");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "步骤19：初始化动态光效服务失败");
-        }
-
-        // 11. 初始化音频中继服务
-        logger.LogInformation("步骤20：初始化音频中继服务...");
+        // 9. 初始化音频中继服务
+        logger.LogInformation("步骤19：初始化音频中继服务...");
         try
         {
             var audioRelayService = Ioc.Default.GetRequiredService<DeviceCtrl.AudioRelay.AudioRelayService>();
-            logger.LogInformation("步骤20：音频中继服务已就绪");
+            logger.LogInformation("步骤19：音频中继服务已就绪");
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "步骤20：初始化音频中继服务失败");
+            logger.LogError(ex, "步骤19：初始化音频中继服务失败");
         }
 
         // 12. 完成初始化，关闭启动画面
@@ -341,14 +328,8 @@ public static class AppLifecycleHelper
                 // 7. 注册IDiscoveryService，它依赖INetworkService
                 .AddSingleton<IDiscoveryService, DiscoveryService>()
 
-                // Monitor Brightness Service
-                .AddSingleton<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorBrightnessService>()
-
-                // DeepSeek Balance Service
-                .AddSingleton<NotifyRelay.DeviceCtrl.DeepSeekBalance.DeepSeekBalanceService>()
-
-// Dynamic Lighting Service
-                .AddSingleton<NotifyRelay.DeviceCtrl.DynamicLighting.DynamicLightingService>()
+                // Worker Bridge (IPC with Worker process)
+                .AddSingleton<IWorkerBridge, WorkerBridgeService>()
 
                 // Audio Relay Service
                 .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()

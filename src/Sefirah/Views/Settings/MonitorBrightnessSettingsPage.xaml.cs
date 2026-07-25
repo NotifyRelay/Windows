@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
-using NotifyRelay.DeviceCtrl.MonitorBrightness;
+using NotifyRelay.Data.Models;
 using Windows.Storage.Pickers;
 
 namespace NotifyRelay.Views.Settings;
@@ -35,20 +35,10 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
     private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
     {
-        var items = BreadcrumbBar.ItemsSource as ObservableCollection<BreadcrumbBarItemModel>;
-        var clickedItem = items?[args.Index];
-
-        // Navigate back if needed
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+        if (Frame.CanGoBack) Frame.GoBack();
     }
 
-    private void OnSyncStatusChanged(object? sender, EventArgs e)
-    {
-        UpdateSyncStatusUI();
-    }
+    private void OnSyncStatusChanged(object? sender, EventArgs e) => UpdateSyncStatusUI();
 
     private void UpdateSyncStatusUI()
     {
@@ -75,30 +65,20 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
         var file = await openPicker.PickSingleFileAsync();
         if (file != null)
-        {
             ViewModel.ControlMyMonitorPath = file.Path;
-        }
     }
 
-
-
-    private void InitializeMonitorSelections()
-    {
-        UpdateMonitorsButtonContent();
-    }
+    private void InitializeMonitorSelections() => UpdateMonitorsButtonContent();
 
     private void MonitorsFlyout_Opened(object sender, object e)
     {
-        // Initialize checkbox states when flyout opens
         var selected = ViewModel.SelectedMonitors ?? new List<string>();
         bool treatAll = !selected.Any() || selected.Contains("All");
 
         foreach (var cb in FindVisualChildren<CheckBox>(MonitorsItemsControl))
         {
             if (cb.Tag is string id)
-            {
                 cb.IsChecked = treatAll || selected.Contains(id);
-            }
         }
     }
 
@@ -135,8 +115,7 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
         var names = ViewModel.AvailableMonitors
             .Where(m => selected.Contains(m.Id))
-            .Select(m => m.Name)
-            .ToList();
+            .Select(m => m.Name).ToList();
         MonitorsDropdownButton.Content = names.Any() ? string.Join(", ", names) : "All";
     }
 
@@ -162,22 +141,21 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 public class MonitorBrightnessViewModel
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly MonitorBrightnessService _monitorBrightnessService;
+    private readonly IWorkerBridge _workerBridge;
 
     public event EventHandler? SyncStatusChanged;
+
+    private bool _isSyncEnabled;
 
     public string ControlMyMonitorPath
     {
         get => _generalSettingsService.ControlMyMonitorPath ?? string.Empty;
-        set
-        {
-            _generalSettingsService.ControlMyMonitorPath = value;
-        }
+        set => _generalSettingsService.ControlMyMonitorPath = value;
     }
 
-    public bool IsSyncEnabled => _monitorBrightnessService.IsRunning;
+    public bool IsSyncEnabled => _isSyncEnabled;
 
-    public ObservableCollection<NotifyRelay.DeviceCtrl.MonitorBrightness.MonitorInfo> AvailableMonitors { get; private set; } = new();
+    public ObservableCollection<MonitorInfo> AvailableMonitors { get; } = new();
 
     public List<string> SelectedMonitors
     {
@@ -187,46 +165,67 @@ public class MonitorBrightnessViewModel
 
     public bool SyncEnabled
     {
-        get => _monitorBrightnessService.IsRunning;
+        get => _isSyncEnabled;
         set
         {
-            if (value && !_monitorBrightnessService.IsRunning)
-            {
-                _monitorBrightnessService.StartSync();
-            }
-            else if (!value && _monitorBrightnessService.IsRunning)
-            {
-                _monitorBrightnessService.StopSync();
-            }
+            if (value && !_isSyncEnabled)
+                StartSync();
+            else if (!value && _isSyncEnabled)
+                StopSync();
         }
     }
 
     public MonitorBrightnessViewModel()
     {
-        _generalSettingsService = Ioc.Default.GetService<IGeneralSettingsService>()!;
-        _monitorBrightnessService = Ioc.Default.GetService<MonitorBrightnessService>()!;
-        _monitorBrightnessService.StatusChanged += (s, e) => SyncStatusChanged?.Invoke(this, EventArgs.Empty);
+        _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
+        _workerBridge.BrightnessStatusChanged += (s, e) =>
+        {
+            SyncStatusChanged?.Invoke(this, EventArgs.Empty);
+        };
     }
 
-    public void LoadMonitors()
+    public async void LoadMonitors()
     {
-        var monitors = _monitorBrightnessService.GetAvailableMonitors();
-        AvailableMonitors.Clear();
-        foreach (var monitor in monitors)
+        try
         {
-            AvailableMonitors.Add(monitor);
+            var result = await _workerBridge.SendCommandAsync<MonitorsResult>("brightness", "detectMonitors");
+            if (result?.Monitors != null)
+            {
+                AvailableMonitors.Clear();
+                foreach (var m in result.Monitors)
+                    AvailableMonitors.Add(m);
+            }
         }
+        catch { }
     }
 
-    public void ToggleSync()
+    public async void ToggleSync()
     {
-        if (_monitorBrightnessService.IsRunning)
-        {
-            _monitorBrightnessService.StopSync();
-        }
+        if (_isSyncEnabled)
+            StopSync();
         else
-        {
-            _monitorBrightnessService.StartSync();
-        }
+            StartSync();
     }
+
+    private async void StartSync()
+    {
+        await _workerBridge.SendCommandAsync<object>("brightness", "startSync");
+        _generalSettingsService.EnableMonitorBrightnessSync = true;
+        _isSyncEnabled = true;
+        SyncStatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    private async void StopSync()
+    {
+        await _workerBridge.SendCommandAsync<object>("brightness", "stopSync");
+        _generalSettingsService.EnableMonitorBrightnessSync = false;
+        _isSyncEnabled = false;
+        SyncStatusChanged?.Invoke(this, EventArgs.Empty);
+    }
+}
+
+public class MonitorsResult
+{
+    public List<MonitorInfo> Monitors { get; set; } = [];
 }

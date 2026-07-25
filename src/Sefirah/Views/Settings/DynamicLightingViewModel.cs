@@ -1,33 +1,30 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
-using NotifyRelay.DeviceCtrl.DynamicLighting;
 using NotifyRelay.Data.Contracts;
+using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Views.Settings;
 
 public class DynamicLightingViewModel : INotifyPropertyChanged
 {
-    private readonly DynamicLightingService _lightingService;
+    private readonly IWorkerBridge _workerBridge;
     private readonly IGeneralSettingsService _settingsService;
 
     private bool _isEnabled;
     private bool _isAutoRGBEnabled;
-    private double _brightness;
+    private double _brightness = 1.0;
     private int _selectedEffectIndex;
     private int _selectedIntervalIndex;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
-    private bool _isCaptureSupported;
     private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
-
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public ObservableCollection<LampArrayDeviceInfo> Devices => _lightingService.AttachedDevices;
+    public ObservableCollection<LampArrayDeviceInfo> Devices { get; } = new();
 
     public bool IsEnabled
     {
@@ -40,6 +37,10 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 _settingsService.EnableDynamicLighting = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(StatusText));
+                if (value)
+                    _ = _workerBridge.SendCommandAsync<object>("lighting", "initialize");
+                else
+                    _ = _workerBridge.SendCommandAsync<object>("lighting", "cleanup");
             }
         }
     }
@@ -55,7 +56,10 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 _settingsService.EnableAutoRGB = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(AutoRGBStatusText));
-                ToggleAutoRGB(value);
+                if (value)
+                    _ = _workerBridge.SendCommandAsync<object>("lighting", "startAutoRGB");
+                else
+                    _ = _workerBridge.SendCommandAsync<object>("lighting", "stopAutoRGB");
             }
         }
     }
@@ -69,9 +73,9 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
             {
                 _brightness = value;
                 _settingsService.DynamicLightingBrightness = value;
-                _lightingService.Brightness = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(BrightnessText));
+                _ = _workerBridge.SendCommandAsync<object>("lighting", "setBrightness", new { brightness = value });
             }
         }
     }
@@ -85,6 +89,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
             {
                 _selectedEffectIndex = value;
                 OnPropertyChanged();
+                ApplyEffect(value);
             }
         }
     }
@@ -97,9 +102,11 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
             if (_selectedIntervalIndex != value)
             {
                 _selectedIntervalIndex = value;
-                if (AutoRGBIntervalComboBox != null && AutoRGBIntervalComboBox.Items.Count > value)
+                if (AutoRGBIntervalComboBox?.Items.Count > value &&
+                    AutoRGBIntervalComboBox.Items[value] is ComboBoxItem item &&
+                    item.Tag is string tag)
                 {
-                    _settingsService.AutoRGBUpdateInterval = int.Parse(((ComboBoxItem)AutoRGBIntervalComboBox.Items[value]).Tag.ToString()!);
+                    _settingsService.AutoRGBUpdateInterval = int.Parse(tag);
                 }
                 OnPropertyChanged();
             }
@@ -116,11 +123,17 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
                 _currentColor = value;
                 OnPropertyChanged();
                 OnPropertyChanged(nameof(CurrentColorBrush));
+                _settingsService.DynamicLightingColor = value.ToString();
+                _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
+                {
+                    color = value.ToString(),
+                    brightness = _brightness
+                });
             }
         }
     }
 
-    public SolidColorBrush CurrentColorBrush => new SolidColorBrush(_currentColor);
+    public SolidColorBrush CurrentColorBrush => new(_currentColor);
 
     public Color CurrentCapturedColor
     {
@@ -136,54 +149,29 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         }
     }
 
-    public SolidColorBrush CurrentCapturedColorBrush => new SolidColorBrush(_currentCapturedColor);
-
-    public bool IsCaptureSupported
-    {
-        get => _isCaptureSupported;
-        set
-        {
-            if (_isCaptureSupported != value)
-            {
-                _isCaptureSupported = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(CaptureSupportText));
-            }
-        }
-    }
+    public SolidColorBrush CurrentCapturedColorBrush => new(_currentCapturedColor);
 
     public string StatusText => _isEnabled ? "已启用" : "已禁用";
-
     public string DeviceCountText => $"{Devices.Count} 个设备已连接";
-
     public string DeviceListDescription => Devices.Count > 0 ? "以下设备支持动态光效" : "暂无设备";
-
     public string BrightnessText => $"当前亮度: {Math.Round(_brightness * 100)}%";
-
     public string AutoRGBStatusText => _isAutoRGBEnabled ? "运行中" : "已停止";
-
-    public string CaptureSupportText => IsCaptureSupported ? "屏幕捕获功能可用" : "屏幕捕获功能不可用";
-
     public bool HasNoDevices => Devices.Count == 0;
+    public string CaptureSupportText => "屏幕捕获可用";
+    public bool IsCaptureSupported => true;
 
     public ComboBox AutoRGBIntervalComboBox { get; set; } = null!;
 
     public DynamicLightingViewModel()
     {
-        _lightingService = Ioc.Default.GetRequiredService<DynamicLightingService>();
+        _workerBridge = Ioc.Default.GetRequiredService<IWorkerBridge>();
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
 
         LoadSettings();
-        IsCaptureSupported = CheckGdiCaptureSupported();
 
-        _lightingService.DevicesChanged += OnDevicesChanged;
-        _lightingService.ColorChanged += OnColorChanged;
-        _lightingService.CapturedColorChanged += OnCapturedColorChanged;
-
-        if (_isAutoRGBEnabled && IsCaptureSupported)
-        {
-            _lightingService.StartAutoRGB();
-        }
+        _workerBridge.LightingDevicesChanged += OnDevicesChanged;
+        _workerBridge.LightingColorChanged += OnColorChanged;
+        _workerBridge.LightingCapturedColorChanged += OnCapturedColorChanged;
     }
 
     private void LoadSettings()
@@ -206,46 +194,31 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         var interval = _settingsService.AutoRGBUpdateInterval;
         _selectedIntervalIndex = interval switch
         {
-            50 => 0,
-            100 => 1,
-            200 => 2,
-            500 => 3,
-            _ => 1
+            50 => 0, 100 => 1, 200 => 2, 500 => 3, _ => 1
         };
 
         if (!string.IsNullOrEmpty(_settingsService.DynamicLightingColor))
+        {
+            try
             {
-                try
+                var colorString = _settingsService.DynamicLightingColor;
+                if (colorString.StartsWith("#"))
                 {
-                    var colorString = _settingsService.DynamicLightingColor;
-                    if (colorString.StartsWith("#"))
-                    {
-                        colorString = colorString.TrimStart('#');
-                        var bytes = Convert.FromHexString(colorString);
-                        if (bytes.Length == 4)
-                        {
-                            _currentColor = new Color { A = bytes[0], R = bytes[1], G = bytes[2], B = bytes[3] };
-                        }
-                        else if (bytes.Length == 3)
-                        {
-                            _currentColor = new Color { A = 255, R = bytes[0], G = bytes[1], B = bytes[2] };
-                        }
-                    }
-                }
-                catch
-                {
+                    colorString = colorString.TrimStart('#');
+                    var bytes = Convert.FromHexString(colorString);
+                    if (bytes.Length == 4)
+                        _currentColor = new Color { A = bytes[0], R = bytes[1], G = bytes[2], B = bytes[3] };
+                    else if (bytes.Length == 3)
+                        _currentColor = new Color { A = 255, R = bytes[0], G = bytes[1], B = bytes[2] };
                 }
             }
-
-        _lightingService.Brightness = _brightness;
-        _lightingService.CurrentColor = _currentColor;
+            catch { }
+        }
     }
 
     private void OnDevicesChanged(object? sender, EventArgs e)
     {
-        OnPropertyChanged(nameof(DeviceCountText));
-        OnPropertyChanged(nameof(DeviceListDescription));
-        OnPropertyChanged(nameof(HasNoDevices));
+        FetchDevices();
     }
 
     private void OnColorChanged(object? sender, Color e)
@@ -259,84 +232,85 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         CurrentCapturedColor = e;
     }
 
-    private void ToggleAutoRGB(bool enable)
+    private async void FetchDevices()
     {
-        if (enable)
+        try
         {
-            if (IsCaptureSupported)
+            var result = await _workerBridge.SendCommandAsync<LightingDevicesResult>("lighting", "getDevices");
+            if (result?.Devices != null)
             {
-                _lightingService.StartAutoRGB();
+                App.MainWindow.DispatcherQueue.TryEnqueue(() =>
+                {
+                    Devices.Clear();
+                    foreach (var d in result.Devices)
+                        Devices.Add(d);
+                    OnPropertyChanged(nameof(DeviceCountText));
+                    OnPropertyChanged(nameof(DeviceListDescription));
+                    OnPropertyChanged(nameof(HasNoDevices));
+                });
             }
         }
-        else
-        {
-            _lightingService.StopAutoRGB();
-        }
+        catch { }
     }
 
-    public void ApplyColor(Color color)
+    private class LightingDevicesResult
     {
-        _lightingService.CurrentColor = color;
-        CurrentColor = color;
-        _settingsService.DynamicLightingColor = color.ToString();
+        public List<LampArrayDeviceInfo> Devices { get; set; } = [];
     }
 
-    public void TurnOff()
+    private void ApplyEffect(int effectIndex)
     {
-        if (_lightingService.IsAutoRGBEnabled)
-            return;
-
-        _lightingService.TurnOffAllDevices();
-        CurrentColor = new Color { A = 255, R = 0, G = 0, B = 0 };
-    }
-
-    public void StartEffect(int effectIndex)
-    {
-        if (_lightingService.IsAutoRGBEnabled)
-            return;
-
         switch (effectIndex)
         {
+            case 0:
+                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "none" });
+                _settingsService.DynamicLightingEffect = null;
+                break;
             case 1:
-                _lightingService.StartRainbowEffect();
+                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "rainbow" });
                 _settingsService.DynamicLightingEffect = "Rainbow";
                 break;
             case 2:
-                _lightingService.StartBlinkEffect(CurrentColor);
+                _ = _workerBridge.SendCommandAsync<object>("lighting", "setEffect", new { effect = "blink" });
                 _settingsService.DynamicLightingEffect = "Blink";
                 break;
         }
     }
 
+    public void ApplyColor(Color color)
+    {
+        CurrentColor = color;
+        _settingsService.DynamicLightingColor = color.ToString();
+        _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
+        {
+            color = color.ToString(),
+            brightness = _brightness
+        });
+    }
+
+    public void StartEffect(int effectIndex)
+    {
+        SelectedEffectIndex = effectIndex;
+    }
+
     public void StopEffect()
     {
-        _lightingService.StopAllEffects();
-        _settingsService.DynamicLightingEffect = null;
+        SelectedEffectIndex = 0;
+    }
+
+    public void TurnOff()
+    {
+        if (_isAutoRGBEnabled) return;
+        _ = _workerBridge.SendCommandAsync<object>("lighting", "setColor", new
+        {
+            color = "#FF000000",
+            brightness = _brightness
+        });
+        CurrentColor = new Color { A = 255, R = 0, G = 0, B = 0 };
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
-
-    private static bool CheckGdiCaptureSupported()
-    {
-        try
-        {
-            var dc = GetDC(IntPtr.Zero);
-            if (dc == IntPtr.Zero) return false;
-            ReleaseDC(IntPtr.Zero, dc);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetDC(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
 }

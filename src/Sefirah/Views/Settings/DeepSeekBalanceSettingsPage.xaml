@@ -6,7 +6,7 @@
     xmlns:helpers="using:NotifyRelay.Helpers"
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
-    xmlns:dev="using:NotifyRelay.DeviceCtrl.DeepSeekBalance"
+    xmlns:models="using:NotifyRelay.Data.Models"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">
@@ -106,7 +106,7 @@
                                 </Grid>
                             </ListView.Header>
                             <ListView.ItemTemplate>
-                                <DataTemplate x:DataType="dev:BalanceHistoryItem">
+                                <DataTemplate x:DataType="models:BalanceHistoryItem">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140" />

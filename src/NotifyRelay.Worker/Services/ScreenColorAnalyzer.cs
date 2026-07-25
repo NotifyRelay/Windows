@@ -1,11 +1,12 @@
 using System.Runtime.InteropServices;
 using Windows.UI;
+using Microsoft.Extensions.Logging;
 
-namespace NotifyRelay.DeviceCtrl.DynamicLighting;
+namespace NotifyRelay.Worker.Services;
 
 public sealed class ScreenColorAnalyzer : IDisposable
 {
-    private readonly ILogger<ScreenColorAnalyzer>? _logger;
+    private readonly ILogger? _logger;
     private Thread? _captureThread;
     private CancellationTokenSource? _cts;
     private bool _disposed;
@@ -33,33 +34,25 @@ public sealed class ScreenColorAnalyzer : IDisposable
                 ReleaseDC(IntPtr.Zero, dc);
                 return true;
             }
-            catch
-            {
-                return false;
-            }
+            catch { return false; }
         }
     }
 
     public Color CurrentCapturedColor => _currentCapturedColor;
 
-    public ScreenColorAnalyzer(ILogger<ScreenColorAnalyzer>? logger = null)
+    public ScreenColorAnalyzer(ILogger? logger = null)
     {
         _logger = logger;
     }
 
     public void StartCapture()
     {
-        if (IsCapturing)
-            return;
+        if (IsCapturing) return;
 
         _screenWidth = GetSystemMetrics(SM_CXSCREEN);
         _screenHeight = GetSystemMetrics(SM_CYSCREEN);
 
-        if (_screenWidth <= 0 || _screenHeight <= 0)
-        {
-            _logger?.LogError("Invalid screen size: {W}x{H}", _screenWidth, _screenHeight);
-            return;
-        }
+        if (_screenWidth <= 0 || _screenHeight <= 0) return;
 
         _cts = new CancellationTokenSource();
         _captureThread = new Thread(CaptureLoop)
@@ -75,16 +68,13 @@ public sealed class ScreenColorAnalyzer : IDisposable
 
     public void StopCapture()
     {
-        if (_captureThread == null)
-            return;
+        if (_captureThread == null) return;
 
         _cts?.Cancel();
         _captureThread?.Join(TimeSpan.FromSeconds(2));
         _captureThread = null;
         _cts?.Dispose();
         _cts = null;
-
-        _logger?.LogInformation("GDI capture stopped");
     }
 
     private void CaptureLoop()
@@ -104,18 +94,10 @@ public sealed class ScreenColorAnalyzer : IDisposable
                     continue;
                 }
 
-                if (color.R == 0 && color.G == 0 && color.B == 0)
-                {
-                    _logger?.LogWarning("Captured all-black frame");
-                }
-
                 _currentCapturedColor = color;
                 ColorChanged?.Invoke(this, color);
             }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
+            catch (OperationCanceledException) { break; }
             catch (Exception ex)
             {
                 _logger?.LogError(ex, "Error in capture loop");
@@ -128,56 +110,38 @@ public sealed class ScreenColorAnalyzer : IDisposable
 
     private sealed class GdiCaptureBuffer : IDisposable
     {
-        private readonly ILogger<ScreenColorAnalyzer>? _logger;
+        private readonly ILogger? _logger;
         private IntPtr _hdcMem = IntPtr.Zero;
         private IntPtr _hBitmap = IntPtr.Zero;
         private IntPtr _oldBitmap = IntPtr.Zero;
         private byte[] _pixelBuffer = new byte[CaptureWidth * CaptureHeight * 4];
 
-        public GdiCaptureBuffer(ILogger<ScreenColorAnalyzer>? logger)
-        {
-            _logger = logger;
-        }
+        public GdiCaptureBuffer(ILogger? logger) => _logger = logger;
 
         public bool Capture(int screenWidth, int screenHeight, out Color color)
         {
             color = default;
-
             var hdcScreen = GetDC(IntPtr.Zero);
-            if (hdcScreen == IntPtr.Zero)
-            {
-                _logger?.LogWarning("GetDC failed");
-                return false;
-            }
+            if (hdcScreen == IntPtr.Zero) return false;
 
             try
             {
                 if (_hdcMem == IntPtr.Zero)
                 {
                     _hdcMem = CreateCompatibleDC(hdcScreen);
-                    if (_hdcMem == IntPtr.Zero)
-                    {
-                        _logger?.LogWarning("CreateCompatibleDC failed");
-                        return false;
-                    }
+                    if (_hdcMem == IntPtr.Zero) return false;
                 }
 
                 if (_hBitmap == IntPtr.Zero)
                 {
                     _hBitmap = CreateCompatibleBitmap(hdcScreen, CaptureWidth, CaptureHeight);
-                    if (_hBitmap == IntPtr.Zero)
-                    {
-                        _logger?.LogWarning("CreateCompatibleBitmap failed");
-                        return false;
-                    }
+                    if (_hBitmap == IntPtr.Zero) return false;
                     _oldBitmap = SelectObject(_hdcMem, _hBitmap);
                 }
 
                 if (!StretchBlt(_hdcMem, 0, 0, CaptureWidth, CaptureHeight,
                                 hdcScreen, 0, 0, screenWidth, screenHeight, SRCCOPY))
-                {
                     return false;
-                }
 
                 var bmpInfo = new BITMAPINFOHEADER
                 {
@@ -195,30 +159,20 @@ public sealed class ScreenColorAnalyzer : IDisposable
                 {
                     var result = GetDIBits(hdcScreen, _hBitmap, 0, (uint)CaptureHeight,
                                            gcHandle.AddrOfPinnedObject(), ref bmpInfo, DIB_RGB_COLORS);
-                    if (result == 0)
-                    {
-                        return false;
-                    }
+                    if (result == 0) return false;
 
                     color = CalculatePredominantColor(_pixelBuffer);
                     return true;
                 }
-                finally
-                {
-                    gcHandle.Free();
-                }
+                finally { gcHandle.Free(); }
             }
-            finally
-            {
-                ReleaseDC(IntPtr.Zero, hdcScreen);
-            }
+            finally { ReleaseDC(IntPtr.Zero, hdcScreen); }
         }
 
         private static Color CalculatePredominantColor(byte[] pixels)
         {
             int count = pixels.Length / 4;
-            if (count == 0)
-                return new Color { A = 255, R = 0, G = 0, B = 0 };
+            if (count == 0) return new Color { A = 255, R = 0, G = 0, B = 0 };
 
             const int bins = 8;
             const int valuesPerBin = 32;
@@ -256,20 +210,17 @@ public sealed class ScreenColorAnalyzer : IDisposable
             {
                 if ((float)topRCount / count < threshold)
                 {
-                    float val = bin + binDisplacement;
-                    topR += histR[bin] * val;
+                    topR += histR[bin] * (bin + binDisplacement);
                     topRCount += histR[bin];
                 }
                 if ((float)topGCount / count < threshold)
                 {
-                    float val = bin + binDisplacement;
-                    topG += histG[bin] * val;
+                    topG += histG[bin] * (bin + binDisplacement);
                     topGCount += histG[bin];
                 }
                 if ((float)topBCount / count < threshold)
                 {
-                    float val = bin + binDisplacement;
-                    topB += histB[bin] * val;
+                    topB += histB[bin] * (bin + binDisplacement);
                     topBCount += histB[bin];
                 }
             }
@@ -290,20 +241,14 @@ public sealed class ScreenColorAnalyzer : IDisposable
         {
             if (_oldBitmap != IntPtr.Zero && _hdcMem != IntPtr.Zero)
                 SelectObject(_hdcMem, _oldBitmap);
-            if (_hBitmap != IntPtr.Zero)
-                DeleteObject(_hBitmap);
-            if (_hdcMem != IntPtr.Zero)
-                DeleteDC(_hdcMem);
-            _hdcMem = IntPtr.Zero;
-            _hBitmap = IntPtr.Zero;
-            _oldBitmap = IntPtr.Zero;
+            if (_hBitmap != IntPtr.Zero) DeleteObject(_hBitmap);
+            if (_hdcMem != IntPtr.Zero) DeleteDC(_hdcMem);
         }
     }
 
     public void Dispose()
     {
-        if (_disposed)
-            return;
+        if (_disposed) return;
         _disposed = true;
         StopCapture();
     }
@@ -314,53 +259,22 @@ public sealed class ScreenColorAnalyzer : IDisposable
     private const uint BI_RGB = 0;
     private const uint DIB_RGB_COLORS = 0;
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetDC(IntPtr hWnd);
-
-    [DllImport("user32.dll")]
-    private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
-
-    [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int nIndex);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateCompatibleDC(IntPtr hDC);
-
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteDC(IntPtr hDC);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr CreateCompatibleBitmap(IntPtr hDC, int width, int height);
-
-    [DllImport("gdi32.dll")]
-    private static extern IntPtr SelectObject(IntPtr hDC, IntPtr hObject);
-
-    [DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
-
-    [DllImport("gdi32.dll")]
-    private static extern bool StretchBlt(IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest,
-                                          IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, uint rop);
-
-    [DllImport("gdi32.dll")]
-    private static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint startScan, uint numScans,
-                                        IntPtr bits, ref BITMAPINFOHEADER bi, uint colorUse);
+    [DllImport("user32.dll")] private static extern IntPtr GetDC(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+    [DllImport("user32.dll")] private static extern int GetSystemMetrics(int nIndex);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleDC(IntPtr hDC);
+    [DllImport("gdi32.dll")] private static extern bool DeleteDC(IntPtr hDC);
+    [DllImport("gdi32.dll")] private static extern IntPtr CreateCompatibleBitmap(IntPtr hDC, int width, int height);
+    [DllImport("gdi32.dll")] private static extern IntPtr SelectObject(IntPtr hDC, IntPtr hObject);
+    [DllImport("gdi32.dll")] private static extern bool DeleteObject(IntPtr hObject);
+    [DllImport("gdi32.dll")] private static extern bool StretchBlt(IntPtr hdcDest, int xDest, int yDest, int wDest, int hDest, IntPtr hdcSrc, int xSrc, int ySrc, int wSrc, int hSrc, uint rop);
+    [DllImport("gdi32.dll")] private static extern int GetDIBits(IntPtr hdc, IntPtr hbmp, uint startScan, uint numScans, IntPtr bits, ref BITMAPINFOHEADER bi, uint colorUse);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct BITMAPINFOHEADER
     {
-        public uint biSize;
-        public int biWidth;
-        public int biHeight;
-        public ushort biPlanes;
-        public ushort biBitCount;
-        public uint biCompression;
-        public uint biSizeImage;
-        public int biXPelsPerMeter;
-        public int biYPelsPerMeter;
-        public uint biClrUsed;
-        public uint biClrImportant;
+        public uint biSize; public int biWidth; public int biHeight; public ushort biPlanes;
+        public ushort biBitCount; public uint biCompression; public uint biSizeImage;
+        public int biXPelsPerMeter; public int biYPelsPerMeter; public uint biClrUsed; public uint biClrImportant;
     }
-
-    public void StartCaptureAsync() => StartCapture();
 }
