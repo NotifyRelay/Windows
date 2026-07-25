@@ -45,7 +45,10 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
 
         AudioRelayService.StatusChanged += (s, e) =>
         {
-            IsAudioRelayActive = AudioRelayService.IsActive;
+            _ = DispatcherQueue.EnqueueAsync(() =>
+            {
+                IsAudioRelayActive = AudioRelayService.IsActive;
+            });
         };
 
         UpdateTrayIcon(uiSettings);
