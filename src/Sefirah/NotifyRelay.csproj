@@ -57,6 +57,7 @@
     <ItemGroup>
         <PackageReference Include="AdvancedSharpAdbClient" />
         <PackageReference Include="BouncyCastle.Cryptography" />
+        <PackageReference Include="CommunityToolkit.Mvvm" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
         <PackageReference Include="FFMpegCore" />
         <PackageReference Include="Markdig" />
@@ -106,7 +107,7 @@
         </ItemGroup>
         <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
         <Exec Command="cargo build --release" WorkingDirectory="$(RustProjectDir)" ConsoleToMSBuild="true" />
-        <Message Text="复制 DLL 到输出目录: $(RustDllPath) -> $(OutDir)" Importance="high" />
+        <Message Text="复制 DLL 到输出目录: $(RustDllPath) -&gt; $(OutDir)" Importance="high" />
         <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
         <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
     </Target>

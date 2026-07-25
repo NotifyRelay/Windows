@@ -19,3 +19,13 @@ global using Microsoft.Extensions.DependencyInjection;
 global using Microsoft.Extensions.Hosting;
 global using Microsoft.Extensions.Localization;
 global using Microsoft.Extensions.Logging;
+// WinUI / Windows namespaces used across the UI project
+global using Microsoft.UI.Xaml;
+global using Microsoft.UI.Xaml.Controls;
+global using Microsoft.UI.Xaml.Media;
+global using Microsoft.UI.Xaml.Navigation;
+global using Microsoft.UI.Xaml.Input;
+global using Windows.Storage;
+global using Windows.ApplicationModel;
+global using NotifyRelay.Extensions;
+global using Microsoft.Extensions.Configuration;

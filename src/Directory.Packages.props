@@ -4,6 +4,7 @@
   <ItemGroup>
     <PackageVersion Include="AdvancedSharpAdbClient" Version="3.6.16" />
     <PackageVersion Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
     <PackageVersion Include="FFMpegCore" Version="5.4.0" />
     <PackageVersion Include="CommunityToolkit.WinUI.Converters" Version="8.2.251219" />
@@ -17,8 +18,8 @@
     <PackageVersion Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.3" />
     <PackageVersion Include="SSH.NET" Version="2025.1.0" />
     <PackageVersion Include="System.Management" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="1.6.250208002" />
-    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.26100.1742" />
+    <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
+    <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Localization" Version="9.0.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
@@ -26,6 +27,6 @@
     <PackageVersion Include="Vanara.PInvoke.CldApi" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Shell32" Version="5.0.5" />
-    <PackageVersion Include="WinUIEx" Version="2.5.1" />
+    <PackageVersion Include="WinUIEx" Version="2.9.2" />
   </ItemGroup>
 </Project>

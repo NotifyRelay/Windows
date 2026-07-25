@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
 using H.NotifyIcon;
 using Microsoft.UI.Windowing;
+using WinUIEx;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Windows.AppLifecycle;
 using NotifyRelay.Data.Contracts;
@@ -13,10 +14,11 @@ using NotifyRelay.Views.Onboarding;
 using Windows.ApplicationModel.Activation;
 using WinRT.Interop;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
+using Microsoft.UI.Xaml;
 
 namespace NotifyRelay;
 
-public partial class App : Application
+public partial class App : Microsoft.UI.Xaml.Application
 {
     public static TaskCompletionSource? SplashScreenLoadingTCS { get; private set; }
     public static bool HandleClosedEvents { get; set; } = true;
@@ -56,7 +58,7 @@ public partial class App : Application
             await Host.StartAsync();
 
             bool isStartupTask = false;
-            var appActivationArguments = AppInstance.GetCurrent().GetActivatedEventArgs();
+            var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
             isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
 
             HookEventsForWindow();
