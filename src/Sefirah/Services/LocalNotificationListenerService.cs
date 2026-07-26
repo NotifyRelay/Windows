@@ -1,10 +1,11 @@
-using System.Reflection;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Enums;
 using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
+using System.Text.Json;
 using Windows.Storage.Streams;
+using Windows.UI.Notifications;
+using Windows.UI.Notifications.Management;
 
 namespace NotifyRelay.Services;
 
@@ -18,54 +19,13 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     private string? _localDeviceId;
     public static event Action? LocalNotificationCaptured;
 
-    // 反射缓存的元数据（惰性初始化，Start() 调用时解析）
-    private static Type? _listenerType;
-    private static PropertyInfo? _currentProperty;
-    private static MethodInfo? _getNotificationsAsyncMethod;
-    private static MethodInfo? _requestAccessAsyncMethod;
-    private static bool? _isSupported;
-    private static readonly object _initLock = new();
-
-    private static bool CheckSupported()
-    {
-        if (_isSupported.HasValue) return _isSupported.Value;
-
-        lock (_initLock)
-        {
-            if (_isSupported.HasValue) return _isSupported.Value;
-
-            try
-            {
-                // 搜索所有已加载程序集（此时 WinRT 程序集应已加载）
-                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-                {
-                    var type = asm.GetType("Windows.UI.Notifications.UserNotificationListener");
-                    if (type == null) continue;
-
-                    _listenerType = type;
-                    _currentProperty = type.GetProperty("Current", BindingFlags.Static | BindingFlags.Public);
-                    _getNotificationsAsyncMethod = type.GetMethod("GetNotificationsAsync");
-                    _requestAccessAsyncMethod = type.GetMethod("RequestAccessAsync");
-
-                    if (_currentProperty != null)
-                    {
-                        _isSupported = true;
-                        return true;
-                    }
-                }
-            }
-            catch { }
-
-            _isSupported = false;
-            return false;
-        }
-    }
-
-    private object? _listenerInstance;
+    private UserNotificationListener? _listener;
     private Timer? _pollTimer;
     private readonly HashSet<uint> _knownNotificationIds = [];
     private bool _isRunning;
     private bool _disposed;
+
+    public bool IsSupported => UserNotificationListener.Current != null;
 
     public LocalNotificationListenerService(
         ILogger<LocalNotificationListenerService> logger,
@@ -79,40 +39,30 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         _deviceManager = deviceManager;
     }
 
-    public static bool IsSupported => CheckSupported();
-
     public void Start()
     {
         if (_isRunning) return;
-        _ = InitializeAsync();
-    }
-
-    private async Task InitializeAsync()
-    {
         if (!IsSupported)
         {
             _logger.LogWarning("当前平台不支持 UserNotificationListener");
             return;
         }
+        _ = InitializeAsync();
+    }
 
+    private async Task InitializeAsync()
+    {
         try
         {
-            _listenerInstance = _currentProperty!.GetValue(null);
-            if (_listenerInstance == null)
+            _listener = UserNotificationListener.Current;
+            if (_listener == null)
             {
                 _logger.LogWarning("UserNotificationListener.Current 返回 null");
                 return;
             }
 
-            // 通过反射调用 RequestAccessAsync（AccessStatus 在同一 WinMD 中）
-            var accessStatusType = _listenerType?.Assembly.GetType("Windows.UI.Notifications.UserNotificationListenerAccessStatus");
-            var allowedField = accessStatusType?.GetField("Allowed");
-
-            var accessTask = (Task)_requestAccessAsyncMethod!.Invoke(_listenerInstance, [])!;
-            await accessTask;
-            var accessStatus = accessTask.GetType().GetProperty("Result")?.GetValue(accessTask);
-
-            if (accessStatus == null || !accessStatus.Equals(allowedField?.GetValue(null)))
+            var accessStatus = await _listener.RequestAccessAsync();
+            if (accessStatus != UserNotificationListenerAccessStatus.Allowed)
             {
                 _logger.LogWarning("UserNotificationListener 访问被拒绝 ({AccessStatus})，请在系统设置 → 通知中允许此应用", accessStatus);
             }
@@ -152,7 +102,6 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     public void Stop()
     {
         if (!_isRunning) return;
-
         _pollTimer?.Dispose();
         _pollTimer = null;
         _isRunning = false;
@@ -163,8 +112,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     {
         try
         {
-            if (_listenerInstance == null || _getNotificationsAsyncMethod == null) return;
-
+            if (_listener == null) return;
             var notifications = await GetNotificationsAsync();
             if (notifications == null) return;
 
@@ -173,17 +121,17 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 .Take(20)
                 .ToList();
 
-            _logger.LogInformation("现有通知数量: {Total}, 将处理: {Count}", notifications.Count, sorted.Count);
+            _logger.LogInformation("现有通知数量: {Total}, 将处理: {Count}", sorted.Count, sorted.Count);
 
             lock (_knownNotificationIds)
             {
                 _knownNotificationIds.Clear();
-                foreach (var notif in sorted)
-                    _knownNotificationIds.Add(notif.Id);
+                foreach (var n in sorted)
+                    _knownNotificationIds.Add(n.Id);
             }
 
-            foreach (var notif in sorted)
-                ProcessNotification(notif);
+            foreach (var n in sorted)
+                await ProcessNotificationAsync(n);
 
             _logger.LogDebug("已加载 {Count} 个现有通知", _knownNotificationIds.Count);
         }
@@ -197,8 +145,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     {
         try
         {
-            if (_listenerInstance == null || _getNotificationsAsyncMethod == null) return;
-
+            if (_listener == null) return;
             var notifications = await GetNotificationsAsync();
             if (notifications == null) return;
 
@@ -209,9 +156,8 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
 
                 bool isNew;
                 lock (_knownNotificationIds) { isNew = _knownNotificationIds.Add(notif.Id); }
-
                 if (isNew)
-                    ProcessNotification(notif);
+                    await ProcessNotificationAsync(notif);
             }
 
             List<uint> removedIds;
@@ -231,18 +177,13 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         }
     }
 
-    private async Task<IReadOnlyList<Windows.UI.Notifications.UserNotification>?> GetNotificationsAsync()
+    private async Task<IReadOnlyList<UserNotification>?> GetNotificationsAsync()
     {
-        if (_listenerInstance == null || _getNotificationsAsyncMethod == null) return null;
-
-        var task = (Task)_getNotificationsAsyncMethod.Invoke(
-            _listenerInstance, [Windows.UI.Notifications.NotificationKinds.Toast])!;
-        await task;
-        return task.GetType().GetProperty("Result")?.GetValue(task)
-            as IReadOnlyList<Windows.UI.Notifications.UserNotification>;
+        if (_listener == null) return null;
+        return await _listener.GetNotificationsAsync(NotificationKinds.Toast);
     }
 
-    private void ProcessNotification(Windows.UI.Notifications.UserNotification userNotification)
+    private async Task ProcessNotificationAsync(UserNotification userNotification)
     {
         try
         {
@@ -286,7 +227,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 return;
 
             var isLocked = IsWorkstationLocked();
-            var appIconBase64 = ExtractAppIconAsync(userNotification).GetAwaiter().GetResult();
+            var appIconBase64 = await ExtractAppIconAsync(userNotification);
 
             var rawJson = JsonSerializer.Serialize(new
             {
@@ -301,15 +242,14 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 appIcon = appIconBase64,
                 isLocked = isLocked
             });
-            var json = rawJson;
-            if (json == null) return;
-            _sessionManager.BroadcastMessage(json);
+            if (rawJson == null) return;
+            _sessionManager.BroadcastMessage(rawJson);
 
             if (_localDeviceId != null)
             {
                 try
                 {
-                    _notificationRepository.UpsertNotification(_localDeviceId, json, false);
+                    _notificationRepository.UpsertNotification(_localDeviceId, rawJson, false);
                 }
                 catch (Exception ex)
                 {
@@ -338,9 +278,8 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 appPackage = $"windows_{id}",
                 timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
             });
-            var json = rawJson;
-            if (json == null) return;
-            _sessionManager.BroadcastMessage(json);
+            if (rawJson == null) return;
+            _sessionManager.BroadcastMessage(rawJson);
         }
         catch (Exception ex)
         {
@@ -348,43 +287,8 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         }
     }
 
-    private async Task<string?> ExtractAppIconAsync(Windows.UI.Notifications.UserNotification userNotification)
+    private async Task<string?> ExtractAppIconAsync(UserNotification userNotification)
     {
-        try
-        {
-            var bindings = userNotification.Notification?.Visual?.Bindings;
-            if (bindings != null)
-            {
-                foreach (var binding in bindings)
-                {
-                    try
-                    {
-                        var getImagesMethod = binding.GetType().GetMethod("GetImages");
-                        if (getImagesMethod == null) continue;
-
-                        var images = getImagesMethod.Invoke(binding, null) as IEnumerable;
-                        if (images == null) continue;
-
-                        foreach (var image in images)
-                        {
-                            var href = image.GetType().GetProperty("Href")?.GetValue(image) as string;
-                            if (string.IsNullOrEmpty(href)) continue;
-
-                            try
-                            {
-                                var stream = await ResolveImageUrlAsync(href);
-                                if (stream != null)
-                                    return await StreamToBase64Async(stream);
-                            }
-                            catch { }
-                        }
-                    }
-                    catch { }
-                }
-            }
-        }
-        catch { }
-
         try
         {
             var logo = userNotification.AppInfo?.DisplayInfo?.GetLogo(new Windows.Foundation.Size(64, 64));

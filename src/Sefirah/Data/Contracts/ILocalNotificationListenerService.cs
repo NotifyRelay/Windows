@@ -2,7 +2,7 @@ namespace NotifyRelay.Data.Contracts;
 
 /// <summary>
 /// 本地 Windows 通知监听服务接口
-/// 使用 UserNotificationListener 捕获系统 Toast 通知（通过反射访问 WinRT API）
+/// 使用 UserNotificationListener 捕获系统 Toast 通知
 /// </summary>
 public interface ILocalNotificationListenerService
 {
