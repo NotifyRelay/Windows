@@ -86,6 +86,8 @@
         <PackageReference Include="Vanara.PInvoke.CldApi" />
         <PackageReference Include="Vanara.PInvoke.Ole" />
         <PackageReference Include="Vanara.PInvoke.Shell32" />
+        <PackageReference Include="Vortice.Direct2D1" />
+        <PackageReference Include="Vortice.Mathematics" />
     </ItemGroup>
     <ItemGroup>
         <Content Include="Assets\Splash\splash_screen.svg">

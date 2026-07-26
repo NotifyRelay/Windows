@@ -29,6 +29,8 @@
     <PackageVersion Include="Vanara.PInvoke.CldApi" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Shell32" Version="5.0.5" />
+    <PackageVersion Include="Vortice.Direct2D1" Version="3.6.2" />
+    <PackageVersion Include="Vortice.Mathematics" Version="2.1.1" />
     <PackageVersion Include="WinUIEx" Version="2.9.2" />
   </ItemGroup>
 </Project>

@@ -109,6 +109,18 @@ public static class AppLifecycleHelper
         // 本地通知监听后台启动
         _ = StartLocalNotificationListenerAsync(logger);
 
+        // 启动叠加层渲染引擎
+        try
+        {
+            var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+            overlay.Start();
+            logger.LogInformation("Overlay渲染引擎启动成功");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "启动Overlay渲染引擎失败");
+        }
+
         // ===== 并行阶段C：核心服务启动 =====
         logger.LogInformation("步骤17：启动核心服务...");
         await Task.WhenAll(
@@ -338,6 +350,9 @@ public static class AppLifecycleHelper
 
         // Audio Relay Service
         .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
+
+        // Overlay Render Service
+        .AddSingleton<OverlayRenderService>()
 
         // ViewModels
         .AddSingleton<MainPageViewModel>()

@@ -1,7 +1,9 @@
+using CommunityToolkit.Mvvm.DependencyInjection;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
+using NotifyRelay.Models.Render;
 using NotifyRelay.Native;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
@@ -262,6 +264,7 @@ public class ProtocolRouter
             var isEnd = string.Equals(terminateValue, SuperIslandProtocol.TerminateValue, StringComparison.Ordinal);
             var state = BuildSuperIslandState(root, title, text, paramV2Raw);
             var hasChanges = root.TryGetProperty("changes", out _);
+            var pics = ParsePics(root);
 
             logger.LogInformation(
                 "收到超级岛包: deviceId={DeviceId}, packageName={PackageName}, sourceId={SourceId}, isEnd={IsEnd}, hasChanges={HasChanges}",
@@ -271,17 +274,43 @@ public class ProtocolRouter
                 isEnd,
                 hasChanges);
 
-            var sent = await LocalSocketRelayServer.SendSuperIslandAsync(
-                device.Id,
-                device.Name,
-                sourceId,
-                isEnd,
-                state,
-                root.GetRawText());
+            // Priority chain: Overlay → Gamebar TCP
+            var overlayEnabled = generalSettingsService.DanmakuSuperIslandEnabled;
+            var forceGamebar = generalSettingsService.GamebarRelayEnabled;
 
-            if (!sent)
+            if (overlayEnabled)
             {
-                logger.LogInformation("超级岛未找到Gamebar客户端，已忽略: deviceId={DeviceId}, sourceId={SourceId}", device.Id, sourceId);
+                var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                if (isEnd)
+                {
+                    overlay.RemoveSuperIsland(sourceId);
+                }
+                else
+                {
+                    var siState = new Models.Render.SuperIslandState
+                    {
+                        Title = title,
+                        Subtitle = text,
+                        IconPng = pics?.TryGetValue("icon", out var iconStr) == true ? Convert.FromBase64String(iconStr) : null,
+                    };
+                    overlay.ShowSuperIsland(sourceId, device.Name, siState);
+                }
+            }
+
+            if (forceGamebar || !overlayEnabled)
+            {
+                bool sent = await LocalSocketRelayServer.SendSuperIslandAsync(
+                    device.Id,
+                    device.Name,
+                    sourceId,
+                    isEnd,
+                    state,
+                    root.GetRawText());
+
+                if (!sent && !overlayEnabled)
+                {
+                    logger.LogInformation("超级岛未找到Gamebar客户端，已忽略: deviceId={DeviceId}, sourceId={SourceId}", device.Id, sourceId);
+                }
             }
         }
         catch (JsonException ex)

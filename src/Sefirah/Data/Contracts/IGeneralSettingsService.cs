@@ -115,54 +115,40 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     bool DeepSeekBalanceHistoryCollapsed { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether wallpaper overlay is enabled.
+    /// Gets or sets a value indicating whether danmaku notification overlay is enabled.
     /// </summary>
-    bool WallpaperOverlayEnabled { get; set; }
+    bool DanmakuNotificationEnabled { get; set; }
 
     /// <summary>
-    /// Gets or sets the text to display on the wallpaper overlay.
+    /// Gets or sets a value indicating whether media card overlay is enabled.
     /// </summary>
-    string? WallpaperOverlayText { get; set; }
+    bool DanmakuMediaCardEnabled { get; set; }
 
     /// <summary>
-    /// Gets or sets the font size for the wallpaper overlay text.
+    /// Gets or sets a value indicating whether SuperIsland card overlay is enabled.
     /// </summary>
-    int WallpaperOverlayFontSize { get; set; }
+    bool DanmakuSuperIslandEnabled { get; set; }
 
     /// <summary>
-    /// Gets or sets the text color for the wallpaper overlay.
+    /// Gets or sets a value indicating whether Gamebar relay is forced enabled.
     /// </summary>
-    string? WallpaperOverlayTextColor { get; set; }
+    bool GamebarRelayEnabled { get; set; }
 
-    /// <summary>
-    /// Gets or sets the text alignment for the wallpaper overlay.
-    /// </summary>
-    string? WallpaperOverlayTextAlignment { get; set; }
-
-    /// <summary>
-    /// Gets or sets a value indicating whether to show the control panel on the wallpaper overlay.
-    /// </summary>
-    bool WallpaperOverlayShowControlPanel { get; set; }
-
-    /// <summary>
-    /// Gets or sets the X position of the wallpaper overlay window.
-    /// </summary>
-    int WallpaperOverlayX { get; set; }
-
-    /// <summary>
-    /// Gets or sets the Y position of the wallpaper overlay window.
-    /// </summary>
-    int WallpaperOverlayY { get; set; }
-
-    /// <summary>
-    /// Gets or sets the width of the wallpaper overlay window.
-    /// </summary>
-    int WallpaperOverlayWidth { get; set; }
-
-    /// <summary>
-    /// Gets or sets the height of the wallpaper overlay window.
-    /// </summary>
-    int WallpaperOverlayHeight { get; set; }
+    int DanmakuFontSizePercent { get; set; }
+    int DanmakuSpeed { get; set; }
+    int DanmakuOpacityPercent { get; set; }
+    int DanmakuDisplayAreaPercent { get; set; }
+    int DanmakuDensity { get; set; }
+    string DanmakuFontFamily { get; set; }
+    bool DanmakuBold { get; set; }
+    string DanmakuColor { get; set; }
+    bool DanmakuBorderEnabled { get; set; }
+    int DanmakuBorderThickness { get; set; }
+    string DanmakuBorderColor { get; set; }
+    bool DanmakuShadowEnabled { get; set; }
+    int DanmakuShadowDepth { get; set; }
+    int DanmakuShadowOpacity { get; set; }
+    string DanmakuShadowColor { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.

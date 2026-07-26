@@ -24,7 +24,9 @@ public class NotificationService(
     Func<INetworkService> networkServiceFactory,
     Func<IRemoteAppService> remoteAppServiceFactory,
     IPlaybackService playbackService,
-    BackendRemoteFilter remoteFilter) : INotificationService, INotifyPropertyChanged
+    BackendRemoteFilter remoteFilter,
+    IGeneralSettingsService generalSettings,
+    OverlayRenderService overlayRender) : INotificationService, INotifyPropertyChanged
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
 
@@ -291,58 +293,59 @@ public class NotificationService(
 
                             if (isNewToUser && notificationType == NotificationType.New)
                             {
-                                bool tcpSentSuccessfully = false;
-                                try
+                                var forceGamebar = generalSettings.GamebarRelayEnabled;
+                                var overlayEnabled = generalSettings.DanmakuNotificationEnabled;
+
+                                string? iconUrlForTcp = null;
+                                byte[]? iconBytes = null;
+                                if (!string.IsNullOrEmpty(appPackage))
                                 {
-                                    string? iconUrl = null;
-                                    if (!string.IsNullOrEmpty(appPackage))
+                                    try
                                     {
-                                        try
+                                        string iconFilePath = IconUtils.GetAppIconFilePath(appPackage);
+                                        if (System.IO.File.Exists(iconFilePath))
                                         {
-                                            string iconFilePath = IconUtils.GetAppIconFilePath(appPackage);
-                                            if (System.IO.File.Exists(iconFilePath))
+                                            iconBytes = System.IO.File.ReadAllBytes(iconFilePath);
+                                            var ext = System.IO.Path.GetExtension(iconFilePath).ToLowerInvariant();
+                                            string contentType = ext switch
                                             {
-                                                var bytes = System.IO.File.ReadAllBytes(iconFilePath);
-                                                var ext = System.IO.Path.GetExtension(iconFilePath).ToLowerInvariant();
-                                                string contentType = ext switch
-                                                {
-                                                    ".png" => "image/png",
-                                                    ".jpg" or ".jpeg" => "image/jpeg",
-                                                    ".gif" => "image/gif",
-                                                    ".webp" => "image/webp",
-                                                    ".svg" => "image/svg+xml",
-                                                    _ => "application/octet-stream",
-                                                };
-                                                var b64 = Convert.ToBase64String(bytes);
-                                                iconUrl = $"data:{contentType};base64,{b64}";
-                                            }
-                                        }
-                                        catch (Exception ex)
-                                        {
-                                            logger.LogError(ex, "将图标编码为data URL失败");
+                                                ".png" => "image/png",
+                                                ".jpg" or ".jpeg" => "image/jpeg",
+                                                ".gif" => "image/gif",
+                                                ".webp" => "image/webp",
+                                                ".svg" => "image/svg+xml",
+                                                _ => "application/octet-stream",
+                                            };
+                                            var b64 = Convert.ToBase64String(iconBytes);
+                                            iconUrlForTcp = $"data:{contentType};base64,{b64}";
                                         }
                                     }
+                                    catch (Exception ex)
+                                    {
+                                        logger.LogError(ex, "将图标编码为data URL失败");
+                                    }
+                                }
 
-                                    tcpSentSuccessfully = await LocalSocketRelayServer.SendNotificationAsync(
+                                // Priority chain: Overlay → Gamebar TCP → System notification
+                                if (overlayEnabled)
+                                {
+                                    overlayRender.ShowDanmaku(appName ?? "", title ?? "", text ?? string.Empty, iconBytes, device.Name);
+                                }
+
+                                if (forceGamebar || !overlayEnabled)
+                                {
+                                    bool tcpSent = await LocalSocketRelayServer.SendNotificationAsync(
                                         appName ?? "",
                                         appPackage ?? "",
                                         title ?? "",
                                         text ?? string.Empty,
-                                        iconUrl,
+                                        iconUrlForTcp,
                                         device.Name);
-                                }
-                                catch (Exception ex)
-                                {
-                                    logger.LogError(ex, "发送TCP通知失败");
-                                }
 
-                                if (!tcpSentSuccessfully)
-                                {
-                                    await platformNotificationHandler.ShowRemoteNotification(payload, device.Id);
-                                }
-                                else
-                                {
-                                    logger.LogDebug("TCP通知发送成功，跳过Windows系统通知");
+                                    if (!tcpSent && !overlayEnabled)
+                                    {
+                                        await platformNotificationHandler.ShowRemoteNotification(payload, device.Id);
+                                    }
                                 }
                             }
                         });

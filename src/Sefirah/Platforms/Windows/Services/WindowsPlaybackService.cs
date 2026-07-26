@@ -569,8 +569,6 @@ public class WindowsPlaybackService(
 
     private void SendPlaybackData(string playbackJson)
     {
-        if (!generalSettings.EnableSendMediaNotifications) return;
-
         try
         {
             using var doc = JsonDocument.Parse(playbackJson);
@@ -582,106 +580,122 @@ public class WindowsPlaybackService(
             var thumbnail = root.TryGetProperty("thumbnail", out var thumbProp) ? thumbProp.GetString() : null;
             var isPlaying = root.TryGetProperty("isPlaying", out var playProp) && playProp.GetBoolean();
 
-            // 生成唯一键，用于区分不同会话的不同消息类型
+            logger?.LogDebug("SendPlaybackData: source={Source}, trackTitle={Title}, artist={Artist}, isPlaying={IsPlaying}",
+                source, trackTitle, artist, isPlaying);
+
+            // Overlay 显示独立于远程发送开关
+            var overlayEnabled = generalSettings.DanmakuMediaCardEnabled;
+            var forceGamebar = generalSettings.GamebarRelayEnabled;
+
+            // 远程发送节流 + 推送（受 EnableSendMediaNotifications 控制）
             string key = $"{source}|{(root.TryGetProperty("sessionType", out var stProp) ? stProp.GetString() : "default")}";
 
-            // 检查是否需要节流
-            if (lastSessionUpdateTime.TryGetValue(key, out var lastTime))
+            bool shouldSendRemote = generalSettings.EnableSendMediaNotifications;
+            bool remoteThrottled = false;
+            if (shouldSendRemote && lastSessionUpdateTime.TryGetValue(key, out var lastTime))
             {
-                var elapsed = DateTime.Now - lastTime;
-                if (elapsed.TotalMilliseconds < MinUpdateIntervalMs)
+                if ((DateTime.Now - lastTime).TotalMilliseconds < MinUpdateIntervalMs)
+                    remoteThrottled = true;
+            }
+
+            if (shouldSendRemote && !remoteThrottled)
+            {
+                lastSessionUpdateTime[key] = DateTime.Now;
+
+                var currentState = new MediaPlayState
                 {
-                    return;
-                }
-            }
+                    Title = trackTitle,
+                    Artist = artist,
+                    Thumbnail = thumbnail,
+                    SentTime = DateTime.Now
+                };
 
-            lastSessionUpdateTime[key] = DateTime.Now;
+                bool sendFullPayload = true;
+                string title = trackTitle ?? string.Empty;
+                string artistStr = artist ?? string.Empty;
+                string coverUrl = thumbnail ?? string.Empty;
+                var sourceKey = source ?? string.Empty;
 
-            var currentState = new MediaPlayState
-            {
-                Title = trackTitle,
-                Artist = artist,
-                Thumbnail = thumbnail,
-                SentTime = DateTime.Now
-            };
-
-            bool sendFullPayload = true;
-            string title = trackTitle ?? string.Empty;
-            string artistStr = artist ?? string.Empty;
-            string text = string.Empty;
-            string coverUrl = thumbnail ?? string.Empty;
-
-            var sourceKey = source ?? string.Empty;
-            if (lastMediaState.TryGetValue(sourceKey, out var oldState))
-            {
-                bool titleChanged = oldState.Title != currentState.Title;
-                bool artistChanged = oldState.Artist != currentState.Artist;
-                bool coverChanged = oldState.Thumbnail != currentState.Thumbnail;
-
-                var now = DateTime.Now;
-                sendFullPayload = coverChanged || (now - oldState.SentTime).TotalSeconds > 15;
-
-                if (!sendFullPayload)
+                if (lastMediaState.TryGetValue(sourceKey, out var oldState))
                 {
-                    if (!titleChanged) title = string.Empty;
-                    if (!artistChanged) artistStr = string.Empty;
-                    if (!coverChanged) coverUrl = string.Empty;
-                }
-            }
-
-            lastMediaState[sourceKey] = currentState;
-
-            if (!string.IsNullOrEmpty(title) && !string.IsNullOrEmpty(artistStr))
-            {
-                text = $"{artistStr} - {title}";
-            }
-            else if (!string.IsNullOrEmpty(title))
-            {
-                text = title;
-            }
-            else if (!string.IsNullOrEmpty(artistStr))
-            {
-                text = artistStr;
-            }
-
-            string appName = source ?? "Unknown App";
-
-            foreach (var device in deviceManager.PairedDevices)
-            {
-                if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
-                {
-                    var rawJson = JsonSerializer.Serialize(new
+                    bool titleChanged = oldState.Title != currentState.Title;
+                    bool artistChanged = oldState.Artist != currentState.Artist;
+                    bool coverChanged = oldState.Thumbnail != currentState.Thumbnail;
+                    var now = DateTime.Now;
+                    sendFullPayload = coverChanged || (now - oldState.SentTime).TotalSeconds > 15;
+                    if (!sendFullPayload)
                     {
-                        type = "DATA_MEDIAPLAY",
-                        packageName = source,
-                        appName = appName,
-                        title = title,
-                        text = text,
-                        coverUrl = coverUrl,
-                        time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                        isLocked = false,
-                        mediaType = sendFullPayload ? "FULL" : "DELTA"
-                    });
-                    string requestJson = rawJson;
-                    if (requestJson == null) continue;
-                    _ = protocolSender.SendMessageAsync(device.Id, requestJson);
+                        if (!titleChanged) title = string.Empty;
+                        if (!artistChanged) artistStr = string.Empty;
+                        if (!coverChanged) coverUrl = string.Empty;
+                    }
+                }
+                lastMediaState[sourceKey] = currentState;
+
+                foreach (var device in deviceManager.PairedDevices)
+                {
+                    if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
+                    {
+                        _ = protocolSender.SendMessageAsync(device.Id, JsonSerializer.Serialize(new
+                        {
+                            type = "DATA_MEDIAPLAY",
+                            packageName = source,
+                            appName = source ?? "Unknown App",
+                            title = title,
+                            text = string.IsNullOrEmpty(artistStr) ? title : $"{artistStr} - {title}",
+                            coverUrl = coverUrl,
+                            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                            isLocked = false,
+                            mediaType = sendFullPayload ? "FULL" : "DELTA"
+                        }));
+                    }
                 }
             }
 
-            try
+            if (overlayEnabled)
             {
-                _ = LocalSocketRelayServer.SendMediaInfoAsync(
-                    source ?? "local",
-                    "本机",
-                    trackTitle ?? "",
-                    artist ?? "",
-                    thumbnail ?? "",
-                    isPlaying
-                );
+                try
+                {
+                    byte[]? coverBytes = null;
+                    if (!string.IsNullOrEmpty(thumbnail))
+                    {
+                        coverBytes = ConvertBase64ToBytes(thumbnail);
+                    }
+                    var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                    if (string.IsNullOrEmpty(trackTitle) && string.IsNullOrEmpty(artist))
+                    {
+                        logger?.LogDebug("SendPlaybackData: 移除媒体卡片 source={Source}", source);
+                        overlay.RemoveMediaCard(source ?? "local");
+                    }
+                    else
+                    {
+                        logger?.LogDebug("SendPlaybackData: 显示媒体卡片 source={Source}, title={Title}", source, trackTitle);
+                        overlay.ShowMediaCard(source ?? "local", "本机", trackTitle ?? "", artist ?? "", coverBytes, isPlaying);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogError(ex, "发送媒体信息到 Overlay 失败");
+                }
             }
-            catch (Exception gamebarEx)
+
+            if (forceGamebar || !overlayEnabled)
             {
-                logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
+                try
+                {
+                    _ = LocalSocketRelayServer.SendMediaInfoAsync(
+                        source ?? "local",
+                        "本机",
+                        trackTitle ?? "",
+                        artist ?? "",
+                        thumbnail ?? "",
+                        isPlaying
+                    );
+                }
+                catch (Exception gamebarEx)
+                {
+                    logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
+                }
             }
 
         }
@@ -693,6 +707,19 @@ public class WindowsPlaybackService(
         {
             logger.LogError(ex, "发送播放数据时出错");
         }
+    }
+
+    private static byte[]? ConvertBase64ToBytes(string? base64)
+    {
+        if (string.IsNullOrEmpty(base64)) return null;
+        try
+        {
+            // Handle data URI format
+            if (base64.Contains(','))
+                base64 = base64.Split(',')[1];
+            return Convert.FromBase64String(base64);
+        }
+        catch { return null; }
     }
 
     public Task HandleRemotePlaybackMessageAsync(string data)

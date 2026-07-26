@@ -737,26 +737,23 @@ input touchscreen swipe 540 1800 540 900</value>
   <data name="Devices.Description" xml:space="preserve">
     <value>Managed devices</value>
   </data>
-  <data name="WallpaperOverlay.Title" xml:space="preserve">
-    <value>壁纸层显示</value>
+  <data name="Danmaku.Title" xml:space="preserve">
+    <value>弹幕叠加层</value>
   </data>
-  <data name="WallpaperOverlay.Description" xml:space="preserve">
-    <value>将内容显示到壁纸层，不遮蔽壁纸</value>
+  <data name="Danmaku.Description" xml:space="preserve">
+    <value>在桌面叠加层显示通知弹幕和媒体卡片</value>
   </data>
-  <data name="WallpaperOverlay.Enabled" xml:space="preserve">
-    <value>启用壁纸层显示</value>
+  <data name="Danmaku.Notification" xml:space="preserve">
+    <value>通知弹幕</value>
   </data>
-  <data name="WallpaperOverlay.DisplayText" xml:space="preserve">
-    <value>显示文本</value>
+  <data name="Danmaku.MediaCard" xml:space="preserve">
+    <value>媒体卡片</value>
   </data>
-  <data name="WallpaperOverlay.FontSize" xml:space="preserve">
-    <value>字体大小</value>
+  <data name="Danmaku.SuperIsland" xml:space="preserve">
+    <value>SuperIsland 卡片</value>
   </data>
-  <data name="WallpaperOverlay.TextColor" xml:space="preserve">
-    <value>文字颜色</value>
-  </data>
-  <data name="WallpaperOverlay.ShowControlPanel" xml:space="preserve">
-    <value>显示控制面板</value>
+  <data name="Danmaku.GamebarRelay" xml:space="preserve">
+    <value>强制 Gamebar 转发</value>
   </data>
   <data name="AudioRelay/Title" xml:space="preserve">
     <value>音频中继</value>

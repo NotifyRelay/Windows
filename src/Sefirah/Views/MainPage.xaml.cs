@@ -29,7 +29,7 @@ public sealed partial class MainPage : Page
         { "LocalNotificationHistory", typeof(LocalNotificationHistoryPage) },
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
         { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
-        { "WallpaperOverlay", typeof(Settings.WallpaperOverlaySettingsPage) },
+        { "DanmakuOverlay", typeof(Settings.DanmakuSettingsPage) },
 { "DynamicLighting", typeof(Settings.DynamicLightingSettingsPage) },
         { "AudioRelay", typeof(Settings.VirtualSpeakerSettingsPage) }
     };

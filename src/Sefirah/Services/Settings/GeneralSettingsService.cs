@@ -233,63 +233,118 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
-    public bool WallpaperOverlayEnabled
+    // 弹幕叠加层设置
+    public bool DanmakuNotificationEnabled
     {
         get => Get(false);
         set => Set(value);
     }
 
-    public string? WallpaperOverlayText
+    public bool DanmakuMediaCardEnabled
     {
-        get => Get<string?>(null);
+        get => Get(false);
         set => Set(value);
     }
 
-    public int WallpaperOverlayFontSize
+    public bool DanmakuSuperIslandEnabled
     {
-        get => Get(24);
+        get => Get(false);
         set => Set(value);
     }
 
-    public string? WallpaperOverlayTextColor
+    public bool GamebarRelayEnabled
     {
-        get => Get<string?>(null);
+        get => Get(false);
         set => Set(value);
     }
 
-    public string? WallpaperOverlayTextAlignment
+    public int DanmakuFontSizePercent
     {
-        get => Get<string?>(null);
+        get => Get(100);
         set => Set(value);
     }
 
-    public bool WallpaperOverlayShowControlPanel
+    public int DanmakuSpeed
+    {
+        get => Get(6);
+        set => Set(value);
+    }
+
+    public int DanmakuOpacityPercent
+    {
+        get => Get(100);
+        set => Set(value);
+    }
+
+    public int DanmakuDisplayAreaPercent
+    {
+        get => Get(100);
+        set => Set(value);
+    }
+
+    public int DanmakuDensity
+    {
+        get => Get(0);
+        set => Set(value);
+    }
+
+    public string DanmakuFontFamily
+    {
+        get => Get("Microsoft YaHei")!;
+        set => Set(value);
+    }
+
+    public bool DanmakuBold
     {
         get => Get(true);
         set => Set(value);
     }
 
-    public int WallpaperOverlayX
+    public string DanmakuColor
     {
-        get => Get(0);
+        get => Get("#FFFFFF")!;
         set => Set(value);
     }
 
-    public int WallpaperOverlayY
+    public bool DanmakuBorderEnabled
     {
-        get => Get(0);
+        get => Get(false);
         set => Set(value);
     }
 
-    public int WallpaperOverlayWidth
+    public int DanmakuBorderThickness
     {
-        get => Get(800);
+        get => Get(2);
         set => Set(value);
     }
 
-    public int WallpaperOverlayHeight
+    public string DanmakuBorderColor
     {
-        get => Get(600);
+        get => Get("#000000")!;
+        set => Set(value);
+    }
+
+    public bool DanmakuShadowEnabled
+    {
+        get => Get(true);
+        set => Set(value);
+    }
+
+    public int DanmakuShadowDepth
+    {
+        get => Get(2);
+        set => Set(value);
+    }
+
+    public int DanmakuShadowOpacity
+    {
+        get => Get(100);
+        set => Set(value);
+    }
+
+    public string DanmakuShadowColor
+    {
+        get => Get("#000000")!;
         set => Set(value);
     }
 
