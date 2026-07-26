@@ -222,7 +222,8 @@ public sealed class OverlayRenderService : IDisposable
         CreateOverlay();
 
         var timer = Stopwatch.StartNew();
-        const double targetFrameTime = 1.0 / 60.0;
+        const double targetFrameTime = 1.0 / 120.0;
+        double nextFrameTime = timer.Elapsed.TotalSeconds;
 
         while (_running)
         {
@@ -232,16 +233,23 @@ public sealed class OverlayRenderService : IDisposable
                 DispatchMessageW(ref msg);
             }
 
-            double frameStart = timer.Elapsed.TotalSeconds;
+            // 精确等待至下一帧起始
+            double now = timer.Elapsed.TotalSeconds;
+            if (now < nextFrameTime)
+            {
+                double remain = nextFrameTime - now;
+                int waitMs = (int)(remain * 1000);
+                if (waitMs > 1)
+                    Thread.Sleep(waitMs - 1);
+                while (timer.Elapsed.TotalSeconds < nextFrameTime)
+                    Thread.SpinWait(10);
+            }
+            nextFrameTime = timer.Elapsed.TotalSeconds + targetFrameTime;
 
             lock (_lock)
             {
                 RenderFrame();
             }
-
-            var elapsed = timer.Elapsed.TotalSeconds - frameStart;
-            var waitMs = Math.Max(0, (int)((targetFrameTime - elapsed) * 1000));
-            if (waitMs > 0) Thread.Sleep(waitMs);
 
             DwmFlush();
         }
@@ -612,11 +620,14 @@ public sealed class OverlayRenderService : IDisposable
         // Cover / music note icon
         if (item.CoverBitmap != null)
         {
-            var coverRect = new Vortice.Mathematics.Rect((int)cx, (int)y + 10, 64, 64);
-            _logger.LogDebug("DrawMediaCard: 绘制封面 pillX={PillX}, cx={Cx}, rect=({X},{Y},{W},{H}), bitmapSize={BW}x{BH}",
-                pillX, cx, coverRect.X, coverRect.Y, coverRect.Width, coverRect.Height,
-                item.CoverBitmap.Size.Width, item.CoverBitmap.Size.Height);
-            rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear, coverRect);
+            // 使用 render target transform 定位+缩放，避免 Rect 参数问题
+            var oldTransform = rt.Transform;
+            float coverSize = 64;
+            var bmpSize = item.CoverBitmap.Size;
+            float scale = coverSize / Math.Max(bmpSize.Width, bmpSize.Height);
+            rt.Transform = Matrix3x2.CreateScale(scale, scale) * Matrix3x2.CreateTranslation(cx, y + 10);
+            rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear);
+            rt.Transform = oldTransform;
             cx += 72;
         }
         else
@@ -683,7 +694,7 @@ public sealed class OverlayRenderService : IDisposable
         float pad = 8;
         float opacity = 0.9f;
 
-        // 计算内容宽度：封面(24) + 间距(6) + 标题(动态) + 间距(6) + 频谱(18)
+        // 计算内容宽度：封面(24) + 间距(6) + 标题(动态) + 间距(6) + 频谱5条(23)
         // 先测量标题文本宽度
         string titleText = string.IsNullOrEmpty(item.Title) ? "未在播放" : item.Title;
         using var titleFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
@@ -693,7 +704,7 @@ public sealed class OverlayRenderService : IDisposable
         var titleMetrics = titleMeasure.Metrics;
         float titleWidth = Math.Min(titleMetrics.WidthIncludingTrailingWhitespace, 180);
 
-        float contentWidth = 24 + 6 + titleWidth + 6 + 18;
+        float contentWidth = 24 + 6 + titleWidth + 6 + 21; // 5条频谱: 5*2.5+4*2=20.5
         float pillWidth = Math.Max(contentWidth + pad * 2, 120);
         float pillX = (_width - pillWidth) / 2;
 
@@ -708,8 +719,13 @@ public sealed class OverlayRenderService : IDisposable
         // 小封面 (24x24)
         if (item.CoverBitmap != null)
         {
-            var coverRect = new Vortice.Mathematics.Rect((int)cx, (int)centerY, 24, 24);
-            rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear, coverRect);
+            var oldTransform = rt.Transform;
+            float coverSize = 24;
+            var bmpSize = item.CoverBitmap.Size;
+            float scale = coverSize / Math.Max(bmpSize.Width, bmpSize.Height);
+            rt.Transform = Matrix3x2.CreateScale(scale, scale) * Matrix3x2.CreateTranslation(cx, centerY);
+            rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear);
+            rt.Transform = oldTransform;
         }
         else
         {
@@ -730,36 +746,63 @@ public sealed class OverlayRenderService : IDisposable
         rt.DrawTextLayout(new Vector2(cx, centerY + 2), titleDrawLyt, titleBrush);
         cx += titleWidth + 6;
 
-        // 播放频谱指示器（3 个小竖条）
-        float barWidth = 3;
+        // 播放频谱指示器（5 个小竖条，双波峰W形流畅震荡动画，居中向两端缩放）
+        const int barCount = 5;
+        float barWidth = 2.5f;
         float barGap = 2;
         float maxBarHeight = 14;
-        float barBaseY = centerY + 24; // 底部对齐
+        float barTop = centerY + (24 - maxBarHeight) / 2.0f; // 垂直居中
         using var barBrush = rt.CreateSolidColorBrush(new Color4(0.3f, 0.7f, 1.0f, opacity));
 
-        // 根据播放状态显示不同高度
-        float h1, h2, h3;
         if (item.IsPlaying)
         {
-            // 播放时：模拟频谱（固定高度，非动画）
-            h1 = maxBarHeight * 0.5f;
-            h2 = maxBarHeight * 0.8f;
-            h3 = maxBarHeight * 0.6f;
+            // 双波峰 W 形震荡动画：bars 1和3为波峰，bar 2为波谷，bars 0和4为边缘
+            double freq = Stopwatch.Frequency;
+            double now = Stopwatch.GetTimestamp();
+            double elapsed = (now - item.StartTime) / freq;
+
+            float[] heights = new float[barCount];
+            float phase = (float)(elapsed * 3.5); // 震荡速度
+
+            for (int i = 0; i < barCount; i++)
+            {
+                // 两个波峰位于 bar 1 和 bar 3，用距离最近波峰的距离决定基础高度
+                double dist = Math.Min(Math.Abs(i - 1.0), Math.Abs(i - 3.0));
+                // 离波峰越远越低：peak=1.0, mid=0.65, edge=0.35
+                double baseFactor = 1.0 - dist * 0.35;
+
+                // 每根条独立的相位震荡，产生流动感
+                double osc = 0.55 + 0.45 * Math.Sin(phase + i * 1.1);
+                double h = maxBarHeight * baseFactor * osc;
+
+                heights[i] = (float)Math.Max(1.0, h);
+            }
+
+            for (int i = 0; i < barCount; i++)
+            {
+                float bx = cx + i * (barWidth + barGap);
+                float h = heights[i];
+                float top = barTop + (maxBarHeight - h) / 2.0f; // 从中间向两端缩放
+                int bw = Math.Max(1, (int)(barWidth));
+                int bh = Math.Max(1, (int)(h));
+                var barRect = new Vortice.Mathematics.Rect((int)bx, (int)top, bw, bh);
+                rt.FillRectangle(in barRect, barBrush);
+            }
         }
         else
         {
-            // 暂停时：统一低高度
-            h1 = h2 = h3 = maxBarHeight * 0.3f;
+            // 暂停时：统一低高度，居中
+            float h = maxBarHeight * 0.2f;
+            float top = barTop + (maxBarHeight - h) / 2.0f;
+            for (int i = 0; i < barCount; i++)
+            {
+                float bx = cx + i * (barWidth + barGap);
+                int bw = Math.Max(1, (int)(barWidth));
+                int bh = Math.Max(1, (int)(h));
+                var barRect = new Vortice.Mathematics.Rect((int)bx, (int)top, bw, bh);
+                rt.FillRectangle(in barRect, barBrush);
+            }
         }
-
-        var bar1 = new Rect(cx, barBaseY - h1, cx + barWidth, barBaseY);
-        rt.FillRectangle(in bar1, barBrush);
-        cx += barWidth + barGap;
-        var bar2 = new Rect(cx, barBaseY - h2, cx + barWidth, barBaseY);
-        rt.FillRectangle(in bar2, barBrush);
-        cx += barWidth + barGap;
-        var bar3 = new Rect(cx, barBaseY - h3, cx + barWidth, barBaseY);
-        rt.FillRectangle(in bar3, barBrush);
     }
 
     private void DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float y)
@@ -880,7 +923,32 @@ public sealed class OverlayRenderService : IDisposable
         using var frame = decoder.GetFrame(0);
         using var converter = _wicFactory.CreateFormatConverter();
         converter.Initialize(frame, Vortice.WIC.PixelFormat.Format32bppPBGRA);
-        return rt.CreateBitmapFromWicBitmap(converter);
+
+        var size = converter.Size;
+        int stride = size.Width * 4;
+        byte[] pixels = new byte[stride * size.Height];
+
+        unsafe
+        {
+            fixed (byte* pPixels = pixels)
+            {
+                converter.CopyPixels(new RectI(0, 0, size.Width, size.Height), (uint)stride, (uint)pixels.Length, (IntPtr)pPixels);
+            }
+        }
+
+        var props = new BitmapProperties(new Vortice.DCommon.PixelFormat(
+            Vortice.DXGI.Format.B8G8R8A8_UNorm,
+            Vortice.DCommon.AlphaMode.Premultiplied));
+        var bitmap = rt.CreateBitmap(size, props);
+
+        unsafe
+        {
+            fixed (byte* pPixels = pixels)
+            {
+                bitmap.CopyFromMemory((IntPtr)pPixels, (uint)stride);
+            }
+        }
+        return bitmap;
     }
 
     public void Dispose()
