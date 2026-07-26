@@ -14,6 +14,7 @@ using Windows.Media;
 using Windows.Media.Control;
 
 using NotifyRelay.Services;
+using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 

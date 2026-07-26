@@ -1,0 +1,6 @@
+refactor: 将覆盖层服务文件移至 Services/Overlay 子文件夹
+
+- 6 个 OverlayRenderService partial 文件迁移至 Services/Overlay/
+- 命名空间由 NotifyRelay.Services 改为 NotifyRelay.Services.Overlay（与项目文件夹=命名空间约定一致）
+- 为 5 个调用方（DanmakuViewModel、ProtocolRouter、NotificationService、WindowsPlaybackService、AppLifecycleHelper）补充 using NotifyRelay.Services.Overlay
+- 仅调整文件组织与命名空间，覆盖层运行时行为不变

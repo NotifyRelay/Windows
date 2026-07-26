@@ -7,7 +7,7 @@ using Vortice.WIC;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Data.Contracts;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Overlay;
 
 public sealed partial class OverlayRenderService : IDisposable
 {

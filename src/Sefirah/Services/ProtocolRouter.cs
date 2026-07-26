@@ -9,6 +9,8 @@ using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows.Services;
 #endif
 
+using NotifyRelay.Services.Overlay;
+
 namespace NotifyRelay.Services;
 
 /// <summary>

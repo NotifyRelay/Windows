@@ -6,6 +6,7 @@ using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
+using NotifyRelay.Services.Overlay;
 using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.Services.Socket;

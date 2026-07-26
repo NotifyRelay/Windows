@@ -6,7 +6,7 @@ using Vortice.WIC;
 using NotifyRelay.Models.Render;
 using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {

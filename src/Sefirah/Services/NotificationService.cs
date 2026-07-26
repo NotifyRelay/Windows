@@ -12,6 +12,8 @@ using Windows.System;
 using Windows.UI.Notifications;
 using Notification = NotifyRelay.Data.Models.Notification;
 
+using NotifyRelay.Services.Overlay;
+
 namespace NotifyRelay.Services;
 
 public class NotificationService(

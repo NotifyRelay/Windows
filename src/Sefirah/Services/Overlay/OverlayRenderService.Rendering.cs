@@ -11,7 +11,7 @@ using DWriteFontStyle = Vortice.DirectWrite.FontStyle;
 using DWriteFontStretch = Vortice.DirectWrite.FontStretch;
 using BitmapInterpolationMode = Vortice.Direct2D1.BitmapInterpolationMode;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {

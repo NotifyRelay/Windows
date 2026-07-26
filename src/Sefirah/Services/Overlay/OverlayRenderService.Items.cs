@@ -1,6 +1,6 @@
 using NotifyRelay.Models.Render;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {

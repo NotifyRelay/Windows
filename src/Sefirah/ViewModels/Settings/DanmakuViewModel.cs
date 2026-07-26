@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Services;
+using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.ViewModels.Settings;
 

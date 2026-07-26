@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {
