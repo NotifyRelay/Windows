@@ -16,12 +16,12 @@ namespace NotifyRelay.Services;
 
 public class NotificationService(
     ILogger logger,
-    ISessionManager sessionManager,
+    ISessionManager _sessionManager,
     IDeviceManager deviceManager,
     IPlatformNotificationHandler platformNotificationHandler,
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
-    Func<INetworkService> networkServiceFactory,
+    Func<INetworkService> _networkServiceFactory,
     Func<IRemoteAppService> remoteAppServiceFactory,
     IPlaybackService playbackService,
     BackendRemoteFilter remoteFilter,
@@ -48,6 +48,9 @@ public class NotificationService(
     /// 属性变更事件
     /// </summary>
     public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged(string? propertyName) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     /// <summary>
     /// 分组通知集合变化事件

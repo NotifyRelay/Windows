@@ -19,10 +19,10 @@ public class NetworkService(
     ILogger<NetworkService> logger,
     IDeviceManager deviceManager,
     IAdbService adbService,
-    IScreenMirrorService screenMirrorService,
+    IScreenMirrorService _screenMirrorService,
     ISystemInfoService systemInfoService,
-    ProtocolRouter protocolRouter,
-    HeartbeatProcessor heartbeatProcessor,
+    ProtocolRouter _protocolRouter,
+    HeartbeatProcessor _heartbeatProcessor,
     IProtocolSender protocolSender,
     Func<IRemoteAppService> remoteAppServiceFactory) : INetworkService, ISessionManager
 {
