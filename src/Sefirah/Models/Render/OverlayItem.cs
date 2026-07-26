@@ -109,6 +109,7 @@ public class SuperIslandItem : OverlayItem
     public IDWriteTextLayout? TitleLayout { get; set; }
     public IDWriteTextLayout? SubtitleLayout { get; set; }
     public IDWriteTextLayout? AdditionalTextLayout { get; set; }
+    public IDWriteTextLayout? ExtraLayout { get; set; }
 
     public string SourceId { get; set; } = string.Empty;
     public string DeviceName { get; set; } = string.Empty;
@@ -116,6 +117,11 @@ public class SuperIslandItem : OverlayItem
     public double Opacity { get; set; } = 1.0;
     public double LastUpdateTime { get; set; }
     public const double TimeoutSeconds = 10;
+
+    // 展开/收起状态（类似 MediaCardItem）
+    public bool IsExpanded { get; set; } = true;
+    public double ExpandedSince { get; set; }
+    public const double AutoCollapseSeconds = 5.0;
 
     public SuperIslandItem()
     {
@@ -132,5 +138,6 @@ public class SuperIslandItem : OverlayItem
         TitleLayout?.Dispose();
         SubtitleLayout?.Dispose();
         AdditionalTextLayout?.Dispose();
+        ExtraLayout?.Dispose();
     }
 }

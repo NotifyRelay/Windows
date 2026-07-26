@@ -168,17 +168,46 @@ public sealed class OverlayRenderService : IDisposable
             var existing = _items.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (existing != null)
             {
+                // 处理增量变更合并
+                if (!string.IsNullOrEmpty(state.ChangesJson))
+                {
+                    existing.State.MergeChanges(state.ChangesJson);
+                }
+
                 // 空值表示"未改变"，仅合并有实际值的字段
                 if (!string.IsNullOrEmpty(state.Title)) existing.State.Title = state.Title;
                 if (!string.IsNullOrEmpty(state.Subtitle)) existing.State.Subtitle = state.Subtitle;
+                if (!string.IsNullOrEmpty(state.Extra)) existing.State.Extra = state.Extra;
                 if (state.IconPng != null) existing.State.IconPng = state.IconPng;
+                if (state.Pics != null) existing.State.Pics = state.Pics;
+                if (state.Progress > 0) existing.State.Progress = state.Progress;
+                if (state.TimerType != TimerType.None) existing.State.TimerType = state.TimerType;
+                if (state.TimerValue > 0) existing.State.TimerValue = state.TimerValue;
+                if (state.TimerStartTime > 0) existing.State.TimerStartTime = state.TimerStartTime;
+                if (!string.IsNullOrEmpty(state.ParamV2Raw))
+                {
+                    existing.State.ParamV2Raw = state.ParamV2Raw;
+                    SuperIslandParamV2Parser.ApplyToState(existing.State, state.ParamV2Raw);
+                }
+
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
+
+                // 触发 UI 刷新：使缓存的 Layout 失效
                 existing.TitleLayout?.Dispose();
                 existing.TitleLayout = null;
                 existing.SubtitleLayout?.Dispose();
                 existing.SubtitleLayout = null;
                 existing.AdditionalTextLayout?.Dispose();
                 existing.AdditionalTextLayout = null;
+                existing.ExtraLayout?.Dispose();
+                existing.ExtraLayout = null;
+
+                // Extra 变更时重新展开
+                if (!string.IsNullOrEmpty(state.Extra))
+                {
+                    existing.IsExpanded = true;
+                    existing.ExpandedSince = Stopwatch.GetTimestamp();
+                }
                 return;
             }
 
@@ -189,7 +218,9 @@ public sealed class OverlayRenderService : IDisposable
                 State = state,
                 IconPng = state.IconPng,
                 StartTime = Stopwatch.GetTimestamp(),
-                LastUpdateTime = Stopwatch.GetTimestamp()
+                LastUpdateTime = Stopwatch.GetTimestamp(),
+                IsExpanded = true,
+                ExpandedSince = Stopwatch.GetTimestamp()
             };
             _items.Add(item);
         }
@@ -417,10 +448,17 @@ public sealed class OverlayRenderService : IDisposable
         // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
         foreach (var si in superItems.Take(3))
         {
-            _logger.LogTrace("RenderTopCards: 渲染SuperIsland卡片 sourceId={SourceId}, title={Title}", si.SourceId, si.State.Title);
+            // 自动收起：Extra 信息展示后 5 秒自动收起为紧凑模式
+            if (si.IsExpanded && si.State.HasExtra && (now - si.ExpandedSince) / freq > SuperIslandItem.AutoCollapseSeconds)
+            {
+                si.IsExpanded = false;
+            }
+
+            _logger.LogTrace("RenderTopCards: 渲染SuperIsland卡片 sourceId={SourceId}, title={Title}, expanded={Expanded}",
+                si.SourceId, si.State.Title, si.IsExpanded);
             EnsureSuperIslandResources(si);
             DrawSuperIslandCard(si, _renderTarget!, y);
-            y += 84;
+            y += si.IsExpanded ? 110 : 84;
         }
     }
 
@@ -542,6 +580,14 @@ public sealed class OverlayRenderService : IDisposable
                 "Microsoft YaHei", null,
                 DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 12);
             item.AdditionalTextLayout = _dwFactory.CreateTextLayout(item.State.AdditionalText, format, 400, 20);
+        }
+
+        if (item.ExtraLayout == null && !string.IsNullOrEmpty(item.State.Extra))
+        {
+            using var format = _dwFactory.CreateTextFormat(
+                "Microsoft YaHei", null,
+                DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 11);
+            item.ExtraLayout = _dwFactory.CreateTextLayout(item.State.Extra, format, 380, 20);
         }
     }
 
@@ -808,7 +854,7 @@ public sealed class OverlayRenderService : IDisposable
     private void DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float y)
     {
         const float pillWidth = 380;
-        const float pillHeight = 76;
+        float pillHeight = item.IsExpanded && item.State.HasExtra ? 102 : 76;
         float pillX = (_width - pillWidth) / 2;
         float pad = 14;
         float opacity = 0.9f;
@@ -819,16 +865,16 @@ public sealed class OverlayRenderService : IDisposable
         rt.FillRoundedRectangle(ref pillRR, bgBrush);
 
         float cx = pillX + pad;
+        float textW = pillWidth - pad * 2;
 
-        // Icon
+        // Icon (28x28)
         if (item.IconBitmap != null)
         {
             var iconRect = new Vortice.Mathematics.Rect((int)cx, (int)y + 10, 28, 28);
             rt.DrawBitmap(item.IconBitmap, opacity, BitmapInterpolationMode.Linear, iconRect);
             cx += 36;
+            textW -= 36;
         }
-
-        float textW = pillWidth - pad - (cx - pillX) - pad;
 
         // Title + Subtitle in one line
         string titleText = item.State.Title ?? "";
@@ -837,32 +883,48 @@ public sealed class OverlayRenderService : IDisposable
 
         using var titleFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
             DWriteFontWeight.SemiBold, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 14);
-        using var titleLyt = _dwFactory.CreateTextLayout(titleText, titleFmt, textW, 22);
+        float titleMaxW = textW - 80; // 留出右侧计时器空间
+        using var titleLyt = _dwFactory.CreateTextLayout(titleText, titleFmt, Math.Max(titleMaxW, 60), 22);
         using var titleBr = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
         rt.DrawTextLayout(new Vector2(cx, y + 10), titleLyt, titleBr);
 
-        // Timer / additional text
+        float nextLineY = y + 34; // 第二行起始 Y
+
+        // Timer（右侧）
         string timerText = item.State.GetDisplayTime();
-        if (!string.IsNullOrEmpty(timerText))
+        string? progressText = item.State.GetProgressText();
+        string rightText = !string.IsNullOrEmpty(timerText) ? timerText : progressText ?? "";
+        if (!string.IsNullOrEmpty(rightText))
         {
             using var timeFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
                 DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 11);
-            using var timeLyt = _dwFactory.CreateTextLayout(timerText, timeFmt, 70, 18);
+            using var timeLyt = _dwFactory.CreateTextLayout(rightText, timeFmt, 70, 16);
             using var timeBr = rt.CreateSolidColorBrush(new Color4(0.7f, 0.7f, 0.7f, opacity));
             rt.DrawTextLayout(new Vector2(pillX + pillWidth - pad - 70, y + 11), timeLyt, timeBr);
         }
 
-        // Additional text line
+        // Additional text line（第二行）
         if (!string.IsNullOrEmpty(item.State.AdditionalText))
         {
             using var addFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
                 DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 11);
             using var addLyt = _dwFactory.CreateTextLayout(item.State.AdditionalText, addFmt, textW, 18);
             using var addBr = rt.CreateSolidColorBrush(new Color4(0.7f, 0.7f, 0.7f, opacity));
-            rt.DrawTextLayout(new Vector2(cx, y + 34), addLyt, addBr);
+            rt.DrawTextLayout(new Vector2(cx, nextLineY), addLyt, addBr);
         }
 
-        // Progress bar
+        // Extra line（展开时第三行，从 ParamV2 解析出的结构化信息）
+        if (item.IsExpanded && item.State.HasExtra)
+        {
+            float extraY = string.IsNullOrEmpty(item.State.AdditionalText) ? nextLineY : nextLineY + 20;
+            if (item.ExtraLayout != null)
+            {
+                using var extraBr = rt.CreateSolidColorBrush(new Color4(0.6f, 0.8f, 1.0f, opacity));
+                rt.DrawTextLayout(new Vector2(cx, extraY), item.ExtraLayout, extraBr);
+            }
+        }
+
+        // Progress bar（底部）
         if (item.State.HasProgress)
         {
             using var progBg = rt.CreateSolidColorBrush(new Color4(0.35f, 0.35f, 0.35f, opacity * 0.6f));

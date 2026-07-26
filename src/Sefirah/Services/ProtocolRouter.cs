@@ -291,8 +291,24 @@ public class ProtocolRouter
                     {
                         Title = title,
                         Subtitle = text,
+                        ParamV2Raw = paramV2Raw,
+                        Pics = pics,
                         IconPng = pics?.TryGetValue("icon", out var iconStr) == true ? Convert.FromBase64String(iconStr) : null,
                     };
+
+                    // 解析 param_v2_raw 提取 Extra、进度、计时器
+                    if (!string.IsNullOrWhiteSpace(paramV2Raw))
+                    {
+                        Models.Render.SuperIslandParamV2Parser.ApplyToState(siState, paramV2Raw);
+                    }
+
+                    // 处理增量变更
+                    if (hasChanges)
+                    {
+                        var changesRaw = root.GetRawText();
+                        siState.MergeChanges(changesRaw);
+                    }
+
                     overlay.ShowSuperIsland(sourceId, device.Name, siState);
                 }
             }
