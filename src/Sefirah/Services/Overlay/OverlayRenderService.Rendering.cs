@@ -21,16 +21,12 @@ public partial class OverlayRenderService
         var mediaItems = _items.OfType<MediaCardItem>().Where(m => m.Active).ToList();
         var superItems = _items.OfType<SuperIslandItem>().Where(s => s.Active).ToList();
 
-        _logger.LogTrace("RenderTopCards: mediaCount={MediaCount}, superCount={SuperCount}, totalItems={TotalItems}",
-            mediaItems.Count, superItems.Count, _items.Count);
-
         // Remove timed out items
         for (int i = mediaItems.Count - 1; i >= 0; i--)
         {
             var elapsed = (now - mediaItems[i].LastUpdateTime) / freq;
             if (elapsed > MediaCardItem.TimeoutSeconds)
             {
-                _logger.LogTrace("RenderTopCards: 媒体卡片超时移除 deviceId={DeviceId}", mediaItems[i].DeviceId);
                 mediaItems[i].Active = false;
                 mediaItems[i].Dispose();
                 _items.Remove(mediaItems[i]);
@@ -42,7 +38,6 @@ public partial class OverlayRenderService
             var elapsed = (now - superItems[i].LastUpdateTime) / freq;
             if (elapsed > SuperIslandItem.TimeoutSeconds)
             {
-                _logger.LogTrace("RenderTopCards: SuperIsland卡片超时移除 sourceId={SourceId}", superItems[i].SourceId);
                 superItems[i].Active = false;
                 superItems[i].Dispose();
                 _items.Remove(superItems[i]);
@@ -60,8 +55,6 @@ public partial class OverlayRenderService
                 media.IsExpanded = false;
             }
 
-            _logger.LogTrace("RenderTopCards: 渲染媒体卡片 deviceId={DeviceId}, title={Title}, expanded={Expanded}",
-                media.DeviceId, media.Title, media.IsExpanded);
             EnsureMediaResources(media);
             DrawMediaCard(media, _renderTarget!, y, now, freq);
             y += media.IsExpanded ? 108 : 48;
@@ -76,8 +69,6 @@ public partial class OverlayRenderService
                 si.IsExpanded = false;
             }
 
-            _logger.LogTrace("RenderTopCards: 渲染SuperIsland卡片 sourceId={SourceId}, title={Title}, expanded={Expanded}",
-                si.SourceId, si.State.Title, si.IsExpanded);
             EnsureSuperIslandResources(si);
             DrawSuperIslandCard(si, _renderTarget!, y);
             y += si.IsExpanded ? 110 : 84;

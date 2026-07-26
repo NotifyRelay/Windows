@@ -44,10 +44,7 @@ public partial class OverlayRenderService
         {
             try
             {
-                _logger.LogDebug("EnsureMediaResources: 尝试加载封面图片, 数据长度={Length}", item.CoverPng.Length);
                 item.CoverBitmap = LoadBitmapFromPng(item.CoverPng, _renderTarget!);
-                _logger.LogDebug("EnsureMediaResources: 封面加载成功, 尺寸={Width}x{Height}",
-                    item.CoverBitmap?.Size.Width, item.CoverBitmap?.Size.Height);
             }
             catch (Exception ex)
             {
