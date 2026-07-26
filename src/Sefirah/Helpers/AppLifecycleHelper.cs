@@ -210,11 +210,94 @@ public static class AppLifecycleHelper
             config.AutoRGBUpdateInterval = settings.AutoRGBUpdateInterval;
 
             logger.LogInformation("Worker 服务配置已初始化");
+
+            // 按已持久化的设置开关，在应用启动时自动拉起对应的 Worker 服务
+            await StartWorkerServicesAsync(logger, settings);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "初始化 Worker 服务配置失败");
         }
+    }
+
+    /// <summary>
+    /// 应用启动时，依据已开启的设置项自动启动对应的 Worker 服务。
+    /// </summary>
+    private static async Task StartWorkerServicesAsync(ILogger logger, IGeneralSettingsService settings)
+    {
+        // 动态光效依赖 WinRT UI 亲和 API（DeviceWatcher / LampArray），需在 UI 线程启动
+        if (settings.EnableDynamicLighting)
+        {
+            try
+            {
+                var lightingService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.DynamicLightingService>();
+                await RunOnUiThreadAsync(lightingService.Initialize);
+                logger.LogInformation("动态光效服务已按设置自动启动");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "自动启动动态光效服务失败");
+            }
+        }
+
+        if (settings.EnableMonitorBrightnessSync)
+        {
+            try
+            {
+                var brightnessService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.MonitorBrightnessService>();
+                brightnessService.StartSync();
+                logger.LogInformation("显示器亮度同步服务已按设置自动启动");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "自动启动显示器亮度同步服务失败");
+            }
+        }
+
+        if (settings.EnableDeepSeekBalanceMonitor)
+        {
+            try
+            {
+                var deepSeekService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.DeepSeekBalanceService>();
+                deepSeekService.StartPolling();
+                logger.LogInformation("DeepSeek 余额监控服务已按设置自动启动");
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "自动启动 DeepSeek 余额监控服务失败");
+            }
+        }
+    }
+
+    /// <summary>
+    /// 将操作分发到 UI 线程执行并等待其完成。
+    /// </summary>
+    private static Task RunOnUiThreadAsync(Action action)
+    {
+        var dispatcher = App.MainWindow?.DispatcherQueue;
+        if (dispatcher is null)
+        {
+            action();
+            return Task.CompletedTask;
+        }
+
+        var tcs = new TaskCompletionSource();
+        dispatcher.TryEnqueue(() =>
+        {
+            try
+            {
+                action();
+            }
+            catch
+            {
+                // 异常交由 StartWorkerServicesAsync 内的 try/catch 记录
+            }
+            finally
+            {
+                tcs.TrySetResult();
+            }
+        });
+        return tcs.Task;
     }
 
     private static async Task InitAudioRelayAsync(ILogger logger)

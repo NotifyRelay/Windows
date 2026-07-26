@@ -184,6 +184,9 @@ public class MonitorBrightnessViewModel
             _isSyncEnabled = _brightnessService.IsRunning;
             SyncStatusChanged?.Invoke(this, EventArgs.Empty);
         };
+
+        // 回显已按设置自动启动的服务实际运行状态
+        _isSyncEnabled = _brightnessService.IsRunning;
     }
 
     public void LoadMonitors()

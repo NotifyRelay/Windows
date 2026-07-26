@@ -132,6 +132,8 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
         ApiToken = _generalSettingsService.DeepSeekApiToken ?? string.Empty;
         SelectedIntervalIndex = GetIntervalIndex(_generalSettingsService.DeepSeekBalancePollingInterval);
         IsCollapsed = _generalSettingsService.DeepSeekBalanceHistoryCollapsed;
+        // 回显已按设置自动启动的服务实际运行状态
+        IsEnabled = _deepSeekService.IsPolling;
     }
 
     private int GetIntervalIndex(int intervalMs) => intervalMs switch
@@ -223,8 +225,10 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     partial void OnIsEnabledChanged(bool value)
     {
-        if (value) StartPolling();
-        else StopPolling();
+        if (value && !_deepSeekService.IsPolling)
+            StartPolling();
+        else if (!value && _deepSeekService.IsPolling)
+            StopPolling();
     }
 
     private void UpdateStatusText() =>
