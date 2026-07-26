@@ -11,6 +11,7 @@
     <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.251219" />
     <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.3.0" />
     <PackageVersion Include="Markdig" Version="1.2.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-preview.6.26359.118" />
     <PackageVersion Include="NAudio" Version="2.3.0" />
     <PackageVersion Include="NetCoreServer" Version="8.0.7" />
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
@@ -23,6 +24,7 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
     <PackageVersion Include="Microsoft.Extensions.Localization" Version="9.0.0" />
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />
     <PackageVersion Include="Vanara.PInvoke.CldApi" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Ole" Version="5.0.5" />

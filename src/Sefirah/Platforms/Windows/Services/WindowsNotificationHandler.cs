@@ -272,7 +272,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager sessionM
         }
         catch (Exception ex)
         {
-            logger.Error($"通知失败，进度：{progress}, 序列：{notificationSequence}", ex);
+            logger.LogError(ex, $"通知失败，进度：{progress}, 序列：{notificationSequence}");
         }
     }
 

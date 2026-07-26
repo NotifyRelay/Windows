@@ -260,10 +260,12 @@ public static class AppLifecycleHelper
             {
                 config
                     .MinimumLevel.Debug()
+                    .WriteTo.Debug(outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
                     .WriteTo.File(
                         Path.Combine(ApplicationData.Current.LocalFolder.Path, "Logs", "Log_.log"),
                         rollingInterval: RollingInterval.Day,
-                        retainedFileCountLimit: 7
+                        retainedFileCountLimit: 7,
+                        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
                     );
             })
             .Build();

@@ -19,7 +19,7 @@ public sealed partial class DeviceSettingsWindow : Window
 
         this.InitializeComponent();
         Title = device.Name;
-        this.SetWindowIcon();
+        this.SetIcon(@"Assets\Icons\SefirahLight.ico");
         OverlappedPresenter overlappedPresenter = (AppWindow.Presenter as OverlappedPresenter) ?? OverlappedPresenter.Create();
         overlappedPresenter.IsMaximizable = false;
         overlappedPresenter.IsMinimizable = false;

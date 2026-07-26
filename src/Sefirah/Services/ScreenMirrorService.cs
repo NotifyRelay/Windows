@@ -308,7 +308,7 @@ public class ScreenMirrorService(
             if (!string.IsNullOrEmpty(iconPath))
             {
                 process.StartInfo.EnvironmentVariables["SCRCPY_ICON_PATH"] = iconPath;
-                logger.Info($"正在使用自定义 scrcpy 图标：{iconPath}");
+                logger.LogInformation($"正在使用自定义 scrcpy 图标：{iconPath}");
             }
 
             bool started;

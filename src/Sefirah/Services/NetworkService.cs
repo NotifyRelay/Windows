@@ -60,7 +60,7 @@ public class NetworkService(
             if (result == 0)
             {
                 isRunning = true;
-                logger.Info($"服务器已在端口 {ServerPort} 启动");
+                logger.LogInformation($"服务器已在端口 {ServerPort} 启动");
 
                 // 启动 Rust core 网络功能
                 var battery = systemInfoService.GetSystemBatteryLevel();
@@ -112,7 +112,7 @@ public class NetworkService(
 
     public async Task HandleHandshakeAsync(string remoteDeviceId, string remotePublicKey, string remoteIpAddress, int battery, string remoteDeviceType)
     {
-        logger.Info($"收到握手来自 {remoteIpAddress} (类型: {remoteDeviceType})");
+        logger.LogInformation($"收到握手来自 {remoteIpAddress} (类型: {remoteDeviceType})");
 
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
@@ -121,7 +121,7 @@ public class NetworkService(
 
         if (device is not null)
         {
-            logger.Info($"设备 {device.Id} 已连接");
+            logger.LogInformation($"设备 {device.Id} 已连接");
             // 如果之前被标记为不兼容，现在成功连接则移除限制
             lock (incompatibleDevices) incompatibleDevices.Remove(device.Id);
 
@@ -160,7 +160,7 @@ public class NetworkService(
         else
         {
             NativeCore.SendReject(localDeviceId ?? string.Empty);
-            logger.Info("设备验证失败或被拒绝");
+            logger.LogInformation("设备验证失败或被拒绝");
         }
     }
 
@@ -182,7 +182,7 @@ public class NetworkService(
                 deviceManager.RemoveDevice(existingDevice);
             }
 
-            logger.Info($"收到 PAIRING_INIT: {remoteUuid}");
+            logger.LogInformation($"收到 PAIRING_INIT: {remoteUuid}");
 
             // 在主线程上显示配对码输入对话框
             string? pairingCode = null;
@@ -207,7 +207,7 @@ public class NetworkService(
             // 用户取消了输入
             if (pairingCode == null)
             {
-                logger.Info($"用户取消了配对: {remoteUuid}");
+                logger.LogInformation($"用户取消了配对: {remoteUuid}");
                 NativeCore.SendReject(remoteUuid);
                 return;
             }
@@ -222,7 +222,7 @@ public class NetworkService(
                     ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
                 }
                 NativeCore.SendPairingResp(localDeviceId, ltPubKey, pairingCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
-                logger.Info($"已发送 PAIRING_RESP: {remoteUuid}");
+                logger.LogInformation($"已发送 PAIRING_RESP: {remoteUuid}");
             }
             catch (Exception ex)
             {
@@ -262,7 +262,7 @@ public class NetworkService(
     {
         try
         {
-            logger.Info($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
+            logger.LogInformation($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
             var existing = PairedDevices.FirstOrDefault(d => d.Id == remoteUuid);
             if (existing != null)
@@ -277,7 +277,7 @@ public class NetworkService(
                 existing.RemoteDeviceType = remoteDeviceType;
                 deviceManager.ActiveDevice = existing;
                 ConnectionStatusChanged?.Invoke(this, (existing, true));
-                logger.Info($"配对完成（更新已有设备）: {remoteUuid}");
+                logger.LogInformation($"配对完成（更新已有设备）: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
             else
@@ -306,7 +306,7 @@ public class NetworkService(
                         ConnectionStatusChanged?.Invoke(this, (newDevice, true));
                     });
                 }
-                logger.Info($"新设备配对完成: {remoteUuid}");
+                logger.LogInformation($"新设备配对完成: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
         }
@@ -323,7 +323,7 @@ public class NetworkService(
     {
         try
         {
-            logger.Warn($"收到 REJECT: {remoteUuid}");
+            logger.LogWarning($"收到 REJECT: {remoteUuid}");
         }
         catch (Exception ex)
         {
@@ -341,11 +341,11 @@ public class NetworkService(
         {
             if (success == 1)
             {
-                logger.Info($"配对成功: {remoteUuid}");
+                logger.LogInformation($"配对成功: {remoteUuid}");
             }
             else
             {
-                logger.Warn($"配对失败: {remoteUuid}, error={errorMsg}");
+                logger.LogWarning($"配对失败: {remoteUuid}, error={errorMsg}");
             }
         }
         catch (Exception ex)

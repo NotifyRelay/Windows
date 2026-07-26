@@ -89,7 +89,7 @@ public class FileTransferService(
                     // Check if the entire bulk transfer has been cancelled
                     cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                    logger.Info($"开始接收文件 {currentTransfer.CurrentFileIndex + 1}/{bulkFile.Files.Count}：{fileMetadata.FileName}");
+                    logger.LogInformation($"开始接收文件 {currentTransfer.CurrentFileIndex + 1}/{bulkFile.Files.Count}：{fileMetadata.FileName}");
 
                     if (transferCompletionSource?.Task is not null && !transferCompletionSource.Task.IsCompleted)
                     {
@@ -106,7 +106,7 @@ public class FileTransferService(
                     await transferCompletionSource.Task;
 
                     currentTransfer.CurrentFileIndex++;
-                    logger.Info($"已接收文件 {fileMetadata.FileName}");
+                    logger.LogInformation($"已接收文件 {fileMetadata.FileName}");
 
                     // Clean up the file stream for the previous file
                     CleanupFileStream();
@@ -122,10 +122,10 @@ public class FileTransferService(
 
                     if (ex is OperationCanceledException)
                     {
-                        logger.Info("批量文件传输被用户取消");
+                        logger.LogInformation("批量文件传输被用户取消");
                         throw;
                     }
-                    logger.Error($"接收文件 {fileMetadata.FileName} 时出错", ex);
+                    logger.LogError(ex, $"接收文件 {fileMetadata.FileName} 时出错");
                 }
             }
 
@@ -134,11 +134,11 @@ public class FileTransferService(
                 currentTransfer.TransferId,
                 folderPath: storageLocation);
 
-            logger.Warn($"批量文件传输完成，但存在错误：{currentTransfer.CurrentFileIndex}/{currentTransfer.Files.Count} 个文件接收失败");
+            logger.LogWarning($"批量文件传输完成，但存在错误：{currentTransfer.CurrentFileIndex}/{currentTransfer.Files.Count} 个文件接收失败");
         }
         catch (Exception ex)
         {
-            logger.Error("批量文件传输设置期间出错", ex);
+            logger.LogError(ex, "批量文件传输设置期间出错");
         }
         finally
         {
@@ -211,7 +211,7 @@ public class FileTransferService(
         }
         catch (Exception ex)
         {
-            logger.Error("文件传输设置期间出错", ex);
+            logger.LogError(ex, "文件传输设置期间出错");
             CleanupFileStream();
             if (File.Exists(fullPath))
             {
@@ -228,12 +228,12 @@ public class FileTransferService(
 
     public void OnConnected()
     {
-        logger.Info("已连接到文件传输服务器");
+        logger.LogInformation("已连接到文件传输服务器");
     }
 
     public void OnDisconnected()
     {
-        logger.Info("已从文件传输服务器断开连接");
+        logger.LogInformation("已从文件传输服务器断开连接");
         if (currentFileMetadata != null &&
             currentFileStream != null &&
             currentTransfer != null &&
@@ -246,7 +246,7 @@ public class FileTransferService(
 
     public void OnError(SocketError error)
     {
-        logger.Error($"文件传输期间发生 Socket 错误：{error}");
+        logger.LogError($"文件传输期间发生 Socket 错误：{error}");
         transferCompletionSource?.TrySetException(new IOException($"Socket 错误：{error}"));
         CleanupClient();
     }
@@ -307,7 +307,7 @@ public class FileTransferService(
         }
         catch (Exception ex)
         {
-            logger.Error("传输清理期间出错", ex);
+            logger.LogError(ex, "传输清理期间出错");
         }
         finally
         {
@@ -361,7 +361,7 @@ public class FileTransferService(
         }
         catch (Exception ex)
         {
-            logger.Error($"发送文件时出错：{ex.Message}", ex);
+            logger.LogError(ex, $"发送文件时出错：{ex.Message}");
         }
     }
 
@@ -402,7 +402,7 @@ public class FileTransferService(
             };
 
             var json = SocketMessageSerializer.Serialize(transfer);
-            logger.Debug($"发送元数据：{json}");
+            logger.LogDebug($"发送元数据：{json}");
             sessionManager.SendMessage(device.Id, json);
 
             notificationHandler.ShowFileTransferNotification(
@@ -422,11 +422,11 @@ public class FileTransferService(
         }
         catch (OperationCanceledException)
         {
-            logger.Info("文件传输被用户取消");
+            logger.LogInformation("文件传输被用户取消");
         }
         catch (Exception ex)
         {
-            logger.Error("发送流数据时出错", ex);
+            logger.LogError(ex, "发送流数据时出错");
         }
         finally
         {
@@ -476,7 +476,7 @@ public class FileTransferService(
                 {
                     cancellationTokenSource.Token.ThrowIfCancellationRequested();
 
-                    logger.Debug($"正在发送文件：{fileMetadataList[i].FileName}");
+                    logger.LogDebug($"正在发送文件：{fileMetadataList[i].FileName}");
 
                     transferCompletionSource = new TaskCompletionSource<bool>();
 
@@ -487,7 +487,7 @@ public class FileTransferService(
                 }
                 catch (OperationCanceledException)
                 {
-                    logger.Info("批量文件传输被用户取消");
+                    logger.LogInformation("批量文件传输被用户取消");
                     throw;
                 }
             }
@@ -496,15 +496,15 @@ public class FileTransferService(
                 string.Format("FileTransferNotification.SentBulk".GetLocalizedResource(), currentTransfer.Files.Count, currentTransfer.Device),
                 currentTransfer.TransferId);
 
-            logger.Debug("所有文件已成功传输");
+            logger.LogDebug("所有文件已成功传输");
         }
         catch (OperationCanceledException)
         {
-            logger.Info("批量文件传输被用户取消");
+            logger.LogInformation("批量文件传输被用户取消");
         }
         catch (Exception ex)
         {
-            logger.Error("SendBulkFiles 内部出错", ex);
+            logger.LogError(ex, "SendBulkFiles 内部出错");
         }
         finally
         {
@@ -569,11 +569,11 @@ public class FileTransferService(
                 }
             }
 
-            logger.Info($"已完成文件传输：{metadata.FileName}");
+            logger.LogInformation($"已完成文件传输：{metadata.FileName}");
         }
         catch (Exception ex)
         {
-            logger.Error("SendFileData 内部出错", ex);
+            logger.LogError(ex, "SendFileData 内部出错");
             throw;
         }
     }
@@ -598,12 +598,12 @@ public class FileTransferService(
                     Password = NotifyCryptoHelper.GenerateRandomPassword()
                 };
 
-                logger.Info($"文件传输服务器已在 {serverInfo.IpAddress}:{serverInfo.Port} 初始化");
+                logger.LogInformation($"文件传输服务器已在 {serverInfo.IpAddress}:{serverInfo.Port} 初始化");
                 return Task.FromResult(serverInfo);
             }
             catch (Exception ex)
             {
-                logger.Debug($"启动端口 {port} 的服务器失败：{ex.Message}");
+                logger.LogDebug($"启动端口 {port} 的服务器失败：{ex.Message}");
 
                 server?.Dispose();
                 server = null;
@@ -628,7 +628,7 @@ public class FileTransferService(
     #region Server Events
     public void OnConnected(ServerSession session)
     {
-        logger.Info($"客户端已连接到文件传输服务器：{session.Id}");
+        logger.LogInformation($"客户端已连接到文件传输服务器：{session.Id}");
     }
 
     public void OnDisconnected(ServerSession session)
@@ -637,7 +637,7 @@ public class FileTransferService(
         {
             transferCompletionSource?.TrySetException(new Exception("Client disconnected"));
         }
-        logger.Info($"客户端已从文件传输服务器断开连接：{session.Id}");
+        logger.LogInformation($"客户端已从文件传输服务器断开连接：{session.Id}");
         CleanupServer();
     }
 
@@ -650,7 +650,7 @@ public class FileTransferService(
         }
         if (message == COMPLETE_MESSAGE)
         {
-            logger.Info($"传输完成");
+            logger.LogInformation($"传输完成");
             transferCompletionSource?.TrySetResult(true);
         }
     }
