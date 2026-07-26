@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net9.0-windows10.0.26100</TargetFramework>
+        <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
 
         <OutputType>WinExe</OutputType>
 
@@ -29,7 +29,7 @@
 
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
         <PublishTrimmed>false</PublishTrimmed>
         <TrimMode>partial</TrimMode>
         <!-- Disable ILLink  -->
@@ -38,7 +38,7 @@
         <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
     </PropertyGroup>
 
-    <ItemGroup Condition="'$(TargetFramework)' == 'net9.0-windows10.0.26100'">
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
         <RuntimeHostConfigurationOption Include="System.Runtime.InteropServices.BuiltInComInterop.IsSupported" Value="true" />
         <RuntimeHostConfigurationOption Include="System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization" Value="false" />
     </ItemGroup>
