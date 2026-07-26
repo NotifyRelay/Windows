@@ -140,12 +140,11 @@ public class NotificationService(
             ? Enum.TryParse<NotificationType>(ntProp.GetString(), true, out var nt) ? nt : NotificationType.New
             : NotificationType.New;
         var title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() : null;
-        var appPackage = (root.TryGetProperty("packageName", out var pnProp) && pnProp.ValueKind == JsonValueKind.String ? pnProp.GetString() : null)
-            ?? (root.TryGetProperty("appPackage", out var apProp) && apProp.ValueKind == JsonValueKind.String ? apProp.GetString() : null);
+        var appPackage = root.TryGetProperty("packageName", out var pnProp) && pnProp.ValueKind == JsonValueKind.String ? pnProp.GetString() : null;
         var appName = root.TryGetProperty("appName", out var anProp) ? anProp.GetString() : null;
         var text = root.TryGetProperty("text", out var txProp) ? txProp.GetString() : null;
         var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) && nkProp.ValueKind == JsonValueKind.String ? nkProp.GetString() : Guid.NewGuid().ToString();
-        var timeStamp = root.TryGetProperty("timeStamp", out var tsProp) && tsProp.ValueKind == JsonValueKind.String ? tsProp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        var timeStamp = root.TryGetProperty("time", out var tsProp) && tsProp.ValueKind == JsonValueKind.Number ? tsProp.GetInt64().ToString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         var appIcon = root.TryGetProperty("appIcon", out var aiProp) ? aiProp.GetString() : null;
         var isLocked = root.TryGetProperty("isLocked", out var ilProp) && ilProp.GetBoolean();
         var bigPicture = root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null;
@@ -700,8 +699,7 @@ public class NotificationService(
 
                     using var msgDoc = JsonDocument.Parse(msgJson);
                     var msgRoot = msgDoc.RootElement;
-                    var msgAppPackage = (msgRoot.TryGetProperty("packageName", out var mPn) && mPn.ValueKind == JsonValueKind.String ? mPn.GetString() : null)
-                        ?? (msgRoot.TryGetProperty("appPackage", out var mAp) && mAp.ValueKind == JsonValueKind.String ? mAp.GetString() : null);
+                    var msgAppPackage = msgRoot.TryGetProperty("packageName", out var mPn) && mPn.ValueKind == JsonValueKind.String ? mPn.GetString() : null;
                     if (!string.IsNullOrEmpty(msgAppPackage))
                     {
                         string iconPath = IconUtils.GetAppIconPath(msgAppPackage);

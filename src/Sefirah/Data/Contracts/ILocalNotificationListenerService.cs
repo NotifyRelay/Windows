@@ -20,4 +20,9 @@ public interface ILocalNotificationListenerService
     /// 释放资源
     /// </summary>
     void Dispose();
+
+    /// <summary>
+    /// 立即执行一次轮询，用于远程通知到达后注册 toast ID
+    /// </summary>
+    void TriggerPoll();
 }

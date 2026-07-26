@@ -244,6 +244,16 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         context.Database.Update(app);
     }
 
+    public string? FindPackageByAppName(string appName)
+    {
+        if (string.IsNullOrEmpty(appName)) return null;
+
+        var app = context.Database.Table<ApplicationInfoEntity>()
+            .FirstOrDefault(a => a.AppName == appName);
+
+        return app?.PackageName;
+    }
+
     #region Helpers
     private static bool HasDevice(ApplicationInfoEntity entity, string deviceId)
     {

@@ -103,13 +103,13 @@ public partial class Notification : ObservableObject
         var root = doc.RootElement;
 
         var key = root.TryGetProperty("notificationKey", out var kp) && kp.ValueKind == JsonValueKind.String ? kp.GetString()! : Guid.NewGuid().ToString();
-        var timeStamp = root.TryGetProperty("timeStamp", out var tp) && tp.ValueKind == JsonValueKind.String ? tp.GetString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        var timeStamp = root.TryGetProperty("time", out var ti) && ti.ValueKind == JsonValueKind.Number ? ti.GetInt64().ToString()
+            : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         var type = root.TryGetProperty("notificationType", out var typ) && typ.ValueKind == JsonValueKind.String
             ? Enum.TryParse<NotificationType>(typ.GetString(), true, out var nt) ? nt : NotificationType.New
             : NotificationType.New;
         var appName = root.TryGetProperty("appName", out var an) ? an.GetString() : null;
-        var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
-            ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+        var appPackage = root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
         var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
         var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
         var tag = root.TryGetProperty("tag", out var tg) ? tg.GetString() : null;

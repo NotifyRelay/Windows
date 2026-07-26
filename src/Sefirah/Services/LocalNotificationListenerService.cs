@@ -2,7 +2,9 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
+using NotifyRelay.Utils;
 using System.Text.Json;
+using Windows.ApplicationModel;
 using Windows.Storage.Streams;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;
@@ -15,6 +17,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     private readonly ISessionManager _sessionManager;
     private readonly NotificationRepository _notificationRepository;
     private readonly IDeviceManager _deviceManager;
+    private readonly RemoteAppRepository _appRepository;
 
     private string? _localDeviceId;
     public static event Action? LocalNotificationCaptured;
@@ -22,8 +25,11 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
     private UserNotificationListener? _listener;
     private Timer? _pollTimer;
     private readonly HashSet<uint> _knownNotificationIds = [];
+    private string? _selfPfn;
+    private bool _isPolling;
     private bool _isRunning;
     private bool _disposed;
+    private DateTime? _fastPollUntil;
 
     public bool IsSupported => UserNotificationListener.Current != null;
 
@@ -31,12 +37,14 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         ILogger<LocalNotificationListenerService> logger,
         ISessionManager sessionManager,
         NotificationRepository notificationRepository,
-        IDeviceManager deviceManager)
+        IDeviceManager deviceManager,
+        RemoteAppRepository appRepository)
     {
         _logger = logger;
         _sessionManager = sessionManager;
         _notificationRepository = notificationRepository;
         _deviceManager = deviceManager;
+        _appRepository = appRepository;
     }
 
     public void Start()
@@ -60,6 +68,9 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 _logger.LogWarning("UserNotificationListener.Current 返回 null");
                 return;
             }
+
+            try { _selfPfn = Package.Current.Id.FamilyName; }
+            catch { _logger.LogWarning("无法获取自身 PackageFamilyName"); }
 
             var accessStatus = await _listener.RequestAccessAsync();
             if (accessStatus != UserNotificationListenerAccessStatus.Allowed)
@@ -88,7 +99,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 _ => _ = PollNotificationsAsync(),
                 null,
                 TimeSpan.FromSeconds(1),
-                TimeSpan.FromSeconds(1.5));
+                TimeSpan.FromSeconds(10));
 
             _isRunning = true;
             _logger.LogInformation("LocalNotificationListenerService 启动成功（轮询模式）");
@@ -108,6 +119,13 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         _logger.LogInformation("LocalNotificationListenerService 已停止");
     }
 
+    public void TriggerPoll()
+    {
+        if (!_isRunning) return;
+        _fastPollUntil = DateTime.UtcNow.AddSeconds(20);
+        _pollTimer?.Change(TimeSpan.Zero, TimeSpan.FromMilliseconds(500));
+    }
+
     private async Task LoadExistingNotificationsAsync()
     {
         try
@@ -116,24 +134,33 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
             var notifications = await GetNotificationsAsync();
             if (notifications == null) return;
 
-            var sorted = notifications
-                .OrderByDescending(n => n.CreationTime)
-                .Take(20)
-                .ToList();
-
-            _logger.LogInformation("现有通知数量: {Total}, 将处理: {Count}", sorted.Count, sorted.Count);
-
             lock (_knownNotificationIds)
             {
                 _knownNotificationIds.Clear();
-                foreach (var n in sorted)
+                foreach (var n in notifications)
                     _knownNotificationIds.Add(n.Id);
             }
 
-            foreach (var n in sorted)
-                await ProcessNotificationAsync(n);
+            var processed = 0;
+            var skipIds = new List<uint>();
+            foreach (var notif in notifications)
+            {
+                if (await ProcessNotificationAsync(notif))
+                    processed++;
+                else
+                    skipIds.Add(notif.Id);
+            }
 
-            _logger.LogDebug("已加载 {Count} 个现有通知", _knownNotificationIds.Count);
+            if (skipIds.Count > 0)
+            {
+                lock (_knownNotificationIds)
+                {
+                    foreach (var id in skipIds)
+                        _knownNotificationIds.Remove(id);
+                }
+            }
+
+            _logger.LogDebug("已加载 {Count} 个现有通知, 其中 {Processed} 个新入库", _knownNotificationIds.Count, processed);
         }
         catch (Exception ex)
         {
@@ -143,6 +170,8 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
 
     private async Task PollNotificationsAsync()
     {
+        if (_isPolling) return;
+        _isPolling = true;
         try
         {
             if (_listener == null) return;
@@ -157,7 +186,12 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 bool isNew;
                 lock (_knownNotificationIds) { isNew = _knownNotificationIds.Add(notif.Id); }
                 if (isNew)
-                    await ProcessNotificationAsync(notif);
+                {
+                    if (!await ProcessNotificationAsync(notif))
+                    {
+                        lock (_knownNotificationIds) { _knownNotificationIds.Remove(notif.Id); }
+                    }
+                }
             }
 
             List<uint> removedIds;
@@ -175,6 +209,16 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         {
             _logger.LogError(ex, "轮询通知失败");
         }
+        finally
+        {
+            _isPolling = false;
+
+            if (_fastPollUntil != null && DateTime.UtcNow >= _fastPollUntil.Value)
+            {
+                _fastPollUntil = null;
+                _pollTimer?.Change(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+            }
+        }
     }
 
     private async Task<IReadOnlyList<UserNotification>?> GetNotificationsAsync()
@@ -183,7 +227,7 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         return await _listener.GetNotificationsAsync(NotificationKinds.Toast);
     }
 
-    private async Task ProcessNotificationAsync(UserNotification userNotification)
+    private async Task<bool> ProcessNotificationAsync(UserNotification userNotification)
     {
         try
         {
@@ -191,11 +235,23 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
             if (appInfo == null)
             {
                 _logger.LogWarning("通知缺少 AppInfo");
-                return;
+                return false;
+            }
+
+            if (_selfPfn != null)
+            {
+                var au = appInfo.AppUserModelId;
+                var pfn = appInfo.PackageFamilyName;
+                if (au?.StartsWith(_selfPfn, StringComparison.OrdinalIgnoreCase) == true ||
+                    string.Equals(pfn, _selfPfn, StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
             }
 
             var appPackage = appInfo.AppUserModelId ?? appInfo.PackageFamilyName ?? "unknown";
             var appName = appInfo.DisplayInfo?.DisplayName ?? appPackage;
+            var androidPackage = _appRepository.FindPackageByAppName(appName) ?? appPackage;
             var id = userNotification.Id;
             var notification = userNotification.Notification;
 
@@ -224,25 +280,37 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
             }
 
             if (!BackendLocalFilter.ShouldForward(appName, appPackage, title, text))
-                return;
+                return false;
+
+            // 内容级去重：用聚合键检查是否已发送过
+            var aggregationKey = $"{androidPackage ?? appPackage}|{title}|{text}|New";
+            var existing = _notificationRepository.FindByAggregationKey(aggregationKey);
+            if (existing != null)
+            {
+                return false;
+            }
 
             var isLocked = IsWorkstationLocked();
             var appIconBase64 = await ExtractAppIconAsync(userNotification);
+
+            var packageNameValue = androidPackage ?? appName;
+            var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
             var rawJson = JsonSerializer.Serialize(new
             {
                 type = "DATA_NOTIFICATION",
                 notificationKey = $"local_{id}",
-                timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(),
+                time = nowMs,
+                timeStamp = nowMs.ToString(),
                 notificationType = "New",
-                appPackage = appPackage,
+                packageName = packageNameValue,
                 appName = appName,
                 title = title,
                 text = text,
                 appIcon = appIconBase64,
                 isLocked = isLocked
             });
-            if (rawJson == null) return;
+            if (rawJson == null) return false;
             _sessionManager.BroadcastMessage(rawJson);
 
             if (_localDeviceId != null)
@@ -259,10 +327,12 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
 
             _logger.LogDebug("已捕获本地通知: {AppName} - {Title}", appName, title);
             LocalNotificationCaptured?.Invoke();
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理通知失败");
+            return false;
         }
     }
 
@@ -275,7 +345,8 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                 type = "DATA_NOTIFICATION",
                 notificationKey = $"local_{id}",
                 notificationType = "Removed",
-                appPackage = $"windows_{id}",
+                packageName = $"windows_{id}",
+                time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
                 timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString()
             });
             if (rawJson == null) return;
@@ -289,9 +360,68 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
 
     private async Task<string?> ExtractAppIconAsync(UserNotification userNotification)
     {
+        var appInfo = userNotification.AppInfo;
+
+        var candidateNames = new List<string?>();
+
+        var displayName = appInfo?.DisplayInfo?.DisplayName;
+        _logger.LogDebug("ExtractAppIcon: DisplayInfo.DisplayName = '{DisplayName}'", displayName);
+        candidateNames.Add(displayName);
+
+        var bindings = userNotification.Notification?.Visual?.Bindings;
+        if (bindings is { Count: > 0 })
+        {
+            var textElements = bindings[0].GetTextElements();
+            if (textElements.Count > 0)
+            {
+                var firstText = textElements[0].Text;
+                _logger.LogDebug("ExtractAppIcon: 绑定第一个 text 元素 = '{FirstText}'", firstText);
+                candidateNames.Add(firstText);
+            }
+        }
+
+        foreach (var name in candidateNames)
+        {
+            if (string.IsNullOrEmpty(name))
+            {
+                _logger.LogDebug("ExtractAppIcon: candidateName 为空，跳过");
+                continue;
+            }
+            _logger.LogDebug("ExtractAppIcon: 尝试用 appName='{Name}' 查包名", name);
+            var packageName = _appRepository.FindPackageByAppName(name);
+            if (packageName == null)
+            {
+                _logger.LogDebug("ExtractAppIcon: FindPackageByAppName('{Name}') 返回 null", name);
+                continue;
+            }
+            _logger.LogDebug("ExtractAppIcon: 查到包名 = '{Package}'", packageName);
+
+            var iconPath = IconUtils.GetAppIconFilePath(packageName);
+            var exists = IconUtils.AppIconExists(packageName);
+            _logger.LogDebug("ExtractAppIcon: 图标路径='{Path}', 存在={Exists}", iconPath, exists);
+            if (!exists) continue;
+
+            try
+            {
+                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(IconUtils.GetAppIconFilePath(packageName));
+                var stream = await file.OpenReadAsync();
+                using (stream)
+                {
+                    var result = await StreamToBase64Async(stream);
+                    _logger.LogDebug("ExtractAppIcon: 成功提取图标 base64, 长度={Len}", result?.Length ?? 0);
+                    return result;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "ExtractAppIcon: 读取图标文件失败");
+            }
+        }
+
         try
         {
-            var logo = userNotification.AppInfo?.DisplayInfo?.GetLogo(new Windows.Foundation.Size(64, 64));
+            var logo = appInfo?.DisplayInfo?.GetLogo(new Windows.Foundation.Size(64, 64));
+            _logger.LogDebug("ExtractAppIcon: 尝试 Windows app logo, GetLogo = {Logo}", logo != null ? "非空" : "null");
             if (logo != null)
             {
                 var stream = await logo.OpenReadAsync();
@@ -299,8 +429,12 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
                     return await StreamToBase64Async(stream);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ExtractAppIcon: GetLogo 失败");
+        }
 
+        _logger.LogDebug("ExtractAppIcon: 所有方案均失败，返回 null");
         return null;
     }
 

@@ -60,8 +60,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
             using var doc = JsonDocument.Parse(payload);
             var root = doc.RootElement;
 
-            var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
-                ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+            var appPackage = root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
             var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
             var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
             var notificationType = root.TryGetProperty("notificationType", out var nt) && nt.ValueKind == JsonValueKind.String ? nt.GetString() : "New";
@@ -112,6 +111,19 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         catch (Exception ex)
         {
             logger.LogError(ex, "保存/更新设备 {DeviceId} 的通知 {Key} 失败", deviceId, notificationKey);
+        }
+    }
+
+    public NotificationEntity? FindByAggregationKey(string aggregationKey)
+    {
+        try
+        {
+            return context.Database.Find<NotificationEntity>(aggregationKey);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "查找聚合键 {Key} 失败", aggregationKey);
+            return null;
         }
     }
 
@@ -215,6 +227,59 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         catch (Exception ex)
         {
             logger.LogError(ex, "清空设备 {DeviceId} 的通知失败", deviceId);
+        }
+    }
+
+    public void ClearDeviceNotificationsByPackage(string deviceId, string packageName)
+    {
+        try
+        {
+            var prefix = $"{packageName}|";
+            var allNotifications = context.Database.Table<NotificationEntity>().ToList();
+
+            foreach (var entity in allNotifications)
+            {
+                try
+                {
+                    if (!entity.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
+                    if (deviceIds?.Contains(deviceId) ?? false)
+                    {
+                        if (deviceIds.Count == 1)
+                        {
+                            context.Database.Delete(entity);
+                        }
+                        else
+                        {
+                            var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
+                            var index = deviceIds.IndexOf(deviceId);
+
+                            if (index >= 0)
+                            {
+                                deviceIds.RemoveAt(index);
+                                if (index < deviceNames.Count)
+                                {
+                                    deviceNames.RemoveAt(index);
+                                }
+
+                                entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
+                                entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
+                                context.Database.InsertOrReplace(entity);
+                            }
+                        }
+                    }
+                }
+                catch (Exception innerEx)
+                {
+                    logger.LogError(innerEx, "处理通知 {Id} 时出错", entity.Id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "清空设备 {DeviceId} 的包 {Package} 通知失败", deviceId, packageName);
         }
     }
 

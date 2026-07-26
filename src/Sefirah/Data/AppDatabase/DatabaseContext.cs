@@ -176,8 +176,7 @@ public class DatabaseContext : IDisposable
                             {
                                 using var doc = JsonDocument.Parse(msgJson);
                                 var root = doc.RootElement;
-                                var appPackage = (root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null)
-                                    ?? (root.TryGetProperty("appPackage", out var ap) && ap.ValueKind == JsonValueKind.String ? ap.GetString() : null);
+                                var appPackage = root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
                                 var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;
                                 var text = root.TryGetProperty("text", out var tx) ? tx.GetString() : null;
                                 var notificationType = root.TryGetProperty("notificationType", out var nt) && nt.ValueKind == JsonValueKind.String ? nt.GetString() : "New";
