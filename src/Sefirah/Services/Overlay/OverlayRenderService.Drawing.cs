@@ -9,6 +9,7 @@ using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
 using DWriteFontStyle = Vortice.DirectWrite.FontStyle;
 using DWriteFontStretch = Vortice.DirectWrite.FontStretch;
 using BitmapInterpolationMode = Vortice.Direct2D1.BitmapInterpolationMode;
+using NotifyRelay.Models.Render;
 
 namespace NotifyRelay.Services.Overlay;
 
@@ -31,15 +32,75 @@ public partial class OverlayRenderService
         => _dwFactory.CreateTextFormat(fontFamily, null, weight, DWriteFontStyle.Normal, DWriteFontStretch.Normal, size);
 
     /// <summary>
-    /// 创建单行且超出截断的文本布局（NoWrap + 尾随省略号）。
+    /// 创建单行且超出截断的文本布局（NoWrap + 字符级尾随省略号）。
     /// </summary>
     private IDWriteTextLayout CreateTruncatedLayout(string text, string fontFamily, DWriteFontWeight weight, float size, float maxWidth, float maxHeight)
     {
         using var format = CreateTextFormat(fontFamily, weight, size);
         var layout = _dwFactory.CreateTextLayout(text, format, maxWidth, maxHeight);
         layout.WordWrapping = WordWrapping.NoWrap;
-        layout.SetTrimming(new Trimming { Delimiter = 0, DelimiterCount = 0 }, null!);
+        using var ellipsis = _dwFactory.CreateEllipsisTrimmingSign(format);
+        layout.SetTrimming(new Trimming { Granularity = TrimmingGranularity.Character, Delimiter = 0, DelimiterCount = 0 }, ellipsis);
         return layout;
+    }
+
+    // 媒体文本滚动（跑马灯）参数 —— 与 Notify-Relay-Gamebar 的 Marquee 行为对齐
+    private const double MarqueeSpeed = 30.0;        // px/sec
+    private const double MarqueeStartDelay = 0.8;   // 起始停留秒数
+    private const double MarqueeEndPadding = 12.0;  // 末端留白
+    private const float MarqueeMeasureWidth = 10000f;// 测量完整文本宽度的上限
+
+    /// <summary>
+    /// 计算跑马灯横向偏移，与 Gamebar 的 TranslateTransform + DoubleAnimationUsingKeyFrames 等价：
+    /// 前 MarqueeStartDelay 秒停留原位，随后以 MarqueeSpeed 匀速向左滚动 (overflow + EndPadding) 距离并循环。
+    /// </summary>
+    private static float ComputeMarqueeOffset(double elapsedSeconds, float overflow)
+    {
+        if (overflow <= 2) return 0;
+        double scrollDistance = overflow + MarqueeEndPadding;
+        double duration = Math.Max(scrollDistance / MarqueeSpeed, 1.2);
+        double total = MarqueeStartDelay + duration;
+        double t = elapsedSeconds % total;
+        if (t <= MarqueeStartDelay) return 0;
+        double p = (t - MarqueeStartDelay) / duration;
+        return -(float)(scrollDistance * p);
+    }
+
+    /// <summary>
+    /// 绘制媒体文本：播放中且文本宽度超出可用区域时在裁剪框内横向滚动；
+    /// 否则在裁剪框内以省略号截断（绝不超出右边界）。
+    /// </summary>
+    private void DrawMediaMarqueeText(string text, string fontFamily, DWriteFontWeight weight, float size,
+        ID2D1DCRenderTarget rt, float x, float y, float availableWidth, float lineHeight,
+        MediaCardItem item, double now, double freq, Color4 color)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+
+        using var fmt = CreateTextFormat(fontFamily, weight, size);
+
+        // 测量完整文本宽度（单行、不换行）
+        using var fullLyt = _dwFactory.CreateTextLayout(text, fmt, MarqueeMeasureWidth, lineHeight);
+        fullLyt.WordWrapping = WordWrapping.NoWrap;
+        float overflow = fullLyt.Metrics.WidthIncludingTrailingWhitespace - availableWidth;
+
+        var clip = new RawRectF(x, y - 2, x + availableWidth, y + lineHeight + 2);
+        using var brush = CreateSolidColorBrush(rt, color);
+
+        if (item.IsPlaying && overflow > 2)
+        {
+            float offset = ComputeMarqueeOffset((now - item.MarqueeAnchorTime) / freq, overflow);
+            rt.PushAxisAlignedClip(clip, AntialiasMode.Aliased);
+            rt.DrawTextLayout(new Vector2(x + offset, y), fullLyt, brush);
+            rt.PopAxisAlignedClip();
+        }
+        else
+        {
+            // 非播放或无需滚动：裁剪 + 省略号截断
+            rt.PushAxisAlignedClip(clip, AntialiasMode.Aliased);
+            using var truncLyt = CreateTruncatedLayout(text, fontFamily, weight, size, availableWidth, lineHeight);
+            rt.DrawTextLayout(new Vector2(x, y), truncLyt, brush);
+            rt.PopAxisAlignedClip();
+        }
     }
 
     /// <summary>

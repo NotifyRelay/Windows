@@ -54,7 +54,12 @@ public partial class OverlayRenderService
                     existing.CoverBitmap?.Dispose();
                     existing.CoverBitmap = null;
                 }
+                bool playingChanged = existing.IsPlaying != isPlaying;
                 existing.IsPlaying = isPlaying;
+                if (titleChanged || playingChanged)
+                {
+                    existing.MarqueeAnchorTime = Stopwatch.GetTimestamp();
+                }
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
 
                 // title 且 artist 都变更时才触发展开（新曲目切换）
@@ -77,6 +82,7 @@ public partial class OverlayRenderService
                 IsPlaying = isPlaying,
                 StartTime = now,
                 LastUpdateTime = now,
+                MarqueeAnchorTime = now,
                 IsExpanded = true,
                 ExpandedSince = now
             };

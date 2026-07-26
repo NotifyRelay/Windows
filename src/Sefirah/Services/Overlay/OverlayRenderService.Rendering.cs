@@ -63,7 +63,7 @@ public partial class OverlayRenderService
             _logger.LogTrace("RenderTopCards: 渲染媒体卡片 deviceId={DeviceId}, title={Title}, expanded={Expanded}",
                 media.DeviceId, media.Title, media.IsExpanded);
             EnsureMediaResources(media);
-            DrawMediaCard(media, _renderTarget!, y);
+            DrawMediaCard(media, _renderTarget!, y, now, freq);
             y += media.IsExpanded ? 108 : 48;
         }
 
@@ -158,11 +158,11 @@ public partial class OverlayRenderService
         rt.DrawTextLayout(new Vector2(textX, textY), item.TextLayout, fillBrush);
     }
 
-    private void DrawMediaCard(MediaCardItem item, ID2D1DCRenderTarget rt, float y)
+    private void DrawMediaCard(MediaCardItem item, ID2D1DCRenderTarget rt, float y, double now, double freq)
     {
         if (!item.IsExpanded)
         {
-            DrawMediaCardCollapsed(item, rt, y);
+            DrawMediaCardCollapsed(item, rt, y, now, freq);
             return;
         }
 
@@ -196,16 +196,12 @@ public partial class OverlayRenderService
 
         // Title
         string title = string.IsNullOrEmpty(item.Title) ? "未在播放" : item.Title;
-        using var titleLyt = CreateTruncatedLayout(title, "Microsoft YaHei", DWriteFontWeight.Bold, 16, textW, 24);
-        using var titleBr = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
-        rt.DrawTextLayout(new Vector2(cx, y + 10), titleLyt, titleBr);
+        DrawMediaMarqueeText(title, "Microsoft YaHei", DWriteFontWeight.Bold, 16, rt, cx, y + 10, textW, 24, item, now, freq, new Color4(1, 1, 1, opacity));
 
         // Artist
         if (!string.IsNullOrEmpty(item.Artist))
         {
-            using var artLyt = CreateTruncatedLayout(item.Artist, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 20);
-            using var artBr = CreateSolidColorBrush(rt, new Color4(0.75f, 0.75f, 0.75f, opacity));
-            rt.DrawTextLayout(new Vector2(cx, y + 36), artLyt, artBr);
+            DrawMediaMarqueeText(item.Artist, "Microsoft YaHei", DWriteFontWeight.Normal, 12, rt, cx, y + 36, textW, 20, item, now, freq, new Color4(0.75f, 0.75f, 0.75f, opacity));
         }
 
         // Play/pause button
@@ -231,18 +227,19 @@ public partial class OverlayRenderService
     /// <summary>
     /// 收起态：紧凑胶囊 — 小封面 + 标题 + 播放频谱指示器
     /// </summary>
-    private void DrawMediaCardCollapsed(MediaCardItem item, ID2D1DCRenderTarget rt, float y)
+    private void DrawMediaCardCollapsed(MediaCardItem item, ID2D1DCRenderTarget rt, float y, double now, double freq)
     {
         const float pillHeight = 36;
         float pad = 8;
         float opacity = 0.9f;
 
         // 计算内容宽度：封面(24) + 间距(6) + 标题(动态) + 间距(6) + 频谱5条(23)
-        // 先测量标题文本宽度
+        // 先测量标题文本完整宽度（单行、不截断），用于决定胶囊宽度
         string titleText = string.IsNullOrEmpty(item.Title) ? "未在播放" : item.Title;
-        using var titleMeasure = CreateTruncatedLayout(titleText, "Microsoft YaHei", DWriteFontWeight.Normal, 12, 300, 20);
-        var titleMetrics = titleMeasure.Metrics;
-        float titleWidth = Math.Min(titleMetrics.WidthIncludingTrailingWhitespace, 180);
+        using var titleMeasureFmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 12);
+        using var titleMeasure = _dwFactory.CreateTextLayout(titleText, titleMeasureFmt, 10000, 20);
+        titleMeasure.WordWrapping = WordWrapping.NoWrap;
+        float titleWidth = Math.Min(titleMeasure.Metrics.WidthIncludingTrailingWhitespace, 180);
 
         float contentWidth = 24 + 6 + titleWidth + 6 + 21; // 5条频谱: 5*2.5+4*2=20.5
         float pillWidth = Math.Max(contentWidth + pad * 2, 120);
@@ -269,10 +266,8 @@ public partial class OverlayRenderService
         }
         cx += 24 + 6;
 
-        // 标题文本（单行，超出截断）
-        using var titleDrawLyt = CreateTruncatedLayout(titleText, "Microsoft YaHei", DWriteFontWeight.Normal, 12, titleWidth, 20);
-        using var titleBrush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
-        rt.DrawTextLayout(new Vector2(cx, centerY + 2), titleDrawLyt, titleBrush);
+        // 标题文本（播放中过长则在裁剪框内滚动，否则省略号截断）
+        DrawMediaMarqueeText(titleText, "Microsoft YaHei", DWriteFontWeight.Normal, 12, rt, cx, centerY + 2, titleWidth, 20, item, now, freq, new Color4(1, 1, 1, opacity));
         cx += titleWidth + 6;
 
         // 播放频谱指示器（5 个小竖条，双波峰W形流畅震荡动画，居中向两端缩放）
@@ -286,8 +281,6 @@ public partial class OverlayRenderService
         if (item.IsPlaying)
         {
             // 双波峰 W 形震荡动画：bars 1和3为波峰，bar 2为波谷，bars 0和4为边缘
-            double freq = Stopwatch.Frequency;
-            double now = Stopwatch.GetTimestamp();
             double elapsed = (now - item.StartTime) / freq;
 
             float[] heights = new float[barCount];

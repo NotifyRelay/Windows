@@ -77,6 +77,10 @@ public class MediaCardItem : OverlayItem
     public double Duration { get; set; }
 
     public double LastUpdateTime { get; set; }
+
+    /// <summary>跑马灯计时锚点：标题或播放状态变化时重置，用于过长文本的滚动循环起点</summary>
+    public double MarqueeAnchorTime { get; set; }
+
     public const double TimeoutSeconds = 60;
 
     // 收起/展开状态
