@@ -821,6 +821,17 @@ public class NotificationService(
                 ?? (root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null)
                 ?? (root.TryGetProperty("largeIcon", out var liProp) ? liProp.GetString() : null);
 
+            // 解析播放状态：缺省视为播放中（与 SendMediaInfoAsync 行为一致）
+            bool isPlaying = true;
+            if (root.TryGetProperty("isPlaying", out var ipProp))
+            {
+                if (ipProp.ValueKind == JsonValueKind.False) isPlaying = false;
+                else if (ipProp.ValueKind == JsonValueKind.True) isPlaying = true;
+            }
+
+            // 叠加层媒体卡片开关（与本地媒体一致）
+            var mediaOverlayEnabled = generalSettings.DanmakuMediaCardEnabled;
+
             if (mediaType == "END")
             {
                 await dispatcher.EnqueueAsync(async () =>
@@ -832,6 +843,11 @@ public class NotificationService(
                         {
                             _currentMusicMediaBlocks.Remove(existingBlock);
                             _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, "", "", "", false);
+                        }
+
+                        if (mediaOverlayEnabled)
+                        {
+                            overlayRender.RemoveMediaCard(device.Id);
                         }
                     }
                     catch (Exception ex)
@@ -858,6 +874,12 @@ public class NotificationService(
                         );
                         _currentMusicMediaBlocks.Add(newBlock);
                         _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, titleStr, textStr, coverUrl ?? "", true);
+
+                        if (mediaOverlayEnabled)
+                        {
+                            var coverBytes = ConvertCoverUrlToBytes(coverUrl);
+                            overlayRender.ShowMediaCard(device.Id, device.Name, titleStr, textStr, coverBytes, isPlaying);
+                        }
                     }
                     else
                     {
@@ -882,6 +904,12 @@ public class NotificationService(
 
                         existingBlock.Update(updatedTitle, updatedText, updatedCoverUrl);
                         _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, updatedTitle, updatedText, updatedCoverUrl ?? "", true);
+
+                        if (mediaOverlayEnabled)
+                        {
+                            var coverBytes = ConvertCoverUrlToBytes(updatedCoverUrl);
+                            overlayRender.ShowMediaCard(device.Id, device.Name, updatedTitle, updatedText, coverBytes, isPlaying);
+                        }
                     }
                 }
                 catch (Exception ex)
@@ -893,6 +921,23 @@ public class NotificationService(
         catch (Exception ex)
         {
             logger.LogError(ex, "处理媒体播放通知时出错");
+        }
+    }
+
+    /// <summary>
+    /// 将封面 URL（Data URL 或纯 base64）转换为字节数组，失败返回 null。
+    /// </summary>
+    private static byte[]? ConvertCoverUrlToBytes(string? coverUrl)
+    {
+        if (string.IsNullOrEmpty(coverUrl)) return null;
+        try
+        {
+            var base64 = coverUrl.Contains(',') ? coverUrl.Split(',')[1] : coverUrl;
+            return Convert.FromBase64String(base64);
+        }
+        catch
+        {
+            return null;
         }
     }
 
@@ -910,6 +955,11 @@ public class NotificationService(
                 try
                 {
                     _currentMusicMediaBlocks.Remove(b);
+
+                    if (generalSettings.DanmakuMediaCardEnabled)
+                    {
+                        overlayRender.RemoveMediaCard(b.DeviceId);
+                    }
                 }
                 catch (Exception ex)
                 {
