@@ -73,6 +73,8 @@ public partial class OverlayRenderService
             DrawSuperIslandCard(si, _renderTarget!, y);
             y += si.IsExpanded ? 110 : 84;
         }
+
+        _topCardsBottomY = y;
     }
 
     private void RenderDanmakuItems(double now, double freq)

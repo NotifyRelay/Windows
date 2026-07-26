@@ -117,5 +117,12 @@ public partial class AboutViewModel : ObservableObject
         new("https://github.com/SharpAdb/AdvancedSharpAdbClient", "AdvancedSharpAdbClient"),
 
     ];
+
+    // 参考项目（原始 Sefirah 项目 + 弹幕通知原理示例）
+    public ObservableCollection<OpenSourceLibraryItem> ReferenceProjects { get; } =
+    [
+        new("https://github.com/shrimqy/Sefirah", "Sefirah（原始项目）"),
+        new("https://github.com/kanomahoro1224/danmuku-kano", "danmuku-kano"),
+    ];
 }
 

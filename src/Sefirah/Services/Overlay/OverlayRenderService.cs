@@ -34,6 +34,7 @@ public sealed partial class OverlayRenderService : IDisposable
     private readonly object _lock = new();
 
     private DanmakuStyleSettings _currentStyle = new();
+    private float _topCardsBottomY = 10;
 
     public OverlayRenderService(ILogger<OverlayRenderService> logger, IGeneralSettingsService settings)
     {

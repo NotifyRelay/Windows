@@ -126,11 +126,11 @@ public partial class OverlayRenderService
         }
 
         int track = available.Count > 0
-            ? available[Random.Shared.Next(available.Count)]
-            : Random.Shared.Next(0, activeCount);
+            ? available[0]
+            : 0;
 
         item.TrackIndex = track;
-        item.TrackY = (float)(260 + track * trackHeight);
+        item.TrackY = (float)(_topCardsBottomY + track * trackHeight);
         item.SpawnX = _width;
     }
 

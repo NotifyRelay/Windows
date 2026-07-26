@@ -236,19 +236,19 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
     // 弹幕叠加层设置
     public bool DanmakuNotificationEnabled
     {
-        get => Get(false);
+        get => Get(true);
         set => Set(value);
     }
 
     public bool DanmakuMediaCardEnabled
     {
-        get => Get(false);
+        get => Get(true);
         set => Set(value);
     }
 
     public bool DanmakuSuperIslandEnabled
     {
-        get => Get(false);
+        get => Get(true);
         set => Set(value);
     }
 
@@ -260,13 +260,13 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public int DanmakuFontSizePercent
     {
-        get => Get(100);
+        get => Get(50);
         set => Set(value);
     }
 
     public int DanmakuSpeed
     {
-        get => Get(6);
+        get => Get(3);
         set => Set(value);
     }
 
@@ -308,7 +308,7 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public bool DanmakuBorderEnabled
     {
-        get => Get(false);
+        get => Get(true);
         set => Set(value);
     }
 

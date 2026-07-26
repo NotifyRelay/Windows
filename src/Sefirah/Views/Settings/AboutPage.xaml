@@ -120,6 +120,45 @@
                 </wuc:SettingsExpander.ItemsHeader>
             </wuc:SettingsExpander>
 
+            <!--  Reference Projects  -->
+            <wuc:SettingsExpander Header="参考项目">
+                <wuc:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE774;" />
+                </wuc:SettingsExpander.HeaderIcon>
+                <wuc:SettingsExpander.ItemsHeader>
+                    <ItemsRepeater Margin="10" ItemsSource="{x:Bind ViewModel.ReferenceProjects}">
+                        <ItemsRepeater.Layout>
+                            <UniformGridLayout
+                                ItemsStretch="Fill"
+                                MaximumRowsOrColumns="6"
+                                MinColumnSpacing="8"
+                                MinItemWidth="200"
+                                MinRowSpacing="8"
+                                Orientation="Horizontal" />
+                        </ItemsRepeater.Layout>
+                        <ItemsRepeater.ItemTemplate>
+                            <DataTemplate x:DataType="dataItems:OpenSourceLibraryItem">
+                                <HyperlinkButton
+                                    HorizontalAlignment="Stretch"
+                                    HorizontalContentAlignment="Stretch"
+                                    NavigateUri="{x:Bind Url}">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock
+                                            VerticalAlignment="Center"
+                                            Text="{x:Bind Name}"
+                                            TextWrapping="Wrap" />
+                                    </Grid>
+                                </HyperlinkButton>
+                            </DataTemplate>
+                        </ItemsRepeater.ItemTemplate>
+                    </ItemsRepeater>
+                </wuc:SettingsExpander.ItemsHeader>
+            </wuc:SettingsExpander>
+
             <!--  Open Logs  -->
             <wuc:SettingsCard
                 Command="{x:Bind ViewModel.OpenLogsCommand}"
