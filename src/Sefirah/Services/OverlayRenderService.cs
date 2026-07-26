@@ -94,16 +94,42 @@ public sealed class OverlayRenderService : IDisposable
             var existing = _items.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
             if (existing != null)
             {
-                existing.Title = title;
-                existing.Artist = artist;
-                existing.CoverPng = coverPng;
+                // 空值表示"未改变"，仅更新有实际值的字段
+                bool titleChanged = false;
+                bool artistChanged = false;
+                if (!string.IsNullOrEmpty(title) && title != existing.Title)
+                {
+                    existing.Title = title;
+                    existing.TitleLayout?.Dispose();
+                    existing.TitleLayout = null;
+                    titleChanged = true;
+                }
+                if (!string.IsNullOrEmpty(artist) && artist != existing.Artist)
+                {
+                    existing.Artist = artist;
+                    existing.ArtistLayout?.Dispose();
+                    existing.ArtistLayout = null;
+                    artistChanged = true;
+                }
+                if (coverPng != null)
+                {
+                    existing.CoverPng = coverPng;
+                    existing.CoverBitmap?.Dispose();
+                    existing.CoverBitmap = null;
+                }
                 existing.IsPlaying = isPlaying;
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
-                existing.CoverBitmap?.Dispose();
-                existing.CoverBitmap = null;
+
+                // title 且 artist 都变更时才触发展开（新曲目切换）
+                if (titleChanged && artistChanged)
+                {
+                    existing.IsExpanded = true;
+                    existing.ExpandedSince = Stopwatch.GetTimestamp();
+                }
                 return;
             }
 
+            var now = Stopwatch.GetTimestamp();
             var item = new MediaCardItem
             {
                 DeviceId = deviceId,
@@ -112,8 +138,10 @@ public sealed class OverlayRenderService : IDisposable
                 Artist = artist,
                 CoverPng = coverPng,
                 IsPlaying = isPlaying,
-                StartTime = Stopwatch.GetTimestamp(),
-                LastUpdateTime = Stopwatch.GetTimestamp()
+                StartTime = now,
+                LastUpdateTime = now,
+                IsExpanded = true,
+                ExpandedSince = now
             };
             _items.Add(item);
         }
@@ -140,7 +168,10 @@ public sealed class OverlayRenderService : IDisposable
             var existing = _items.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (existing != null)
             {
-                existing.State = state;
+                // 空值表示"未改变"，仅合并有实际值的字段
+                if (!string.IsNullOrEmpty(state.Title)) existing.State.Title = state.Title;
+                if (!string.IsNullOrEmpty(state.Subtitle)) existing.State.Subtitle = state.Subtitle;
+                if (state.IconPng != null) existing.State.IconPng = state.IconPng;
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
                 existing.TitleLayout?.Dispose();
                 existing.TitleLayout = null;
@@ -362,10 +393,17 @@ public sealed class OverlayRenderService : IDisposable
         var media = mediaItems.FirstOrDefault();
         if (media != null)
         {
-            _logger.LogTrace("RenderTopCards: 渲染媒体卡片 deviceId={DeviceId}, title={Title}", media.DeviceId, media.Title);
+            // 自动收起：媒体字段变更后 5 秒自动收起
+            if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
+            {
+                media.IsExpanded = false;
+            }
+
+            _logger.LogTrace("RenderTopCards: 渲染媒体卡片 deviceId={DeviceId}, title={Title}, expanded={Expanded}",
+                media.DeviceId, media.Title, media.IsExpanded);
             EnsureMediaResources(media);
             DrawMediaCard(media, _renderTarget!, y);
-            y += 108;
+            y += media.IsExpanded ? 108 : 48;
         }
 
         // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
@@ -436,8 +474,17 @@ public sealed class OverlayRenderService : IDisposable
     {
         if (item.CoverBitmap == null && item.CoverPng != null)
         {
-            try { item.CoverBitmap = LoadBitmapFromPng(item.CoverPng, _renderTarget!); }
-            catch { }
+            try
+            {
+                _logger.LogDebug("EnsureMediaResources: 尝试加载封面图片, 数据长度={Length}", item.CoverPng.Length);
+                item.CoverBitmap = LoadBitmapFromPng(item.CoverPng, _renderTarget!);
+                _logger.LogDebug("EnsureMediaResources: 封面加载成功, 尺寸={Width}x{Height}",
+                    item.CoverBitmap?.Size.Width, item.CoverBitmap?.Size.Height);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "EnsureMediaResources: 封面图片加载失败, 数据长度={Length}", item.CoverPng?.Length);
+            }
         }
 
         if (item.TitleLayout == null && !string.IsNullOrEmpty(item.Title))
@@ -543,6 +590,12 @@ public sealed class OverlayRenderService : IDisposable
 
     private void DrawMediaCard(MediaCardItem item, ID2D1DCRenderTarget rt, float y)
     {
+        if (!item.IsExpanded)
+        {
+            DrawMediaCardCollapsed(item, rt, y);
+            return;
+        }
+
         const float pillWidth = 400;
         const float pillHeight = 100;
         float pillX = (_width - pillWidth) / 2;
@@ -560,6 +613,9 @@ public sealed class OverlayRenderService : IDisposable
         if (item.CoverBitmap != null)
         {
             var coverRect = new Vortice.Mathematics.Rect((int)cx, (int)y + 10, 64, 64);
+            _logger.LogDebug("DrawMediaCard: 绘制封面 pillX={PillX}, cx={Cx}, rect=({X},{Y},{W},{H}), bitmapSize={BW}x{BH}",
+                pillX, cx, coverRect.X, coverRect.Y, coverRect.Width, coverRect.Height,
+                item.CoverBitmap.Size.Width, item.CoverBitmap.Size.Height);
             rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear, coverRect);
             cx += 72;
         }
@@ -580,6 +636,8 @@ public sealed class OverlayRenderService : IDisposable
         using var titleFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
             DWriteFontWeight.Bold, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 16);
         using var titleLyt = _dwFactory.CreateTextLayout(title, titleFmt, textW, 24);
+        titleLyt.WordWrapping = WordWrapping.NoWrap;
+        titleLyt.SetTrimming(new Trimming { Delimiter = 0, DelimiterCount = 0 }, null!);
         using var titleBr = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
         rt.DrawTextLayout(new Vector2(cx, y + 10), titleLyt, titleBr);
 
@@ -589,6 +647,8 @@ public sealed class OverlayRenderService : IDisposable
             using var artFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
                 DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 12);
             using var artLyt = _dwFactory.CreateTextLayout(item.Artist, artFmt, textW, 20);
+            artLyt.WordWrapping = WordWrapping.NoWrap;
+            artLyt.SetTrimming(new Trimming { Delimiter = 0, DelimiterCount = 0 }, null!);
             using var artBr = rt.CreateSolidColorBrush(new Color4(0.75f, 0.75f, 0.75f, opacity));
             rt.DrawTextLayout(new Vector2(cx, y + 36), artLyt, artBr);
         }
@@ -612,6 +672,94 @@ public sealed class OverlayRenderService : IDisposable
         float fillW = progW * 0.35f;
         var progFillRR = new RoundedRectangle(new RectangleF(pillX + pad, progY, fillW, 4), 2, 2);
         rt.FillRoundedRectangle(ref progFillRR, progFill);
+    }
+
+    /// <summary>
+    /// 收起态：紧凑胶囊 — 小封面 + 标题 + 播放频谱指示器
+    /// </summary>
+    private void DrawMediaCardCollapsed(MediaCardItem item, ID2D1DCRenderTarget rt, float y)
+    {
+        const float pillHeight = 36;
+        float pad = 8;
+        float opacity = 0.9f;
+
+        // 计算内容宽度：封面(24) + 间距(6) + 标题(动态) + 间距(6) + 频谱(18)
+        // 先测量标题文本宽度
+        string titleText = string.IsNullOrEmpty(item.Title) ? "未在播放" : item.Title;
+        using var titleFmt = _dwFactory.CreateTextFormat("Microsoft YaHei", null,
+            DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 12);
+        using var titleMeasure = _dwFactory.CreateTextLayout(titleText, titleFmt, 300, 20);
+        titleMeasure.WordWrapping = WordWrapping.NoWrap;
+        var titleMetrics = titleMeasure.Metrics;
+        float titleWidth = Math.Min(titleMetrics.WidthIncludingTrailingWhitespace, 180);
+
+        float contentWidth = 24 + 6 + titleWidth + 6 + 18;
+        float pillWidth = Math.Max(contentWidth + pad * 2, 120);
+        float pillX = (_width - pillWidth) / 2;
+
+        // Pill background
+        using var bgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.65f * opacity));
+        var pillRR = new RoundedRectangle(new RectangleF(pillX, y, pillWidth, pillHeight), 16, 16);
+        rt.FillRoundedRectangle(ref pillRR, bgBrush);
+
+        float cx = pillX + pad;
+        float centerY = y + (pillHeight - 24) / 2.0f;
+
+        // 小封面 (24x24)
+        if (item.CoverBitmap != null)
+        {
+            var coverRect = new Vortice.Mathematics.Rect((int)cx, (int)centerY, 24, 24);
+            rt.DrawBitmap(item.CoverBitmap, opacity, BitmapInterpolationMode.Linear, coverRect);
+        }
+        else
+        {
+            // 音符图标替代
+            using var noteFormat = _dwFactory.CreateTextFormat("Segoe UI", null,
+                DWriteFontWeight.Normal, DWriteFontStyle.Normal, DWriteFontStretch.Normal, 14);
+            using var noteLayout = _dwFactory.CreateTextLayout("\uD83C\uDFB5", noteFormat, 24, 24);
+            using var noteBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity * 0.5f));
+            rt.DrawTextLayout(new Vector2(cx, centerY), noteLayout, noteBrush);
+        }
+        cx += 24 + 6;
+
+        // 标题文本（单行，超出截断）
+        using var titleDrawLyt = _dwFactory.CreateTextLayout(titleText, titleFmt, titleWidth, 20);
+        titleDrawLyt.WordWrapping = WordWrapping.NoWrap;
+        titleDrawLyt.SetTrimming(new Trimming { Delimiter = 0, DelimiterCount = 0 }, null!);
+        using var titleBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
+        rt.DrawTextLayout(new Vector2(cx, centerY + 2), titleDrawLyt, titleBrush);
+        cx += titleWidth + 6;
+
+        // 播放频谱指示器（3 个小竖条）
+        float barWidth = 3;
+        float barGap = 2;
+        float maxBarHeight = 14;
+        float barBaseY = centerY + 24; // 底部对齐
+        using var barBrush = rt.CreateSolidColorBrush(new Color4(0.3f, 0.7f, 1.0f, opacity));
+
+        // 根据播放状态显示不同高度
+        float h1, h2, h3;
+        if (item.IsPlaying)
+        {
+            // 播放时：模拟频谱（固定高度，非动画）
+            h1 = maxBarHeight * 0.5f;
+            h2 = maxBarHeight * 0.8f;
+            h3 = maxBarHeight * 0.6f;
+        }
+        else
+        {
+            // 暂停时：统一低高度
+            h1 = h2 = h3 = maxBarHeight * 0.3f;
+        }
+
+        var bar1 = new Rect(cx, barBaseY - h1, cx + barWidth, barBaseY);
+        rt.FillRectangle(in bar1, barBrush);
+        cx += barWidth + barGap;
+        var bar2 = new Rect(cx, barBaseY - h2, cx + barWidth, barBaseY);
+        rt.FillRectangle(in bar2, barBrush);
+        cx += barWidth + barGap;
+        var bar3 = new Rect(cx, barBaseY - h3, cx + barWidth, barBaseY);
+        rt.FillRectangle(in bar3, barBrush);
     }
 
     private void DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float y)

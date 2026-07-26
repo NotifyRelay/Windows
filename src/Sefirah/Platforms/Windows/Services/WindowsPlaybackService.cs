@@ -429,6 +429,21 @@ public class WindowsPlaybackService(
         session.TimelinePropertiesChanged -= Session_TimelinePropertiesChanged;
         lastTimelinePosition.Remove(session.SourceAppUserModelId);
 
+        // 会话真正结束时移除 Overlay 媒体卡片
+        if (generalSettings.DanmakuMediaCardEnabled)
+        {
+            try
+            {
+                var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                overlay.RemoveMediaCard(session.SourceAppUserModelId ?? "local");
+                logger?.LogDebug("UnsubscribeFromSessionEvents: 移除媒体卡片 source={Source}", session.SourceAppUserModelId);
+            }
+            catch (Exception ex)
+            {
+                logger?.LogError(ex, "移除 Overlay 媒体卡片失败");
+            }
+        }
+
         if (!generalSettings.EnableSendMediaNotifications) return;
 
         // 发送媒体结束通知，使用与Android兼容的DATA_MEDIAPLAY格式
@@ -656,19 +671,21 @@ public class WindowsPlaybackService(
             {
                 try
                 {
-                    byte[]? coverBytes = null;
-                    if (!string.IsNullOrEmpty(thumbnail))
-                    {
-                        coverBytes = ConvertBase64ToBytes(thumbnail);
-                    }
-                    var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                    // SMTC 中 null/空值表示"未改变"而非"无数据"
+                    // 此时跳过更新，保留上次有效的卡片，避免播放时闪烁
+                    // 会话真正结束时会在 UnsubscribeFromSessionEvents 中移除卡片
                     if (string.IsNullOrEmpty(trackTitle) && string.IsNullOrEmpty(artist))
                     {
-                        logger?.LogDebug("SendPlaybackData: 移除媒体卡片 source={Source}", source);
-                        overlay.RemoveMediaCard(source ?? "local");
+                        logger?.LogDebug("SendPlaybackData: 跳过空媒体数据，保留当前卡片 source={Source}", source);
                     }
                     else
                     {
+                        byte[]? coverBytes = null;
+                        if (!string.IsNullOrEmpty(thumbnail))
+                        {
+                            coverBytes = ConvertBase64ToBytes(thumbnail);
+                        }
+                        var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
                         logger?.LogDebug("SendPlaybackData: 显示媒体卡片 source={Source}, title={Title}", source, trackTitle);
                         overlay.ShowMediaCard(source ?? "local", "本机", trackTitle ?? "", artist ?? "", coverBytes, isPlaying);
                     }
@@ -681,20 +698,28 @@ public class WindowsPlaybackService(
 
             if (forceGamebar || !overlayEnabled)
             {
-                try
+                // 空值表示"未改变"，跳过发送，避免 Gamebar 端闪烁
+                if (string.IsNullOrEmpty(trackTitle) && string.IsNullOrEmpty(artist))
                 {
-                    _ = LocalSocketRelayServer.SendMediaInfoAsync(
-                        source ?? "local",
-                        "本机",
-                        trackTitle ?? "",
-                        artist ?? "",
-                        thumbnail ?? "",
-                        isPlaying
-                    );
+                    logger?.LogDebug("SendPlaybackData: 跳过 Gamebar 空媒体数据 source={Source}", source);
                 }
-                catch (Exception gamebarEx)
+                else
                 {
-                    logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
+                    try
+                    {
+                        _ = LocalSocketRelayServer.SendMediaInfoAsync(
+                            source ?? "local",
+                            "本机",
+                            trackTitle ?? "",
+                            artist ?? "",
+                            thumbnail ?? "",
+                            isPlaying
+                        );
+                    }
+                    catch (Exception gamebarEx)
+                    {
+                        logger?.LogError(gamebarEx, "发送媒体信息到 Gamebar 失败");
+                    }
                 }
             }
 

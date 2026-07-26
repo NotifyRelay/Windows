@@ -79,6 +79,11 @@ public class MediaCardItem : OverlayItem
     public double LastUpdateTime { get; set; }
     public const double TimeoutSeconds = 60;
 
+    // 收起/展开状态
+    public bool IsExpanded { get; set; } = true;
+    public double ExpandedSince { get; set; }  // Stopwatch 时间戳
+    public const double AutoCollapseSeconds = 5.0;
+
     public MediaCardItem()
     {
         Type = DanmakuType.Media;
