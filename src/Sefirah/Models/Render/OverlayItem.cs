@@ -96,8 +96,11 @@ public class MediaCardItem : OverlayItem
     public override void Dispose()
     {
         CoverBitmap?.Dispose();
+        CoverBitmap = null;
         TitleLayout?.Dispose();
+        TitleLayout = null;
         ArtistLayout?.Dispose();
+        ArtistLayout = null;
     }
 }
 

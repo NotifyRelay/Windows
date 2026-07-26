@@ -414,6 +414,7 @@ public sealed class OverlayRenderService : IDisposable
                 mediaItems[i].Active = false;
                 mediaItems[i].Dispose();
                 _items.Remove(mediaItems[i]);
+                mediaItems.RemoveAt(i);
             }
         }
         for (int i = superItems.Count - 1; i >= 0; i--)
@@ -425,6 +426,7 @@ public sealed class OverlayRenderService : IDisposable
                 superItems[i].Active = false;
                 superItems[i].Dispose();
                 _items.Remove(superItems[i]);
+                superItems.RemoveAt(i);
             }
         }
 
