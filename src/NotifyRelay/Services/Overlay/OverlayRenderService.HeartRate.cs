@@ -17,6 +17,7 @@ public partial class OverlayRenderService
     private float _hrXPct = 90f;
     private float _hrYPct = 85f;
     private byte _hrColorR = 255, _hrColorG = 255, _hrColorB = 255;
+    private float _hrOutlineWidth = 2f;     // 简洁文本描边粗细（像素，0~6）
     private int _hrBpm = -1;                // -1 = 无数据
     private bool _hrConnected;
     private readonly List<int> _hrHistory = [];
@@ -26,7 +27,7 @@ public partial class OverlayRenderService
     private ID2D1PathGeometry? _hrHeartGeometry;
 
     /// <summary>更新心率覆盖层配置（启用、样式组合、目标屏、位置百分比、颜色）。</summary>
-    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex)
+    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth)
     {
         lock (_lock)
         {
@@ -38,6 +39,7 @@ public partial class OverlayRenderService
             _hrColorR = ParseColorChannel(colorHex, 255, 0);
             _hrColorG = ParseColorChannel(colorHex, 255, 2);
             _hrColorB = ParseColorChannel(colorHex, 255, 4);
+            _hrOutlineWidth = Math.Clamp(outlineWidth, 0.1f, 3f);
             if (!enabled)
             {
                 // 关闭显示时清空历史，避免下次开启残留旧曲线
@@ -121,7 +123,8 @@ public partial class OverlayRenderService
             s.HeartRateTargetScreen,
             s.HeartRateXPercent,
             s.HeartRateYPercent,
-            s.HeartRateColor);
+            s.HeartRateColor,
+            s.HeartRateTextOutlineWidth);
     }
 
     /// <summary>绘制自由浮动心率元素（文本 / 胶囊卡片 / 心形+曲线，可组合）。</summary>
@@ -133,8 +136,8 @@ public partial class OverlayRenderService
         int bpm;
         bool connected;
         int flags;
-        float xPct, yPct;
-        Color4 textColor;
+        float xPct, yPct, outlineW;
+        Color4 textColor, strokeColor;
         int[] history;
         lock (_lock)
         {
@@ -145,6 +148,9 @@ public partial class OverlayRenderService
             xPct = _hrXPct;
             yPct = _hrYPct;
             textColor = new Color4(_hrColorR / 255f, _hrColorG / 255f, _hrColorB / 255f, 1f);
+            // 描边色为文本色反色
+            strokeColor = new Color4((255 - _hrColorR) / 255f, (255 - _hrColorG) / 255f, (255 - _hrColorB) / 255f, 1f);
+            outlineW = _hrOutlineWidth;
             history = [.. _hrHistory];
         }
 
@@ -214,6 +220,22 @@ public partial class OverlayRenderService
                 }
                 float textX = showCard ? rowX + cardPadX : rowX;
                 float textY = showCard ? cursorY + cardPadY : cursorY;
+                // 简洁文本描边（参考弹幕描边：8 方向偏移绘制，外圈 + 内半圈减少间隙，覆盖 0~outlineW）
+                if (showText && outlineW > 0.05f && lineLayout != null)
+                {
+                    using var strokeBrush = CreateSolidColorBrush(rt, new Color4(strokeColor.R, strokeColor.G, strokeColor.B, opacity));
+                    float[] radii = { outlineW, outlineW * 0.5f };
+                    foreach (var r in radii)
+                    {
+                        if (r < 0.05f) continue;
+                        for (int dx = -1; dx <= 1; dx++)
+                            for (int dy = -1; dy <= 1; dy++)
+                            {
+                                if (dx == 0 && dy == 0) continue;
+                                rt.DrawTextLayout(new Vector2(textX + dx * r, textY + dy * r), lineLayout, strokeBrush);
+                            }
+                    }
+                }
                 using var brush = CreateSolidColorBrush(rt, new Color4(textColor.R, textColor.G, textColor.B, opacity));
                 if (lineLayout != null)
                     rt.DrawTextLayout(new Vector2(textX, textY), lineLayout, brush);

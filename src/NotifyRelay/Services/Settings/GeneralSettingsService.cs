@@ -397,6 +397,12 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    public float HeartRateTextOutlineWidth
+    {
+        get => Get(2f);
+        set => Set(Math.Clamp(value, 0.1f, 3f));
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

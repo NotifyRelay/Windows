@@ -141,6 +141,13 @@ public class HeartRateViewModel : INotifyPropertyChanged
         set { _settings.HeartRateColor = value; OnPropertyChanged(); PushConfig(); }
     }
 
+    /// <summary>简洁文本描边粗细（像素，0~6，0 为无描边）。</summary>
+    public float HeartRateTextOutlineWidth
+    {
+        get => _settings.HeartRateTextOutlineWidth;
+        set { _settings.HeartRateTextOutlineWidth = value; OnPropertyChanged(); PushConfig(); }
+    }
+
     public HeartRateViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
@@ -256,7 +263,8 @@ public class HeartRateViewModel : INotifyPropertyChanged
             _settings.HeartRateTargetScreen,
             _settings.HeartRateXPercent,
             _settings.HeartRateYPercent,
-            _settings.HeartRateColor);
+            _settings.HeartRateColor,
+            _settings.HeartRateTextOutlineWidth);
     }
 
     protected void OnPropertyChanged([CallerMemberName] string propertyName = "")

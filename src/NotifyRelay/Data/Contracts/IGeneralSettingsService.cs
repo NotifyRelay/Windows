@@ -191,6 +191,12 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     string HeartRateColor { get; set; }
 
     /// <summary>
+    /// Gets or sets the heart rate text outline width in pixels (0 = no outline; clamped to 0-6).
+    /// Outline color is the inverse of the text color.
+    /// </summary>
+    float HeartRateTextOutlineWidth { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.
     /// </summary>
     bool EnableDynamicLighting { get; set; }
