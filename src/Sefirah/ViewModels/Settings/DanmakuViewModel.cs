@@ -1,8 +1,10 @@
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Services;
 using NotifyRelay.Services.Overlay;
+using Vortice.DirectWrite;
 
 namespace NotifyRelay.ViewModels.Settings;
 
@@ -139,10 +141,55 @@ public class DanmakuViewModel : INotifyPropertyChanged
         set { _settings.DanmakuPerformanceMode = value; OnPropertyChanged(); OnStyleChanged(); }
     }
 
+    /// <summary>系统可用字体族名称列表，用于设置页字体选择（通过 DirectWrite 枚举）。</summary>
+    public List<string> FontFamilies { get; } = LoadSystemFontFamilies();
+
     public DanmakuViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
+    }
+
+    private static List<string> LoadSystemFontFamilies()
+    {
+        var names = new List<string>();
+        try
+        {
+            using var factory = DWrite.DWriteCreateFactory<IDWriteFactory>();
+            using var collection = factory.GetSystemFontCollection(false);
+            uint count = collection.FontFamilyCount;
+            var seen = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            for (uint i = 0; i < count; i++)
+            {
+                using var family = collection.GetFontFamily(i);
+                using var localized = family.FamilyNames;
+                uint index;
+                string? name = null;
+                // 优先英文规范名（与默认值 "Microsoft YaHei" 及 CreateTextFormat 匹配最稳），其次中性/中文
+                if (localized.FindLocaleName("en-US", out index) ||
+                    localized.FindLocaleName(string.Empty, out index) ||
+                    localized.FindLocaleName("zh-CN", out index))
+                {
+                    name = localized.GetString(index);
+                }
+                else if (localized.Count > 0)
+                {
+                    name = localized.GetString(0);
+                }
+
+                if (!string.IsNullOrWhiteSpace(name) && seen.Add(name))
+                    names.Add(name);
+            }
+            names.Sort(System.StringComparer.CurrentCultureIgnoreCase);
+        }
+        catch
+        {
+            // 枚举失败时不阻断设置页
+        }
+
+        if (names.Count == 0)
+            names.Add("Microsoft YaHei");
+        return names;
     }
 
     public void SendTestDanmaku()

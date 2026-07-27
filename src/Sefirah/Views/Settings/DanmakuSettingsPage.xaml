@@ -85,9 +85,13 @@
                 </ComboBox>
             </wuc:SettingsCard>
 
-            <wuc:SettingsCard Header="字体">
-                <ComboBox Text="{x:Bind ViewModel.DanmakuFontFamily, Mode=TwoWay}" IsEditable="True" MinWidth="120" />
-            </wuc:SettingsCard>
+                <wuc:SettingsCard Header="字体">
+                    <ComboBox x:Name="FontFamilyCombo"
+                              ItemsSource="{x:Bind ViewModel.FontFamilies}"
+                              SelectedItem="{x:Bind ViewModel.DanmakuFontFamily, Mode=OneWay}"
+                              SelectionChanged="FontFamilyCombo_SelectionChanged"
+                              MinWidth="160" />
+                </wuc:SettingsCard>
 
             <wuc:SettingsCard Header="加粗">
                 <ToggleSwitch IsOn="{x:Bind ViewModel.DanmakuBold, Mode=TwoWay}" OnContent="" OffContent="" />

@@ -82,4 +82,12 @@ public sealed partial class DanmakuSettingsPage : Page
     {
         ViewModel.SendTestDanmaku();
     }
+
+    private void FontFamilyCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (sender is ComboBox cb && cb.SelectedItem is string font && ViewModel.DanmakuFontFamily != font)
+        {
+            ViewModel.DanmakuFontFamily = font;
+        }
+    }
 }
