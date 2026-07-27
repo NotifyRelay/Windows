@@ -391,7 +391,7 @@
                                 <FontIcon Glyph="&#xE8BC;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
-                        <NavigationViewItem Content="弹幕叠加层" Tag="DanmakuOverlay">
+                        <NavigationViewItem Content="覆盖层" Tag="DanmakuOverlay">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE7F0;" />
                             </NavigationViewItem.Icon>

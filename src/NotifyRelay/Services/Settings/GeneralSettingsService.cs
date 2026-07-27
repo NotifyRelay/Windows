@@ -360,6 +360,43 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    // 心率覆盖层设置
+    public bool HeartRateOverlayEnabled
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public int HeartRateStyle
+    {
+        get => Get(1);
+        set => Set(value);
+    }
+
+    public string HeartRateTargetScreen
+    {
+        get => Get("PRIMARY")!;
+        set => Set(value);
+    }
+
+    public int HeartRateXPercent
+    {
+        get => Get(90);
+        set => Set(value);
+    }
+
+    public int HeartRateYPercent
+    {
+        get => Get(85);
+        set => Set(value);
+    }
+
+    public string HeartRateColor
+    {
+        get => Get("#FFFFFF")!;
+        set => Set(value);
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

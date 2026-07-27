@@ -738,7 +738,7 @@ input touchscreen swipe 540 1800 540 900</value>
     <value>Managed devices</value>
   </data>
   <data name="Danmaku.Title" xml:space="preserve">
-    <value>弹幕叠加层</value>
+    <value>覆盖层</value>
   </data>
   <data name="Danmaku.Description" xml:space="preserve">
     <value>在桌面叠加层显示通知弹幕和媒体卡片</value>

@@ -1,33 +1,17 @@
-using NotifyRelay.Data.Items;
 using NotifyRelay.ViewModels.Settings;
 
 namespace NotifyRelay.Views.Settings;
 
-public sealed partial class DanmakuSettingsPage : Page
+/// <summary>覆盖层 - 弹幕通知子页。</summary>
+public sealed partial class OverlayDanmakuPage : Page
 {
     public DanmakuViewModel ViewModel => (DanmakuViewModel)DataContext;
 
     private string _currentTarget = "";
 
-    public DanmakuSettingsPage()
+    public OverlayDanmakuPage()
     {
         InitializeComponent();
-        SetupBreadcrumb();
-    }
-
-    private void SetupBreadcrumb()
-    {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
-        {
-            new("弹幕叠加层", typeof(DanmakuSettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack)
-            Frame.GoBack();
     }
 
     private void ColorPickerButton_Click(object sender, RoutedEventArgs e)

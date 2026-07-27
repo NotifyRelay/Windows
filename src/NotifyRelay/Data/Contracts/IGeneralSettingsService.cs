@@ -161,6 +161,36 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     int DanmakuPerformanceMode { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether heart rate overlay is enabled.
+    /// </summary>
+    bool HeartRateOverlayEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the heart rate display style flags (1=text, 2=card, 4=heart shape; combinable).
+    /// </summary>
+    int HeartRateStyle { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target screen device name for heart rate overlay ("PRIMARY" for primary screen).
+    /// </summary>
+    string HeartRateTargetScreen { get; set; }
+
+    /// <summary>
+    /// Gets or sets the heart rate overlay X position percent (0-100).
+    /// </summary>
+    int HeartRateXPercent { get; set; }
+
+    /// <summary>
+    /// Gets or sets the heart rate overlay Y position percent (0-100).
+    /// </summary>
+    int HeartRateYPercent { get; set; }
+
+    /// <summary>
+    /// Gets or sets the heart rate text color (#RRGGBB).
+    /// </summary>
+    string HeartRateColor { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.
     /// </summary>
     bool EnableDynamicLighting { get; set; }

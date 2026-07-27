@@ -92,6 +92,7 @@ public sealed partial class OverlayRenderService : IDisposable
         _running = true;
         // 启动时从已保存设置初始化样式，避免首条弹幕使用默认值（需手动调节才生效）
         LoadInitialStyle();
+        LoadInitialHeartRateConfig();
         _renderThread = new Thread(RenderLoop) { IsBackground = true, Name = "D2D-Overlay" };
         _renderThread.SetApartmentState(ApartmentState.STA);
         _renderThread.Start();
@@ -192,6 +193,7 @@ public sealed partial class OverlayRenderService : IDisposable
                         if (o.Items.Count > 0 || o.Pending.Count > 0) { hasContent = true; break; }
                 }
                 if (!hasContent && !_requests.IsEmpty) hasContent = true;
+                if (!hasContent) hasContent = HeartRateActive();
 
                 if (!hasContent)
                 {
@@ -457,8 +459,10 @@ public sealed partial class OverlayRenderService : IDisposable
         var rt = o.RenderTarget;
         if (rt == null) return;
 
+        bool isHeartRateTarget = IsHeartRateTarget(o);
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
-            || (o.IsPrimary && TopItemsActive());
+            || (o.IsPrimary && TopItemsActive())
+            || isHeartRateTarget;
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
@@ -488,6 +492,9 @@ public sealed partial class OverlayRenderService : IDisposable
             }
             DrawDanmaku(item, (float)x, rt);
         }
+
+        if (isHeartRateTarget)
+            DrawHeartRate(o);
 
         rt.EndDraw();
 
@@ -540,6 +547,7 @@ public sealed partial class OverlayRenderService : IDisposable
     public void Dispose()
     {
         Stop();
+        DisposeHeartGeometry();
         _wicFactory.Dispose();
         _dwFactory.Dispose();
         _d2dFactory.Dispose();

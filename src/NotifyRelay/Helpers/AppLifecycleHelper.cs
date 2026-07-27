@@ -436,6 +436,10 @@ public static class AppLifecycleHelper
         // Overlay Render Service
         .AddSingleton<OverlayRenderService>()
 
+        // Heart Rate BLE Service
+        .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
+        .AddSingleton<ViewModels.Settings.HeartRateViewModel>()
+
         // ViewModels
         .AddSingleton<MainPageViewModel>()
         .AddSingleton<DevicesViewModel>()
