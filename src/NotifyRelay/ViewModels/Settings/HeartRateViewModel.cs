@@ -141,11 +141,46 @@ public class HeartRateViewModel : INotifyPropertyChanged
         set { _settings.HeartRateColor = value; OnPropertyChanged(); PushConfig(); }
     }
 
-    /// <summary>简洁文本描边粗细（像素，0~6，0 为无描边）。</summary>
+    /// <summary>简洁文本描边粗细（像素，0.1~3，0 为无描边）。</summary>
     public float HeartRateTextOutlineWidth
     {
         get => _settings.HeartRateTextOutlineWidth;
         set { _settings.HeartRateTextOutlineWidth = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>整体显示大小缩放（0.5~2，心形/文本/卡片/描边按此比例缩放）。</summary>
+    public float HeartRateScale
+    {
+        get => _settings.HeartRateScale;
+        set { _settings.HeartRateScale = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>异常时心跳加速开关。</summary>
+    public bool AlertEnabled
+    {
+        get => _settings.HeartRateAlertEnabled;
+        set { _settings.HeartRateAlertEnabled = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>心率过低阈值（BPM）。</summary>
+    public int LowAlert
+    {
+        get => _settings.HeartRateLowAlert;
+        set { _settings.HeartRateLowAlert = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>心率过高阈值（BPM）。</summary>
+    public int HighAlert
+    {
+        get => _settings.HeartRateHighAlert;
+        set { _settings.HeartRateHighAlert = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>心率骤升阈值（BPM，相对近期均值）。</summary>
+    public int SpikeDelta
+    {
+        get => _settings.HeartRateSpikeDelta;
+        set { _settings.HeartRateSpikeDelta = value; OnPropertyChanged(); PushConfig(); }
     }
 
     public HeartRateViewModel()
@@ -264,7 +299,12 @@ public class HeartRateViewModel : INotifyPropertyChanged
             _settings.HeartRateXPercent,
             _settings.HeartRateYPercent,
             _settings.HeartRateColor,
-            _settings.HeartRateTextOutlineWidth);
+            _settings.HeartRateTextOutlineWidth,
+            _settings.HeartRateScale,
+            _settings.HeartRateAlertEnabled,
+            _settings.HeartRateLowAlert,
+            _settings.HeartRateHighAlert,
+            _settings.HeartRateSpikeDelta);
     }
 
     protected void OnPropertyChanged([CallerMemberName] string propertyName = "")

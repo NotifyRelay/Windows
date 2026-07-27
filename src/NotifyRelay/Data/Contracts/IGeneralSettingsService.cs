@@ -191,10 +191,36 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     string HeartRateColor { get; set; }
 
     /// <summary>
-    /// Gets or sets the heart rate text outline width in pixels (0 = no outline; clamped to 0-6).
+    /// Gets or sets the heart rate text outline width in pixels (clamped to 0.1-3).
     /// Outline color is the inverse of the text color.
     /// </summary>
     float HeartRateTextOutlineWidth { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether the heart shape beats faster on abnormal heart rate.
+    /// </summary>
+    bool HeartRateAlertEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the low heart rate threshold (BPM) that triggers faster beating.
+    /// </summary>
+    int HeartRateLowAlert { get; set; }
+
+    /// <summary>
+    /// Gets or sets the high heart rate threshold (BPM) that triggers faster beating.
+    /// </summary>
+    int HeartRateHighAlert { get; set; }
+
+    /// <summary>
+    /// Gets or sets the spike threshold (BPM above recent average) that triggers faster beating.
+    /// </summary>
+    int HeartRateSpikeDelta { get; set; }
+
+    /// <summary>
+    /// Gets or sets the overall heart rate display scale (clamped to 0.5-2).
+    /// Affects heart shape, text, card size and outline proportionally.
+    /// </summary>
+    float HeartRateScale { get; set; }
 
     /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.

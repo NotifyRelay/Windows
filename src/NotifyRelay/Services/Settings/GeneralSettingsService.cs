@@ -403,6 +403,36 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(Math.Clamp(value, 0.1f, 3f));
     }
 
+    public bool HeartRateAlertEnabled
+    {
+        get => Get(false);
+        set => Set(value);
+    }
+
+    public int HeartRateLowAlert
+    {
+        get => Get(50);
+        set => Set(value);
+    }
+
+    public int HeartRateHighAlert
+    {
+        get => Get(120);
+        set => Set(value);
+    }
+
+    public int HeartRateSpikeDelta
+    {
+        get => Get(20);
+        set => Set(value);
+    }
+
+    public float HeartRateScale
+    {
+        get => Get(1f);
+        set => Set(Math.Clamp(value, 0.5f, 2f));
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

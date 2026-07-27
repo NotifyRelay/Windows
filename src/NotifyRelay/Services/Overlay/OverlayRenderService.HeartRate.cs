@@ -17,7 +17,12 @@ public partial class OverlayRenderService
     private float _hrXPct = 90f;
     private float _hrYPct = 85f;
     private byte _hrColorR = 255, _hrColorG = 255, _hrColorB = 255;
-    private float _hrOutlineWidth = 2f;     // 简洁文本描边粗细（像素，0~6）
+    private float _hrOutlineWidth = 2f;     // 简洁文本描边粗细（像素，0.1~3）
+    private float _hrScale = 1f;            // 整体显示大小缩放（0.5~2）
+    private bool _hrAlertEnabled;           // 异常时心跳加速开关
+    private int _hrLowAlert = 50;           // 心率过低阈值（启用异常加速时生效）
+    private int _hrHighAlert = 120;         // 心率过高阈值（启用异常加速时生效）
+    private int _hrSpikeDelta = 20;         // 相对近期均值骤升阈值
     private int _hrBpm = -1;                // -1 = 无数据
     private bool _hrConnected;
     private readonly List<int> _hrHistory = [];
@@ -27,7 +32,7 @@ public partial class OverlayRenderService
     private ID2D1PathGeometry? _hrHeartGeometry;
 
     /// <summary>更新心率覆盖层配置（启用、样式组合、目标屏、位置百分比、颜色）。</summary>
-    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth)
+    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth, float scale, bool alertEnabled, int lowAlert, int highAlert, int spikeDelta)
     {
         lock (_lock)
         {
@@ -40,6 +45,11 @@ public partial class OverlayRenderService
             _hrColorG = ParseColorChannel(colorHex, 255, 2);
             _hrColorB = ParseColorChannel(colorHex, 255, 4);
             _hrOutlineWidth = Math.Clamp(outlineWidth, 0.1f, 3f);
+            _hrScale = Math.Clamp(scale, 0.5f, 2f);
+            _hrAlertEnabled = alertEnabled;
+            _hrLowAlert = lowAlert;
+            _hrHighAlert = highAlert;
+            _hrSpikeDelta = spikeDelta;
             if (!enabled)
             {
                 // 关闭显示时清空历史，避免下次开启残留旧曲线
@@ -52,10 +62,13 @@ public partial class OverlayRenderService
     public void UpdateHeartRate(int bpm)
     {
         if (bpm <= 0) return;
+        // 最小单位 5 bpm，避免过小波动导致统计图剧烈变化
+        int q = (int)Math.Round(bpm / 5.0) * 5;
+        if (q <= 0) return;
         lock (_lock)
         {
-            _hrBpm = bpm;
-            _hrHistory.Add(bpm);
+            _hrBpm = bpm;              // 显示与异常判定使用原始值
+            _hrHistory.Add(q);         // 统计图使用量化值（最小单位 5 bpm）
             if (_hrHistory.Count > HrHistoryMax)
                 _hrHistory.RemoveAt(0);
         }
@@ -124,7 +137,12 @@ public partial class OverlayRenderService
             s.HeartRateXPercent,
             s.HeartRateYPercent,
             s.HeartRateColor,
-            s.HeartRateTextOutlineWidth);
+            s.HeartRateTextOutlineWidth,
+            s.HeartRateScale,
+            s.HeartRateAlertEnabled,
+            s.HeartRateLowAlert,
+            s.HeartRateHighAlert,
+            s.HeartRateSpikeDelta);
     }
 
     /// <summary>绘制自由浮动心率元素（文本 / 胶囊卡片 / 心形+曲线，可组合）。</summary>
@@ -136,9 +154,10 @@ public partial class OverlayRenderService
         int bpm;
         bool connected;
         int flags;
-        float xPct, yPct, outlineW;
+        float xPct, yPct, outlineW, scale;
         Color4 textColor, strokeColor;
         int[] history;
+        bool alert;
         lock (_lock)
         {
             if (!_hrEnabled) return;
@@ -151,6 +170,23 @@ public partial class OverlayRenderService
             // 描边色为文本色反色
             strokeColor = new Color4((255 - _hrColorR) / 255f, (255 - _hrColorG) / 255f, (255 - _hrColorB) / 255f, 1f);
             outlineW = _hrOutlineWidth;
+            scale = _hrScale;
+            // 异常加速判定：开启且已连接且有数据
+            alert = _hrAlertEnabled && connected && bpm > 0;
+            if (alert)
+            {
+                if (bpm < _hrLowAlert || bpm > _hrHighAlert)
+                    alert = true;
+                else if (_hrHistory.Count >= 5)
+                {
+                    int n = Math.Min(_hrHistory.Count, 10);
+                    int sum = 0;
+                    for (int i = _hrHistory.Count - n; i < _hrHistory.Count; i++) sum += _hrHistory[i];
+                    if (bpm - sum / n >= _hrSpikeDelta) alert = true;
+                    else alert = false;
+                }
+                else alert = false;
+            }
             history = [.. _hrHistory];
         }
 
@@ -166,11 +202,15 @@ public partial class OverlayRenderService
         string line = connected && bpm > 0 ? $"\u2764 {bpm} BPM" : "\u2764 -- 未连接";
 
         // 尺寸估算
-        const float heartSize = 110f;
-        const float lineFontSize = 18f;
-        const float lineHeight = 26f;
-        const float cardPadX = 14f;
-        const float cardPadY = 6f;
+        double nowSec = Environment.TickCount64 / 1000.0;
+        float beatScale = ComputeBeatScale(nowSec, alert);
+
+        float effOutline = outlineW * scale;   // 整体缩放后实际描边宽度
+        float heartSize = 110f * scale;
+        float lineFontSize = 18f * scale;
+        float lineHeight = 26f * scale;
+        float cardPadX = 14f * scale;
+        float cardPadY = 6f * scale;
 
         float textLineWidth = 0f;
         IDWriteTextLayout? lineLayout = null;
@@ -191,7 +231,7 @@ public partial class OverlayRenderService
             if (showText || showCard)
             {
                 blockW = Math.Max(blockW, showCard ? cardW : textLineWidth);
-                if (showHeart) blockH += 6f;
+                if (showHeart) blockH += 6f * scale;
                 blockH += showCard ? cardH : lineHeight;
             }
 
@@ -205,9 +245,10 @@ public partial class OverlayRenderService
 
             if (showHeart)
             {
-                float heartX = left + (blockW - heartSize) / 2f;
-                DrawHeartShape(rt, heartX, cursorY, heartSize, opacity, bpmText, history);
-                cursorY += heartSize + 6f;
+                float heartCenterX = left + blockW / 2f;
+                float heartCenterY = cursorY + heartSize / 2f;
+                DrawHeartShape(rt, heartCenterX, heartCenterY, heartSize * beatScale, opacity, bpmText, history);
+                cursorY += heartSize + 6f * scale;
             }
 
             if (showText || showCard)
@@ -221,10 +262,10 @@ public partial class OverlayRenderService
                 float textX = showCard ? rowX + cardPadX : rowX;
                 float textY = showCard ? cursorY + cardPadY : cursorY;
                 // 简洁文本描边（参考弹幕描边：8 方向偏移绘制，外圈 + 内半圈减少间隙，覆盖 0~outlineW）
-                if (showText && outlineW > 0.05f && lineLayout != null)
+                if (showText && effOutline > 0.05f && lineLayout != null)
                 {
                     using var strokeBrush = CreateSolidColorBrush(rt, new Color4(strokeColor.R, strokeColor.G, strokeColor.B, opacity));
-                    float[] radii = { outlineW, outlineW * 0.5f };
+                    float[] radii = { effOutline, effOutline * 0.5f };
                     foreach (var r in radii)
                     {
                         if (r < 0.05f) continue;
@@ -247,11 +288,15 @@ public partial class OverlayRenderService
         }
     }
 
-    /// <summary>绘制心形（红色填充）+ 居中 BPM 数字 + 底部迷你心率曲线。</summary>
-    private void DrawHeartShape(ID2D1DCRenderTarget rt, float x, float y, float size, float opacity, string bpmText, int[] history)
+    /// <summary>绘制心形（红色填充）+ 居中 BPM 数字 + 底部迷你心率曲线。centerX/centerY 为心形中心，缩放时围绕中心。</summary>
+    private void DrawHeartShape(ID2D1DCRenderTarget rt, float centerX, float centerY, float size, float opacity, string bpmText, int[] history)
     {
         EnsureHeartGeometry();
         if (_hrHeartGeometry == null) return;
+
+        // 由中心推导左上角，使 size 变化时心形围绕中心缩放而非左上角
+        float x = centerX - size / 2f;
+        float y = centerY - size / 2f;
 
         // 心形填充（单位几何缩放平移）
         var oldTransform = rt.Transform;
@@ -293,7 +338,7 @@ public partial class OverlayRenderService
                 float x1 = bandLeft + i * stepX;
                 float y0 = bandTop + bandHeight * (1f - (history[i - 1] - min) / (float)range);
                 float y1 = bandTop + bandHeight * (1f - (history[i] - min) / (float)range);
-                rt.DrawLine(new Vector2(x0, y0), new Vector2(x1, y1), lineBrush, 1.5f);
+                rt.DrawLine(new Vector2(x0, y0), new Vector2(x1, y1), lineBrush, Math.Max(1f, size * 0.014f));
             }
         }
     }
@@ -352,5 +397,18 @@ public partial class OverlayRenderService
     {
         _hrHeartGeometry?.Dispose();
         _hrHeartGeometry = null;
+    }
+
+    /// <summary>计算心形跳动缩放：正常时轻微脉动；异常时突然加快且幅度更大（不跟随真实心率，避免性能开销）。</summary>
+    private static float ComputeBeatScale(double tSec, bool alert)
+    {
+        const double TAU = Math.PI * 2.0;
+        if (alert)
+        {
+            double phase = (tSec / 0.4) * TAU; // 周期约 0.4s，明显加快
+            return 1f + 0.11f * (float)(0.5 - 0.5 * Math.Cos(phase)); // 0.89~1.11
+        }
+        double phase2 = (tSec / 1.1) * TAU;   // 周期约 1.1s，轻微
+        return 1f + 0.04f * (float)(0.5 - 0.5 * Math.Cos(phase2));   // 0.96~1.04
     }
 }

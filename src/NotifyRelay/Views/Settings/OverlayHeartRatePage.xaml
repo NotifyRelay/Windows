@@ -99,6 +99,54 @@
                 </StackPanel>
             </wuc:SettingsCard>
 
+            <wuc:SettingsCard Header="显示大小" Description="整体显示缩放（心形、文本、卡片、描边均按比例缩放）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE1A1;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider Minimum="0.5" Maximum="2" StepFrequency="0.1" Width="240"
+                            Value="{x:Bind ViewModel.HeartRateScale, Mode=TwoWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.HeartRateScale, Mode=OneWay}"
+                               VerticalAlignment="Center" Width="36"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </wuc:SettingsCard>
+
+            <wuc:SettingsExpander Header="心跳异常" Description="心率异常时加快跳动（需启用开关；阈值可配）" IsExpanded="False">
+                <wuc:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xEB51;" />
+                </wuc:SettingsExpander.HeaderIcon>
+                <wuc:SettingsExpander.Items>
+                    <wuc:SettingsCard Header="启用异常加速">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.AlertEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="心率过低阈值 (BPM)" Description="低于此值即视为异常，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="30" Maximum="100" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.LowAlert, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.LowAlert, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="心率过高阈值 (BPM)" Description="高于此值即视为异常，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="100" Maximum="200" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.HighAlert, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.HighAlert, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="骤升阈值 (BPM)" Description="比近期均值高出此值即视为心率骤升，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="10" Maximum="60" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.SpikeDelta, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.SpikeDelta, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                </wuc:SettingsExpander.Items>
+            </wuc:SettingsExpander>
+
             <TextBlock Text="位置" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
 
             <wuc:SettingsCard Header="显示屏幕" Description="心率元素显示在所选屏幕；找不到时回退到主屏">
