@@ -5,7 +5,6 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
-using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 using NotifyRelay.Services.Socket;
 using NotifyRelay.Utils.Serialization;

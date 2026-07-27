@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices;
-using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using NotifyRelay.Native;
 

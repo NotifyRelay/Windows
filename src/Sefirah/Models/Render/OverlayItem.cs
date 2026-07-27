@@ -1,6 +1,5 @@
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
-using Windows.UI;
 
 namespace NotifyRelay.Models.Render;
 

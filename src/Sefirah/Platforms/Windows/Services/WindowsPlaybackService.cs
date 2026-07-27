@@ -8,13 +8,11 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
-using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows.Interop;
-using Windows.Media;
-using Windows.Media.Control;
-
 using NotifyRelay.Services;
 using NotifyRelay.Services.Overlay;
+using Windows.Media;
+using Windows.Media.Control;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 

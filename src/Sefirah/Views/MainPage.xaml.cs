@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using NotifyRelay.ViewModels;
 using NotifyRelay.ViewModels.Settings;

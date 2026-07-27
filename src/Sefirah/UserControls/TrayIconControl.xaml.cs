@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using CommunityToolkit.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;

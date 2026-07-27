@@ -1,5 +1,3 @@
-using System.Text;
-using System.Text.Json;
 using NotifyRelay.Native;
 
 namespace NotifyRelay.Helpers;

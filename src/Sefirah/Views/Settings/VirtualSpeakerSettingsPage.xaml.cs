@@ -1,4 +1,3 @@
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;

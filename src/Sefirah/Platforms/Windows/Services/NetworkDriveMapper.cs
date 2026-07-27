@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
-using NotifyRelay.Native;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 

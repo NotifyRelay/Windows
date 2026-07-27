@@ -1,6 +1,4 @@
 using NotifyRelay.Data.AppDatabase.Models;
-using NotifyRelay.Data.Models;
-using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.Data.AppDatabase.Repository;
 

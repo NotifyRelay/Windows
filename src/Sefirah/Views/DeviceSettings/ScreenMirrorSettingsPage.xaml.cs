@@ -1,4 +1,3 @@
-using Microsoft.UI.Xaml.Input;
 using NotifyRelay.ViewModels.Settings;
 using Windows.System;
 

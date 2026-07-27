@@ -2,7 +2,6 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 
 namespace NotifyRelay.ViewModels.Settings;

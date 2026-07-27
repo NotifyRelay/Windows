@@ -1,5 +1,3 @@
-using System.Collections.ObjectModel;
-
 namespace NotifyRelay.Extensions;
 
 public static class CollectionExtensions

@@ -2,19 +2,17 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
 using H.NotifyIcon;
 using Microsoft.UI.Windowing;
-using WinUIEx;
 using Microsoft.UI.Xaml.Media.Animation;
 using Microsoft.Windows.AppLifecycle;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Extensions;
 using NotifyRelay.Helpers;
 using NotifyRelay.Views;
 using NotifyRelay.Views.Onboarding;
 using Windows.ApplicationModel.Activation;
 using WinRT.Interop;
+using WinUIEx;
 using LaunchActivatedEventArgs = Microsoft.UI.Xaml.LaunchActivatedEventArgs;
-using Microsoft.UI.Xaml;
 
 namespace NotifyRelay;
 

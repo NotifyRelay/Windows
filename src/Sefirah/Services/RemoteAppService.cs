@@ -1,7 +1,6 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;

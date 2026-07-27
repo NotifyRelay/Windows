@@ -1,15 +1,11 @@
-using System;
-using System.Numerics;
 using System.Drawing;
-using Vortice;
+using System.Numerics;
+using NotifyRelay.Models.Render;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
-using NotifyRelay.Models.Render;
-using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
-using DWriteFontStyle = Vortice.DirectWrite.FontStyle;
-using DWriteFontStretch = Vortice.DirectWrite.FontStretch;
 using BitmapInterpolationMode = Vortice.Direct2D1.BitmapInterpolationMode;
+using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
 
 namespace NotifyRelay.Services.Overlay;
 
@@ -125,12 +121,12 @@ public partial class OverlayRenderService
                 new Color4(s.BorderColorR / 255f, s.BorderColorG / 255f,
                            s.BorderColorB / 255f, opacity));
             for (int dx = -1; dx <= 1; dx++)
-            for (int dy = -1; dy <= 1; dy++)
-            {
-                if (dx == 0 && dy == 0) continue;
-                rt.DrawTextLayout(new Vector2(textX + dx * bt, textY + dy * bt),
-                    item.TextLayout, strokeBrush);
-            }
+                for (int dy = -1; dy <= 1; dy++)
+                {
+                    if (dx == 0 && dy == 0) continue;
+                    rt.DrawTextLayout(new Vector2(textX + dx * bt, textY + dy * bt),
+                        item.TextLayout, strokeBrush);
+                }
         }
 
         using var fillBrush = CreateSolidColorBrush(rt,

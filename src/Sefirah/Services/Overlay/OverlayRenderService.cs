@@ -1,12 +1,12 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Models.Render;
 using Vortice;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 using Vortice.WIC;
-using NotifyRelay.Models.Render;
-using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.Services.Overlay;
 

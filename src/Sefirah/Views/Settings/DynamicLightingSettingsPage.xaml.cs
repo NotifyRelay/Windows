@@ -1,8 +1,3 @@
-using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Windows.UI;
-
 namespace NotifyRelay.Views.Settings;
 
 public sealed partial class DynamicLightingSettingsPage : Page

@@ -1,15 +1,14 @@
-using System;
-using System.Numerics;
 using System.Drawing;
+using System.Numerics;
+using NotifyRelay.Models.Render;
 using Vortice;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
-using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
-using DWriteFontStyle = Vortice.DirectWrite.FontStyle;
-using DWriteFontStretch = Vortice.DirectWrite.FontStretch;
 using BitmapInterpolationMode = Vortice.Direct2D1.BitmapInterpolationMode;
-using NotifyRelay.Models.Render;
+using DWriteFontStretch = Vortice.DirectWrite.FontStretch;
+using DWriteFontStyle = Vortice.DirectWrite.FontStyle;
+using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
 
 namespace NotifyRelay.Services.Overlay;
 

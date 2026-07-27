@@ -1,4 +1,3 @@
-using CommunityToolkit.Mvvm.Input;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;

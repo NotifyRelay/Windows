@@ -1,5 +1,3 @@
-using NotifyRelay.Data.Models;
-
 namespace NotifyRelay.Data.Contracts;
 
 public interface INetworkService

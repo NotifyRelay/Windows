@@ -1,5 +1,4 @@
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Extensions;
 
 namespace NotifyRelay.Data.Models;
 

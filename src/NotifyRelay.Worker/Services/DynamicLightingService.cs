@@ -31,6 +31,7 @@ public class DynamicLightingService
     private Color _lastCapturedColor;
     private readonly Queue<Color> _colorWindow = new(5);
     private const int ColorWindowSize = 5;
+    private readonly object _autoRgbLock = new();
     private ScreenColorAnalyzer? _screenColorAnalyzer;
 
     public event Action<Color>? ColorChanged;
@@ -320,42 +321,82 @@ public class DynamicLightingService
 
     public void StartAutoRGB()
     {
-        if (_isAutoRGBEnabled) return;
-        StopAllEffects();
-        _manualColor = _currentColor;
-        _isAutoRGBEnabled = true;
+        lock (_autoRgbLock)
+        {
+            if (_isAutoRGBEnabled)
+                return;
 
-        try
-        {
-            _screenColorAnalyzer = new ScreenColorAnalyzer(_logger);
-            _screenColorAnalyzer.ColorChanged += ScreenColorAnalyzer_ColorChanged;
-            _screenColorAnalyzer.StartCapture();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to start AutoRGB");
-            _isAutoRGBEnabled = false;
+            StopAllEffects();
+            _manualColor = _currentColor;
+
+            try
+            {
+                if (_screenColorAnalyzer != null)
+                {
+                    _screenColorAnalyzer.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
+                    _screenColorAnalyzer.StopCapture();
+                    _screenColorAnalyzer = null;
+                }
+
+                while (_colorWindow.Count > 0)
+                    _colorWindow.Dequeue();
+                _lastCapturedColor = default;
+
+                var analyzer = new ScreenColorAnalyzer(_logger);
+                analyzer.ColorChanged += ScreenColorAnalyzer_ColorChanged;
+                analyzer.StartCapture();
+
+                if (!analyzer.IsCapturing)
+                {
+                    analyzer.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
+                    analyzer.Dispose();
+                    _logger.LogWarning("AutoRGB capture did not start");
+                    return;
+                }
+
+                _screenColorAnalyzer = analyzer;
+                _isAutoRGBEnabled = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to start AutoRGB");
+                _isAutoRGBEnabled = false;
+                if (_screenColorAnalyzer != null)
+                {
+                    _screenColorAnalyzer.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
+                    _screenColorAnalyzer.StopCapture();
+                    _screenColorAnalyzer = null;
+                }
+            }
         }
     }
 
-    public void StopAutoRGB()
+    public void StopAutoRGB(bool restoreManualColor = true)
     {
-        if (!_isAutoRGBEnabled) return;
-        _isAutoRGBEnabled = false;
+        ScreenColorAnalyzer? analyzerToStop;
+
+        lock (_autoRgbLock)
+        {
+            _isAutoRGBEnabled = false;
+            analyzerToStop = _screenColorAnalyzer;
+            _screenColorAnalyzer = null;
+        }
 
         try
         {
-            if (_screenColorAnalyzer != null)
+            if (analyzerToStop != null)
             {
-                _screenColorAnalyzer.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
-                _screenColorAnalyzer.StopCapture();
-                _screenColorAnalyzer = null;
+                analyzerToStop.ColorChanged -= ScreenColorAnalyzer_ColorChanged;
+                analyzerToStop.StopCapture();
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to stop AutoRGB");
         }
+
+        if (!restoreManualColor)
+            return;
 
         ApplyColorToDevices(_manualColor);
         _currentColor = _manualColor;

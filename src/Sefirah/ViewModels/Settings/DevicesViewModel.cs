@@ -2,7 +2,6 @@ using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Extensions;
 using NotifyRelay.Utils.Serialization;
 using NotifyRelay.Views;
 

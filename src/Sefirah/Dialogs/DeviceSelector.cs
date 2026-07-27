@@ -1,6 +1,5 @@
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Extensions;
 
 namespace NotifyRelay.Dialogs;
 

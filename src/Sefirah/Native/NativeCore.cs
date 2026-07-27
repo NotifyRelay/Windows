@@ -1,10 +1,7 @@
 using System.Runtime.InteropServices;
-using System.Text;
-using Microsoft.Extensions.Logging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Services;
-using NotifyRelay.Services.Socket;
 
 namespace NotifyRelay.Native;
 
@@ -163,7 +160,7 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
     }
 
-    
+
 
     public static void SendHeartbeatUdp(string uuid, string name, ushort port, int battery, string deviceType)
     {
@@ -192,7 +189,7 @@ public static class NativeCore
         return NotifyRelayCore.Safe.StopTcpServer(_ctx);
     }
 
-    
+
 
     public static int BroadcastMessage(string message)
     {

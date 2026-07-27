@@ -1,8 +1,7 @@
+using System.Runtime.InteropServices;
 using Microsoft.UI.Dispatching;
 using Microsoft.Windows.AppLifecycle;
-using NotifyRelay.Extensions;
 using NotifyRelay.Platforms.Windows.Interop;
-using System.Runtime.InteropServices;
 using AppInstance = Microsoft.Windows.AppLifecycle.AppInstance;
 
 namespace NotifyRelay.Platforms.Windows;

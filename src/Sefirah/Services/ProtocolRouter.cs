@@ -1,10 +1,7 @@
-using CommunityToolkit.Mvvm.DependencyInjection;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
-using NotifyRelay.Models.Render;
-using NotifyRelay.Native;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
 #endif

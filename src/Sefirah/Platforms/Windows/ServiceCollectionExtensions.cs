@@ -1,5 +1,4 @@
 using System.Threading.Channels;
-using Microsoft.Extensions.Configuration;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;

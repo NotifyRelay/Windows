@@ -1,10 +1,7 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
 using NotifyRelay.Utils;
-using System.Text.Json;
-using Windows.ApplicationModel;
 using Windows.Storage.Streams;
 using Windows.UI.Notifications;
 using Windows.UI.Notifications.Management;

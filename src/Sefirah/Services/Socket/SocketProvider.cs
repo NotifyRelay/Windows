@@ -3,7 +3,6 @@ using NetCoreServer;
 using SocketError = System.Net.Sockets.SocketError;
 using TcpClient = NetCoreServer.TcpClient;
 using TcpServer = NetCoreServer.TcpServer;
-using UdpClient = NetCoreServer.UdpClient;
 
 namespace NotifyRelay.Services.Socket;
 

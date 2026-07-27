@@ -221,14 +221,14 @@ public class AdbService(
     {
 
         logger.LogTrace($"设备状态已更改：{e.Device.Serial} {e.OldState} -> {e.NewState}");
-        
+
         // 在UI线程上获取existingDevice，避免集合在枚举时被修改
         AdbDevice? existingDevice = null;
         await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
             existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
         });
-        
+
         if (e.NewState == DeviceState.Online)
         {
             var deviceInfo = await GetFullDeviceInfoAsync(e.Device);

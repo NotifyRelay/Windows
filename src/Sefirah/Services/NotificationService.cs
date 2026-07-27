@@ -3,16 +3,14 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
+using NotifyRelay.Services.Overlay;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
 using Windows.Data.Xml.Dom;
 using Windows.System;
 using Windows.UI.Notifications;
 using Notification = NotifyRelay.Data.Models.Notification;
-
-using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Services;
 

@@ -1,4 +1,3 @@
-using System.Text.Json;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;

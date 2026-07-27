@@ -1,5 +1,4 @@
 using System.Text;
-using System.Text.Json;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;

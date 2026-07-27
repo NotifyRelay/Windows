@@ -1,16 +1,10 @@
-using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
 using CommunityToolkit.WinUI;
-using NotifyRelay.Data.AppDatabase.Models;
-using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
 using NotifyRelay.Native;
-using Windows.Data.Xml.Dom;
 using Windows.UI.Notifications;
-using NotifyRelay.Dialogs;
 
 
 namespace NotifyRelay.Services;

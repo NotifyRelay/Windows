@@ -138,12 +138,20 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
 
     private int GetIntervalIndex(int intervalMs) => intervalMs switch
     {
-        1000 => 0, 60000 => 1, 1800000 => 2, 86400000 => 3, _ => 1
+        1000 => 0,
+        60000 => 1,
+        1800000 => 2,
+        86400000 => 3,
+        _ => 1
     };
 
     private int GetIntervalMs(int index) => index switch
     {
-        0 => 1000, 1 => 60000, 2 => 1800000, 3 => 86400000, _ => 60000
+        0 => 1000,
+        1 => 60000,
+        2 => 1800000,
+        3 => 86400000,
+        _ => 60000
     };
 
     partial void OnSelectedIntervalIndexChanged(int value)

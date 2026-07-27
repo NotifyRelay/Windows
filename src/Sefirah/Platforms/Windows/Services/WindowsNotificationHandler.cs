@@ -4,8 +4,6 @@ using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Models;
-using NotifyRelay.Extensions;
 using NotifyRelay.Services;
 using NotifyRelay.Utils;
 using Windows.System;
@@ -143,7 +141,7 @@ public class WindowsNotificationHandler(ILogger logger, ISessionManager _session
                     {
                         logger.LogWarning(ex, "设置通知图标时出错");
                     }
-                    }
+                }
                 else
                 {
                     var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) ? nkProp.GetString() : null;

@@ -1,7 +1,5 @@
-using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Animation;
 using NotifyRelay.Data.Items;
-using NotifyRelay.Extensions;
 using NotifyRelay.Utils;
 using Windows.System;
 

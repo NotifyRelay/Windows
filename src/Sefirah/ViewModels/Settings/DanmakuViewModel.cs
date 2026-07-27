@@ -1,13 +1,6 @@
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using Windows.Storage;
-using Windows.Storage.Streams;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
-using NotifyRelay.Services;
 using NotifyRelay.Services.Overlay;
 using Vortice.DirectWrite;
 

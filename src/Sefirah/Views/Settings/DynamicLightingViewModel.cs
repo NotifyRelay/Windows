@@ -1,13 +1,8 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.UI.Dispatching;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Media;
-using Windows.UI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Worker.Services;
+using Windows.UI;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -54,14 +49,18 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         {
             if (_isAutoRGBEnabled != value)
             {
-                _isAutoRGBEnabled = value;
-                _settingsService.EnableAutoRGB = value;
-                OnPropertyChanged();
-                OnPropertyChanged(nameof(AutoRGBStatusText));
+                if (value && !_isEnabled)
+                    IsEnabled = true;
+
                 if (value)
                     _lightingService.StartAutoRGB();
                 else
                     _lightingService.StopAutoRGB();
+
+                _isAutoRGBEnabled = _lightingService.IsAutoRGBEnabled;
+                _settingsService.EnableAutoRGB = _isAutoRGBEnabled;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(AutoRGBStatusText));
             }
         }
     }
@@ -193,7 +192,11 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         var interval = _settingsService.AutoRGBUpdateInterval;
         _selectedIntervalIndex = interval switch
         {
-            50 => 0, 100 => 1, 200 => 2, 500 => 3, _ => 1
+            50 => 0,
+            100 => 1,
+            200 => 2,
+            500 => 3,
+            _ => 1
         };
 
         if (!string.IsNullOrEmpty(_settingsService.DynamicLightingColor))
@@ -292,9 +295,21 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     public void TurnOff()
     {
-        if (_isAutoRGBEnabled) return;
-        _lightingService.ApplyColorToDevices(new Color { A = 255, R = 0, G = 0, B = 0 });
-        CurrentColor = new Color { A = 255, R = 0, G = 0, B = 0 };
+        if (_isAutoRGBEnabled)
+        {
+            _isAutoRGBEnabled = false;
+            _settingsService.EnableAutoRGB = false;
+            _lightingService.StopAutoRGB(false);
+            OnPropertyChanged(nameof(IsAutoRGBEnabled));
+            OnPropertyChanged(nameof(AutoRGBStatusText));
+        }
+
+        if (_selectedEffectIndex != 0)
+            SelectedEffectIndex = 0;
+
+        var offColor = new Color { A = 255, R = 0, G = 0, B = 0 };
+        _lightingService.TurnOffAllDevices();
+        CurrentColor = offColor;
     }
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)

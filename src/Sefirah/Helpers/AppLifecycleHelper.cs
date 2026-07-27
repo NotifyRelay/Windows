@@ -1,15 +1,13 @@
 using NotifyRelay.Data.AppDatabase;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Models;
 using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
-using NotifyRelay.Services.Overlay;
 using NotifyRelay.Services.Filters;
+using NotifyRelay.Services.Overlay;
 using NotifyRelay.Services.Settings;
-using NotifyRelay.Services.Socket;
 using NotifyRelay.ViewModels;
 using NotifyRelay.ViewModels.Settings;
 using Serilog;

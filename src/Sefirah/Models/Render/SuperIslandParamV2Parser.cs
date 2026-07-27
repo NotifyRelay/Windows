@@ -1,6 +1,3 @@
-using System.Text.Json;
-using NotifyRelay.Models.Render;
-
 namespace NotifyRelay.Models.Render;
 
 /// <summary>
