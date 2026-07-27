@@ -95,8 +95,13 @@ public partial class OverlayRenderService
         if (item.IconBitmap != null)
         {
             float iconSize = (float)s.FontSize;
-            var destRect = new Vortice.Mathematics.Rect((int)(x + 10), (int)y, (int)iconSize, (int)iconSize);
-            rt.DrawBitmap(item.IconBitmap, opacity, BitmapInterpolationMode.Linear, destRect);
+            // 在文本行内垂直居中，使图标视觉上与字体大小一致
+            float iconY = y + Math.Max(0, (item.TextHeight - iconSize) / 2f);
+            var destRect = new Vortice.Mathematics.Rect((int)(x + 10), (int)iconY, (int)iconSize, (int)iconSize);
+            // DrawBitmap(bitmap, opacity, interp, rect) 的 rect 参数是【源矩形】，并非目标位置；
+            // 必须改用 (bitmap, destRect, opacity, interp, srcRect) 重载才能把整张图标绘制到 destRect。
+            var srcRect = new Vortice.Mathematics.Rect(0, 0, (int)item.IconBitmap.Size.Width, (int)item.IconBitmap.Size.Height);
+            rt.DrawBitmap(item.IconBitmap, destRect, opacity, BitmapInterpolationMode.Linear, srcRect);
             iconOffset = iconSize + 8;
         }
 
@@ -321,7 +326,8 @@ public partial class OverlayRenderService
         if (item.IconBitmap != null)
         {
             var iconRect = new Vortice.Mathematics.Rect((int)cx, (int)y + 10, 28, 28);
-            rt.DrawBitmap(item.IconBitmap, opacity, BitmapInterpolationMode.Linear, iconRect);
+            var iconSrc = new Vortice.Mathematics.Rect(0, 0, (int)item.IconBitmap.Size.Width, (int)item.IconBitmap.Size.Height);
+            rt.DrawBitmap(item.IconBitmap, iconRect, opacity, BitmapInterpolationMode.Linear, iconSrc);
             cx += 36;
             textW -= 36;
         }

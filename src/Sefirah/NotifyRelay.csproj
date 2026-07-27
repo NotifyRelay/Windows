@@ -50,6 +50,8 @@
         <Content Include="Assets\NotifyRelayAppIcon.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
+        <!-- 嵌入资源：测试弹幕图标以字节流形式读取，避免打包态下文件系统路径不可用 -->
+        <EmbeddedResource Include="Assets\NotifyRelayAppIcon.png" />
         <Content Include="ffmpeg\**" Condition="Exists('ffmpeg\ffmpeg.exe')">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>

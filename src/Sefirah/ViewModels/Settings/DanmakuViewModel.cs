@@ -1,5 +1,10 @@
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Services;
@@ -148,6 +153,9 @@ public class DanmakuViewModel : INotifyPropertyChanged
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
+
+        // 预加载测试图标（异步，启动后很快就绪）
+        _ = EnsureTestIconLoadedAsync();
     }
 
     private static List<string> LoadSystemFontFamilies()
@@ -194,7 +202,68 @@ public class DanmakuViewModel : INotifyPropertyChanged
 
     public void SendTestDanmaku()
     {
-        _renderService?.ShowDanmaku("NotifyRelay", "测试", "这是一条测试弹幕通知", null, "本机");
+        // 优先使用已预加载的图标字节，未就绪时同步回退到嵌入资源
+        var icon = _testIconBytes ?? LoadTestIconFromEmbeddedResource();
+        _renderService?.ShowDanmaku("NotifyRelay", "测试", "这是一条测试弹幕通知", icon, "本机");
+    }
+
+    private static byte[]? _testIconBytes;
+    private static Task? _testIconLoadTask;
+
+    /// <summary>异步加载内置测试图标（作为字节流）。优先用 ms-appx 包资源 URI（打包/非打包均可用，且无需文件系统路径），
+    /// 失败回退到嵌入资源。与媒体块专辑图一致，最终都以 byte[] 形式传给渲染层。</summary>
+    private static Task EnsureTestIconLoadedAsync()
+    {
+        if (_testIconLoadTask is not null)
+            return _testIconLoadTask;
+
+        _testIconLoadTask = Task.Run(async () =>
+        {
+            try
+            {
+                var file = await Windows.Storage.StorageFile.GetFileFromApplicationUriAsync(
+                    new Uri("ms-appx:///Assets/NotifyRelayAppIcon.png"));
+                using var stream = await file.OpenReadAsync();
+                using var reader = new Windows.Storage.Streams.DataReader(stream);
+                await reader.LoadAsync((uint)stream.Size);
+                var bytes = new byte[(int)stream.Size];
+                reader.ReadBytes(bytes);
+                _testIconBytes = bytes;
+            }
+            catch
+            {
+                _testIconBytes ??= LoadTestIconFromEmbeddedResource();
+            }
+        });
+
+        return _testIconLoadTask;
+    }
+
+    /// <summary>从嵌入资源读取图标字节流（作为兜底方案）。</summary>
+    private static byte[]? LoadTestIconFromEmbeddedResource()
+    {
+        try
+        {
+            var asm = System.Reflection.Assembly.GetExecutingAssembly();
+            var resourceName = asm.GetManifestResourceNames()
+                .FirstOrDefault(n => n.EndsWith("Assets.NotifyRelayAppIcon.png", StringComparison.OrdinalIgnoreCase));
+            if (resourceName != null)
+            {
+                using var stream = asm.GetManifestResourceStream(resourceName);
+                if (stream != null)
+                {
+                    using var ms = new MemoryStream();
+                    stream.CopyTo(ms);
+                    return ms.ToArray();
+                }
+            }
+        }
+        catch
+        {
+            // 读取失败则不附带图标
+        }
+
+        return null;
     }
 
     private void OnStyleChanged()
