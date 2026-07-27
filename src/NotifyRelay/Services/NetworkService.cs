@@ -258,19 +258,33 @@ public class NetworkService(
         {
             logger.LogInformation($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
+            // 与安卓端及 core HANDSHAKE 重连逻辑对齐：用对端长期公钥做 ECDH 派生，覆盖 SPAKE2 协商密钥，
+            // 否则安卓端（ECDH 密钥）与 PC 端（SPAKE2 密钥）不一致，DATA 消息无法互相解密
+            if (string.IsNullOrEmpty(remoteLtPubKey) || NativeCore.DeriveSharedSecret(remoteUuid, remoteLtPubKey) != 0)
+            {
+                logger.LogWarning("配对完成后 ECDH 会话密钥派生失败: {uuid}", remoteUuid);
+            }
+
             var existing = PairedDevices.FirstOrDefault(d => d.Id == remoteUuid);
             if (existing != null)
             {
                 var keyJson = NativeCore.ExportDeviceKey(remoteUuid);
+                byte[]? aesKey = null;
                 if (keyJson != null)
                 {
-                    try { var aesB64 = System.Text.Json.JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString(); if (!string.IsNullOrEmpty(aesB64)) existing.SharedSecret = Convert.FromBase64String(aesB64); } catch { }
+                    try { var aesB64 = System.Text.Json.JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString(); if (!string.IsNullOrEmpty(aesB64)) aesKey = Convert.FromBase64String(aesB64); } catch { }
                 }
-                existing.RemotePublicKey = remoteLtPubKey;
-                if (!existing.IpAddresses.Contains(remoteIp)) existing.IpAddresses.Add(remoteIp);
-                existing.RemoteDeviceType = remoteDeviceType;
-                deviceManager.ActiveDevice = existing;
-                ConnectionStatusChanged?.Invoke(this, (existing, true));
+                // 本方法运行在 Rust 回调线程，UI 绑定对象的修改必须调度到 UI 线程，否则会触发
+                // XAML CollectionChanged 原生处理器抛出 COMException(0x80004005)
+                UpdateDeviceState(existing, d =>
+                {
+                    if (aesKey != null) d.SharedSecret = aesKey;
+                    d.RemotePublicKey = remoteLtPubKey;
+                    if (!d.IpAddresses.Contains(remoteIp)) d.IpAddresses.Add(remoteIp);
+                    d.RemoteDeviceType = remoteDeviceType;
+                    deviceManager.ActiveDevice = d;
+                    ConnectionStatusChanged?.Invoke(this, (d, true));
+                });
                 logger.LogInformation($"配对完成（更新已有设备）: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
@@ -291,15 +305,15 @@ public class NetworkService(
                     SharedSecret = sharedSecret,
                 };
                 deviceManager.SaveDevice(newDevice);
-                if (App.MainWindow.DispatcherQueue is { } dispatcher)
+                // 使用线程安全的 UpdateOrAddDeviceAsync：内部已在 UI 线程去重添加，
+                // 避免 ACCEPT 与随后握手(VerifyHandshakeAsync)并发重复 Add 导致 ListView 的
+                // CollectionChanged 原生处理器抛出 COMException(0x80004005)
+                await deviceManager.UpdateOrAddDeviceAsync(newDevice, d =>
                 {
-                    _ = dispatcher.EnqueueAsync(() =>
-                    {
-                        PairedDevices.Add(newDevice);
-                        deviceManager.ActiveDevice = newDevice;
-                        ConnectionStatusChanged?.Invoke(this, (newDevice, true));
-                    });
-                }
+                    d.ConnectionStatus = true;
+                    deviceManager.ActiveDevice = d;
+                    ConnectionStatusChanged?.Invoke(this, (d, true));
+                });
                 logger.LogInformation($"新设备配对完成: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
