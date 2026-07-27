@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Windows.UI;
@@ -14,6 +15,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 {
     private readonly DynamicLightingService _lightingService;
     private readonly IGeneralSettingsService _settingsService;
+    private readonly DispatcherQueue _dispatcher;
 
     private bool _isEnabled;
     private bool _isAutoRGBEnabled;
@@ -162,6 +164,7 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     {
         _lightingService = Ioc.Default.GetRequiredService<DynamicLightingService>();
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
+        _dispatcher = App.MainWindow.DispatcherQueue;
 
         LoadSettings();
 
@@ -219,13 +222,18 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
 
     private void OnColorChanged(Color e)
     {
-        CurrentColor = e;
-        _settingsService.DynamicLightingColor = e.ToString();
+        // ColorChanged 可能在后台线程（如屏幕捕获）触发，封送到 UI 线程以避免跨线程访问 XAML/WinRT 对象
+        _dispatcher.TryEnqueue(() =>
+        {
+            CurrentColor = e;
+            _settingsService.DynamicLightingColor = e.ToString();
+        });
     }
 
     private void OnCapturedColorChanged(Color e)
     {
-        CurrentCapturedColor = e;
+        // 捕获线程触发，必须封送到 UI 线程，否则绑定更新访问 Application.Resources 会抛 RPC_E_WRONG_THREAD
+        _dispatcher.TryEnqueue(() => CurrentCapturedColor = e);
     }
 
     private void FetchDevices()
