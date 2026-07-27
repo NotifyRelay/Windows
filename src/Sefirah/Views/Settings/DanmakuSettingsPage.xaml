@@ -119,6 +119,31 @@
                 </StackPanel>
             </wuc:SettingsCard>
 
+            <TextBlock Text="多屏与性能" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
+
+            <wuc:SettingsCard Header="多屏显示" Description="选择弹幕显示的屏幕范围（媒体/SuperIsland 卡片始终显示在主屏）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7F4;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ComboBox SelectedIndex="{x:Bind ViewModel.DanmakuDisplayScreenMode, Mode=TwoWay}" MinWidth="160">
+                    <x:String>仅主屏</x:String>
+                    <x:String>所有屏幕</x:String>
+                    <x:String>鼠标所在屏幕</x:String>
+                    <x:String>跨屏连续流</x:String>
+                </ComboBox>
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="性能档位" Description="限制弹幕渲染帧率以降低对游戏的影响；无内容时自动暂停渲染">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE9D9;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ComboBox SelectedIndex="{x:Bind ViewModel.DanmakuPerformanceMode, Mode=TwoWay}" MinWidth="160">
+                    <x:String>流畅（跟随刷新率）</x:String>
+                    <x:String>均衡（≤60FPS）</x:String>
+                    <x:String>游戏（≤30FPS）</x:String>
+                </ComboBox>
+            </wuc:SettingsCard>
+
             <wuc:SettingsCard Header="操作">
                 <Button Content="发送测试弹幕" Click="TestDanmakuButton_Click" />
             </wuc:SettingsCard>

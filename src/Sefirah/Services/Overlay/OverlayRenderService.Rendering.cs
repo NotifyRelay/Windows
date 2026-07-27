@@ -15,96 +15,79 @@ namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {
-    private void RenderTopCards(double now, double freq)
+    private void RenderTopCards(ScreenOverlay overlay, double now, double freq)
     {
+        var rt = overlay.RenderTarget!;
+        float screenWidth = overlay.Width;
         float y = 10;
-        var mediaItems = _items.OfType<MediaCardItem>().Where(m => m.Active).ToList();
-        var superItems = _items.OfType<SuperIslandItem>().Where(s => s.Active).ToList();
 
-        // Remove timed out items
-        for (int i = mediaItems.Count - 1; i >= 0; i--)
+        lock (_lock)
         {
-            var elapsed = (now - mediaItems[i].LastUpdateTime) / freq;
-            if (elapsed > MediaCardItem.TimeoutSeconds)
+            var mediaItems = _topItems.OfType<MediaCardItem>().Where(m => m.Active).ToList();
+            var superItems = _topItems.OfType<SuperIslandItem>().Where(s => s.Active).ToList();
+
+            // Remove timed out items
+            for (int i = mediaItems.Count - 1; i >= 0; i--)
             {
-                mediaItems[i].Active = false;
-                mediaItems[i].Dispose();
-                _items.Remove(mediaItems[i]);
-                mediaItems.RemoveAt(i);
-            }
-        }
-        for (int i = superItems.Count - 1; i >= 0; i--)
-        {
-            var elapsed = (now - superItems[i].LastUpdateTime) / freq;
-            if (elapsed > SuperIslandItem.TimeoutSeconds)
-            {
-                superItems[i].Active = false;
-                superItems[i].Dispose();
-                _items.Remove(superItems[i]);
-                superItems.RemoveAt(i);
-            }
-        }
-
-        // Render media card (max 1) — 居中灵动岛胶囊
-        var media = mediaItems.FirstOrDefault();
-        if (media != null)
-        {
-            // 自动收起：媒体字段变更后 5 秒自动收起
-            if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
-            {
-                media.IsExpanded = false;
-            }
-
-            EnsureMediaResources(media);
-            DrawMediaCard(media, _renderTarget!, y, now, freq);
-            y += media.IsExpanded ? 108 : 48;
-        }
-
-        // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
-        foreach (var si in superItems.Take(3))
-        {
-            // 自动收起：Extra 信息展示后 5 秒自动收起为紧凑模式
-            if (si.IsExpanded && si.State.HasExtra && (now - si.ExpandedSince) / freq > SuperIslandItem.AutoCollapseSeconds)
-            {
-                si.IsExpanded = false;
-            }
-
-            EnsureSuperIslandResources(si);
-            DrawSuperIslandCard(si, _renderTarget!, y);
-            y += si.IsExpanded ? 110 : 84;
-        }
-
-        _topCardsBottomY = y;
-    }
-
-    private void RenderDanmakuItems(double now, double freq)
-    {
-        for (int i = _items.Count - 1; i >= 0; i--)
-        {
-            if (_items[i] is DanmakuItem item)
-            {
-                if (!item.Active) continue;
-                double elapsed = (now - item.StartTime) / freq;
-                double x = item.SpawnX - elapsed * item.Settings.PixelsPerSecond;
-
-                if (x < -item.TotalWidth - 50)
+                var elapsed = (now - mediaItems[i].LastUpdateTime) / freq;
+                if (elapsed > MediaCardItem.TimeoutSeconds)
                 {
-                    item.Dispose();
-                    _items.RemoveAt(i);
-                    continue;
+                    mediaItems[i].Active = false;
+                    mediaItems[i].Dispose();
+                    _topItems.Remove(mediaItems[i]);
+                    mediaItems.RemoveAt(i);
+                }
+            }
+            for (int i = superItems.Count - 1; i >= 0; i--)
+            {
+                var elapsed = (now - superItems[i].LastUpdateTime) / freq;
+                if (elapsed > SuperIslandItem.TimeoutSeconds)
+                {
+                    superItems[i].Active = false;
+                    superItems[i].Dispose();
+                    _topItems.Remove(superItems[i]);
+                    superItems.RemoveAt(i);
+                }
+            }
+
+            // Render media card (max 1) — 居中灵动岛胶囊
+            var media = mediaItems.FirstOrDefault();
+            if (media != null)
+            {
+                // 自动收起：媒体字段变更后 5 秒自动收起
+                if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
+                {
+                    media.IsExpanded = false;
                 }
 
-                EnsureDanmakuResources(item);
-                DrawDanmaku(item, (float)x, _renderTarget!);
+                EnsureMediaResources(media, rt);
+                DrawMediaCard(media, rt, screenWidth, y, now, freq);
+                y += media.IsExpanded ? 108 : 48;
+            }
+
+            // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
+            foreach (var si in superItems.Take(3))
+            {
+                // 自动收起：Extra 信息展示后 5 秒自动收起为紧凑模式
+                if (si.IsExpanded && si.State.HasExtra && (now - si.ExpandedSince) / freq > SuperIslandItem.AutoCollapseSeconds)
+                {
+                    si.IsExpanded = false;
+                }
+
+                EnsureSuperIslandResources(si, rt);
+                DrawSuperIslandCard(si, rt, screenWidth, y);
+                y += si.IsExpanded ? 110 : 84;
             }
         }
+
+        overlay.TopOffset = y;
     }
 
     private void DrawDanmaku(DanmakuItem item, float x, ID2D1DCRenderTarget rt)
     {
         if (item.TextLayout == null) return;
 
-        var s = _currentStyle;
+        var s = item.Settings;
         float y = item.TrackY;
         float opacity = s.Opacity;
         float iconOffset = 0;
@@ -151,17 +134,17 @@ public partial class OverlayRenderService
         rt.DrawTextLayout(new Vector2(textX, textY), item.TextLayout, fillBrush);
     }
 
-    private void DrawMediaCard(MediaCardItem item, ID2D1DCRenderTarget rt, float y, double now, double freq)
+    private void DrawMediaCard(MediaCardItem item, ID2D1DCRenderTarget rt, float screenWidth, float y, double now, double freq)
     {
         if (!item.IsExpanded)
         {
-            DrawMediaCardCollapsed(item, rt, y, now, freq);
+            DrawMediaCardCollapsed(item, rt, screenWidth, y, now, freq);
             return;
         }
 
         const float pillWidth = 400;
         const float pillHeight = 100;
-        float pillX = (_width - pillWidth) / 2;
+        float pillX = (screenWidth - pillWidth) / 2;
         float pad = 14;
         float opacity = 0.9f;
 
@@ -220,7 +203,7 @@ public partial class OverlayRenderService
     /// <summary>
     /// 收起态：紧凑胶囊 — 小封面 + 标题 + 播放频谱指示器
     /// </summary>
-    private void DrawMediaCardCollapsed(MediaCardItem item, ID2D1DCRenderTarget rt, float y, double now, double freq)
+    private void DrawMediaCardCollapsed(MediaCardItem item, ID2D1DCRenderTarget rt, float screenWidth, float y, double now, double freq)
     {
         const float pillHeight = 36;
         float pad = 8;
@@ -236,7 +219,7 @@ public partial class OverlayRenderService
 
         float contentWidth = 24 + 6 + titleWidth + 6 + 21; // 5条频谱: 5*2.5+4*2=20.5
         float pillWidth = Math.Max(contentWidth + pad * 2, 120);
-        float pillX = (_width - pillWidth) / 2;
+        float pillX = (screenWidth - pillWidth) / 2;
 
         // Pill background
         DrawPillBackground(rt, pillX, y, pillWidth, pillHeight, 16, opacity);
@@ -320,11 +303,11 @@ public partial class OverlayRenderService
         }
     }
 
-    private void DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float y)
+    private void DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float screenWidth, float y)
     {
         const float pillWidth = 380;
         float pillHeight = item.IsExpanded && item.State.HasExtra ? 102 : 76;
-        float pillX = (_width - pillWidth) / 2;
+        float pillX = (screenWidth - pillWidth) / 2;
         float pad = 14;
         float opacity = 0.9f;
 

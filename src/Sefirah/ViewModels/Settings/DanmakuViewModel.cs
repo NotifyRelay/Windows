@@ -127,6 +127,18 @@ public class DanmakuViewModel : INotifyPropertyChanged
         set { _settings.DanmakuShadowColor = value; OnPropertyChanged(); OnStyleChanged(); }
     }
 
+    public int DanmakuDisplayScreenMode
+    {
+        get => _settings.DanmakuDisplayScreenMode;
+        set { _settings.DanmakuDisplayScreenMode = value; OnPropertyChanged(); OnStyleChanged(); }
+    }
+
+    public int DanmakuPerformanceMode
+    {
+        get => _settings.DanmakuPerformanceMode;
+        set { _settings.DanmakuPerformanceMode = value; OnPropertyChanged(); OnStyleChanged(); }
+    }
+
     public DanmakuViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
@@ -162,7 +174,9 @@ public class DanmakuViewModel : INotifyPropertyChanged
             ShadowOpacity = DanmakuShadowOpacity,
             ShadowColorR = ParseColorR(DanmakuShadowColor, 0),
             ShadowColorG = ParseColorG(DanmakuShadowColor, 0),
-            ShadowColorB = ParseColorB(DanmakuShadowColor, 0)
+            ShadowColorB = ParseColorB(DanmakuShadowColor, 0),
+            DisplayScreenMode = DanmakuDisplayScreenMode,
+            PerformanceMode = DanmakuPerformanceMode
         };
         _renderService?.UpdateStyle(style);
     }

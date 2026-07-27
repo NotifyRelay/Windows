@@ -31,4 +31,10 @@ public class DanmakuStyleSettings
     public double PixelsPerSecond => Math.Max(1, Speed) * 60.0;
     public float Opacity => (float)(OpacityPercent / 100.0);
     public float ShadowOpacityFloat => (float)(ShadowOpacity / 100.0);
+
+    /// <summary>多屏显示模式：0=仅主屏 1=所有屏幕 2=鼠标所在屏幕 3=跨屏连续流</summary>
+    public int DisplayScreenMode { get; set; }
+
+    /// <summary>性能档位：0=流畅(跟随刷新率) 1=均衡(≤60FPS) 2=游戏(≤30FPS)</summary>
+    public int PerformanceMode { get; set; }
 }

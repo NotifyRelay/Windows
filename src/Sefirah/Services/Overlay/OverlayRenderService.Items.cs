@@ -7,28 +7,26 @@ public partial class OverlayRenderService
     public void ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName)
     {
         var text = string.IsNullOrEmpty(appName) ? $"{title} - {body}" : $"{appName}: {title} - {body}";
+        // 展平换行，保证单行滚动
+        text = text.Replace("\r", " ").Replace("\n", " ");
 
-        lock (_lock)
+        DanmakuStyleSettings style;
+        lock (_lock) style = _currentStyle;
+
+        // 入队，由渲染线程按多屏模式分发到各屏覆盖层
+        _requests.Enqueue(new DanmakuRequest
         {
-            var item = new DanmakuItem
-            {
-                Text = text,
-                IconPng = iconPng,
-                Settings = _currentStyle,
-                StartTime = Stopwatch.GetTimestamp(),
-                AppName = appName,
-                DeviceName = deviceName
-            };
-            AssignTrack(item);
-            _items.Add(item);
-        }
+            Text = text,
+            IconPng = iconPng,
+            Settings = style
+        });
     }
 
     public void ShowMediaCard(string deviceId, string deviceName, string title, string artist, byte[]? coverPng, bool isPlaying)
     {
         lock (_lock)
         {
-            var existing = _items.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
+            var existing = _topItems.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
             if (existing != null)
             {
                 // 空值表示"未改变"，仅更新有实际值的字段
@@ -86,7 +84,7 @@ public partial class OverlayRenderService
                 IsExpanded = true,
                 ExpandedSince = now
             };
-            _items.Add(item);
+            _topItems.Add(item);
         }
     }
 
@@ -94,12 +92,12 @@ public partial class OverlayRenderService
     {
         lock (_lock)
         {
-            var item = _items.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
+            var item = _topItems.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
             if (item != null)
             {
                 item.Active = false;
                 item.Dispose();
-                _items.Remove(item);
+                _topItems.Remove(item);
             }
         }
     }
@@ -108,7 +106,7 @@ public partial class OverlayRenderService
     {
         lock (_lock)
         {
-            var existing = _items.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
+            var existing = _topItems.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (existing != null)
             {
                 // 处理增量变更合并
@@ -165,7 +163,7 @@ public partial class OverlayRenderService
                 IsExpanded = true,
                 ExpandedSince = Stopwatch.GetTimestamp()
             };
-            _items.Add(item);
+            _topItems.Add(item);
         }
     }
 
@@ -173,12 +171,12 @@ public partial class OverlayRenderService
     {
         lock (_lock)
         {
-            var item = _items.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
+            var item = _topItems.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (item != null)
             {
                 item.Active = false;
                 item.Dispose();
-                _items.Remove(item);
+                _topItems.Remove(item);
             }
         }
     }
@@ -188,6 +186,43 @@ public partial class OverlayRenderService
         lock (_lock)
         {
             _currentStyle = settings;
+            // 性能档位：0=流畅(跟随刷新率) 1=均衡(≤60FPS) 2=游戏(≤30FPS)
+            _maxFps = settings.PerformanceMode switch
+            {
+                1 => 60,
+                2 => 30,
+                _ => 0
+            };
+            // 多屏模式变化时，触发覆盖层重建
+            if (settings.DisplayScreenMode != _screenMode)
+            {
+                _displayDirty = true;
+            }
+        }
+    }
+
+    /// <summary>使顶部卡片的设备相关资源失效（覆盖层重建时调用）。</summary>
+    private void InvalidateTopItemDeviceResources()
+    {
+        lock (_lock)
+        {
+            foreach (var it in _topItems)
+            {
+                if (it is MediaCardItem m)
+                {
+                    m.CoverBitmap?.Dispose(); m.CoverBitmap = null;
+                    m.TitleLayout?.Dispose(); m.TitleLayout = null;
+                    m.ArtistLayout?.Dispose(); m.ArtistLayout = null;
+                }
+                else if (it is SuperIslandItem s)
+                {
+                    s.IconBitmap?.Dispose(); s.IconBitmap = null;
+                    s.TitleLayout?.Dispose(); s.TitleLayout = null;
+                    s.SubtitleLayout?.Dispose(); s.SubtitleLayout = null;
+                    s.AdditionalTextLayout?.Dispose(); s.AdditionalTextLayout = null;
+                    s.ExtraLayout?.Dispose(); s.ExtraLayout = null;
+                }
+            }
         }
     }
 }

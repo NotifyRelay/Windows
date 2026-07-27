@@ -151,6 +151,16 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     string DanmakuShadowColor { get; set; }
 
     /// <summary>
+    /// Gets or sets the danmaku multi-screen display mode (0=primary, 1=all, 2=mouse, 3=span).
+    /// </summary>
+    int DanmakuDisplayScreenMode { get; set; }
+
+    /// <summary>
+    /// Gets or sets the danmaku performance tier (0=fluent, 1=balanced, 2=gaming).
+    /// </summary>
+    int DanmakuPerformanceMode { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.
     /// </summary>
     bool EnableDynamicLighting { get; set; }

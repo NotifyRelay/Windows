@@ -348,6 +348,18 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         set => Set(value);
     }
 
+    public int DanmakuDisplayScreenMode
+    {
+        get => Get(0);
+        set => Set(value);
+    }
+
+    public int DanmakuPerformanceMode
+    {
+        get => Get(0);
+        set => Set(value);
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

@@ -14,6 +14,7 @@ public partial class OverlayRenderService
     private const uint WS_EX_TOPMOST = 0x00000008;
     private const uint WS_EX_TOOLWINDOW = 0x00000080;
     private const uint WS_EX_NOACTIVATE = 0x08000000;
+    private const int SW_HIDE = 0;
     private const int SW_SHOWNOACTIVATE = 4;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOSIZE = 0x0001;
@@ -25,6 +26,8 @@ public partial class OverlayRenderService
     private const byte AC_SRC_OVER = 0;
     private const byte AC_SRC_ALPHA = 1;
     private const uint ULW_ALPHA = 2;
+    private const int MONITORINFOF_PRIMARY = 1;
+    private const uint MONITOR_DEFAULTTONEAREST = 2;
     private static readonly IntPtr HWND_TOPMOST = new(-1);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
@@ -49,6 +52,9 @@ public partial class OverlayRenderService
     private struct SIZE { public int CX, CY; public SIZE(int cx, int cy) { CX = cx; CY = cy; } }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct RECT { public int Left, Top, Right, Bottom; }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct BLENDFUNCTION
     {
         public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat;
@@ -71,6 +77,19 @@ public partial class OverlayRenderService
         public IntPtr hwnd; public uint message; public IntPtr wParam, lParam;
         public uint time; public int pt_x, pt_y;
     }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct MONITORINFOEX
+    {
+        public int cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public int dwFlags;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
+        public string szDevice;
+    }
+
+    private delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
 
     [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
     private static extern ushort RegisterClassW(ref WNDCLASSW wc);
@@ -114,6 +133,18 @@ public partial class OverlayRenderService
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern IntPtr DispatchMessageW(ref MSG lpMsg);
 
+    [DllImport("user32.dll")]
+    private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr lprcClip, MonitorEnumProc lpfnEnum, IntPtr dwData);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern bool GetMonitorInfoW(IntPtr hMonitor, ref MONITORINFOEX lpmi);
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorPos(out POINT lpPoint);
+
     [DllImport("gdi32.dll")]
     private static extern IntPtr CreateCompatibleDC(IntPtr hdc);
 
@@ -138,6 +169,12 @@ public partial class OverlayRenderService
 
     [DllImport("user32.dll")]
     private static extern int GetSystemMetrics(int nIndex);
+
+    [DllImport("winmm.dll")]
+    private static extern uint timeBeginPeriod(uint uPeriod);
+
+    [DllImport("winmm.dll")]
+    private static extern uint timeEndPeriod(uint uPeriod);
 
     private static IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
         => DefWindowProcW(hWnd, msg, wParam, lParam);
