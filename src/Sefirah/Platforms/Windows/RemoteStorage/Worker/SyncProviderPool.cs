@@ -1,5 +1,4 @@
 using System.Runtime.InteropServices.WindowsRuntime;
-using NotifyRelay.Platforms.Windows.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
 using NotifyRelay.Platforms.Windows.RemoteStorage.RemoteAbstractions;

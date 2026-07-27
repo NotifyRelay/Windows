@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
 using System.Security.Principal;
 using Microsoft.Extensions.Options;
-using NotifyRelay.Platforms.Windows.Abstractions;
 using NotifyRelay.Platforms.Windows.Interop;
+using NotifyRelay.Platforms.Windows.RemoteStorage.Abstractions;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Commands;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Configuration;
 using Windows.Security.Cryptography;
