@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using AdvancedSharpAdbClient;
 using AdvancedSharpAdbClient.DeviceCommands;
@@ -20,6 +21,9 @@ public class AdbService(
     private CancellationTokenSource? cts;
     private DeviceMonitor? deviceMonitor;
     private readonly AdbClient adbClient = new();
+
+    // 防重入/防循环：记录正在处理无线 ADB 建立的 hostIp，避免 adb tcpip 重启 adbd 诱发的重复触发
+    private readonly ConcurrentDictionary<string, object?> _pendingWireless = new();
 
     public ObservableCollection<AdbDevice> AdbDevices { get; } = [];
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
@@ -188,6 +192,9 @@ public class AdbService(
                 AdbDevices.Add(connectedDevice);
             });
             logger.LogDebug($"设备已连接：{connectedDevice.Model} ({connectedDevice.Serial})");
+
+            // USB 设备上线时，若已开启 AdbAutoConnect 则自动建立无线 ADB（幂等、无副作用）
+            await TryEnableWirelessForUsbDeviceAsync(connectedDevice);
         }
         catch (Exception ex)
         {
@@ -255,6 +262,9 @@ public class AdbService(
             });
 
             logger.LogDebug($"设备已连接：{deviceInfo.Model} ({deviceInfo.Serial})");
+
+            // USB 设备上线时，若已开启 AdbAutoConnect 则自动建立无线 ADB（幂等、无副作用）
+            await TryEnableWirelessForUsbDeviceAsync(deviceInfo);
         }
         else
         {
@@ -314,6 +324,17 @@ public class AdbService(
                     };
                 }
                 AdbDevices.Add(adbDevice);
+            }
+
+            // 启动时已连接的 USB 设备，若开启 AdbAutoConnect 也自动建立无线 ADB（幂等、无副作用）
+            var startupUsbDevices = new List<AdbDevice>();
+            foreach (var d in AdbDevices.Where(x => x.Type == DeviceType.USB && x.IsOnline))
+            {
+                startupUsbDevices.Add(d);
+            }
+            foreach (var d in startupUsbDevices)
+            {
+                await TryEnableWirelessForUsbDeviceAsync(d);
             }
         });
     }
@@ -678,51 +699,220 @@ public class AdbService(
         }
     }
 
+    /// <summary>
+    /// 幂等地建立无线 ADB 连接。
+    /// 1) 若目标 hostIp:5555 已在线，直接返回（幂等，不重启 adbd）；
+    /// 2) 先尝试 adb connect（无副作用）；
+    /// 3) 仅当直连失败且提供了 usbSerial 时，才对该 USB 设备执行一次 adb tcpip 5555 再重试，
+    ///    以避免在 AS 安装等过程中重复重启 adbd 造成打断。
+    /// </summary>
+    public async Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null)
+    {
+        try
+        {
+            // 幂等：若已存在该 hostIp:5555 在线无线设备，直接返回
+            bool alreadyConnected = false;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                alreadyConnected = AdbDevices.Any(d => d.Serial == $"{hostIp}:5555" && d.IsOnline);
+            });
+            if (alreadyConnected)
+            {
+                logger.LogTrace("无线 ADB {Host}:5555 已连接，跳过（幂等）", hostIp);
+                return true;
+            }
+
+            // 先尝试直连（无副作用）
+            if (await ConnectWireless(hostIp))
+            {
+                logger.LogDebug("直连无线 ADB 成功：{Host}:5555", hostIp);
+                return true;
+            }
+
+            // 直连失败且需要提供 USB 序列号时才启用 tcpip（会重启 adbd）
+            if (string.IsNullOrEmpty(usbSerial))
+            {
+                logger.LogDebug("无法直连 {Host}:5555 且无可用 USB 设备序列号，跳过启用 tcpip", hostIp);
+                return false;
+            }
+
+            // 防重入/防循环：同一 IP 正在处理则跳过
+            if (!_pendingWireless.TryAdd(hostIp, null))
+            {
+                logger.LogTrace("无线 ADB {Host} 正在处理中，跳过重复触发", hostIp);
+                return false;
+            }
+
+            try
+            {
+                logger.LogDebug("将对 USB 设备 {Serial} 启用 TCP/IP 模式以建立无线 ADB {Host}:5555", usbSerial, hostIp);
+                var tcpipEnabled = await EnableTcpipMode(usbSerial);
+                if (!tcpipEnabled)
+                {
+                    logger.LogError("启用 TCP/IP 模式失败：{Serial}", usbSerial);
+                    return false;
+                }
+
+                await Task.Delay(200);
+
+                if (await ConnectWireless(hostIp))
+                {
+                    logger.LogDebug("启用 TCP/IP 模式后成功连接无线 ADB {Host}:5555", hostIp);
+                    return true;
+                }
+
+                logger.LogError("启用 TCP/IP 模式后仍无法连接无线 ADB {Host}:5555", hostIp);
+                return false;
+            }
+            finally
+            {
+                _pendingWireless.TryRemove(hostIp, out _);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "建立无线 ADB {Host} 时出错", hostIp);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 当检测到有线(USB) ADB 设备上线且对应已配对设备开启了 AdbAutoConnect 时，
+    /// 自动打开该设备的无线 ADB 并连接（幂等、无副作用）。
+    /// </summary>
+    private async Task TryEnableWirelessForUsbDeviceAsync(AdbDevice usbDevice)
+    {
+        try
+        {
+            if (usbDevice.Type != DeviceType.USB || !usbDevice.IsOnline) return;
+
+            var paired = await FindPairedDeviceAsync(usbDevice);
+            if (paired == null)
+            {
+                logger.LogTrace("USB 设备 {Serial} 无匹配已配对设备，跳过无线 ADB 自动连接", usbDevice.Serial);
+                return;
+            }
+            if (!paired.DeviceSettings.AdbAutoConnect)
+            {
+                logger.LogTrace("USB 设备 {Serial} 的 AdbAutoConnect 未开启，跳过", usbDevice.Serial);
+                return;
+            }
+
+            var ip = await GetWirelessIpAsync(paired, usbDevice.DeviceData);
+            if (string.IsNullOrWhiteSpace(ip))
+            {
+                logger.LogWarning("无法获取 USB 设备 {Serial} 的 WiFi IP，跳过无线 ADB 自动连接", usbDevice.Serial);
+                return;
+            }
+
+            await TryEnableWirelessAdbAsync(ip.Trim(), usbDevice.Serial);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理 USB 设备 {Serial} 无线 ADB 自动连接时出错", usbDevice.Serial);
+        }
+    }
+
+    private async Task<PairedDevice?> FindPairedDeviceAsync(AdbDevice usbDevice)
+    {
+        PairedDevice? result = null;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            result = deviceManager.PairedDevices.FirstOrDefault(pd =>
+                (!string.IsNullOrEmpty(usbDevice.AndroidId) && pd.Id == usbDevice.AndroidId) ||
+                (string.IsNullOrEmpty(usbDevice.AndroidId) &&
+                    !string.IsNullOrEmpty(usbDevice.Model) &&
+                    !string.IsNullOrEmpty(pd.Model) &&
+                    (pd.Model.Equals(usbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                     pd.Model.Contains(usbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
+                     usbDevice.Model.Contains(pd.Model, StringComparison.OrdinalIgnoreCase))));
+        });
+        return result;
+    }
+
+    private async Task<string?> GetWirelessIpAsync(PairedDevice paired, DeviceData? deviceData)
+    {
+        if (paired.IpAddresses != null)
+        {
+            foreach (var ip in paired.IpAddresses)
+            {
+                if (!string.IsNullOrWhiteSpace(ip)) return ip.Trim();
+            }
+        }
+        if (!string.IsNullOrWhiteSpace(paired.RemoteIpAddress)) return paired.RemoteIpAddress.Trim();
+
+        if (deviceData != null)
+        {
+            try
+            {
+                var receiver = new ConsoleOutputReceiver();
+                await adbClient.ExecuteShellCommandAsync(deviceData, "ip route get 0.0.0.0", receiver);
+                var output = receiver.ToString();
+                var idx = output.IndexOf("src ", StringComparison.OrdinalIgnoreCase);
+                if (idx >= 0)
+                {
+                    var src = output.Substring(idx + 4).Trim().Split(' ')[0];
+                    if (IPAddress.TryParse(src, out _)) return src;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "通过 adb shell 获取设备 WiFi IP 失败");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// 根据握手主机 IP 解析应执行 adb tcpip 的 USB 设备序列号（多设备安全）。
+    /// 优先按 IP 匹配已配对设备并取其 USB 设备；若仅有一个在线 USB 设备则兼容使用之；
+    /// 多设备且无法匹配时返回 null 以避免误伤其它设备。
+    /// </summary>
+    private async Task<string?> FindUsbSerialForHostAsync(string host)
+    {
+        string? serial = null;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            var paired = deviceManager.PairedDevices.FirstOrDefault(pd =>
+                (pd.IpAddresses != null && pd.IpAddresses.Any(ip => string.Equals(ip?.Trim(), host, StringComparison.OrdinalIgnoreCase))) ||
+                string.Equals(pd.RemoteIpAddress?.Trim(), host, StringComparison.OrdinalIgnoreCase));
+            if (paired != null)
+            {
+                var usb = AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB && !string.IsNullOrEmpty(d.AndroidId) && d.AndroidId == paired.Id);
+                serial = usb?.Serial;
+            }
+
+            if (string.IsNullOrEmpty(serial))
+            {
+                var usbDevices = AdbDevices.Where(d => d.Type == DeviceType.USB && d.IsOnline).ToList();
+                if (usbDevices.Count == 1)
+                {
+                    serial = usbDevices[0].Serial;
+                }
+                else if (usbDevices.Count > 1)
+                {
+                    logger.LogWarning("存在多个 USB 设备且无法按 IP {Host} 匹配，跳过错配的 adb tcpip", host);
+                }
+            }
+        });
+        return serial;
+    }
+
     public async void TryConnectTcp(string host)
     {
         try
         {
-            var result = await ConnectWireless(host);
-            if (result)
+            var usbSerial = await FindUsbSerialForHostAsync(host);
+            if (string.IsNullOrEmpty(usbSerial))
             {
-                logger.LogDebug("成功连接到 {Host}", host);
+                logger.LogDebug("未找到与 {Host} 匹配的 USB 设备，仅尝试直连无线 ADB", host);
             }
 
-            // 在UI线程上查询以避免并发修改
-            AdbDevice? usbDevice = null;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                usbDevice = AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB && d.IsOnline) ?? AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB);
-            });
-            if (usbDevice == null) return;
-
-            logger.LogDebug("尝试启用 TCP/IP 模式，首选 USB 设备序列: {Serial}", usbDevice.Serial);
-
-            // If connection failed, try to enable TCP/IP mode using ADB if USB is connected
-            var tcpipEnabled = await EnableTcpipMode(usbDevice.Serial);
-            if (!tcpipEnabled)
-            {
-                logger.LogError("启用 TCP/IP 模式失败");
-                return;
-            }
-
-            await Task.Delay(200);
-
-            // Retry the connection after enabling TCP/IP mode
-            result = await ConnectWireless(host);
-            if (result)
-            {
-                logger.LogDebug("启用 TCP/IP 模式后成功连接到 {Host}", host);
-                return;
-            }
-
-            logger.LogError("启用 TCP/IP 模式后 TCP/IP 连接仍然失败");
-            return;
+            await TryEnableWirelessAdbAsync(host, usbSerial);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "尝试连接 {Host} 时发生错误", host);
-            return;
         }
     }
 
