@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Microsoft.Windows.ApplicationModel.Resources;
 
 namespace NotifyRelay.Extensions;
 
@@ -8,6 +9,7 @@ namespace NotifyRelay.Extensions;
 public static class StringExtensions
 {
     private static readonly ConcurrentDictionary<string, string> cachedResources = new();
+    private static readonly ResourceManager resourceManager = new();
 
     /// <summary>
     /// Retrieves a localized resource string from the resource map.
@@ -21,19 +23,18 @@ public static class StringExtensions
             return value;
         }
 
-        var stringLocalizer = Ioc.Default.GetService<IStringLocalizer>();
-        if (stringLocalizer is null)
+        // MRT Core stores dotted resw keys (e.g. "A.B") as nested paths, lookup requires '/'.
+        // Use TryGetValue so missing keys don't throw (ResourceLoader.GetString throws COMException).
+        var candidate = resourceManager.MainResourceMap.TryGetValue($"Resources/{resourceKey.Replace('.', '/')}");
+        value = candidate?.ValueAsString;
+        if (string.IsNullOrEmpty(value))
         {
+            // Resource not found, fall back to the key itself.
             return resourceKey;
         }
 
-        value = stringLocalizer[resourceKey].Value;
-        if (!string.IsNullOrEmpty(value))
-        {
-            cachedResources.TryAdd(resourceKey, value);
-        }
-
-        return value ?? string.Empty;
+        cachedResources.TryAdd(resourceKey, value);
+        return value;
     }
 
     /// <summary>
