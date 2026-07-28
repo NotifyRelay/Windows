@@ -726,6 +726,7 @@ public class AdbService(
             if (await ConnectWireless(hostIp))
             {
                 logger.LogDebug("直连无线 ADB 成功：{Host}:5555", hostIp);
+                await AddWirelessDeviceToListIfMissingAsync(hostIp);
                 return true;
             }
 
@@ -758,6 +759,7 @@ public class AdbService(
                 if (await ConnectWireless(hostIp))
                 {
                     logger.LogDebug("启用 TCP/IP 模式后成功连接无线 ADB {Host}:5555", hostIp);
+                    await AddWirelessDeviceToListIfMissingAsync(hostIp);
                     return true;
                 }
 
@@ -773,6 +775,53 @@ public class AdbService(
         {
             logger.LogError(ex, "建立无线 ADB {Host} 时出错", hostIp);
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 在 adb connect 成功后，主动将无线设备同步进 AdbDevices，
+    /// 避免依赖易漏的 DeviceMonitor 事件（某些设备/时序下 monitor 不会补发上线事件）。
+    /// </summary>
+    private async Task AddWirelessDeviceToListIfMissingAsync(string hostIp)
+    {
+        try
+        {
+            var serial = $"{hostIp}:5555";
+            bool exists = false;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                exists = AdbDevices.Any(d => d.Serial == serial);
+            });
+            if (exists) return;
+
+            // adb connect 成功后设备通常不会立即出现在设备列表中，轮询几次以覆盖时序竞态
+            DeviceData? deviceData = null;
+            for (int i = 0; i < 5 && deviceData == null; i++)
+            {
+                if (i > 0) await Task.Delay(400);
+                var devices = await adbClient.GetDevicesAsync();
+                deviceData = devices.FirstOrDefault(d => d.Serial == serial);
+            }
+
+            if (deviceData == null)
+            {
+                logger.LogWarning("adb connect 成功但 GetDevicesAsync 仍未找到设备 {Serial}", serial);
+                return;
+            }
+
+            var adbDevice = await GetFullDeviceInfoAsync(deviceData);
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                if (!AdbDevices.Any(d => d.Serial == serial))
+                {
+                    AdbDevices.Add(adbDevice);
+                }
+            });
+            logger.LogDebug("已将无线 ADB 设备同步进设备列表：{Serial}", serial);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "同步无线 ADB 设备 {Host}:5555 进列表失败", hostIp);
         }
     }
 
@@ -902,6 +951,17 @@ public class AdbService(
     {
         try
         {
+            // 相对无感的触发：设备被标记在线后，延迟 5s，期间若未离线才建立无线 ADB。
+            // 这样可避免在瞬时握手/抖动时立即动作，从而不轻易打断正在进行的操作（如 AS 安装）。
+            logger.LogDebug("握手触发无线 ADB：设备 {Host} 已上线，延迟 5s 观察是否保持在线", host);
+            await Task.Delay(5000);
+
+            if (!await IsPairedDeviceOnlineAsync(host))
+            {
+                logger.LogDebug("延迟 5s 后设备 {Host} 已离线，取消无线 ADB 自动连接", host);
+                return;
+            }
+
             var usbSerial = await FindUsbSerialForHostAsync(host);
             if (string.IsNullOrEmpty(usbSerial))
             {
@@ -914,6 +974,22 @@ public class AdbService(
         {
             logger.LogError(ex, "尝试连接 {Host} 时发生错误", host);
         }
+    }
+
+    /// <summary>
+    /// 判断与指定主机 IP 对应的已配对设备是否仍处于在线状态（握手未断开）。
+    /// </summary>
+    private async Task<bool> IsPairedDeviceOnlineAsync(string host)
+    {
+        bool online = false;
+        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+        {
+            var paired = deviceManager.PairedDevices.FirstOrDefault(pd =>
+                (pd.IpAddresses != null && pd.IpAddresses.Any(ip => string.Equals(ip?.Trim(), host, StringComparison.OrdinalIgnoreCase))) ||
+                string.Equals(pd.RemoteIpAddress?.Trim(), host, StringComparison.OrdinalIgnoreCase));
+            online = paired != null && paired.ConnectionStatus;
+        });
+        return online;
     }
 
     public async Task<bool> TryAutoReconnectAsync(PairedDevice device)
