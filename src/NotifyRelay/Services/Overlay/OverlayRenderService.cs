@@ -29,6 +29,8 @@ public sealed partial class OverlayRenderService : IDisposable
     private ScreenOverlay? _spanOverlay;
     private string _overlaySignature = string.Empty;
     private volatile bool _displayDirty;
+    // 显示模式切换（独占全屏退出等）后需要重新断言 TOPMOST 的标记，由 WndProc 置位、渲染循环消费
+    private volatile bool _reassertZOrder;
 
     // 顶部卡片（媒体 + SuperIsland），由 _lock 保护
     private readonly List<OverlayItem> _topItems = [];
@@ -184,6 +186,13 @@ public sealed partial class OverlayRenderService : IDisposable
                     SyncOverlays();
                 }
 
+                // 显示模式切换后，重断言所有覆盖层的 TOPMOST 状态
+                if (_reassertZOrder)
+                {
+                    _reassertZOrder = false;
+                    ReassertTopmost();
+                }
+
                 DispatchRequests();
 
                 bool hasContent = TopItemsActive();
@@ -310,6 +319,20 @@ public sealed partial class OverlayRenderService : IDisposable
             Width = width,
             Height = height
         };
+    }
+
+    /// <summary>
+    /// 重新断言所有覆盖层窗口的 TOPMOST z-order。
+    /// 显示模式切换（如独占全屏游戏退出）会导致系统重建窗口 z-order、
+    /// 丢失创建时设置的顶层状态，需在切换后/重新显示时主动重设。
+    /// NOMOVE|NOSIZE|NOACTIVATE 无移动/缩放/激活副作用，不会引起闪烁。
+    /// </summary>
+    private void ReassertTopmost()
+    {
+        foreach (var o in _overlays)
+            if (o.Hwnd != IntPtr.Zero)
+                SetWindowPos(o.Hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 
     /// <summary>枚举所有显示器（使用完整屏幕区域，弹幕可跨越整屏宽度）。</summary>
@@ -504,7 +527,13 @@ public sealed partial class OverlayRenderService : IDisposable
         var blend = new BLENDFUNCTION { BlendOp = AC_SRC_OVER, BlendFlags = 0, SourceConstantAlpha = 255, AlphaFormat = AC_SRC_ALPHA };
         UpdateLayeredWindow(o.Hwnd, IntPtr.Zero, ref ptDst, ref size, o.MemDC, ref ptSrc, 0, ref blend, ULW_ALPHA);
 
-        if (!o.Visible) { ShowWindow(o.Hwnd, SW_SHOWNOACTIVATE); o.Visible = true; }
+        if (!o.Visible)
+        {
+            ShowWindow(o.Hwnd, SW_SHOWNOACTIVATE);
+            // 重新显示时再次断言 TOPMOST，避免空闲隐藏→重新显示后丢失顶层状态
+            SetWindowPos(o.Hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            o.Visible = true;
+        }
     }
 
     private void DispatchRequests()

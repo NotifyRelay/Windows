@@ -16,6 +16,7 @@ public partial class OverlayRenderService
     private const uint WS_EX_NOACTIVATE = 0x08000000;
     private const int SW_HIDE = 0;
     private const int SW_SHOWNOACTIVATE = 4;
+    private const uint WM_DISPLAYCHANGE = 0x007E;
     private const uint SWP_NOMOVE = 0x0002;
     private const uint SWP_NOSIZE = 0x0001;
     private const uint SWP_NOACTIVATE = 0x0010;
@@ -176,8 +177,16 @@ public partial class OverlayRenderService
     [DllImport("winmm.dll")]
     private static extern uint timeEndPeriod(uint uPeriod);
 
-    private static IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
-        => DefWindowProcW(hWnd, msg, wParam, lParam);
+    private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        if (msg == WM_DISPLAYCHANGE)
+        {
+            // 显示模式切换（如独占全屏游戏退出）：触发几何同步并重断言 TOPMOST
+            _displayDirty = true;
+            _reassertZOrder = true;
+        }
+        return DefWindowProcW(hWnd, msg, wParam, lParam);
+    }
 
     #endregion
 }
