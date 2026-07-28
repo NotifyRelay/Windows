@@ -14,15 +14,16 @@ public sealed partial class SettingsPage : Page
             case "GeneralPage":
                 SettingsContentFrame.Navigate(typeof(Settings.GeneralPage));
                 break;
-            case "DevicesPage":
-                SettingsContentFrame.Navigate(typeof(Settings.DevicesPage));
-                break;
             case "ScrcpyAdbSettingsPage":
                 SettingsContentFrame.Navigate(typeof(Settings.ScrcpyAdbSettingsPage));
                 break;
 
             case "AboutPage":
                 SettingsContentFrame.Navigate(typeof(Settings.AboutPage));
+                break;
+
+            case "DeviceSettingsPage":
+                SettingsContentFrame.Navigate(typeof(DevicePreferences.DeviceSettingsPage));
                 break;
         }
     }

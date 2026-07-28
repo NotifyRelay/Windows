@@ -38,10 +38,11 @@
                 Icon="Setting"
                 IsSelected="True"
                 Tag="GeneralPage" />
-            <NavigationViewItem
-                Content="{helpers:ResourceString Name=Devices/Title}"
-                Icon="CellPhone"
-                Tag="DevicesPage" />
+            <NavigationViewItem Content="设备" Tag="DeviceSettingsPage">
+                <NavigationViewItem.Icon>
+                    <FontIcon Glyph="&#xE977;" />
+                </NavigationViewItem.Icon>
+            </NavigationViewItem>
             <NavigationViewItem Content="{helpers:ResourceString Name=ScrcpyAdbSettings}" Tag="ScrcpyAdbSettingsPage">
                 <NavigationViewItem.Icon>
                     <FontIcon Glyph="&#xEC15;" />

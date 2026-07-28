@@ -20,6 +20,21 @@
 
     <ScrollViewer>
         <StackPanel Margin="15,35" Spacing="16">
+            <Button
+                HorizontalAlignment="Left"
+                Click="OpenAvailableDevices"
+                Content="可用设备"
+                Style="{ThemeResource DefaultButtonStyle}" />
+
+            <TextBlock
+                x:Name="EmptyState"
+                Visibility="Collapsed"
+                FontSize="20"
+                FontWeight="SemiBold"
+                Text="未选择设备，请先在主页选择活跃设备"
+                TextWrapping="Wrap" />
+
+            <StackPanel x:Name="SettingsContent" Spacing="16">
             <!--  Device Overview Card  -->
             <Border
                 Padding="20"
@@ -160,8 +175,15 @@
                     </wuc:SettingsCard.HeaderIcon>
                     <ToggleSwitch IsOn="{x:Bind ViewModel.MediaSessionSyncEnabled, Mode=TwoWay}" />
                 </wuc:SettingsCard>
-            </StackPanel>
 
+                <Button
+                    Margin="0,8,0,0"
+                    HorizontalAlignment="Left"
+                    Click="DeleteDevice_Click"
+                    Content="删除设备"
+                    Style="{ThemeResource DefaultButtonStyle}" />
+            </StackPanel>
         </StackPanel>
+    </StackPanel>
     </ScrollViewer>
 </Page>

@@ -33,4 +33,12 @@ public sealed partial class NotificationSettingsPage : Page
             ViewModel.ChangeNotificationFilter(menuItem.Text, appPackage);
         }
     }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Frame.CanGoBack)
+        {
+            Frame.GoBack();
+        }
+    }
 }

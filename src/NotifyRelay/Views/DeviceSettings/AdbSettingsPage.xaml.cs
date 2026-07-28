@@ -24,4 +24,12 @@ public sealed partial class AdbSettingsPage : Page
             ViewModel = viewModel;
         }
     }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Frame.CanGoBack)
+        {
+            Frame.GoBack();
+        }
+    }
 }

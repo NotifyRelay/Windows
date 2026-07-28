@@ -24,4 +24,12 @@ public sealed partial class ClipboardSettingsPage : Page
             ViewModel = viewModel;
         }
     }
+
+    private void BackButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (Frame.CanGoBack)
+        {
+            Frame.GoBack();
+        }
+    }
 }

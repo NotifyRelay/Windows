@@ -18,6 +18,12 @@
 
     <ScrollViewer>
         <StackPanel Margin="20" Spacing="16">
+            <Button
+                Margin="0,0,0,8"
+                Click="BackButton_Click"
+                Content="&#xE72B;"
+                FontFamily="Segoe MDL2 Assets"
+                ToolTipService.ToolTip="返回" />
             <TextBlock
                 FontSize="16"
                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"

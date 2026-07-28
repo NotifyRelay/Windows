@@ -1,5 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
+using NotifyRelay.Views.DevicePreferences;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -17,7 +18,7 @@ public sealed partial class DeviceDiscoveryPage : Page
     {
         BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
         {
-            new("Devices.Title".GetLocalizedResource(), typeof(DevicesPage)),
+            new("Devices.Title".GetLocalizedResource(), typeof(DeviceSettingsPage)),
             new("AvailableDevices/Title".GetLocalizedResource(), typeof(DeviceDiscoveryPage))
         };
         BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;

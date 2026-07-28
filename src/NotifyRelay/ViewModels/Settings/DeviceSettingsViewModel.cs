@@ -3,6 +3,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Items;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.ViewModels.Settings;
 
@@ -583,6 +584,9 @@ public sealed partial class DeviceSettingsViewModel : BaseViewModel
     public PairedDevice Device;
 
     private readonly RemoteAppRepository RemoteAppsRepository = Ioc.Default.GetRequiredService<RemoteAppRepository>();
+    private readonly ISessionManager SessionManager = Ioc.Default.GetRequiredService<ISessionManager>();
+    private readonly IftpService FtpService = Ioc.Default.GetRequiredService<IftpService>();
+    private readonly IDeviceManager DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
     public ObservableCollection<ApplicationInfo> RemoteApps { get; set; } = [];
 
 
@@ -612,5 +616,53 @@ public sealed partial class DeviceSettingsViewModel : BaseViewModel
         var app = RemoteApps.First(p => p.PackageName == appPackage);
         app.DeviceInfo.Filter = filterKey;
         app.SelectedNotificationFilter = notificationFilter;
+    }
+
+    [RelayCommand]
+    public async Task RemoveDevice(PairedDevice? device)
+    {
+        if (device == null)
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            Title = "RemoveDeviceDialogTitle".GetLocalizedResource(),
+            Content = string.Format("RemoveDeviceDialogSubtitle".GetLocalizedResource(), device.Name),
+            PrimaryButtonText = "Remove".GetLocalizedResource(),
+            CloseButtonText = "Cancel".GetLocalizedResource(),
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = App.MainWindow.Content!.XamlRoot
+        };
+
+        var result = await dialog.ShowAsync();
+
+        if (result == ContentDialogResult.Primary)
+        {
+            try
+            {
+                if (device.ConnectionStatus)
+                {
+                    var message = new CommandMessage { CommandType = CommandType.Disconnect };
+                    SessionManager.SendMessage(device.Id, SocketMessageSerializer.Serialize(message));
+                    SessionManager.DisconnectDevice(device.Id);
+                }
+
+                FtpService.Remove(device.Id);
+                DeviceManager.RemoveDevice(device);
+            }
+            catch (Exception ex)
+            {
+                var errorDialog = new ContentDialog
+                {
+                    Title = "Error",
+                    Content = $"删除设备失败：{ex.Message}",
+                    CloseButtonText = "OK",
+                    XamlRoot = App.MainWindow.Content!.XamlRoot
+                };
+                await errorDialog.ShowAsync();
+            }
+        }
     }
 }
