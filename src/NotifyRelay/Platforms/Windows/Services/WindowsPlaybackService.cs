@@ -2,7 +2,6 @@ using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
 using NAudio.CoreAudioApi;
-using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Utils;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
@@ -13,6 +12,8 @@ using NotifyRelay.Services;
 using NotifyRelay.Services.Overlay;
 using Windows.Media;
 using Windows.Media.Control;
+using Windows.Devices.Enumeration;
+using Windows.Media.Devices;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -21,7 +22,7 @@ public class WindowsPlaybackService(
     ISessionManager sessionManager,
     IDeviceManager deviceManager,
     IProtocolSender protocolSender,
-    IGeneralSettingsService generalSettings) : IPlaybackService, IMMNotificationClient
+    IGeneralSettingsService generalSettings) : IPlaybackService
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
@@ -35,6 +36,9 @@ public class WindowsPlaybackService(
     private readonly Dictionary<string, double> lastTimelinePosition = [];
     private readonly Dictionary<string, DateTime> lastSessionUpdateTime = [];
     private const int MinUpdateIntervalMs = 5000; // 最小更新间隔，5秒
+
+    // WinRT device watcher for audio endpoint changes
+    private DeviceWatcher? deviceWatcher;
 
     // 媒体播放状态跟踪，用于实现差异包发送
     private readonly Dictionary<string, MediaPlayState> lastMediaState = [];
@@ -75,7 +79,23 @@ public class WindowsPlaybackService(
             GetAllAudioDevices();
             UpdateActiveSessions();
 
-            enumerator.RegisterEndpointNotificationCallback(this);
+            // Use WinRT DeviceWatcher to monitor audio device add/remove/update events.
+            try
+            {
+                deviceWatcher = DeviceInformation.CreateWatcher(MediaDevice.GetAudioRenderSelector());
+                deviceWatcher.Added += DeviceWatcher_Added;
+                deviceWatcher.Removed += DeviceWatcher_Removed;
+                deviceWatcher.Updated += DeviceWatcher_Updated;
+                deviceWatcher.EnumerationCompleted += DeviceWatcher_EnumerationCompleted;
+                deviceWatcher.Start();
+
+                // Subscribe to default audio render device changes and update selection accordingly.
+                MediaDevice.DefaultAudioRenderDeviceChanged += MediaDevice_DefaultAudioRenderDeviceChanged;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "无法启动设备监视器，回退到手动/定期刷新");
+            }
 
             manager.SessionsChanged += SessionsChanged;
 
@@ -755,7 +775,9 @@ public class WindowsPlaybackService(
     {
         try
         {
-            // Get the default device
+            AudioDevices.Clear();
+
+            // Get the default device ID (NAudio)
             var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia).ID;
 
             // List all active devices
@@ -877,33 +899,27 @@ public class WindowsPlaybackService(
 
     public void OnDeviceAdded(string pwstrDeviceId)
     {
-        AudioDevices.Add(
-            new AudioDevice
-            {
-                AudioDeviceType = AudioMessageType.New,
-                DeviceId = pwstrDeviceId,
-                DeviceName = enumerator.GetDevice(pwstrDeviceId).FriendlyName,
-                Volume = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.MasterVolumeLevelScalar,
-                IsMuted = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.Mute,
-                IsSelected = false
-            }
-        );
+        // 保留旧方法以供兼容，但实际由 DeviceWatcher 触发时会整体刷新设备列表
+        GetAllAudioDevices();
         logger.LogInformation("设备已添加：{DeviceId}", pwstrDeviceId);
     }
 
     public void OnDeviceRemoved(string deviceId)
     {
-        AudioDevices.RemoveAll(d => d.DeviceId == deviceId);
+        // 由 DeviceWatcher 触发时整体刷新设备列表以保持一致性
+        GetAllAudioDevices();
     }
 
     public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
     {
+        // 旧回调兼容实现：尝试设置选中项
         var index = AudioDevices.FindIndex(d => d.DeviceId == defaultDeviceId);
 
         if (index != -1)
         {
             var selectedIndex = AudioDevices.FindIndex(d => d.IsSelected == true);
-            AudioDevices[selectedIndex].IsSelected = false;
+            if (selectedIndex != -1)
+                AudioDevices[selectedIndex].IsSelected = false;
             AudioDevices[index].IsSelected = true;
             logger.LogInformation("默认设备已更改：{DefaultDeviceId}", defaultDeviceId);
         }
@@ -913,6 +929,97 @@ public class WindowsPlaybackService(
     {
         AudioDevice? device = AudioDevices.FirstOrDefault(d => d.DeviceId == pwstrDeviceId);
         device?.Volume = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.MasterVolumeLevelScalar;
+    }
+
+    // WinRT DeviceWatcher / MediaDevice 事件处理，替代 IMMNotificationClient 回调
+    private void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation args)
+    {
+        _ = dispatcher.EnqueueAsync(() =>
+        {
+            try
+            {
+                GetAllAudioDevices();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "处理设备添加事件时出错");
+            }
+        });
+    }
+
+    private void DeviceWatcher_Removed(DeviceWatcher sender, DeviceInformationUpdate args)
+    {
+        _ = dispatcher.EnqueueAsync(() =>
+        {
+            try
+            {
+                GetAllAudioDevices();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "处理设备移除事件时出错");
+            }
+        });
+    }
+
+    private void DeviceWatcher_Updated(DeviceWatcher sender, DeviceInformationUpdate args)
+    {
+        _ = dispatcher.EnqueueAsync(() =>
+        {
+            try
+            {
+                GetAllAudioDevices();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "处理设备更新事件时出错");
+            }
+        });
+    }
+
+    private void DeviceWatcher_EnumerationCompleted(DeviceWatcher sender, object args)
+    {
+        _ = dispatcher.EnqueueAsync(() => { logger.LogDebug("设备枚举完成"); });
+    }
+
+    private void MediaDevice_DefaultAudioRenderDeviceChanged(object sender, DefaultAudioRenderDeviceChangedEventArgs args)
+    {
+        _ = dispatcher.EnqueueAsync(() =>
+        {
+            try
+            {
+                UpdateDefaultSelection();
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "处理默认设备更改时出错");
+            }
+        });
+    }
+
+    private void UpdateDefaultSelection()
+    {
+        try
+        {
+            var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            if (defaultDevice != null)
+            {
+                var id = defaultDevice.ID;
+                var index = AudioDevices.FindIndex(d => d.DeviceId == id);
+                if (index != -1)
+                {
+                    var selectedIndex = AudioDevices.FindIndex(d => d.IsSelected == true);
+                    if (selectedIndex != -1)
+                        AudioDevices[selectedIndex].IsSelected = false;
+                    AudioDevices[index].IsSelected = true;
+                    logger.LogInformation("默认设备已更改：{DefaultDeviceId}", id);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "更新默认音频设备选择时出错");
+        }
     }
 
     /// <inheritdoc/>

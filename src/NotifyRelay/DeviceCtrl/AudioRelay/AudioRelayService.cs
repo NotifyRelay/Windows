@@ -99,17 +99,15 @@ public class AudioRelayService : IDisposable
             var waveFormat = new WaveFormat(sampleRate, 16, channelConfig);
             _waveProvider = new BufferedWaveProvider(waveFormat)
             {
-                BufferDuration = TimeSpan.FromSeconds(2),
                 DiscardOnBufferOverflow = true
             };
+            // 使用默认缓冲区长度（当前 NAudio 版本不允许直接设置 BufferLength/BufferDuration）
 
-            _waveOut = new WaveOut
-            {
-                DesiredLatency = 200,
-                NumberOfBuffers = 3
-            };
+            _waveOut = new WaveOutEvent();
             _waveOut.Init(_waveProvider);
             _waveOut.Play();
+
+
 
             _dataCb = (deviceUuid, pcmData, pcmLen, sr, ch, userData) =>
             {

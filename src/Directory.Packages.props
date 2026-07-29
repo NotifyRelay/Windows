@@ -3,33 +3,33 @@
   </ItemGroup>
   <ItemGroup>
     <PackageVersion Include="AdvancedSharpAdbClient" Version="3.6.16" />
-    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.6.2" />
+    <PackageVersion Include="BouncyCastle.Cryptography" Version="2.7.0-beta.98" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.2.251219" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Controls.SettingsControls" Version="8.3.260402-preview2" />
     <PackageVersion Include="FFMpegCore" Version="5.4.0" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Converters" Version="8.2.251219" />
-    <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.2.251219" />
-    <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.3.0" />
-    <PackageVersion Include="Markdig" Version="1.2.0" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Converters" Version="8.3.260402-preview2" />
+    <PackageVersion Include="CommunityToolkit.WinUI.Extensions" Version="8.3.260402-preview2" />
+    <PackageVersion Include="H.NotifyIcon.WinUI" Version="2.5.0-dev.2" />
+    <PackageVersion Include="Markdig" Version="1.3.2" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-preview.6.26359.118" />
-    <PackageVersion Include="NAudio" Version="2.3.0" />
+    <PackageVersion Include="NAudio" Version="3.0.0-preview.19" />
     <PackageVersion Include="NetCoreServer" Version="8.0.7" />
-    <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
-    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
-    <PackageVersion Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.3" />
+    <PackageVersion Include="sqlite-net-pcl" Version="1.11.285" />
+    <PackageVersion Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
+    <PackageVersion Include="SQLitePCLRaw.provider.sqlite3" Version="3.0.5" />
     <PackageVersion Include="SSH.NET" Version="2025.1.0" />
-    <PackageVersion Include="System.Management" Version="10.0.9" />
+    <PackageVersion Include="System.Management" Version="11.0.0-preview.6.26359.118" />
     <PackageVersion Include="Microsoft.WindowsAppSDK" Version="2.3.1" />
     <PackageVersion Include="Microsoft.Windows.SDK.BuildTools" Version="10.0.28000.2526" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Localization" Version="9.0.0" />
-    <PackageVersion Include="Serilog.Extensions.Hosting" Version="9.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-preview.6.26359.118" />
+    <PackageVersion Include="Microsoft.Extensions.Localization" Version="11.0.0-preview.6.26359.118" />
+    <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
-    <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
     <PackageVersion Include="Vanara.PInvoke.CldApi" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Shell32" Version="5.0.5" />
-    <PackageVersion Include="Vortice.Direct2D1" Version="3.6.2" />
+    <PackageVersion Include="Vortice.Direct2D1" Version="3.8.3" />
     <PackageVersion Include="Vortice.Mathematics" Version="2.1.1" />
     <PackageVersion Include="WinUIEx" Version="2.9.2" />
   </ItemGroup>
