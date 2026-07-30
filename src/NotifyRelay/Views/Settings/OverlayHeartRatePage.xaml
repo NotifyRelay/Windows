@@ -36,7 +36,7 @@
                                         IsEnabled="{x:Bind ViewModel.CanConnect, Mode=OneWay}"
                                         Click="ConnectButton_Click" />
                                 <Button x:Name="DisconnectButton" Content="断开"
-                                        IsEnabled="{x:Bind ViewModel.IsConnected, Mode=OneWay}"
+                                        IsEnabled="{x:Bind ViewModel.CanDisconnect, Mode=OneWay}"
                                         Click="DisconnectButton_Click" />
                                 <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}" Width="20" Height="20" />
                             </StackPanel>

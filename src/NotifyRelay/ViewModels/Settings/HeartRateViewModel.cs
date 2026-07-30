@@ -50,12 +50,17 @@ public class HeartRateViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(IsConnected));
             OnPropertyChanged(nameof(IsScanning));
+            OnPropertyChanged(nameof(IsReconnecting));
+            OnPropertyChanged(nameof(CanDisconnect));
             OnPropertyChanged(nameof(CanConnect));
         }
     }
 
     public bool IsConnected => _state == HeartRateConnectionState.Connected;
     public bool IsScanning => _state == HeartRateConnectionState.Scanning;
+    public bool IsReconnecting => _state == HeartRateConnectionState.Reconnecting;
+    /// <summary>已连接或重连中时可点"断开"（重连中点击即取消自动重连）。</summary>
+    public bool CanDisconnect => _state is HeartRateConnectionState.Connected or HeartRateConnectionState.Reconnecting;
     public bool CanConnect => SelectedDevice != null
         && _state != HeartRateConnectionState.Connecting
         && _state != HeartRateConnectionState.Connected;
@@ -72,6 +77,7 @@ public class HeartRateViewModel : INotifyPropertyChanged
         HeartRateConnectionState.Scanning => "正在扫描心率设备…",
         HeartRateConnectionState.Connecting => "正在连接…",
         HeartRateConnectionState.Connected => _currentBpm > 0 ? $"已连接 · {_currentBpm} BPM" : "已连接，等待数据…",
+        HeartRateConnectionState.Reconnecting => "连接已断开，正在重连…",
         _ => "未连接"
     };
 
