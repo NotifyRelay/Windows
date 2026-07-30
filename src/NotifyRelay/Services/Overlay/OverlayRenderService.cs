@@ -29,8 +29,6 @@ public sealed partial class OverlayRenderService : IDisposable
     private ScreenOverlay? _spanOverlay;
     private string _overlaySignature = string.Empty;
     private volatile bool _displayDirty;
-    // 显示模式切换（独占全屏退出等）后需要重新断言 TOPMOST 的标记，由 WndProc 置位、渲染循环消费
-    private volatile bool _reassertZOrder;
 
     // 顶部卡片（媒体 + SuperIsland），由 _lock 保护
     private readonly List<OverlayItem> _topItems = [];
@@ -165,6 +163,8 @@ public sealed partial class OverlayRenderService : IDisposable
         {
             EnsureWindowClass();
             SyncOverlays();
+            _ctrlHwnd = CreateControlWindow();
+            InstallForegroundHook();
 
             var timer = Stopwatch.StartNew();
             double nextFrame = 0;
@@ -184,13 +184,6 @@ public sealed partial class OverlayRenderService : IDisposable
                 {
                     _displayDirty = false;
                     SyncOverlays();
-                }
-
-                // 显示模式切换后，重断言所有覆盖层的 TOPMOST 状态
-                if (_reassertZOrder)
-                {
-                    _reassertZOrder = false;
-                    ReassertTopmost();
                 }
 
                 DispatchRequests();
@@ -249,6 +242,7 @@ public sealed partial class OverlayRenderService : IDisposable
         }
         finally
         {
+            UninstallHookAndControlWindow();
             timeEndPeriod(1);
         }
     }
@@ -530,8 +524,8 @@ public sealed partial class OverlayRenderService : IDisposable
         if (!o.Visible)
         {
             ShowWindow(o.Hwnd, SW_SHOWNOACTIVATE);
-            // 重新显示时再次断言 TOPMOST，避免空闲隐藏→重新显示后丢失顶层状态
-            SetWindowPos(o.Hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+            // 重新显示时预约 TOPMOST 重断言，交由 UI 线程(WndProc)延迟执行，避免在后台渲染线程直接操作窗口
+            ScheduleReassertTopmost();
             o.Visible = true;
         }
     }
