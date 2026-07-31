@@ -158,9 +158,12 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_sender_queue(IntPtr ctx, long queuePtr);
 
-    // ======== Diff ========
+    // ======== State merge (push full; receive via on_data) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_superisland_diff(IntPtr oldState, IntPtr newState);
+    public static extern int nrc_push_superisland_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_push_media_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd);
 
     // ======== Network change ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -702,6 +705,24 @@ public static class NotifyRelayCore
             if (d != IntPtr.Zero) Marshal.FreeHGlobal(d);
         }
 
+        // 推送「全量」超级岛/媒体状态给某设备；Rust 内部做 diff，合并后的全量经 on_data 回调回传。
+        // queuePtr 为 SenderQueue 句柄（与 EnqueueMessage 共用同一队列）。
+        public static int PushSuperIslandState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd)
+        {
+            var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_push_superisland_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
+            return result;
+        }
+
+        public static int PushMediaState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd)
+        {
+            var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_push_media_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
+            return result;
+        }
+
         // ======== Discovery ========
         public static void AddKnownDevice(IntPtr ctx, string uuid, string ip)
         {
@@ -747,15 +768,6 @@ public static class NotifyRelayCore
         public static void StopMdnsDiscovery(IntPtr ctx)
         {
             NotifyRelayCore.nrc_stop_mdns_discovery(ctx);
-        }
-
-        // ======== Diff ========
-        public static string? ComputeSuperIslandDiff(string oldState, string newState)
-        {
-            var o = StringToPtr(oldState); var n = StringToPtr(newState);
-            var result = NotifyRelayCore.nrc_compute_superisland_diff(o, n);
-            Marshal.FreeHGlobal(o); Marshal.FreeHGlobal(n);
-            return PtrToStringAndFree(result);
         }
 
         // ======== Audio stream ========

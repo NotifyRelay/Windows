@@ -262,16 +262,14 @@ public class ProtocolRouter
             var terminateValue = TryGetString(root, "terminateValue");
             var isEnd = string.Equals(terminateValue, SuperIslandProtocol.TerminateValue, StringComparison.Ordinal);
             var state = BuildSuperIslandState(root, title, text, paramV2Raw);
-            var hasChanges = root.TryGetProperty("changes", out _);
             var pics = ParsePics(root);
 
             logger.LogInformation(
-                "收到超级岛包: deviceId={DeviceId}, packageName={PackageName}, sourceId={SourceId}, isEnd={IsEnd}, hasChanges={HasChanges}",
+                "收到超级岛包: deviceId={DeviceId}, packageName={PackageName}, sourceId={SourceId}, isEnd={IsEnd}",
                 device.Id,
                 packageName,
                 sourceId,
-                isEnd,
-                hasChanges);
+                isEnd);
 
             // Priority chain: Overlay → Gamebar TCP
             var overlayEnabled = generalSettingsService.DanmakuSuperIslandEnabled;
@@ -299,13 +297,6 @@ public class ProtocolRouter
                     if (!string.IsNullOrWhiteSpace(paramV2Raw))
                     {
                         Models.Render.SuperIslandParamV2Parser.ApplyToState(siState, paramV2Raw);
-                    }
-
-                    // 处理增量变更
-                    if (hasChanges)
-                    {
-                        var changesRaw = root.GetRawText();
-                        siState.MergeChanges(changesRaw);
                     }
 
                     overlay.ShowSuperIsland(sourceId, device.Name, siState);

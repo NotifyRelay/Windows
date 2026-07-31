@@ -7,6 +7,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 using NotifyRelay.Platforms.Windows.Interop;
 using NotifyRelay.Services;
 using NotifyRelay.Services.Overlay;
@@ -40,17 +41,7 @@ public class WindowsPlaybackService(
     // WinRT device watcher for audio endpoint changes
     private DeviceWatcher? deviceWatcher;
 
-    // 媒体播放状态跟踪，用于实现差异包发送
-    private readonly Dictionary<string, MediaPlayState> lastMediaState = [];
-
-    // 媒体播放状态数据类，用于跟踪上次发送的媒体状态
-    private class MediaPlayState
-    {
-        public string? Title { get; set; }
-        public string? Artist { get; set; }
-        public string? Thumbnail { get; set; }
-        public DateTime SentTime { get; set; }
-    }
+    // 媒体播放状态跟踪已移至 Rust 合并引擎（由 PushMediaState 推送全量，Rust 负责 diff）。
 
     // 内部播放数据类，替代已删除的 PlaybackSession
     private class PlaybackData
@@ -415,19 +406,7 @@ public class WindowsPlaybackService(
 
                 lastTimelinePosition[sender.SourceAppUserModelId] = currentPosition;
 
-                // 时间线变化时只发送位置信息，不发送完整媒体信息以减少网络流量
-                // 如果需要完整信息，会通过MediaPropertiesChanged事件发送
-                var rawJson = JsonSerializer.Serialize(new
-                {
-                    type = "DATA_MEDIAPLAY",
-                    source = sender.SourceAppUserModelId,
-                    position = currentPosition
-                });
-                var json = rawJson;
-                if (json != null)
-                {
-                    SendPlaybackData(json);
-                }
+                // 时间线位置变化不再单独发送：全量媒体状态由 Rust 合并引擎统一推送（见 SendPlaybackData）。
             }
         }
         catch (COMException comEx)
@@ -465,32 +444,12 @@ public class WindowsPlaybackService(
 
         if (!generalSettings.EnableSendMediaNotifications) return;
 
-        // 发送媒体结束通知，使用与Android兼容的DATA_MEDIAPLAY格式
+        // 发送媒体结束通知：推送结束标记，Rust 合并引擎会回传 terminateValue="__END__" 全量。
         foreach (var device in deviceManager.PairedDevices)
         {
             if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
             {
-                // 构造媒体结束包
-                var rawJson = JsonSerializer.Serialize(new
-                {
-                    type = "DATA_MEDIAPLAY",
-                    packageName = "MusicIsland",
-                    appName = "Music Island",
-                    title = "No media playing",
-                    text = "",
-                    coverUrl = "",
-                    time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                    isLocked = false,
-                    mediaType = "FULL",
-                    terminate = true,
-                    terminateValue = "__END__",
-                    featureKeyName = "si_feature_id",
-                    featureKeyValue = "media_island_global"
-                });
-                string endPayloadJson = rawJson;
-                if (endPayloadJson == null) continue;
-
-                _ = protocolSender.SendMessageAsync(device.Id, endPayloadJson);
+                NativeCore.PushMediaState(device.Id, "{}", true);
             }
         }
     }
@@ -636,52 +595,20 @@ public class WindowsPlaybackService(
             {
                 lastSessionUpdateTime[key] = DateTime.Now;
 
-                var currentState = new MediaPlayState
+                // 推送「全量」媒体状态；差异计算（FULL/DELTA）与合并由 Rust 合并引擎负责。
+                string mediaJson = JsonSerializer.Serialize(new
                 {
-                    Title = trackTitle,
-                    Artist = artist,
-                    Thumbnail = thumbnail,
-                    SentTime = DateTime.Now
-                };
-
-                bool sendFullPayload = true;
-                string title = trackTitle ?? string.Empty;
-                string artistStr = artist ?? string.Empty;
-                string coverUrl = thumbnail ?? string.Empty;
-                var sourceKey = source ?? string.Empty;
-
-                if (lastMediaState.TryGetValue(sourceKey, out var oldState))
-                {
-                    bool titleChanged = oldState.Title != currentState.Title;
-                    bool artistChanged = oldState.Artist != currentState.Artist;
-                    bool coverChanged = oldState.Thumbnail != currentState.Thumbnail;
-                    var now = DateTime.Now;
-                    sendFullPayload = coverChanged || (now - oldState.SentTime).TotalSeconds > 15;
-                    if (!sendFullPayload)
-                    {
-                        if (!titleChanged) title = string.Empty;
-                        if (!artistChanged) artistStr = string.Empty;
-                        if (!coverChanged) coverUrl = string.Empty;
-                    }
-                }
-                lastMediaState[sourceKey] = currentState;
+                    title = trackTitle ?? string.Empty,
+                    text = artist ?? string.Empty,
+                    coverUrl = thumbnail ?? string.Empty,
+                    isPlaying = isPlaying
+                });
 
                 foreach (var device in deviceManager.PairedDevices)
                 {
                     if (device.ConnectionStatus && device.DeviceSettings.MediaSessionSyncEnabled)
                     {
-                        _ = protocolSender.SendMessageAsync(device.Id, JsonSerializer.Serialize(new
-                        {
-                            type = "DATA_MEDIAPLAY",
-                            packageName = source,
-                            appName = source ?? "Unknown App",
-                            title = title,
-                            text = string.IsNullOrEmpty(artistStr) ? title : $"{artistStr} - {title}",
-                            coverUrl = coverUrl,
-                            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-                            isLocked = false,
-                            mediaType = sendFullPayload ? "FULL" : "DELTA"
-                        }));
+                        NativeCore.PushMediaState(device.Id, mediaJson, false);
                     }
                 }
             }
