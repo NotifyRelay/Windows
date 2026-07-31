@@ -49,6 +49,16 @@
                 </Button>
             </wuc:SettingsCard>
 
+            <!--  Rust Core Version  -->
+            <wuc:SettingsCard Header="Rust Core">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE968;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <StackPanel>
+                    <TextBlock Text="{x:Bind ViewModel.GitHash}" TextWrapping="Wrap" />
+                </StackPanel>
+            </wuc:SettingsCard>
+
             <!--  Feedback  -->
             <wuc:SettingsExpander Header="{helpers:ResourceString Name=Feedback}">
                 <wuc:SettingsExpander.HeaderIcon>

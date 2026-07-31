@@ -1,4 +1,5 @@
 using NotifyRelay.Data.Items;
+using NotifyRelay.Native;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.System;
 
@@ -9,6 +10,9 @@ public partial class AboutViewModel : ObservableObject
     [ObservableProperty]
     public partial string Version { get; set; } = string.Empty;
 
+    [ObservableProperty]
+    public partial string? GitHash { get; set; }
+
     public string AppName => Package.Current.DisplayName;
 
     public AboutViewModel()
@@ -16,6 +20,7 @@ public partial class AboutViewModel : ObservableObject
         var package = Package.Current;
         var packageVersion = package.Id.Version;
         Version = $"{packageVersion.Major}.{packageVersion.Minor}.{packageVersion.Build}";
+        GitHash = NativeCore.GetGitHash();
     }
 
     [RelayCommand]
