@@ -158,6 +158,13 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_sender_queue(IntPtr ctx, long queuePtr);
 
+    // ======== Clipboard ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_clipboard_on_changed(IntPtr ctx, long queuePtr, IntPtr targetsJson, IntPtr mime, IntPtr content, long nowMs, int force);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_clipboard_on_received(IntPtr ctx, IntPtr payloadJson, long nowMs);
+
     // ======== State merge (push full; receive via on_data) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_push_superisland_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd);
@@ -721,6 +728,23 @@ public static class NotifyRelayCore
             var result = NotifyRelayCore.nrc_push_media_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
             return result;
+        }
+
+        // ======== Clipboard ========
+        public static string? ClipboardOnChanged(IntPtr ctx, long queuePtr, string targetsJson, string mime, string content, long nowMs, bool force)
+        {
+            var t = StringToPtr(targetsJson); var m = StringToPtr(mime); var c = StringToPtr(content);
+            var result = NotifyRelayCore.nrc_clipboard_on_changed(ctx, queuePtr, t, m, c, nowMs, force ? 1 : 0);
+            Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(m); Marshal.FreeHGlobal(c);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ClipboardOnReceived(IntPtr ctx, string payloadJson, long nowMs)
+        {
+            var p = StringToPtr(payloadJson);
+            var result = NotifyRelayCore.nrc_clipboard_on_received(ctx, p, nowMs);
+            Marshal.FreeHGlobal(p);
+            return PtrToStringAndFree(result);
         }
 
         // ======== Discovery ========

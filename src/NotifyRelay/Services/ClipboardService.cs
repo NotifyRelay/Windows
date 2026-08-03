@@ -2,7 +2,9 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using System.Buffers.Text;
+using System.Text.Json;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
@@ -11,16 +13,18 @@ using DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue;
 
 namespace NotifyRelay.Services;
 
+/// <summary>
+/// 剪贴板同步服务。
+/// 去重、防循环、频率限制与发送全部由 Rust core 内部闭环（nrc_clipboard_on_changed / nrc_clipboard_on_received），
+/// 平台端仅负责系统剪贴板读写、文件传输（>2MB）与链接/Toast 处理。
+/// </summary>
 public class ClipboardService : IClipboardService
 {
     private readonly ILogger<ClipboardService> logger;
-    private readonly ISessionManager sessionManager;
     private readonly IPlatformNotificationHandler platformNotificationHandler;
     private readonly IDeviceManager deviceManager;
     private readonly DispatcherQueue dispatcher;
     private readonly IFileTransferService fileTransferService;
-
-    private const int DirectTransferThreshold = 2 * 1024 * 1024; // 2MB threshold
 
     private static readonly Dictionary<string, string> SupportedImageFileTypes = new()
     {
@@ -37,17 +41,13 @@ public class ClipboardService : IClipboardService
         [".apng"] = "image/apng"
     };
 
-    private bool isInternalUpdate; // To track if the clipboard change came from the remote device
-
     public ClipboardService(
         ILogger<ClipboardService> logger,
-        ISessionManager sessionManager,
         IPlatformNotificationHandler platformNotificationHandler,
         IDeviceManager deviceManager,
         IFileTransferService fileTransferService)
     {
         this.logger = logger;
-        this.sessionManager = sessionManager;
         this.platformNotificationHandler = platformNotificationHandler;
         this.deviceManager = deviceManager;
         this.fileTransferService = fileTransferService;
@@ -74,12 +74,6 @@ public class ClipboardService : IClipboardService
 
     private async void OnClipboardContentChanged(object? sender, object? e)
     {
-        if (isInternalUpdate)
-        {
-            logger.LogDebug("内部更新，跳过剪贴板发送");
-            return;
-        }
-
         await dispatcher.EnqueueAsync(async () =>
         {
             try
@@ -146,7 +140,7 @@ public class ClipboardService : IClipboardService
 
                             logger.LogInformation("文件名：{fileName}，扩展名：{fileExtension}，MIME 类型：{mimeType}", file.Name, fileExtension, mimeType);
 
-                            if ((long)(await file.GetBasicPropertiesAsync()).Size > DirectTransferThreshold)
+                            if ((long)(await file.GetBasicPropertiesAsync()).Size > 2 * 1024 * 1024)
                                 await HandleLargeImageTransfer(file, fileExtension, mimeType, devicesWithImageSync);
                             else
                                 await HandleSmallImageTransfer(await file.OpenStreamForReadAsync(), mimeType, devicesWithImageSync);
@@ -187,22 +181,7 @@ public class ClipboardService : IClipboardService
         // Convert Windows CRLF to Unix LF 
         text = text.Replace("\r\n", "\n");
 
-        var rawJson = JsonSerializer.Serialize(new
-        {
-            type = "DATA_CLIPBOARD",
-            clipboardType = "text",
-            content = text
-        });
-        var serializedMessage = rawJson;
-        if (serializedMessage == null) return;
-        foreach (var device in devices)
-        {
-            if (device.ConnectionStatus)
-            {
-                sessionManager.SendMessage(device.Id, serializedMessage);
-            }
-        }
-        return;
+        await DispatchToRustAsync(text, "text/plain", devices);
     }
 
     private async Task HandleLargeImageTransfer(StorageFile file, string fileType, string mimeType, List<PairedDevice> devices)
@@ -229,22 +208,66 @@ public class ClipboardService : IClipboardService
         byte[] buffer = new byte[stream.Length];
         await stream.ReadExactlyAsync(buffer);
 
-        var rawJson = JsonSerializer.Serialize(new
-        {
-            type = "DATA_CLIPBOARD",
-            clipboardType = mimeType,
-            content = Convert.ToBase64String(buffer)
-        });
-        var serializedMessage = rawJson;
-        if (serializedMessage == null) return;
+        await DispatchToRustAsync(Convert.ToBase64String(buffer), mimeType, devices);
+    }
 
-        foreach (var device in devices)
+    /// <summary>
+    /// 调用 Rust core 统一处理剪贴板发送（内部完成去重/防循环/频率限制/2MB 阈值与入队发送）。
+    /// Rust 返回 file_transfer 动作时走平台文件传输通道（FileTransferService）。
+    /// </summary>
+    private async Task DispatchToRustAsync(string content, string mimeType, List<PairedDevice> devices)
+    {
+        var targets = devices.Where(d => d.ConnectionStatus).Select(d => d.Id).ToList();
+        if (targets.Count == 0) return;
+
+        var targetsJson = JsonSerializer.Serialize(targets);
+        var result = await Task.Run(() => NativeCore.ClipboardOnChanged(targetsJson, mimeType, content, false));
+
+        var action = ParseAction(result);
+        if (action == "file_transfer")
         {
-            if (device.ConnectionStatus)
+            logger.LogInformation("剪贴板大内容（>2MB），转文件传输通道");
+            // file_transfer：交由 FileTransferService 处理大图通道。
+            // 此处重新读取剪贴板中的文件以走文件传输；若无文件则忽略。
+            await TryFileTransferFallbackAsync(devices);
+        }
+    }
+
+    private async Task TryFileTransferFallbackAsync(List<PairedDevice> devices)
+    {
+        try
+        {
+            var dataPackageView = Clipboard.GetContent();
+            if (!dataPackageView.Contains(StandardDataFormats.StorageItems)) return;
+            var storageItems = await dataPackageView.GetStorageItemsAsync();
+            var file = storageItems.OfType<StorageFile>().FirstOrDefault();
+            if (file is null) return;
+            var fileExtension = file.FileType[1..];
+            if (!SupportedImageFileTypes.TryGetValue(fileExtension, out var detectedMimeType)) return;
+            var mimeType = string.IsNullOrEmpty(file.ContentType) ? detectedMimeType : file.ContentType;
+            await HandleLargeImageTransfer(file, fileExtension, mimeType, devices);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "剪贴板大内容文件传输失败");
+        }
+    }
+
+    private static string? ParseAction(string? resultJson)
+    {
+        if (string.IsNullOrEmpty(resultJson)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(resultJson);
+            if (doc.RootElement.TryGetProperty("action", out var actionProp))
             {
-                sessionManager.SendMessage(device.Id, serializedMessage);
+                return actionProp.GetString();
             }
         }
+        catch (JsonException)
+        {
+        }
+        return null;
     }
 
     public async Task SetContentAsync(object content, PairedDevice sourceDevice)
@@ -255,7 +278,6 @@ public class ClipboardService : IClipboardService
         {
             try
             {
-                isInternalUpdate = true;
                 var dataPackage = new DataPackage();
 
                 switch (content)
@@ -326,10 +348,6 @@ public class ClipboardService : IClipboardService
                 logger.LogError(ex, "设置剪贴板内容时出错");
                 throw;
             }
-            finally
-            {
-                isInternalUpdate = false;
-            }
         });
     }
 
@@ -384,14 +402,18 @@ public class ClipboardService : IClipboardService
         logger.LogDebug("处理DATA_CLIPBOARD消息，内容: {payload}", payload);
         try
         {
-            using var doc = JsonDocument.Parse(payload);
+            // 由 Rust core 解析/归一化并登记防循环时间窗，返回内容供写入系统剪贴板
+            var resultJson = await Task.Run(() => NativeCore.ClipboardOnReceived(payload));
+            if (string.IsNullOrEmpty(resultJson)) return;
+
+            using var doc = JsonDocument.Parse(resultJson);
             var root = doc.RootElement;
-
-            var clipboardType = root.TryGetProperty("clipboardType", out var typeProp) ? typeProp.GetString() : "text";
+            var type = root.TryGetProperty("type", out var typeProp) ? typeProp.GetString() : "text";
             var content = root.TryGetProperty("content", out var contentProp) ? contentProp.GetString() : string.Empty;
+            if (string.IsNullOrEmpty(content)) return;
 
-            await SetContentAsync(content ?? string.Empty, device);
-            logger.LogDebug("已处理剪贴板消息，类型: {clipboardType}", clipboardType);
+            await SetContentAsync(content, device);
+            logger.LogDebug("已处理剪贴板消息，类型: {type}", type);
         }
         catch (JsonException ex)
         {

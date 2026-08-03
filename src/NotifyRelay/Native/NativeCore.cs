@@ -594,6 +594,17 @@ public static class NativeCore
         _senderQueueHandle = 0;
     }
 
+    // ======== Clipboard ========
+    public static string? ClipboardOnChanged(string targetsJson, string mime, string content, bool force)
+    {
+        return NotifyRelayCore.Safe.ClipboardOnChanged(_ctx, _senderQueueHandle, targetsJson, mime, content, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), force);
+    }
+
+    public static string? ClipboardOnReceived(string payloadJson)
+    {
+        return NotifyRelayCore.Safe.ClipboardOnReceived(_ctx, payloadJson, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
     // ======== Network change ========
     public static void OnNetworkChanged(string? localIp = null)
     {
