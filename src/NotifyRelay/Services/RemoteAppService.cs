@@ -1,6 +1,7 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
 namespace NotifyRelay.Services;
@@ -14,13 +15,10 @@ public class RemoteAppService(
     {
         try
         {
-            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
-            {
-                logger.LogWarning("跳过非 JSON 应用列表响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
-                return;
-            }
+            var parsed = NativeCore.AppSyncParseApplistResponse(payload);
+            if (parsed == null) return;
 
-            using var doc = JsonDocument.Parse(payload);
+            using var doc = JsonDocument.Parse(parsed);
             var root = doc.RootElement;
 
             logger.LogDebug("处理APP_LIST_RESPONSE消息");
@@ -73,13 +71,7 @@ public class RemoteAppService(
 
     public void SendAppListRequest(string deviceId)
     {
-        var rawJson = JsonSerializer.Serialize(new
-        {
-            type = "DATA_APP_LIST_REQUEST",
-            scope = "user",
-            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        });
-        var requestJson = rawJson;
+        var requestJson = NativeCore.AppSyncBuildApplistRequest("user");
         if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
@@ -88,15 +80,14 @@ public class RemoteAppService(
     {
         logger.LogInformation("开始发送图标请求：deviceId={deviceId}, packageCount={packageCount}", deviceId, packageNames.Count);
 
-        var rawJson = JsonSerializer.Serialize(new
-        {
-            type = "DATA_ICON_REQUEST",
-            packageName = packageNames.Count == 1 ? packageNames.First() : null,
-            packageNames = packageNames.Count > 1 ? packageNames : null,
-            time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
-        });
-        var requestJson = rawJson;
-        if (requestJson == null) return;
+        // Rust 内部完成 pending 过滤与报文构造；PC 侧本机已安装/缓存过滤由调用方完成
+        var requestJson = NativeCore.AppSyncPrepareIconRequest(
+            JsonSerializer.Serialize(packageNames),
+            "[]",
+            "[]",
+            "{}",
+            deviceId);
+        if (requestJson == null || requestJson == "{}") return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 }

@@ -3,6 +3,7 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Overlay;
 using NotifyRelay.Utils;
@@ -1045,51 +1046,46 @@ public class NotificationService(
     {
         try
         {
-            if (!payload.TrimStart().StartsWith('{') && !payload.TrimStart().StartsWith('['))
-            {
-                logger.LogWarning("跳过非 JSON 图标响应：{payload}", payload.Length > 50 ? payload[..50] + "..." : payload);
-                return;
-            }
-
-            // 首先尝试解析JSON
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
-
             logger.LogInformation("处理ICON_RESPONSE消息");
 
-            // 检查是否为批量图标响应
-            if (root.TryGetProperty("icons", out var iconsArray))
+            // 解析由 Rust 完成：返回 {"icons":[{packageName,iconData}],"missing":[...]}
+            var parsed = NativeCore.AppSyncParseIconResponse(payload);
+            if (parsed == null) return;
+
+            using var doc = JsonDocument.Parse(parsed);
+            var root = doc.RootElement;
+
+            if (root.TryGetProperty("icons", out var iconsArray) && iconsArray.ValueKind == JsonValueKind.Array)
             {
-                // 处理批量图标响应
-                logger.LogInformation("接收到批量图标响应，包含 {count} 个图标", iconsArray.GetArrayLength());
+                logger.LogInformation("接收到图标响应，包含 {count} 个图标", iconsArray.GetArrayLength());
                 int savedCount = 0;
                 foreach (var iconElement in iconsArray.EnumerateArray())
                 {
                     // 获取包名
                     if (!iconElement.TryGetProperty("packageName", out var packageProp))
                     {
-                        logger.LogWarning("批量 ICON_RESPONSE 中的图标缺少 packageName 属性");
+                        logger.LogWarning("图标响应中的图标缺少 packageName 属性");
                         continue;
                     }
 
                     var packageName = packageProp.GetString();
                     if (string.IsNullOrEmpty(packageName))
                     {
-                        logger.LogWarning("批量 ICON_RESPONSE 中的图标 packageName 为空");
+                        logger.LogWarning("图标响应中的图标 packageName 为空");
                         continue;
                     }
 
                     // 获取图标数据
                     if (!iconElement.TryGetProperty("iconData", out var iconDataProp))
                     {
-                        logger.LogWarning("批量 ICON_RESPONSE 中的图标缺少 iconData 属性");
+                        logger.LogWarning("图标响应中的图标缺少 iconData 属性");
                         continue;
                     }
 
                     var iconData = iconDataProp.GetString();
                     if (string.IsNullOrEmpty(iconData))
                     {
-                        logger.LogWarning("批量 ICON_RESPONSE 中的图标 iconData 为空");
+                        logger.LogWarning("图标响应中的图标 iconData 为空");
                         continue;
                     }
 
@@ -1101,27 +1097,7 @@ public class NotificationService(
                     // 触发应用图标更新
                     HandleIconResponse(device.Id, packageName);
                 }
-                logger.LogInformation("批量图标响应处理完成，已保存 {savedCount} 个应用图标", savedCount);
-            }
-            else
-            {
-                // 处理单个图标响应
-                // 直接调用IconUtils保存图标
-                var packageName = root.TryGetProperty("packageName", out var packageNameProp) ? packageNameProp.GetString() : null;
-                var iconData = root.TryGetProperty("iconData", out var iconDataProp) ? iconDataProp.GetString() : null;
-
-                if (!string.IsNullOrEmpty(packageName) && !string.IsNullOrEmpty(iconData))
-                {
-                    logger.LogInformation("正在保存应用 {packageName} 的图标，数据长度：{length}", packageName, iconData.Length);
-                    await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
-                    logger.LogInformation("已保存应用图标：{packageName}", packageName);
-                    // 触发应用图标更新
-                    HandleIconResponse(device.Id, packageName);
-                }
-                else
-                {
-                    logger.LogWarning("单个图标响应缺少必要属性：packageName={packageName}, iconData={iconData}", packageName, iconData);
-                }
+                logger.LogInformation("图标响应处理完成，已保存 {savedCount} 个应用图标", savedCount);
             }
         }
         catch (JsonException ex)

@@ -605,6 +605,32 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ClipboardOnReceived(_ctx, payloadJson, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
+    // ======== App sync (app list & icons) ========
+    public static string? AppSyncPrepareIconRequest(string packagesJson, string installedJson, string cachedJson, string appDeviceJson, string sourceDeviceUuid)
+    {
+        return NotifyRelayCore.Safe.AppSyncPrepareIconRequest(_ctx, packagesJson, installedJson, cachedJson, appDeviceJson, sourceDeviceUuid, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
+    public static void AppSyncClearIconPending(string packagesJson)
+    {
+        NotifyRelayCore.Safe.AppSyncClearIconPending(_ctx, packagesJson);
+    }
+
+    public static string? AppSyncParseIconResponse(string payloadJson)
+    {
+        return NotifyRelayCore.Safe.AppSyncParseIconResponse(payloadJson);
+    }
+
+    public static string? AppSyncBuildApplistRequest(string scope = "user")
+    {
+        return NotifyRelayCore.Safe.AppSyncBuildApplistRequest(scope, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
+    public static string? AppSyncParseApplistResponse(string payloadJson)
+    {
+        return NotifyRelayCore.Safe.AppSyncParseApplistResponse(payloadJson);
+    }
+
     // ======== Network change ========
     public static void OnNetworkChanged(string? localIp = null)
     {
