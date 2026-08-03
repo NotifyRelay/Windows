@@ -676,10 +676,9 @@ public class NotificationService(
                 var stored = await Task.Run(() => notificationRepository.GetDeviceNotifications(device.Id));
                 foreach (var entity in stored)
                 {
-                    var msgJson = SocketMessageSerializer.DeserializeMessage(entity.MessageJson);
-                    if (msgJson is null) continue;
+                    if (string.IsNullOrEmpty(entity.MessageJson)) continue;
 
-                    var notif = await Notification.FromMessage(msgJson);
+                    var notif = await Notification.FromMessage(entity.MessageJson);
                     notif.Pinned = entity.Pinned;
 
                     try
@@ -703,7 +702,7 @@ public class NotificationService(
                         notif.AddSourceDevice(device.Id, device.Name);
                     }
 
-                    using var msgDoc = JsonDocument.Parse(msgJson);
+                    using var msgDoc = JsonDocument.Parse(entity.MessageJson);
                     var msgRoot = msgDoc.RootElement;
                     var msgAppPackage = msgRoot.TryGetProperty("packageName", out var mPn) && mPn.ValueKind == JsonValueKind.String ? mPn.GetString() : null;
                     if (!string.IsNullOrEmpty(msgAppPackage))

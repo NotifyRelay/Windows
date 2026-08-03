@@ -16,7 +16,7 @@ public class BalanceHistoryItem
 public class DeepSeekBalanceService
 {
     private readonly ILogger _logger;
-    private readonly WorkerConfiguration _config;
+    private readonly IDeepSeekBalanceSettings _settings;
     private readonly HttpClient _httpClient;
     private CancellationTokenSource? _pollingCts;
     private bool _isPolling;
@@ -29,10 +29,10 @@ public class DeepSeekBalanceService
     public double CurrentBalance { get; private set; }
     public List<BalanceHistoryItem> BalanceHistory { get; } = [];
 
-    public DeepSeekBalanceService(ILogger logger, WorkerConfiguration config)
+    public DeepSeekBalanceService(ILogger logger, IDeepSeekBalanceSettings settings)
     {
         _logger = logger;
-        _config = config;
+        _settings = settings;
         _httpClient = new HttpClient();
         _ = LoadHistoryAsync();
     }
@@ -41,7 +41,7 @@ public class DeepSeekBalanceService
     {
         if (_isPolling) return;
 
-        if (string.IsNullOrEmpty(_config.DeepSeekApiToken))
+        if (string.IsNullOrEmpty(_settings.DeepSeekApiToken))
         {
             _logger.LogWarning("DeepSeek API Token not set");
             return;
@@ -55,33 +55,36 @@ public class DeepSeekBalanceService
 
             _ = Task.Run(async () =>
             {
-                while (!_pollingCts.Token.IsCancellationRequested)
+                try
                 {
-                    try
+                    using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(_settings.DeepSeekBalancePollingInterval));
+                    while (await timer.WaitForNextTickAsync(_pollingCts.Token))
                     {
-                        var balance = await FetchBalanceAsync();
-                        if (balance.HasValue)
+                        try
                         {
-                            CurrentBalance = balance.Value;
-                            var item = new BalanceHistoryItem
+                            var balance = await FetchBalanceAsync();
+                            if (balance.HasValue)
                             {
-                                Time = DateTime.Now,
-                                Balance = balance.Value
-                            };
-                            AddHistoryItem(item);
-                            BalanceUpdated?.Invoke(balance.Value);
+                                CurrentBalance = balance.Value;
+                                var item = new BalanceHistoryItem
+                                {
+                                    Time = DateTime.Now,
+                                    Balance = balance.Value
+                                };
+                                AddHistoryItem(item);
+                                BalanceUpdated?.Invoke(balance.Value);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Failed to fetch DeepSeek balance");
                         }
                     }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Failed to fetch DeepSeek balance");
-                    }
-
-                    try
-                    {
-                        await Task.Delay(_config.DeepSeekBalancePollingInterval, _pollingCts.Token);
-                    }
-                    catch (TaskCanceledException) { break; }
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "DeepSeek balance polling loop failed");
                 }
             });
 
@@ -115,7 +118,7 @@ public class DeepSeekBalanceService
 
     public async Task<double?> FetchBalanceAsync()
     {
-        var token = _config.DeepSeekApiToken;
+        var token = _settings.DeepSeekApiToken;
         if (string.IsNullOrEmpty(token)) return null;
 
         try
@@ -274,7 +277,7 @@ public class DeepSeekBalanceService
     {
         try
         {
-            var json = _config.DeepSeekBalanceHistoryJson;
+            var json = _settings.DeepSeekBalanceHistoryJson;
             if (string.IsNullOrEmpty(json)) return;
 
             var items = JsonSerializer.Deserialize<List<BalanceHistoryItem>>(json);
@@ -302,7 +305,7 @@ public class DeepSeekBalanceService
         {
             lock (BalanceHistory)
             {
-                _config.DeepSeekBalanceHistoryJson = JsonSerializer.Serialize(BalanceHistory.ToList());
+                _settings.DeepSeekBalanceHistoryJson = JsonSerializer.Serialize(BalanceHistory.ToList());
             }
         }
         catch (Exception ex)

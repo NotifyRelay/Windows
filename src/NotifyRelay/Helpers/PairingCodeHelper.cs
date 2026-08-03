@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+
 namespace NotifyRelay.Helpers;
 
 public static class PairingCodeHelper
@@ -10,8 +12,7 @@ public static class PairingCodeHelper
 
     public static string GenerateCode()
     {
-        var random = new Random();
-        _currentCode = random.Next(100000, 999999).ToString();
+        _currentCode = RandomNumberGenerator.GetInt32(100000, 1000000).ToString();
         _generatedAt = DateTime.UtcNow;
         return _currentCode;
     }

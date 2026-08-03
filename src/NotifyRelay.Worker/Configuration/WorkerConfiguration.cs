@@ -2,10 +2,6 @@ namespace NotifyRelay.Worker.Configuration;
 
 public class WorkerConfiguration
 {
-    public string? DeepSeekApiToken { get; set; }
-    public int DeepSeekBalancePollingInterval { get; set; } = 60000;
-    public string? DeepSeekBalanceHistoryJson { get; set; }
-
     public string? ControlMyMonitorPath { get; set; }
     public List<string> SelectedMonitors { get; set; } = [];
     public bool EnableMonitorBrightnessSync { get; set; }

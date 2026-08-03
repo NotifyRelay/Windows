@@ -2,6 +2,7 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
+using System.Buffers.Text;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics.Imaging;
 using Windows.Storage.Streams;
@@ -268,7 +269,7 @@ public class ClipboardService : IClipboardService
                         break;
                     case string textContent:
                         // 检查是否为图片类型的 Base64 编码
-                        if (textContent.Length > 20 && textContent.IsBase64String())
+                        if (textContent.Length > 20 && Base64.IsValid(textContent))
                         {
                             // 尝试将 Base64 字符串转换为 Bitmap
                             var bitmap = await ConvertBase64ToBitmapAsync(textContent);

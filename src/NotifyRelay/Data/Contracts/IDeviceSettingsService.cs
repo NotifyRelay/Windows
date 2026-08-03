@@ -2,7 +2,7 @@ using NotifyRelay.Data.Enums;
 
 namespace NotifyRelay.Data.Contracts;
 
-public interface IDeviceSettingsService : IBaseSettingsService, INotifyPropertyChanged
+public interface IDeviceSettingsService
 {
     /// <summary>
     /// Gets the device ID this settings service is managing

@@ -36,34 +36,4 @@ public static class StringExtensions
         cachedResources.TryAdd(resourceKey, value);
         return value;
     }
-
-    /// <summary>
-    /// Checks if the string is a valid Base64 encoded string.
-    /// </summary>
-    /// <param name="input">The string to check.</param>
-    /// <returns>True if the string is a valid Base64 encoded string, otherwise false.</returns>
-    public static bool IsBase64String(this string input)
-    {
-        if (string.IsNullOrWhiteSpace(input))
-        {
-            return false;
-        }
-
-        try
-        {
-            // Check for valid Base64 length (must be a multiple of 4)
-            if (input.Length % 4 != 0)
-            {
-                return false;
-            }
-
-            // Try to decode the string
-            Convert.FromBase64String(input);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-    }
 }

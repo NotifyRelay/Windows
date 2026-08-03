@@ -1,30 +1,30 @@
 using NotifyRelay.Data.AppDatabase;
+using NotifyRelay.Data.Configuration;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Utils.Serialization;
-using NotifyRelay.Utils.Serialization.Implementation;
 
 namespace NotifyRelay.Services.Settings;
 
-internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsService
+internal sealed class UserSettingsService : IUserSettingsService
 {
-    private IGeneralSettingsService _generalSettingsService = null!;
-    public IGeneralSettingsService GeneralSettingsService
-    {
-        get => GetSettingsService(ref _generalSettingsService);
-    }
+    private IGeneralSettingsService? _generalSettingsService;
 
-    private readonly DatabaseContext _dbContext;
+    /// <summary>
+    /// Shared configuration root used by all settings services.
+    /// </summary>
+    public IConfigurationRoot Configuration { get; }
 
     // Cache for device-specific settings
     private readonly Dictionary<string, IDeviceSettingsService> _deviceSettingsCache = [];
 
     public UserSettingsService(DatabaseContext dbContext)
     {
-        _dbContext = dbContext;
-        JsonSettingsSerializer = new JsonSettingsSerializer();
-        JsonSettingsDatabase = new SqliteSettingsDatabase(dbContext, deviceId: null);
-        IsAvailable = true;
+        Configuration = new ConfigurationBuilder()
+            .Add(new SqliteConfigurationSource(dbContext))
+            .Build();
     }
+
+    public IGeneralSettingsService GeneralSettingsService =>
+        _generalSettingsService ??= new GeneralSettingsService(Configuration);
 
     public IDeviceSettingsService GetDeviceSettings(string deviceId)
     {
@@ -38,17 +38,9 @@ internal sealed class UserSettingsService : BaseJsonSettings, IUserSettingsServi
         }
 
         // Create new device-specific settings instance
-        var deviceSettings = new DeviceSettingsService(deviceId, this, _dbContext);
+        var deviceSettings = new DeviceSettingsService(deviceId, Configuration);
         _deviceSettingsCache[deviceId] = deviceSettings;
 
         return deviceSettings;
-    }
-
-    private static TSettingsService GetSettingsService<TSettingsService>(ref TSettingsService settingsServiceMember)
-        where TSettingsService : class, IBaseSettingsService
-    {
-        settingsServiceMember ??= Ioc.Default.GetService<TSettingsService>()!;
-
-        return settingsServiceMember;
     }
 }

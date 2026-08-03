@@ -1,273 +1,284 @@
-using NotifyRelay.Data.AppDatabase;
+using NotifyRelay.Data.Configuration;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
-using NotifyRelay.Utils.Serialization;
 
 namespace NotifyRelay.Services.Settings;
 
-internal sealed partial class DeviceSettingsService(string deviceId, ISettingsSharingContext settingsSharingContext, DatabaseContext dbContext) : BaseDeviceAwareJsonSettings(deviceId, settingsSharingContext, dbContext), IDeviceSettingsService
+internal sealed class DeviceSettingsService : IDeviceSettingsService
 {
+    private readonly IConfigurationRoot _configuration;
+
+    public string DeviceId { get; }
+
+    public DeviceSettingsService(string deviceId, IConfigurationRoot configuration)
+    {
+        DeviceId = deviceId;
+        _configuration = configuration;
+    }
+
+    private string SettingsKey(string settingName) => SqliteConfigurationProvider.BuildKey(DeviceId, settingName);
+
     public bool ClipboardSyncEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ClipboardSyncEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(ClipboardSyncEnabled)), value);
     }
 
     public bool ImageToClipboardEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ImageToClipboardEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(ImageToClipboardEnabled)), value);
     }
 
     public bool ShowClipboardToast
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ShowClipboardToast)), false);
+        set => _configuration.Set(SettingsKey(nameof(ShowClipboardToast)), value);
     }
 
     public bool OpenLinksInBrowser
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(OpenLinksInBrowser)), false);
+        set => _configuration.Set(SettingsKey(nameof(OpenLinksInBrowser)), value);
     }
 
     public bool NotificationSyncEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(NotificationSyncEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(NotificationSyncEnabled)), value);
     }
 
     public bool ShowNotificationToast
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ShowNotificationToast)), true);
+        set => _configuration.Set(SettingsKey(nameof(ShowNotificationToast)), value);
     }
 
     public bool ShowBadge
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ShowBadge)), true);
+        set => _configuration.Set(SettingsKey(nameof(ShowBadge)), value);
     }
 
     public NotificationLaunchPreference NotificationLaunchPreference
     {
-        get => Get(NotificationLaunchPreference.Dynamic);
-        set => Set((long)value);
+        get => _configuration.Get(SettingsKey(nameof(NotificationLaunchPreference)), NotificationLaunchPreference.Dynamic);
+        set => _configuration.Set(SettingsKey(nameof(NotificationLaunchPreference)), (long)value);
     }
 
     public string RemoteStoragePath
     {
-        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(RemoteStoragePath)), Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
+        set => _configuration.Set(SettingsKey(nameof(RemoteStoragePath)), value);
     }
 
     public string ReceivedFilesPath
     {
-        get => Get(Constants.UserEnvironmentPaths.DownloadsPath)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;
+        set => _configuration.Set(SettingsKey(nameof(ReceivedFilesPath)), value);
     }
 
     public bool IgnoreWindowsApps
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(IgnoreWindowsApps)), true);
+        set => _configuration.Set(SettingsKey(nameof(IgnoreWindowsApps)), value);
     }
 
     public bool IgnoreNotificationDuringDnd
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(IgnoreNotificationDuringDnd)), true);
+        set => _configuration.Set(SettingsKey(nameof(IgnoreNotificationDuringDnd)), value);
     }
 
     public bool ClipboardFilesEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ClipboardFilesEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(ClipboardFilesEnabled)), value);
     }
 
     public string? ScrcpyPath
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ScrcpyPath)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(ScrcpyPath)), value);
     }
 
     public bool ScreenOff
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ScreenOff)), true);
+        set => _configuration.Set(SettingsKey(nameof(ScreenOff)), value);
     }
 
     public bool PhysicalKeyboard
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(PhysicalKeyboard)), false);
+        set => _configuration.Set(SettingsKey(nameof(PhysicalKeyboard)), value);
     }
 
     public bool UnlockDeviceBeforeLaunch
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(UnlockDeviceBeforeLaunch)), false);
+        set => _configuration.Set(SettingsKey(nameof(UnlockDeviceBeforeLaunch)), value);
     }
 
     public int UnlockTimeout
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(UnlockTimeout)), 0);
+        set => _configuration.Set(SettingsKey(nameof(UnlockTimeout)), value);
     }
 
     public string? UnlockCommands
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(UnlockCommands)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(UnlockCommands)), value);
     }
 
     public string? VideoBitrate
     {
-        get => Get("8M");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(VideoBitrate)), "8M");
+        set => _configuration.Set(SettingsKey(nameof(VideoBitrate)), value);
     }
 
     public string? VideoResolution
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(VideoResolution)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(VideoResolution)), value);
     }
 
     public string? VideoBuffer
     {
-        get => Get("0");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(VideoBuffer)), "0");
+        set => _configuration.Set(SettingsKey(nameof(VideoBuffer)), value);
     }
 
     public string? AudioBitrate
     {
-        get => Get("128K");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AudioBitrate)), "128K");
+        set => _configuration.Set(SettingsKey(nameof(AudioBitrate)), value);
     }
 
     public string? AudioBuffer
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AudioBuffer)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(AudioBuffer)), value);
     }
 
     public string? CustomArguments
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(CustomArguments)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(CustomArguments)), value);
     }
 
     public bool DisableVideoForwarding
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DisableVideoForwarding)), false);
+        set => _configuration.Set(SettingsKey(nameof(DisableVideoForwarding)), value);
     }
 
     public int VideoCodec
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(VideoCodec)), 0);
+        set => _configuration.Set(SettingsKey(nameof(VideoCodec)), value);
     }
 
     public string? FrameRate
     {
-        get => Get("60");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(FrameRate)), "60");
+        set => _configuration.Set(SettingsKey(nameof(FrameRate)), value);
     }
 
     public string? Crop
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(Crop)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(Crop)), value);
     }
 
     public string? Display
     {
-        get => Get("0");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(Display)), "0");
+        set => _configuration.Set(SettingsKey(nameof(Display)), value);
     }
 
     public string? VirtualDisplaySize
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(VirtualDisplaySize)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(VirtualDisplaySize)), value);
     }
 
     public int DisplayOrientation
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DisplayOrientation)), 0);
+        set => _configuration.Set(SettingsKey(nameof(DisplayOrientation)), value);
     }
 
     public string? RotationAngle
     {
-        get => Get("0");
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(RotationAngle)), "0");
+        set => _configuration.Set(SettingsKey(nameof(RotationAngle)), value);
     }
 
     public AudioOutputModeType AudioOutputMode
     {
-        get => Get(AudioOutputModeType.Desktop);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AudioOutputMode)), AudioOutputModeType.Desktop);
+        set => _configuration.Set(SettingsKey(nameof(AudioOutputMode)), value);
     }
 
     public bool ForwardMicrophone
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ForwardMicrophone)), false);
+        set => _configuration.Set(SettingsKey(nameof(ForwardMicrophone)), value);
     }
 
     public string? AudioOutputBuffer
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AudioOutputBuffer)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(AudioOutputBuffer)), value);
     }
 
     public int AudioCodec
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AudioCodec)), 0);
+        set => _configuration.Set(SettingsKey(nameof(AudioCodec)), value);
     }
 
     public string? AdbPath
     {
-        get => Get(string.Empty);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AdbPath)), string.Empty);
+        set => _configuration.Set(SettingsKey(nameof(AdbPath)), value);
     }
 
     public bool AutoConnect
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AutoConnect)), true);
+        set => _configuration.Set(SettingsKey(nameof(AutoConnect)), value);
     }
 
     public ScrcpyDevicePreferenceType ScrcpyDevicePreference
     {
-        get => Get(ScrcpyDevicePreferenceType.Auto);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ScrcpyDevicePreference)), ScrcpyDevicePreferenceType.Auto);
+        set => _configuration.Set(SettingsKey(nameof(ScrcpyDevicePreference)), value);
     }
 
     public bool IsVirtualDisplayEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(IsVirtualDisplayEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(IsVirtualDisplayEnabled)), value);
     }
 
     public bool MediaSessionSyncEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(MediaSessionSyncEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(MediaSessionSyncEnabled)), value);
     }
 
     public bool AdbTcpipModeEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AdbTcpipModeEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(AdbTcpipModeEnabled)), value);
     }
 
     public bool AdbAutoConnect
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AdbAutoConnect)), true);
+        set => _configuration.Set(SettingsKey(nameof(AdbAutoConnect)), value);
     }
 }

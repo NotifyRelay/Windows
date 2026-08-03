@@ -170,11 +170,10 @@ public class DatabaseContext : IDisposable
                             var deviceId = oldId.Split('|')[0];
 
                             Console.WriteLine($"反序列化消息... record {migratedCount + 1}");
-                            var msgJson = SocketMessageSerializer.DeserializeMessage(messageJson);
 
-                            if (msgJson != null)
+                            if (!string.IsNullOrEmpty(messageJson))
                             {
-                                using var doc = JsonDocument.Parse(msgJson);
+                                using var doc = JsonDocument.Parse(messageJson);
                                 var root = doc.RootElement;
                                 var appPackage = root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
                                 var title = root.TryGetProperty("title", out var tl) ? tl.GetString() : null;

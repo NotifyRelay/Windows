@@ -4,7 +4,7 @@ using NotifyRelay.Data.Models.Actions;
 
 namespace NotifyRelay.Data.Contracts;
 
-public interface IGeneralSettingsService : IBaseSettingsService, INotifyPropertyChanged
+public interface IGeneralSettingsService
 {
     /// <summary>
     /// Gets or sets the startup option for the application.
@@ -17,17 +17,12 @@ public interface IGeneralSettingsService : IBaseSettingsService, INotifyProperty
     Theme Theme { get; set; }
 
     /// <summary>
-    /// Event that fires when theme changes
-    /// </summary>
-    event EventHandler? ThemeChanged;
-
-    /// <summary>
     /// Applies the theme to a specific window or the main window
     /// </summary>
     /// <param name="window">Optional window to apply theme to</param>
     /// <param name="titleBar">Optional titlebar to apply theme to</param>
     /// <param name="theme">Optional specific theme to apply</param>
-    void ApplyTheme(Window? window = null, AppWindowTitleBar? titleBar = null, Theme? theme = null, bool callThemeModeChangedEvent = true);
+    void ApplyTheme(Window? window = null, AppWindowTitleBar? titleBar = null, Theme? theme = null);
 
     /// <summary>
     /// Gets or sets the path for scrcpy.

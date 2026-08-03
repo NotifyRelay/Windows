@@ -1,11 +1,7 @@
-using NotifyRelay.Data.EventArguments;
-
 namespace NotifyRelay.Data.Contracts;
 
-public interface IUserSettingsService : IBaseSettingsService
+public interface IUserSettingsService
 {
-    event EventHandler<SettingChangedEventArgs> OnSettingChangedEvent;
-
     IGeneralSettingsService GeneralSettingsService { get; }
 
     /// <summary>

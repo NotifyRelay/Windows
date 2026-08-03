@@ -45,7 +45,7 @@ public class NetworkDriveMapper
             // 构建FTP URL，使用与 Android 端一致的凭据
             var ftpUrl = string.IsNullOrEmpty(username)
                 ? $"ftp://{ipAddress}:{port}/"
-                : $"ftp://{Uri.EscapeDataString(username)}:{Uri.EscapeDataString(password)}@{ipAddress}:{port}/";
+                : $"ftp://{Uri.EscapeDataString(username)}:{Uri.EscapeDataString(password ?? string.Empty)}@{ipAddress}:{port}/";
             _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置，FTP URL: {FtpUrl}",
                 device.Name, ftpUrl);
 
@@ -67,43 +67,10 @@ public class NetworkDriveMapper
                     File.Delete(shortcutPath);
                 }
 
-                // 使用PowerShell命令创建网络位置快捷方式
-                string powerShellScript = "$shell = New-Object -ComObject WScript.Shell; $shortcut = $shell.CreateShortcut('" + shortcutPath.Replace("'", "''") + "'); $shortcut.TargetPath = '" + ftpUrl.Replace("'", "''") + "'; $shortcut.Save();";
-
-                _logger.LogDebug("PowerShell脚本: {PowerShellScript}", powerShellScript);
-
-                // 执行PowerShell命令
-                var processStartInfo = new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "powershell.exe",
-                    Arguments = $"-NoProfile -ExecutionPolicy Bypass -Command {powerShellScript}",
-                    CreateNoWindow = true,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                };
-
-                using var process = System.Diagnostics.Process.Start(processStartInfo);
-                if (process == null)
-                {
-                    _logger.LogError("无法启动powershell.exe进程");
-                    return string.Empty;
-                }
-
-                string output = process.StandardOutput.ReadToEnd();
-                string error = process.StandardError.ReadToEnd();
-                process.WaitForExit();
-
-                if (process.ExitCode != 0)
-                {
-                    _logger.LogError("PowerShell命令执行失败，退出码: {ExitCode}, 输出: {Output}, 错误: {Error}",
-                        process.ExitCode, output, error);
-                    return string.Empty;
-                }
-                else
-                {
-                    _logger.LogInformation("PowerShell命令执行成功，输出: {Output}", output);
-                }
+                // 使用 Vanara.PInvoke.Shell32 创建网络位置快捷方式（无需外部进程）
+                dynamic link = new Vanara.PInvoke.Shell32.ShellLinkObject();
+                link.Path = ftpUrl;
+                link.Save(shortcutPath);
 
                 _logger.LogInformation("成功创建网络位置快捷方式: {ShortcutPath}", shortcutPath);
 

@@ -122,12 +122,19 @@ public static class AppLifecycleHelper
 
         // ===== 并行阶段C：核心服务启动 =====
         logger.LogInformation("步骤17：启动核心服务...");
-        await Task.WhenAll(
-            networkService.StartServerAsync(),
-            discoveryService.StartDiscoveryAsync(),
-            playbackService.InitializeAsync(),
-            adbService.StartAsync()
-        );
+        var tcpServerTask = networkService.StartServerAsync();
+        var discoveryTask = discoveryService.StartDiscoveryAsync();
+        var playbackTask = playbackService.InitializeAsync();
+        var adbTask = adbService.StartAsync();
+        logger.LogInformation("步骤17：4个子任务已创建");
+
+        // 监控各子任务完成状态，便于定位启动卡点
+        _ = tcpServerTask.ContinueWith(t => LogSubtaskDone(logger, "TCP服务器", t), TaskScheduler.Default);
+        _ = discoveryTask.ContinueWith(t => LogSubtaskDone(logger, "Discovery", t), TaskScheduler.Default);
+        _ = playbackTask.ContinueWith(t => LogSubtaskDone(logger, "Playback", t), TaskScheduler.Default);
+        _ = adbTask.ContinueWith(t => LogSubtaskDone(logger, "ADB", t), TaskScheduler.Default);
+
+        await Task.WhenAll(tcpServerTask, discoveryTask, playbackTask, adbTask);
         logger.LogInformation("步骤17：核心服务启动完成");
 
         // 非关键服务后台启动（不阻塞主流程）
@@ -137,6 +144,16 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤21：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
+    }
+
+    private static void LogSubtaskDone(ILogger logger, string name, Task task)
+    {
+        if (task.IsFaulted)
+            logger.LogError(task.Exception, "步骤17-子任务[{name}]异常", name);
+        else if (task.IsCanceled)
+            logger.LogWarning("步骤17-子任务[{name}]已取消", name);
+        else
+            logger.LogInformation("步骤17-子任务[{name}]完成", name);
     }
 
     private static async Task RegisterWindowsNotificationAsync(ILogger logger)
@@ -196,9 +213,6 @@ public static class AppLifecycleHelper
             var config = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Configuration.WorkerConfiguration>();
             var settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
 
-            config.DeepSeekApiToken = settings.DeepSeekApiToken;
-            config.DeepSeekBalancePollingInterval = settings.DeepSeekBalancePollingInterval;
-            config.DeepSeekBalanceHistoryJson = settings.DeepSeekBalanceHistoryJson;
             config.ControlMyMonitorPath = settings.ControlMyMonitorPath;
             config.SelectedMonitors = settings.SelectedMonitors;
             config.EnableMonitorBrightnessSync = settings.EnableMonitorBrightnessSync;
@@ -370,8 +384,10 @@ public static class AppLifecycleHelper
         services.AddSingleton<ILogger>(sp => sp.GetRequiredService<ILogger<App>>())
 
         // Settings Services
-        .AddSingleton<IUserSettingsService, UserSettingsService>()
-        .AddSingleton<IGeneralSettingsService, GeneralSettingsService>(sp => new GeneralSettingsService(((UserSettingsService)sp.GetRequiredService<IUserSettingsService>()).GetSharingContext()))
+        .AddSingleton<UserSettingsService>()
+        .AddSingleton<IUserSettingsService>(sp => sp.GetRequiredService<UserSettingsService>())
+        .AddSingleton<IGeneralSettingsService>(sp => sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
+        .AddSingleton<NotifyRelay.Worker.Configuration.IDeepSeekBalanceSettings, DeepSeekBalanceSettingsAccessor>()
 
         // Database and Repositories
         .AddSingleton<DatabaseContext>()

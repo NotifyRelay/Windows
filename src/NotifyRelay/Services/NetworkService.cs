@@ -57,13 +57,27 @@ public class NetworkService(
                 logger.LogInformation($"服务器已在端口 {ServerPort} 启动");
 
                 // 启动 Rust core 网络功能
+                logger.LogInformation("步骤17-StartServer: 开始获取系统电量");
                 var battery = systemInfoService.GetSystemBatteryLevel();
                 var isCharging = systemInfoService.GetSystemChargingStatus();
                 var signedBattery = isCharging ? Math.Abs(battery) : -Math.Abs(battery);
-                NativeCore.InitializeNewFeatures(localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc");
+                logger.LogInformation("步骤17-StartServer: 电量获取完成，调用 InitializeNewFeatures");
+                NativeCore.CreateSenderQueue();
+                logger.LogInformation("步骤17-StartServer: CreateSenderQueue 完成");
+                NativeCore.StartSenderQueue();
+                logger.LogInformation("步骤17-StartServer: StartSenderQueue 完成");
+                NativeCore.StartHeartbeatSender(localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc", "", 4000, 0);
+                logger.LogInformation("步骤17-StartServer: StartHeartbeatSender 完成");
+                NativeCore.StartOfflineDetector(12, 5000);
+                logger.LogInformation("步骤17-StartServer: StartOfflineDetector 完成");
+                NativeCore.StartKnownDeviceScanner();
+                logger.LogInformation("步骤17-StartServer: StartKnownDeviceScanner 完成");
+                logger.LogInformation("步骤17-StartServer: InitializeNewFeatures 完成");
 
                 // 注册网络变化监听
+                logger.LogInformation("步骤17-StartServer: 注册网络变化监听");
                 NetworkChange.NetworkAddressChanged += OnNetworkAddressChanged;
+                logger.LogInformation("步骤17-StartServer: 网络监听注册完成");
 
                 return true;
             }

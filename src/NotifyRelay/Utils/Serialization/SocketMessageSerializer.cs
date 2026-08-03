@@ -14,18 +14,5 @@ public static class SocketMessageSerializer
 
     public static T? Deserialize<T>(string json) =>
         JsonSerializer.Deserialize<T>(json, options);
-
-    public static string? DeserializeMessage(string json)
-    {
-        try
-        {
-            using JsonDocument doc = JsonDocument.Parse(json);
-            return json; // 返回原始JSON字符串，由调用方自行解析
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }
 

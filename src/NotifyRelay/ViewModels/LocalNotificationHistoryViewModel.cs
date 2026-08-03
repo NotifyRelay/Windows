@@ -77,14 +77,13 @@ public sealed partial class LocalNotificationHistoryViewModel : BaseViewModel
             {
                 try
                 {
-                    var msgJson = SocketMessageSerializer.DeserializeMessage(entity.MessageJson);
-                    if (msgJson == null) continue;
+                    if (string.IsNullOrEmpty(entity.MessageJson)) continue;
 
-                    var notif = await Notification.FromMessage(msgJson);
+                    var notif = await Notification.FromMessage(entity.MessageJson);
                     notif.Pinned = entity.Pinned;
                     notif.AddSourceDevice(device.DeviceId, device.DeviceName ?? device.DeviceId);
 
-                    using var doc = JsonDocument.Parse(msgJson);
+                    using var doc = JsonDocument.Parse(entity.MessageJson);
                     var root = doc.RootElement;
                     var appPackage = root.TryGetProperty("packageName", out var pn) && pn.ValueKind == JsonValueKind.String ? pn.GetString() : null;
                     if (!string.IsNullOrEmpty(appPackage))

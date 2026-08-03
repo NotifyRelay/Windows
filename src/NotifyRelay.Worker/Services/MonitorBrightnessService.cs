@@ -145,24 +145,28 @@ public class MonitorBrightnessService
         _ = Task.Run(async () =>
         {
             uint lastBrightness = 0;
-            while (_isRunning)
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+            try
             {
-                try
+                while (_isRunning && await timer.WaitForNextTickAsync())
                 {
-                    uint brightness = GetCurrentSystemBrightness();
-                    if (brightness != lastBrightness)
+                    try
                     {
-                        lastBrightness = brightness;
-                        _logger.LogInformation("Brightness changed to {Brightness}% (polling)", brightness);
-                        SyncBrightness(brightness);
+                        uint brightness = GetCurrentSystemBrightness();
+                        if (brightness != lastBrightness)
+                        {
+                            lastBrightness = brightness;
+                            _logger.LogInformation("Brightness changed to {Brightness}% (polling)", brightness);
+                            SyncBrightness(brightness);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Brightness polling error");
                     }
                 }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Brightness polling error");
-                }
-                await Task.Delay(1000);
             }
+            catch (OperationCanceledException) { }
         });
     }
 

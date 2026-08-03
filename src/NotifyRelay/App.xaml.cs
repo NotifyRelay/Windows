@@ -104,7 +104,13 @@ public partial class App : Microsoft.UI.Xaml.Application
             rootFrame.Navigate(typeof(Views.SplashScreen));
 
             SplashScreenLoadingTCS = new TaskCompletionSource();
-            await SplashScreenLoadingTCS!.Task.WithTimeoutAsync(TimeSpan.FromMilliseconds(500));
+            try
+            {
+                await SplashScreenLoadingTCS!.Task.WaitAsync(TimeSpan.FromMilliseconds(500));
+            }
+            catch (TimeoutException)
+            {
+            }
             SplashScreenLoadingTCS = null;
 
             await AppLifecycleHelper.InitializeAppComponentsAsync();

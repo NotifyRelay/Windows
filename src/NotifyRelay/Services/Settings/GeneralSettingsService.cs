@@ -1,26 +1,24 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
+using NotifyRelay.Data.Configuration;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
-using NotifyRelay.Utils.Serialization;
 using Windows.UI;
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.Services.Settings;
 
-internal sealed partial class GeneralSettingsService : BaseObservableJsonSettings, IGeneralSettingsService
+internal sealed class GeneralSettingsService : IGeneralSettingsService
 {
+    private readonly IConfigurationRoot _configuration;
     private readonly UISettings _uiSettings = new();
     private bool _isApplyingTheme;
 
-    public event EventHandler? ThemeChanged;
-
-    public GeneralSettingsService(ISettingsSharingContext settingsSharingContext)
+    public GeneralSettingsService(IConfigurationRoot configuration)
     {
-        // Register root
-        RegisterSettingsContext(settingsSharingContext);
+        _configuration = configuration;
 
         // Listen for system theme changes
         _uiSettings.ColorValuesChanged += (s, e) =>
@@ -38,26 +36,27 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
         ApplyTheme(App.MainWindow, null, Theme);
     }
 
+    private string SettingsKey(string settingName) => SqliteConfigurationProvider.BuildKey(null, settingName);
+
     public StartupOptions StartupOption
     {
-        get => Get(StartupOptions.InTray);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(StartupOption)), StartupOptions.InTray);
+        set => _configuration.Set(SettingsKey(nameof(StartupOption)), value);
     }
 
     public Theme Theme
     {
-        get => Get(Theme.Default);
+        get => _configuration.Get(SettingsKey(nameof(Theme)), Theme.Default);
         set
         {
-            if (Set(value))
+            if (_configuration.Set(SettingsKey(nameof(Theme)), value))
             {
                 ApplyTheme(App.MainWindow, null, value);
-                ThemeChanged?.Invoke(this, EventArgs.Empty);
             }
         }
     }
 
-    public void ApplyTheme(Window? window = null, AppWindowTitleBar? titleBar = null, Theme? theme = null, bool callThemeModeChangedEvent = true)
+    public void ApplyTheme(Window? window = null, AppWindowTitleBar? titleBar = null, Theme? theme = null)
     {
         if (_isApplyingTheme) return;
 
@@ -105,8 +104,6 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
                 }
             }
 #endif
-            if (callThemeModeChangedEvent)
-                ThemeChanged?.Invoke(null, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -120,38 +117,38 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
 
     public string RemoteStoragePath
     {
-        get => Get(Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(RemoteStoragePath)), Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
+        set => _configuration.Set(SettingsKey(nameof(RemoteStoragePath)), value);
     }
 
     public string ReceivedFilesPath
     {
-        get => Get(Constants.UserEnvironmentPaths.DownloadsPath)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;
+        set => _configuration.Set(SettingsKey(nameof(ReceivedFilesPath)), value);
     }
 
     public string ScrcpyPath
     {
-        get => Get(string.Empty)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(ScrcpyPath)), string.Empty)!;
+        set => _configuration.Set(SettingsKey(nameof(ScrcpyPath)), value);
     }
 
     public string AdbPath
     {
-        get => Get(string.Empty)!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AdbPath)), string.Empty)!;
+        set => _configuration.Set(SettingsKey(nameof(AdbPath)), value);
     }
 
     public MediaMessageReceiveMode MediaMessageReceiveMode
     {
-        get => Get(MediaMessageReceiveMode.AudioOnly);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(MediaMessageReceiveMode)), MediaMessageReceiveMode.AudioOnly);
+        set => _configuration.Set(SettingsKey(nameof(MediaMessageReceiveMode)), value);
     }
 
     public List<BaseAction> Actions
     {
-        get => Get<List<BaseAction>>([])!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(Actions)), new List<BaseAction>())!;
+        set => _configuration.Set(SettingsKey(nameof(Actions)), value);
     }
 
     public void AddAction(BaseAction action)
@@ -187,292 +184,292 @@ internal sealed partial class GeneralSettingsService : BaseObservableJsonSetting
     // 显示器亮度同步设置
     public string? ControlMyMonitorPath
     {
-        get => Get<string?>(null);
-        set => Set(value);
+        get => _configuration.Get<string?>(SettingsKey(nameof(ControlMyMonitorPath)), null);
+        set => _configuration.Set(SettingsKey(nameof(ControlMyMonitorPath)), value);
     }
 
     public bool EnableMonitorBrightnessSync
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(EnableMonitorBrightnessSync)), false);
+        set => _configuration.Set(SettingsKey(nameof(EnableMonitorBrightnessSync)), value);
     }
 
     public List<string> SelectedMonitors
     {
-        get => Get<List<string>>([])!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(SelectedMonitors)), new List<string>())!;
+        set => _configuration.Set(SettingsKey(nameof(SelectedMonitors)), value);
     }
 
     public string? DeepSeekApiToken
     {
-        get => Get<string?>(null);
-        set => Set(value);
+        get => _configuration.Get<string?>(SettingsKey(nameof(DeepSeekApiToken)), null);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekApiToken)), value);
     }
 
     public bool EnableDeepSeekBalanceMonitor
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(EnableDeepSeekBalanceMonitor)), false);
+        set => _configuration.Set(SettingsKey(nameof(EnableDeepSeekBalanceMonitor)), value);
     }
 
     public int DeepSeekBalancePollingInterval
     {
-        get => Get(60000);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalancePollingInterval)), 60000);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalancePollingInterval)), value);
     }
 
     public string? DeepSeekBalanceHistoryJson
     {
-        get => Get<string?>(null);
-        set => Set(value);
+        get => _configuration.Get<string?>(SettingsKey(nameof(DeepSeekBalanceHistoryJson)), null);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceHistoryJson)), value);
     }
 
     public bool DeepSeekBalanceHistoryCollapsed
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceHistoryCollapsed)), false);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceHistoryCollapsed)), value);
     }
 
     // 弹幕叠加层设置
     public bool DanmakuNotificationEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuNotificationEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuNotificationEnabled)), value);
     }
 
     public bool DanmakuMediaCardEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuMediaCardEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuMediaCardEnabled)), value);
     }
 
     public bool DanmakuSuperIslandEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuSuperIslandEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuSuperIslandEnabled)), value);
     }
 
     public bool GamebarRelayEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(GamebarRelayEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(GamebarRelayEnabled)), value);
     }
 
     public int DanmakuFontSizePercent
     {
-        get => Get(50);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuFontSizePercent)), 50);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuFontSizePercent)), value);
     }
 
     public int DanmakuSpeed
     {
-        get => Get(3);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuSpeed)), 3);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuSpeed)), value);
     }
 
     public int DanmakuOpacityPercent
     {
-        get => Get(100);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuOpacityPercent)), 100);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuOpacityPercent)), value);
     }
 
     public int DanmakuDisplayAreaPercent
     {
-        get => Get(100);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuDisplayAreaPercent)), 100);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuDisplayAreaPercent)), value);
     }
 
     public int DanmakuDensity
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuDensity)), 0);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuDensity)), value);
     }
 
     public string DanmakuFontFamily
     {
-        get => Get("Microsoft YaHei")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuFontFamily)), "Microsoft YaHei")!;
+        set => _configuration.Set(SettingsKey(nameof(DanmakuFontFamily)), value);
     }
 
     public bool DanmakuBold
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuBold)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuBold)), value);
     }
 
     public string DanmakuColor
     {
-        get => Get("#FFFFFF")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuColor)), "#FFFFFF")!;
+        set => _configuration.Set(SettingsKey(nameof(DanmakuColor)), value);
     }
 
     public bool DanmakuBorderEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuBorderEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuBorderEnabled)), value);
     }
 
     public int DanmakuBorderThickness
     {
-        get => Get(2);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuBorderThickness)), 2);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuBorderThickness)), value);
     }
 
     public string DanmakuBorderColor
     {
-        get => Get("#000000")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuBorderColor)), "#000000")!;
+        set => _configuration.Set(SettingsKey(nameof(DanmakuBorderColor)), value);
     }
 
     public bool DanmakuShadowEnabled
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuShadowEnabled)), true);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuShadowEnabled)), value);
     }
 
     public int DanmakuShadowDepth
     {
-        get => Get(2);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuShadowDepth)), 2);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuShadowDepth)), value);
     }
 
     public int DanmakuShadowOpacity
     {
-        get => Get(100);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuShadowOpacity)), 100);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuShadowOpacity)), value);
     }
 
     public string DanmakuShadowColor
     {
-        get => Get("#000000")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuShadowColor)), "#000000")!;
+        set => _configuration.Set(SettingsKey(nameof(DanmakuShadowColor)), value);
     }
 
     public int DanmakuDisplayScreenMode
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuDisplayScreenMode)), 0);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuDisplayScreenMode)), value);
     }
 
     public int DanmakuPerformanceMode
     {
-        get => Get(0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DanmakuPerformanceMode)), 0);
+        set => _configuration.Set(SettingsKey(nameof(DanmakuPerformanceMode)), value);
     }
 
     // 心率覆盖层设置
     public bool HeartRateOverlayEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateOverlayEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateOverlayEnabled)), value);
     }
 
     public int HeartRateStyle
     {
-        get => Get(1);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateStyle)), 1);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateStyle)), value);
     }
 
     public string HeartRateTargetScreen
     {
-        get => Get("PRIMARY")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateTargetScreen)), "PRIMARY")!;
+        set => _configuration.Set(SettingsKey(nameof(HeartRateTargetScreen)), value);
     }
 
     public int HeartRateXPercent
     {
-        get => Get(90);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateXPercent)), 90);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateXPercent)), value);
     }
 
     public int HeartRateYPercent
     {
-        get => Get(85);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateYPercent)), 85);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateYPercent)), value);
     }
 
     public string HeartRateColor
     {
-        get => Get("#FFFFFF")!;
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateColor)), "#FFFFFF")!;
+        set => _configuration.Set(SettingsKey(nameof(HeartRateColor)), value);
     }
 
     public float HeartRateTextOutlineWidth
     {
-        get => Get(2f);
-        set => Set(Math.Clamp(value, 0.1f, 3f));
+        get => _configuration.Get(SettingsKey(nameof(HeartRateTextOutlineWidth)), 2f);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateTextOutlineWidth)), Math.Clamp(value, 0.1f, 3f));
     }
 
     public bool HeartRateAlertEnabled
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateAlertEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateAlertEnabled)), value);
     }
 
     public int HeartRateLowAlert
     {
-        get => Get(50);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateLowAlert)), 50);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateLowAlert)), value);
     }
 
     public int HeartRateHighAlert
     {
-        get => Get(120);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateHighAlert)), 120);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateHighAlert)), value);
     }
 
     public int HeartRateSpikeDelta
     {
-        get => Get(20);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateSpikeDelta)), 20);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateSpikeDelta)), value);
     }
 
     public float HeartRateScale
     {
-        get => Get(1f);
-        set => Set(Math.Clamp(value, 0.5f, 2f));
+        get => _configuration.Get(SettingsKey(nameof(HeartRateScale)), 1f);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateScale)), Math.Clamp(value, 0.5f, 2f));
     }
 
     // 动态光效设置
     public bool EnableDynamicLighting
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(EnableDynamicLighting)), false);
+        set => _configuration.Set(SettingsKey(nameof(EnableDynamicLighting)), value);
     }
 
     public bool EnableAutoRGB
     {
-        get => Get(false);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(EnableAutoRGB)), false);
+        set => _configuration.Set(SettingsKey(nameof(EnableAutoRGB)), value);
     }
 
     public double DynamicLightingBrightness
     {
-        get => Get(1.0);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(DynamicLightingBrightness)), 1.0);
+        set => _configuration.Set(SettingsKey(nameof(DynamicLightingBrightness)), value);
     }
 
     public string? DynamicLightingColor
     {
-        get => Get<string?>(null);
-        set => Set(value);
+        get => _configuration.Get<string?>(SettingsKey(nameof(DynamicLightingColor)), null);
+        set => _configuration.Set(SettingsKey(nameof(DynamicLightingColor)), value);
     }
 
     public string? DynamicLightingEffect
     {
-        get => Get<string?>(null);
-        set => Set(value);
+        get => _configuration.Get<string?>(SettingsKey(nameof(DynamicLightingEffect)), null);
+        set => _configuration.Set(SettingsKey(nameof(DynamicLightingEffect)), value);
     }
 
     public int AutoRGBUpdateInterval
     {
-        get => Get(5000);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(AutoRGBUpdateInterval)), 5000);
+        set => _configuration.Set(SettingsKey(nameof(AutoRGBUpdateInterval)), value);
     }
 
     public bool EnableSendMediaNotifications
     {
-        get => Get(true);
-        set => Set(value);
+        get => _configuration.Get(SettingsKey(nameof(EnableSendMediaNotifications)), true);
+        set => _configuration.Set(SettingsKey(nameof(EnableSendMediaNotifications)), value);
     }
 }
