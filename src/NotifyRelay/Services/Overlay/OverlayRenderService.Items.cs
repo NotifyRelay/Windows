@@ -11,7 +11,16 @@ public partial class OverlayRenderService
         text = text.Replace("\r", " ").Replace("\n", " ");
 
         DanmakuStyleSettings style;
-        lock (_lock) style = _currentStyle;
+        if (Monitor.TryEnter(_lock, 2000))
+        {
+            try { style = _currentStyle; }
+            finally { Monitor.Exit(_lock); }
+        }
+        else
+        {
+            // 渲染线程异常持锁超时：退化为直接引用读取（引用赋值原子），弹幕仍可入队显示
+            style = _currentStyle;
+        }
 
         // 入队，由渲染线程按多屏模式分发到各屏覆盖层
         _requests.Enqueue(new DanmakuRequest
@@ -24,7 +33,13 @@ public partial class OverlayRenderService
 
     public void ShowMediaCard(string deviceId, string deviceName, string title, string artist, byte[]? coverPng, bool isPlaying)
     {
-        lock (_lock)
+        // 有界等待：渲染线程异常持锁超时则跳过本次更新，避免业务线程无限阻塞拖死应用
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过媒体卡片更新");
+            return;
+        }
+        try
         {
             var existing = _topItems.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
             if (existing != null)
@@ -86,11 +101,20 @@ public partial class OverlayRenderService
             };
             _topItems.Add(item);
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     public void RemoveMediaCard(string deviceId)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过媒体卡片移除");
+            return;
+        }
+        try
         {
             var item = _topItems.OfType<MediaCardItem>().FirstOrDefault(m => m.DeviceId == deviceId);
             if (item != null)
@@ -100,11 +124,20 @@ public partial class OverlayRenderService
                 _topItems.Remove(item);
             }
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     public void ShowSuperIsland(string sourceId, string deviceName, SuperIslandState state)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过 SuperIsland 更新");
+            return;
+        }
+        try
         {
             var existing = _topItems.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (existing != null)
@@ -165,11 +198,20 @@ public partial class OverlayRenderService
             };
             _topItems.Add(item);
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     public void RemoveSuperIsland(string sourceId)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过 SuperIsland 移除");
+            return;
+        }
+        try
         {
             var item = _topItems.OfType<SuperIslandItem>().FirstOrDefault(s => s.SourceId == sourceId);
             if (item != null)
@@ -179,11 +221,20 @@ public partial class OverlayRenderService
                 _topItems.Remove(item);
             }
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     public void UpdateStyle(DanmakuStyleSettings settings)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过样式更新");
+            return;
+        }
+        try
         {
             _currentStyle = settings;
             // 性能档位：0=流畅(跟随刷新率) 1=均衡(≤60FPS) 2=游戏(≤30FPS)
@@ -199,12 +250,22 @@ public partial class OverlayRenderService
                 _displayDirty = true;
             }
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     /// <summary>使顶部卡片的设备相关资源失效（覆盖层重建时调用）。</summary>
     private void InvalidateTopItemDeviceResources()
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            // 获取超时则跳过：覆盖层重建后渲染线程会按需懒加载资源，不影响正确性
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过顶部卡片资源失效");
+            return;
+        }
+        try
         {
             foreach (var it in _topItems)
             {
@@ -223,6 +284,10 @@ public partial class OverlayRenderService
                     s.ExtraLayout?.Dispose(); s.ExtraLayout = null;
                 }
             }
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
     }
 }

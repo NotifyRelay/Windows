@@ -34,7 +34,12 @@ public partial class OverlayRenderService
     /// <summary>更新心率覆盖层配置（启用、样式组合、目标屏、位置百分比、颜色）。</summary>
     public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth, float scale, bool alertEnabled, int lowAlert, int highAlert, int spikeDelta)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过心率配置更新");
+            return;
+        }
+        try
         {
             _hrEnabled = enabled;
             _hrStyleFlags = styleFlags;
@@ -56,6 +61,10 @@ public partial class OverlayRenderService
                 _hrHistory.Clear();
             }
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     /// <summary>推送最新心率值（BLE 通知回调线程调用）。</summary>
@@ -65,19 +74,33 @@ public partial class OverlayRenderService
         // 最小单位 5 bpm，避免过小波动导致统计图剧烈变化
         int q = (int)Math.Round(bpm / 5.0) * 5;
         if (q <= 0) return;
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            // 渲染线程异常持锁超时：丢弃本帧数据，避免业务线程无限阻塞
+            return;
+        }
+        try
         {
             _hrBpm = bpm;              // 显示与异常判定使用原始值
             _hrHistory.Add(q);         // 统计图使用量化值（最小单位 5 bpm）
             if (_hrHistory.Count > HrHistoryMax)
                 _hrHistory.RemoveAt(0);
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     /// <summary>设置心率设备连接状态；断开时清空当前值与历史。</summary>
     public void SetHeartRateConnected(bool connected)
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过心率连接状态更新");
+            return;
+        }
+        try
         {
             _hrConnected = connected;
             if (!connected)
@@ -86,15 +109,28 @@ public partial class OverlayRenderService
                 _hrHistory.Clear();
             }
         }
+        finally
+        {
+            Monitor.Exit(_lock);
+        }
     }
 
     /// <summary>清空心率显示数据。</summary>
     public void ClearHeartRate()
     {
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            _logger.LogWarning("覆盖层数据锁获取超时，跳过心率数据清空");
+            return;
+        }
+        try
         {
             _hrBpm = -1;
             _hrHistory.Clear();
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
     }
 
@@ -105,7 +141,12 @@ public partial class OverlayRenderService
     /// <summary>心率覆盖层是否需要保持渲染（启用即显示，未连接时显示占位）。</summary>
     private bool HeartRateActive()
     {
-        lock (_lock) return _hrEnabled;
+        if (Monitor.TryEnter(_lock, 2000))
+        {
+            try { return _hrEnabled; }
+            finally { Monitor.Exit(_lock); }
+        }
+        return false;   // 锁被异常持有：跳过本帧判定
     }
 
     /// <summary>判断指定覆盖层窗口是否为心率显示目标屏（匹配不到目标屏时回退主屏）。</summary>
@@ -113,10 +154,18 @@ public partial class OverlayRenderService
     {
         if (o.IsSpan) return false;
         string target;
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            return false;   // 锁被异常持有：本帧不绘制心率
+        }
+        try
         {
             if (!_hrEnabled) return false;
             target = _hrTargetScreen;
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
         if (target != "PRIMARY")
         {
@@ -158,7 +207,11 @@ public partial class OverlayRenderService
         Color4 textColor, strokeColor;
         int[] history;
         bool alert;
-        lock (_lock)
+        if (!Monitor.TryEnter(_lock, 2000))
+        {
+            return;   // 渲染线程持锁异常时跳过本帧心率绘制
+        }
+        try
         {
             if (!_hrEnabled) return;
             bpm = _hrBpm;
@@ -188,6 +241,10 @@ public partial class OverlayRenderService
                 else alert = false;
             }
             history = [.. _hrHistory];
+        }
+        finally
+        {
+            Monitor.Exit(_lock);
         }
 
         bool showText = (flags & 1) != 0;

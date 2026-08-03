@@ -17,63 +17,79 @@ public partial class OverlayRenderService
         float screenWidth = overlay.Width;
         float y = 10;
 
-        lock (_lock)
+        // 锁内仅做轻量快照与超时移除；资源加载与绘制移到锁外，避免渲染线程长时间持锁
+        List<MediaCardItem> mediaItems;
+        List<SuperIslandItem> superItems;
+        if (Monitor.TryEnter(_lock, 2000))
         {
-            var mediaItems = _topItems.OfType<MediaCardItem>().Where(m => m.Active).ToList();
-            var superItems = _topItems.OfType<SuperIslandItem>().Where(s => s.Active).ToList();
-
-            // Remove timed out items
-            for (int i = mediaItems.Count - 1; i >= 0; i--)
+            try
             {
-                var elapsed = (now - mediaItems[i].LastUpdateTime) / freq;
-                if (elapsed > MediaCardItem.TimeoutSeconds)
+                mediaItems = _topItems.OfType<MediaCardItem>().Where(m => m.Active).ToList();
+                superItems = _topItems.OfType<SuperIslandItem>().Where(s => s.Active).ToList();
+
+                // Remove timed out items
+                for (int i = mediaItems.Count - 1; i >= 0; i--)
                 {
-                    mediaItems[i].Active = false;
-                    mediaItems[i].Dispose();
-                    _topItems.Remove(mediaItems[i]);
-                    mediaItems.RemoveAt(i);
+                    var elapsed = (now - mediaItems[i].LastUpdateTime) / freq;
+                    if (elapsed > MediaCardItem.TimeoutSeconds)
+                    {
+                        mediaItems[i].Active = false;
+                        mediaItems[i].Dispose();
+                        _topItems.Remove(mediaItems[i]);
+                        mediaItems.RemoveAt(i);
+                    }
+                }
+                for (int i = superItems.Count - 1; i >= 0; i--)
+                {
+                    var elapsed = (now - superItems[i].LastUpdateTime) / freq;
+                    if (elapsed > SuperIslandItem.TimeoutSeconds)
+                    {
+                        superItems[i].Active = false;
+                        superItems[i].Dispose();
+                        _topItems.Remove(superItems[i]);
+                        superItems.RemoveAt(i);
+                    }
                 }
             }
-            for (int i = superItems.Count - 1; i >= 0; i--)
+            finally
             {
-                var elapsed = (now - superItems[i].LastUpdateTime) / freq;
-                if (elapsed > SuperIslandItem.TimeoutSeconds)
-                {
-                    superItems[i].Active = false;
-                    superItems[i].Dispose();
-                    _topItems.Remove(superItems[i]);
-                    superItems.RemoveAt(i);
-                }
+                Monitor.Exit(_lock);
+            }
+        }
+        else
+        {
+            // 锁被异常持有：跳过本帧顶部卡片渲染
+            overlay.TopOffset = y;
+            return;
+        }
+
+        // Render media card (max 1) — 居中灵动岛胶囊
+        var media = mediaItems.FirstOrDefault();
+        if (media != null)
+        {
+            // 自动收起：媒体字段变更后 5 秒自动收起
+            if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
+            {
+                media.IsExpanded = false;
             }
 
-            // Render media card (max 1) — 居中灵动岛胶囊
-            var media = mediaItems.FirstOrDefault();
-            if (media != null)
-            {
-                // 自动收起：媒体字段变更后 5 秒自动收起
-                if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
-                {
-                    media.IsExpanded = false;
-                }
+            EnsureMediaResources(media, rt);
+            DrawMediaCard(media, rt, screenWidth, y, now, freq);
+            y += media.IsExpanded ? 108 : 48;
+        }
 
-                EnsureMediaResources(media, rt);
-                DrawMediaCard(media, rt, screenWidth, y, now, freq);
-                y += media.IsExpanded ? 108 : 48;
+        // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
+        foreach (var si in superItems.Take(3))
+        {
+            // 自动收起：Extra 信息展示后 5 秒自动收起为紧凑模式
+            if (si.IsExpanded && si.State.HasExtra && (now - si.ExpandedSince) / freq > SuperIslandItem.AutoCollapseSeconds)
+            {
+                si.IsExpanded = false;
             }
 
-            // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
-            foreach (var si in superItems.Take(3))
-            {
-                // 自动收起：Extra 信息展示后 5 秒自动收起为紧凑模式
-                if (si.IsExpanded && si.State.HasExtra && (now - si.ExpandedSince) / freq > SuperIslandItem.AutoCollapseSeconds)
-                {
-                    si.IsExpanded = false;
-                }
-
-                EnsureSuperIslandResources(si, rt);
-                DrawSuperIslandCard(si, rt, screenWidth, y);
-                y += si.IsExpanded ? 110 : 84;
-            }
+            EnsureSuperIslandResources(si, rt);
+            DrawSuperIslandCard(si, rt, screenWidth, y);
+            y += si.IsExpanded ? 110 : 84;
         }
 
         overlay.TopOffset = y;

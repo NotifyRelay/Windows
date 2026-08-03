@@ -18,9 +18,10 @@ public partial class OverlayRenderService
     private const int SW_SHOWNOACTIVATE = 4;
     private const uint WM_DISPLAYCHANGE = 0x007E;
     private const uint WM_TIMER = 0x0113;
-    private const int EVENT_SYSTEM_FOREGROUND = 0x0003;
-    private const uint WINEVENT_OUTOFCONTEXT = 0x0000;
-    private const uint WINEVENT_SKIPOWNPROCESS = 0x0002;
+    private const uint WM_CLOSE = 0x0010;
+    private const uint WM_NULL = 0x0000;
+    private const int GWL_EXSTYLE = -20;
+    private const uint SMTO_ABORTIFHUNG = 0x0002;
     private static readonly IntPtr REASSERT_TIMER_ID = new(1);
     private const uint REASSERT_DELAY_MS = 150;
     private const uint SWP_NOMOVE = 0x0002;
@@ -137,19 +138,6 @@ public partial class OverlayRenderService
     [DllImport("user32.dll")]
     private static extern bool KillTimer(IntPtr hWnd, IntPtr nIDEvent);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern IntPtr SetWinEventHook(
-        uint eventMin, uint eventMax, IntPtr hmodWinEventProc,
-        WinEventProc lpfnWinEventProc, uint idProcess, uint idThread, uint dwFlags);
-
-    [DllImport("user32.dll")]
-    private static extern bool UnhookWinEvent(IntPtr hWinEventHook);
-
-    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate void WinEventProc(
-        IntPtr hWinEventHook, uint eventId, IntPtr hwnd,
-        int idObject, int idChild, uint dwEventThread, uint dwmsEventTime);
-
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool PeekMessageW(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax, uint wRemoveMsg);
 
@@ -202,10 +190,20 @@ public partial class OverlayRenderService
     [DllImport("winmm.dll")]
     private static extern uint timeEndPeriod(uint uPeriod);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SendMessageTimeoutW(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr result);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
     // 稳定的“控制窗口”：仅用于承载计时器与 WndProc 消息，生命周期贯穿服务，不被 SyncOverlays 重建
     private IntPtr _ctrlHwnd;
-    private WinEventProc? _winEventProc;
-    private IntPtr _winEventHook;
 
     private IntPtr WndProc(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
     {
@@ -217,7 +215,7 @@ public partial class OverlayRenderService
         }
         else if (msg == WM_TIMER && wParam == (uint)REASSERT_TIMER_ID)
         {
-            // 延迟任务到期：在本 UI 线程(WndProc)中真正执行窗口 z-order 重断言
+            // 延迟任务到期：在本渲染线程(WndProc)中真正执行窗口 z-order 重断言
             KillTimer(hWnd, REASSERT_TIMER_ID);
             ReassertTopmost();
         }
@@ -234,24 +232,8 @@ public partial class OverlayRenderService
             IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
     }
 
-    /// <summary>安装前台窗口变更钩子，覆盖“游戏退出恢复窗口化”等 z-order 被重建的场景。</summary>
-    private void InstallForegroundHook()
-    {
-        _winEventProc = OnWinEvent;
-        _winEventHook = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
-            IntPtr.Zero, _winEventProc, 0, 0,
-            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS);
-    }
-
     private void UninstallHookAndControlWindow()
     {
-        if (_winEventHook != IntPtr.Zero)
-        {
-            UnhookWinEvent(_winEventHook);
-            _winEventHook = IntPtr.Zero;
-            _winEventProc = null;
-        }
         if (_ctrlHwnd != IntPtr.Zero)
         {
             KillTimer(_ctrlHwnd, REASSERT_TIMER_ID);
@@ -263,18 +245,14 @@ public partial class OverlayRenderService
     /// <summary>
     /// 预约一次延迟的 TOPMOST 重断言（由 WndProc 在 WM_TIMER 中执行）。
     /// 防抖：短时间内重复触发时重置计时器，仅最后一次触发后延迟一次刷新。
+    /// 仅由显示模式变化（WM_DISPLAYCHANGE）与覆盖层重新显示时触发，不再监听前台窗口变更，
+    /// 避免切换窗口（如打开任务管理器）时覆盖层抢占层级导致系统窗口无法操作。
     /// </summary>
     private void ScheduleReassertTopmost()
     {
         if (_ctrlHwnd == IntPtr.Zero) return;
         KillTimer(_ctrlHwnd, REASSERT_TIMER_ID);
         SetTimer(_ctrlHwnd, REASSERT_TIMER_ID, REASSERT_DELAY_MS, IntPtr.Zero);
-    }
-
-    private void OnWinEvent(IntPtr hWinEventHook, uint eventId, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
-    {
-        if (eventId == EVENT_SYSTEM_FOREGROUND)
-            ScheduleReassertTopmost();
     }
 
     #endregion

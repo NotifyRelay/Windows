@@ -23,6 +23,16 @@ public sealed partial class OverlayRenderService : IDisposable
     private WndProcDelegate? _wndProcDelegate;
     private bool _classRegistered;
 
+    // 渲染线程心跳 + 看门狗（故障隔离）：渲染循环每帧更新心跳，
+    // 看门狗线程检测心跳超时后清除置顶并自动恢复，避免覆盖层卡死拖死整个应用。
+    private long _lastHeartbeatTick;
+    private Thread? _watchdogThread;
+    private const int WatchdogIntervalMs = 2000;     // 看门狗轮询间隔
+    private const int HeartbeatTimeoutMs = 10000;    // 心跳超时阈值（判定卡死）
+    private const int WindowProbeTimeoutMs = 800;    // 窗口响应探测超时
+    private int _consecutiveRenderFails;
+    private const int MaxConsecutiveRenderFails = 60;
+
     // 每屏一个覆盖层窗口；顶部媒体/SuperIsland 卡片仅渲染在主屏覆盖层。
     private readonly List<ScreenOverlay> _overlays = [];
     private ScreenOverlay? _primaryOverlay;
@@ -93,9 +103,15 @@ public sealed partial class OverlayRenderService : IDisposable
         // 启动时从已保存设置初始化样式，避免首条弹幕使用默认值（需手动调节才生效）
         LoadInitialStyle();
         LoadInitialHeartRateConfig();
+        Interlocked.Exchange(ref _lastHeartbeatTick, Stopwatch.GetTimestamp());
         _renderThread = new Thread(RenderLoop) { IsBackground = true, Name = "D2D-Overlay" };
         _renderThread.SetApartmentState(ApartmentState.STA);
         _renderThread.Start();
+        if (_watchdogThread == null || !_watchdogThread.IsAlive)
+        {
+            _watchdogThread = new Thread(WatchdogLoop) { IsBackground = true, Name = "D2D-Overlay-Watchdog" };
+            _watchdogThread.Start();
+        }
     }
 
     /// <summary>从已保存的设置构建初始样式并写入 _currentStyle / _maxFps。</summary>
@@ -164,7 +180,6 @@ public sealed partial class OverlayRenderService : IDisposable
             EnsureWindowClass();
             SyncOverlays();
             _ctrlHwnd = CreateControlWindow();
-            InstallForegroundHook();
 
             var timer = Stopwatch.StartNew();
             double nextFrame = 0;
@@ -178,6 +193,9 @@ public sealed partial class OverlayRenderService : IDisposable
                     TranslateMessage(ref msg);
                     DispatchMessageW(ref msg);
                 }
+
+                // 渲染线程心跳：供看门狗检测卡死（消息泵或渲染卡住都会停止更新）
+                Interlocked.Exchange(ref _lastHeartbeatTick, Stopwatch.GetTimestamp());
 
                 // 定期检测显示器热插拔 / 模式变更
                 if ((frameCount++ & 63) == 0 || _displayDirty)
@@ -225,14 +243,32 @@ public sealed partial class OverlayRenderService : IDisposable
                     nextFrame = timer.Elapsed.TotalSeconds + frameTime;
                 }
 
-                double ts = Stopwatch.GetTimestamp();
-                double freq = Stopwatch.Frequency;
-                foreach (var o in _overlays)
-                    RenderOverlay(o, ts, freq);
-                anyVisible = true;
+                // 单帧渲染保护：失败时记录并继续，连续失败过多则退出循环交由看门狗恢复
+                try
+                {
+                    double ts = Stopwatch.GetTimestamp();
+                    double freq = Stopwatch.Frequency;
+                    foreach (var o in _overlays)
+                        RenderOverlay(o, ts, freq);
+                    anyVisible = true;
 
-                // 流畅档：跟随显示器刷新率
-                if (maxFps <= 0) DwmFlush();
+                    // 流畅档：跟随显示器刷新率
+                    if (maxFps <= 0) DwmFlush();
+                    _consecutiveRenderFails = 0;
+                }
+                catch (Exception ex)
+                {
+                    _consecutiveRenderFails++;
+                    if (_consecutiveRenderFails == 1 || _consecutiveRenderFails % 10 == 0)
+                        OverlayCrashLog.Write($"覆盖层渲染帧失败 #{_consecutiveRenderFails}", ex);
+                    if (_consecutiveRenderFails >= MaxConsecutiveRenderFails)
+                    {
+                        OverlayCrashLog.Write("覆盖层渲染连续失败次数过多，退出渲染循环，交由看门狗恢复");
+                        _logger.LogError(ex, "OverlayRenderService 渲染连续失败 {Count} 次，退出渲染循环", _consecutiveRenderFails);
+                        break;
+                    }
+                    Thread.Sleep(100);
+                }
             }
         }
         catch (Exception ex)
@@ -244,6 +280,78 @@ public sealed partial class OverlayRenderService : IDisposable
         {
             UninstallHookAndControlWindow();
             timeEndPeriod(1);
+            // 渲染线程退出时销毁自身创建的窗口，避免全屏覆盖层滞留屏幕抢占鼠标/层级
+            CleanupOverlays();
+        }
+    }
+
+    /// <summary>看门狗线程：周期性检查渲染线程心跳，超时则执行故障隔离与自动恢复。</summary>
+    private void WatchdogLoop()
+    {
+        while (true)
+        {
+            Thread.Sleep(WatchdogIntervalMs);
+            if (!_running) continue;   // 正常停止中，跳过
+            long last = Interlocked.Read(ref _lastHeartbeatTick);
+            if (last == 0) continue;
+            long elapsedMs = (Stopwatch.GetTimestamp() - last) * 1000 / Stopwatch.Frequency;
+            if (elapsedMs > HeartbeatTimeoutMs)
+                RecoverFromHang(elapsedMs);
+        }
+    }
+
+    /// <summary>
+    /// 覆盖层卡死故障隔离：
+    /// 1) 停止渲染循环；2) 清除所有覆盖层窗口 TOPMOST（不依赖窗口消息泵，立即恢复系统可操作性）；
+    /// 3) 等待旧渲染线程退出（在本线程内 Join，不阻塞业务线程）；4) 确认退出后清理残留窗口并自动重启。
+    /// 若渲染线程永久无法退出，则保持隔离状态（窗口已不再置顶），覆盖层停止工作但不影响系统。
+    /// </summary>
+    private void RecoverFromHang(long elapsedMs)
+    {
+        OverlayCrashLog.Write($"覆盖层渲染线程疑似卡死 {elapsedMs}ms，执行故障隔离与自动恢复");
+        _logger.LogWarning("覆盖层渲染线程疑似卡死 {ElapsedMs}ms，执行故障隔离与自动恢复", elapsedMs);
+
+        _running = false;
+
+        // 探测渲染线程消息泵是否仍响应（SMTO_ABORTIFHUNG 超时立即返回，不阻塞看门狗线程）
+        if (_ctrlHwnd != IntPtr.Zero)
+            SendMessageTimeoutW(_ctrlHwnd, WM_NULL, IntPtr.Zero, IntPtr.Zero,
+                SMTO_ABORTIFHUNG, WindowProbeTimeoutMs, out _);
+
+        // 兜底清除置顶：SetWindowLongPtr 不依赖窗口消息泵，即使窗口线程卡死也立即生效
+        foreach (var o in _overlays)
+        {
+            if (o.Hwnd == IntPtr.Zero || !IsWindow(o.Hwnd)) continue;
+            long exStyle = GetWindowLongPtr(o.Hwnd, GWL_EXSTYLE).ToInt64();
+            if ((exStyle & WS_EX_TOPMOST) != 0)
+                SetWindowLongPtr(o.Hwnd, GWL_EXSTYLE, new IntPtr(exStyle & ~WS_EX_TOPMOST));
+        }
+
+        // 等待旧渲染线程退出（卡死的线程恢复后会在 finally 中自毁窗口）
+        var dead = _renderThread;
+        _renderThread = null;
+        bool exited = dead == null;
+        for (int i = 0; i < 20 && !exited; i++)
+        {
+            dead!.Join(500);
+            exited = !dead.IsAlive;
+        }
+
+        if (exited)
+        {
+            // 旧线程可能未执行 finally：清理控制窗口与覆盖层窗口，由重启后的新线程重建
+            if (_ctrlHwnd != IntPtr.Zero)
+            {
+                DestroyWindow(_ctrlHwnd);
+                _ctrlHwnd = IntPtr.Zero;
+            }
+            CleanupOverlays();
+            Start();
+            _logger.LogWarning("覆盖层渲染线程已恢复并重启");
+        }
+        else
+        {
+            _logger.LogError("覆盖层渲染线程永久卡死无法退出，已隔离（清除置顶），覆盖层停止工作，请重启应用恢复");
         }
     }
 
