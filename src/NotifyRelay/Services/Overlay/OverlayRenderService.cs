@@ -47,6 +47,11 @@ public sealed partial class OverlayRenderService : IDisposable
     // 弹幕请求队列（跨线程），由渲染线程分发到各屏覆盖层
     private readonly ConcurrentQueue<DanmakuRequest> _requests = new();
 
+    // 延迟释放队列：D2D/DWrite 对象只在渲染线程释放；
+    // 业务线程（媒体/BLE 推送等）一律入队，由渲染线程每帧开头统一释放，
+    // 避免绘制期间并发释放导致本机崩溃（ExecutionEngineException）。
+    private readonly ConcurrentQueue<IDisposable> _released = new();
+
     private DanmakuStyleSettings _currentStyle = new();
     private volatile int _maxFps;         // 0 = 跟随刷新率(DwmFlush)；否则为帧率上限
     private int _screenMode;              // 当前多屏模式，变化时触发覆盖层重建
@@ -196,6 +201,9 @@ public sealed partial class OverlayRenderService : IDisposable
 
                 // 渲染线程心跳：供看门狗检测卡死（消息泵或渲染卡住都会停止更新）
                 Interlocked.Exchange(ref _lastHeartbeatTick, Stopwatch.GetTimestamp());
+
+                // 释放业务线程延迟入队的 D2D/DWrite 对象（锁外，绘制前统一执行）
+                FlushReleasedResources();
 
                 // 定期检测显示器热插拔 / 模式变更
                 if ((frameCount++ & 63) == 0 || _displayDirty)
@@ -566,6 +574,28 @@ public sealed partial class OverlayRenderService : IDisposable
         {
             foreach (var item in _topItems) item.Dispose();
             _topItems.Clear();
+        }
+    }
+
+    /// <summary>
+    /// 业务线程延迟释放 D2D/DWrite 对象：仅入队，不直接释放，
+    /// 由渲染线程在安全时机（绘制前、对象已脱离快照）统一执行。
+    /// </summary>
+    private void DeferDispose(IDisposable? d)
+    {
+        if (d != null) _released.Enqueue(d);
+    }
+
+    /// <summary>渲染线程调用：释放业务线程入队的 D2D/DWrite 对象（仅在渲染线程执行释放）。</summary>
+    private void FlushReleasedResources()
+    {
+        while (_released.TryDequeue(out var d))
+        {
+            try { d.Dispose(); }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "延迟释放覆盖层资源失败");
+            }
         }
     }
 

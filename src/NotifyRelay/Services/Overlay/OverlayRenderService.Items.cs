@@ -50,21 +50,21 @@ public partial class OverlayRenderService
                 if (!string.IsNullOrEmpty(title) && title != existing.Title)
                 {
                     existing.Title = title;
-                    existing.TitleLayout?.Dispose();
+                    DeferDispose(existing.TitleLayout);
                     existing.TitleLayout = null;
                     titleChanged = true;
                 }
                 if (!string.IsNullOrEmpty(artist) && artist != existing.Artist)
                 {
                     existing.Artist = artist;
-                    existing.ArtistLayout?.Dispose();
+                    DeferDispose(existing.ArtistLayout);
                     existing.ArtistLayout = null;
                     artistChanged = true;
                 }
                 if (coverPng != null)
                 {
                     existing.CoverPng = coverPng;
-                    existing.CoverBitmap?.Dispose();
+                    DeferDispose(existing.CoverBitmap);
                     existing.CoverBitmap = null;
                 }
                 bool playingChanged = existing.IsPlaying != isPlaying;
@@ -120,7 +120,7 @@ public partial class OverlayRenderService
             if (item != null)
             {
                 item.Active = false;
-                item.Dispose();
+                DeferDispose(item);
                 _topItems.Remove(item);
             }
         }
@@ -166,14 +166,14 @@ public partial class OverlayRenderService
 
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
 
-                // 触发 UI 刷新：使缓存的 Layout 失效
-                existing.TitleLayout?.Dispose();
+                // 触发 UI 刷新：使缓存的 Layout 失效（延迟释放，由渲染线程统一执行）
+                DeferDispose(existing.TitleLayout);
                 existing.TitleLayout = null;
-                existing.SubtitleLayout?.Dispose();
+                DeferDispose(existing.SubtitleLayout);
                 existing.SubtitleLayout = null;
-                existing.AdditionalTextLayout?.Dispose();
+                DeferDispose(existing.AdditionalTextLayout);
                 existing.AdditionalTextLayout = null;
-                existing.ExtraLayout?.Dispose();
+                DeferDispose(existing.ExtraLayout);
                 existing.ExtraLayout = null;
 
                 // Extra 变更时重新展开
@@ -217,7 +217,7 @@ public partial class OverlayRenderService
             if (item != null)
             {
                 item.Active = false;
-                item.Dispose();
+                DeferDispose(item);
                 _topItems.Remove(item);
             }
         }
