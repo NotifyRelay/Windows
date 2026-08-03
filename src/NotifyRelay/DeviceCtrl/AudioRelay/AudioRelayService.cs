@@ -8,7 +8,7 @@ public class AudioRelayService : IDisposable
 {
     private readonly ILogger<AudioRelayService> _logger;
 
-    private WasapiLoopbackCapture? _capture;
+    private WasapiRecorder? _capture;
     private WaveOut? _waveOut;
     private BufferedWaveProvider? _waveProvider;
     private CancellationTokenSource? _cts;
@@ -43,7 +43,6 @@ public class AudioRelayService : IDisposable
         _logger.LogInformation("音频中继: 启动发送模式, 远端UUID={RemoteUuid}, 远端IP={RemoteIp}", remoteUuid, remoteIp);
 
         _cts = new CancellationTokenSource();
-        var token = _cts.Token;
 
         _isRunning = true;
 
@@ -57,8 +56,10 @@ public class AudioRelayService : IDisposable
                 return Task.CompletedTask;
             }
 
-            _capture = new WasapiLoopbackCapture();
-            _capture.DataAvailable += (s, e) => OnCaptureDataAvailable(e, token);
+            _capture = new WasapiRecorderBuilder()
+                .WithLoopbackCapture()
+                .Build();
+            _capture.DataAvailable += (buffer, flags, _, _) => OnCaptureDataAvailable(buffer);
             _capture.RecordingStopped += (s, e) =>
             {
                 _logger.LogInformation("音频中继: 捕获已停止");
@@ -103,7 +104,7 @@ public class AudioRelayService : IDisposable
             };
             // 使用默认缓冲区长度（当前 NAudio 版本不允许直接设置 BufferLength/BufferDuration）
 
-            _waveOut = new WaveOutEvent();
+            _waveOut = new WaveOut();
             _waveOut.Init(_waveProvider);
             _waveOut.Play();
 
@@ -197,11 +198,11 @@ public class AudioRelayService : IDisposable
         }
     }
 
-    private void OnCaptureDataAvailable(WaveInEventArgs e, CancellationToken token)
+    private void OnCaptureDataAvailable(ReadOnlySpan<byte> buffer)
     {
-        if (token.IsCancellationRequested || e.BytesRecorded == 0) return;
+        if (_cts is null || _cts.IsCancellationRequested || buffer.Length == 0) return;
 
-        var pcm16 = Float32ToPcm16(e.Buffer, e.BytesRecorded);
+        var pcm16 = Float32ToPcm16(buffer);
         try
         {
             NativeCore.AudioWriteFrame(pcm16);
@@ -212,14 +213,14 @@ public class AudioRelayService : IDisposable
         }
     }
 
-    private static byte[] Float32ToPcm16(byte[] floatBuffer, int bytesRecorded)
+    private static byte[] Float32ToPcm16(ReadOnlySpan<byte> floatBuffer)
     {
-        var sampleCount = bytesRecorded / 4;
+        var sampleCount = floatBuffer.Length / 4;
         var pcm16 = new byte[sampleCount * 2];
 
         for (int i = 0; i < sampleCount; i++)
         {
-            var sample = BitConverter.ToSingle(floatBuffer, i * 4);
+            var sample = BitConverter.ToSingle(floatBuffer.Slice(i * 4, 4));
             var clamped = Math.Clamp(sample, -1.0f, 1.0f);
             var shortVal = (short)(clamped * 32767f);
             pcm16[i * 2] = (byte)(shortVal & 0xFF);

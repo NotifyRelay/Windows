@@ -14,7 +14,7 @@ namespace NotifyRelay.Platforms.Windows.Services;
 /// <summary>
 /// Windows implementation of the platform notification handler
 /// </summary>
-public class WindowsNotificationHandler(ILogger logger, ISessionManager _sessionManager, IDeviceManager deviceManager, ILocalNotificationListenerService localListener, NotificationRepository _notificationRepo) : IPlatformNotificationHandler
+public class WindowsNotificationHandler(ILogger logger, IDeviceManager deviceManager, ILocalNotificationListenerService localListener) : IPlatformNotificationHandler
 {
     private static readonly TimeSpan TempIconMaxAge = TimeSpan.FromDays(1); // 清理 1 天以前的临时图标
     private const string TempIconsFolderName = "Sefirah-pc-icons";

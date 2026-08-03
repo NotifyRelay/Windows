@@ -13,10 +13,7 @@ public class NetworkService(
     ILogger<NetworkService> logger,
     IDeviceManager deviceManager,
     IAdbService adbService,
-    IScreenMirrorService _screenMirrorService,
     ISystemInfoService systemInfoService,
-    ProtocolRouter _protocolRouter,
-    HeartbeatProcessor _heartbeatProcessor,
     IProtocolSender protocolSender,
     Func<IRemoteAppService> remoteAppServiceFactory) : INetworkService, ISessionManager
 {
@@ -229,7 +226,7 @@ public class NetworkService(
                     var localDevice = await deviceManager.GetLocalDeviceAsync();
                     ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
                 }
-                NativeCore.SendPairingResp(localDeviceId, ltPubKey, pairingCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
+                NativeCore.SendPairingResp(localDeviceId ?? string.Empty, ltPubKey, pairingCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
                 logger.LogInformation($"已发送 PAIRING_RESP: {remoteUuid}");
             }
             catch (Exception ex)
@@ -294,7 +291,7 @@ public class NetworkService(
                 {
                     if (aesKey != null) d.SharedSecret = aesKey;
                     d.RemotePublicKey = remoteLtPubKey;
-                    if (!d.IpAddresses.Contains(remoteIp)) d.IpAddresses.Add(remoteIp);
+                    if (!(d.IpAddresses ??= []).Contains(remoteIp)) d.IpAddresses.Add(remoteIp);
                     d.RemoteDeviceType = remoteDeviceType;
                     deviceManager.ActiveDevice = d;
                     ConnectionStatusChanged?.Invoke(this, (d, true));

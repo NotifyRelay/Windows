@@ -8,7 +8,6 @@ namespace NotifyRelay.Services;
 public class RemoteAppService(
     ILogger<RemoteAppService> logger,
     RemoteAppRepository remoteAppRepository,
-    IDeviceManager _deviceManager,
     IProtocolSender protocolSender) : IRemoteAppService
 {
     public async Task ProcessAppListResponseAsync(PairedDevice device, string payload)

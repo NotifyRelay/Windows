@@ -16,12 +16,10 @@ namespace NotifyRelay.Services;
 
 public class NotificationService(
     ILogger logger,
-    ISessionManager _sessionManager,
     IDeviceManager deviceManager,
     IPlatformNotificationHandler platformNotificationHandler,
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
-    Func<INetworkService> _networkServiceFactory,
     Func<IRemoteAppService> remoteAppServiceFactory,
     IPlaybackService playbackService,
     BackendRemoteFilter remoteFilter,
@@ -148,7 +146,7 @@ public class NotificationService(
         var appPackage = root.TryGetProperty("packageName", out var pnProp) && pnProp.ValueKind == JsonValueKind.String ? pnProp.GetString() : null;
         var appName = root.TryGetProperty("appName", out var anProp) ? anProp.GetString() : null;
         var text = root.TryGetProperty("text", out var txProp) ? txProp.GetString() : null;
-        var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) && nkProp.ValueKind == JsonValueKind.String ? nkProp.GetString() : Guid.NewGuid().ToString();
+        var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) && nkProp.ValueKind == JsonValueKind.String ? nkProp.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
         var timeStamp = root.TryGetProperty("time", out var tsProp) && tsProp.ValueKind == JsonValueKind.Number ? tsProp.GetInt64().ToString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         var appIcon = root.TryGetProperty("appIcon", out var aiProp) ? aiProp.GetString() : null;
         var isLocked = root.TryGetProperty("isLocked", out var ilProp) && ilProp.GetBoolean();

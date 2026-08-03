@@ -98,25 +98,25 @@ public sealed partial class DeepSeekBalanceViewModel : ObservableObject
     public ObservableCollection<BalanceHistoryItem> DisplayHistory { get; } = new();
 
     [ObservableProperty]
-    private string _apiToken = string.Empty;
+    public partial string ApiToken { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private bool _isEnabled;
+    public partial bool IsEnabled { get; set; }
 
     [ObservableProperty]
-    private string _currentBalanceText = "当前余额：-- CNY";
+    public partial string CurrentBalanceText { get; set; } = "当前余额：-- CNY";
 
     [ObservableProperty]
-    private string _statusText = "状态：已停止";
+    public partial string StatusText { get; set; } = "状态：已停止";
 
     [ObservableProperty]
-    private string _historyCountText = "暂无历史数据";
+    public partial string HistoryCountText { get; set; } = "暂无历史数据";
 
     [ObservableProperty]
-    private int _selectedIntervalIndex = 1;
+    public partial int SelectedIntervalIndex { get; set; } = 1;
 
     [ObservableProperty]
-    private bool _isCollapsed;
+    public partial bool IsCollapsed { get; set; }
 
     public DeepSeekBalanceViewModel()
     {

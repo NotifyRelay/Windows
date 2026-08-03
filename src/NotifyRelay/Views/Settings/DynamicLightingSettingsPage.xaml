@@ -57,12 +57,12 @@
                         <ListView.ItemTemplate>
                             <DataTemplate x:DataType="worker:LampArrayDeviceDto">
                                 <Grid ColumnDefinitions="Auto, *, Auto">
-                                    <FontIcon Grid.Column="0" Glyph="{x:Bind Kind, Mode=OneWay, Converter={StaticResource LampArrayKindToGlyphConverter}}" Margin="0,0,8,0" />
+                                    <FontIcon Grid.Column="0" Glyph="{x:Bind Kind, Converter={StaticResource LampArrayKindToGlyphConverter}}" Margin="0,0,8,0" />
                                     <StackPanel Grid.Column="1">
                                         <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
                                         <TextBlock Text="{Binding LampCount, Mode=OneWay}" FontSize="12" Foreground="Gray" />
                                     </StackPanel>
-                                    <TextBlock Grid.Column="2" Text="{x:Bind IsAvailable, Mode=OneWay, Converter={StaticResource BoolToStatusConverter}}" FontSize="12" Foreground="{x:Bind IsAvailable, Mode=OneWay, Converter={StaticResource BoolToStatusColorConverter}}" />
+                                    <TextBlock Grid.Column="2" Text="{x:Bind IsAvailable, Converter={StaticResource BoolToStatusConverter}}" FontSize="12" Foreground="{x:Bind IsAvailable, Converter={StaticResource BoolToStatusColorConverter}}" />
                                 </Grid>
                             </DataTemplate>
                         </ListView.ItemTemplate>

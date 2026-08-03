@@ -28,7 +28,7 @@ public partial class OverlayRenderService
     /// 创建文本格式（统一使用字族、字重、字号；字型与拉伸取 Normal）。
     /// </summary>
     private IDWriteTextFormat CreateTextFormat(string fontFamily, DWriteFontWeight weight, float size)
-        => _dwFactory.CreateTextFormat(fontFamily, null, weight, DWriteFontStyle.Normal, DWriteFontStretch.Normal, size);
+        => _dwFactory.CreateTextFormat(fontFamily, null!, weight, DWriteFontStyle.Normal, DWriteFontStretch.Normal, size);
 
     /// <summary>
     /// 创建单行且超出截断的文本布局（NoWrap + 字符级尾随省略号）。

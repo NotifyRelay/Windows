@@ -117,7 +117,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             DeviceId = device.Id,
             Name = device.Name,
             Model = device.Model,
-            IpAddresses = device.IpAddresses,
+            IpAddresses = device.IpAddresses ?? [],
             SharedSecret = device.SharedSecret,
             PublicKey = device.RemotePublicKey,
             HasSentftpRequest = device.HasSentftpRequest,

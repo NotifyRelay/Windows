@@ -76,7 +76,7 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
     }
 }
 
-public class VirtualSpeakerViewModel
+public class VirtualSpeakerViewModel : INotifyPropertyChanged
 {
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly AudioRelayService _audioRelayService;

@@ -15,7 +15,7 @@
     <StackPanel MinWidth="300" Spacing="12">
         <TextBlock
             Style="{ThemeResource BodyTextBlockStyle}"
-            Text="{x:Bind DeviceName, Mode=OneWay}"
+            Text="{x:Bind DeviceName}"
             FontWeight="Bold"
             TextWrapping="Wrap" />
         <TextBlock

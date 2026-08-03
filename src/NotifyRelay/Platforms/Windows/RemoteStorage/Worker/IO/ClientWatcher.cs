@@ -137,7 +137,7 @@ public class ClientWatcher : IDisposable
                             }
                             catch (HFileException)
                             {
-                                _logger.LogWarning("无法为 {path 执行 hydrate 操作（连接可能已丢失）", e.FullPath);
+                                _logger.LogWarning("无法为 {path} 执行 hydrate 操作（连接可能已丢失）", e.FullPath);
                             }
                         }
                     }

@@ -23,7 +23,7 @@ public partial class Notification : ObservableObject
     public string Key { get; set; } = string.Empty;
 
     [ObservableProperty]
-    private bool pinned = false;
+    public partial bool Pinned { get; set; } = false;
 
     public string? TimeStamp { get; set; }
     public NotificationType Type { get; set; }
@@ -38,10 +38,10 @@ public partial class Notification : ObservableObject
 
 
     [ObservableProperty]
-    private BitmapImage? icon;
+    public partial BitmapImage? Icon { get; set; }
 
     [ObservableProperty]
-    private string? iconPath;
+    public partial string? IconPath { get; set; }
 
     // 存储通知来自的设备列表，用于聚合相同内容的通知
     public ObservableCollection<SourceDevice> SourceDevices { get; set; } = new ObservableCollection<SourceDevice>();
@@ -211,7 +211,7 @@ public partial class Notification : ObservableObject
             }
             if (!string.IsNullOrEmpty(text))
             {
-                currentGroup.Messages.Add(text);
+                currentGroup!.Messages.Add(text);
             }
         }
         return result;

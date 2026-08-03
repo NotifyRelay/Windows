@@ -7,7 +7,6 @@ namespace NotifyRelay.Services;
 public abstract class BaseActionService(
     IGeneralSettingsService generalSettingsService,
     IUserSettingsService userSettingsService,
-    ISessionManager _sessionManager,
     ILogger logger) : IActionService
 {
     public virtual Task InitializeAsync()

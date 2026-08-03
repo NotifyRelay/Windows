@@ -182,7 +182,7 @@ public class WindowsPlaybackService(
         bool success = await ExecuteSessionActionAsync(session, source, actionType, value);
 
         // 发送媒体操作响应
-        SendMediaControlResponse(source, actionType, success);
+        SendMediaControlResponse(source, actionType ?? string.Empty, success);
     }
 
     private static (string? Source, string? ActionType, double? Value) ParseMediaActionData(string json)
@@ -289,18 +289,18 @@ public class WindowsPlaybackService(
                         }
                         break;
                     case "DefaultDevice":
-                        SetDefaultAudioDevice(source);
+                        SetDefaultAudioDevice(source ?? string.Empty);
                         success = true;
                         break;
                     case "VolumeUpdate":
                         if (value.HasValue)
                         {
-                            SetVolume(source, Convert.ToSingle(value.Value));
+                            SetVolume(source ?? string.Empty, Convert.ToSingle(value.Value));
                             success = true;
                         }
                         break;
                     case "ToggleMute":
-                        ToggleMute(source);
+                        ToggleMute(source ?? string.Empty);
                         success = true;
                         break;
                     default:

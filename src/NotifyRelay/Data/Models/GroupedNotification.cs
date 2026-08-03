@@ -73,10 +73,10 @@ public partial class GroupedNotification : ObservableObject
     public string FormattedLatestTime => LatestTime.ToString("MM-dd HH:mm");
 
     [ObservableProperty]
-    private bool _hasExtra = false;
+    public partial bool HasExtra { get; set; } = false;
 
     [ObservableProperty]
-    private string _collapsedExtraText = string.Empty;
+    public partial string CollapsedExtraText { get; set; } = string.Empty;
 
     public ObservableCollection<string> Devices
     {
