@@ -91,12 +91,6 @@ public static class NotifyRelayCore
     public static extern int nrc_validate_pairing_code(IntPtr ctx, IntPtr code);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_heartbeat_udp(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_send_discovery(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_send_data_message(IntPtr ctx, IntPtr header, IntPtr localUuid, IntPtr localPubKey, IntPtr remoteUuid, IntPtr plaintext);
 
     // ======== New: OneShot TCP (ctx param, unified timeout) ========
@@ -128,15 +122,19 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
 
-    // ======== Heartbeat sender ========
+    // ======== Heartbeat scheduler (统一心跳调度, 替代 per-device sender) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_start_heartbeat_sender(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, IntPtr ip, ulong intervalMs, int mode);
+    public static extern long nrc_start_heartbeat_scheduler(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ulong intervalMs);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_update_heartbeat_params(IntPtr ctx, long handlePtr, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType);
+    public static extern void nrc_update_heartbeat_scheduler_params(IntPtr ctx, IntPtr name, int battery, IntPtr deviceType);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_stop_heartbeat_sender(IntPtr ctx, long handlePtr);
+    public static extern void nrc_stop_heartbeat_scheduler(IntPtr ctx);
+
+    // ======== Device state snapshot ========
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_get_device_list(IntPtr ctx, long authedTimeoutMs, long unauthedTimeoutMs);
 
     // ======== Offline detector ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -215,12 +213,6 @@ public static class NotifyRelayCore
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_remove_known_device(IntPtr ctx, IntPtr uuid);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_record_discovered_device(IntPtr ctx, IntPtr uuid, IntPtr name, IntPtr ip, ushort port, int battery, IntPtr deviceType);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_get_discovered_devices(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_start_known_device_scanner(IntPtr ctx);
@@ -455,20 +447,6 @@ public static class NotifyRelayCore
             return result;
         }
 
-        public static void SendHeartbeatUdp(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_heartbeat_udp(ctx, u, n, port, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
-        }
-
-        public static void SendDiscovery(IntPtr ctx, string uuid, string name, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_send_discovery(ctx, u, n, port, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
-        }
-
         public static void SendDataMessage(IntPtr ctx, string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
         {
             var h = StringToPtr(header); var u = StringToPtr(localUuid); var k = StringToPtr(localPubKey);
@@ -685,20 +663,30 @@ public static class NotifyRelayCore
             return result;
         }
 
-        // ======== Heartbeat sender ========
-        public static long StartHeartbeatSender(IntPtr ctx, string uuid, string name, int battery, string deviceType, string ip, ulong intervalMs, int mode)
+        // ======== Heartbeat scheduler ========
+        public static long StartHeartbeatScheduler(IntPtr ctx, string uuid, string name, int battery, string deviceType, ulong intervalMs)
         {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType); var i = StringToPtr(ip);
-            var result = NotifyRelayCore.nrc_start_heartbeat_sender(ctx, u, n, battery, d, i, intervalMs, mode);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d); Marshal.FreeHGlobal(i);
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            var result = NotifyRelayCore.nrc_start_heartbeat_scheduler(ctx, u, n, battery, d, intervalMs);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
             return result;
         }
 
-        public static void UpdateHeartbeatParams(IntPtr ctx, long handlePtr, string uuid, string name, int battery, string deviceType)
+        public static void UpdateHeartbeatSchedulerParams(IntPtr ctx, string name, int battery, string deviceType)
         {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_update_heartbeat_params(ctx, handlePtr, u, n, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+            var n = StringToPtr(name); var d = StringToPtr(deviceType);
+            NotifyRelayCore.nrc_update_heartbeat_scheduler_params(ctx, n, battery, d);
+            Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
+        }
+
+        public static void StopHeartbeatScheduler(IntPtr ctx)
+        {
+            NotifyRelayCore.nrc_stop_heartbeat_scheduler(ctx);
+        }
+
+        public static string? GetDeviceList(IntPtr ctx, long authedTimeoutMs, long unauthedTimeoutMs)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_get_device_list(ctx, authedTimeoutMs, unauthedTimeoutMs));
         }
 
         // ======== Offline detector ========
@@ -817,14 +805,6 @@ public static class NotifyRelayCore
             var u = StringToPtr(uuid);
             NotifyRelayCore.nrc_remove_known_device(ctx, u);
             Marshal.FreeHGlobal(u);
-        }
-
-        public static void RecordDiscoveredDevice(IntPtr ctx, string uuid, string? name, string ip, ushort port, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name);
-            var i = StringToPtr(ip); var d = StringToPtr(deviceType);
-            NotifyRelayCore.nrc_record_discovered_device(ctx, u, n, i, port, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(d);
         }
 
         // ======== mDNS ========

@@ -1,5 +1,6 @@
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Text.Json;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
@@ -24,6 +25,8 @@ public class NetworkService(
     private readonly HashSet<string> incompatibleDevices = new();
     private string? localPublicKey;
     private string? localDeviceId;
+    private string? localDeviceName;
+    private System.Threading.Timer? deviceStatePollingTimer;
     private readonly Lazy<IRemoteAppService> remoteAppService = new(remoteAppServiceFactory);
 
     private ObservableCollection<PairedDevice> PairedDevices => deviceManager.PairedDevices;
@@ -45,6 +48,7 @@ public class NetworkService(
             var localDevice = await deviceManager.GetLocalDeviceAsync();
             localPublicKey = NativeCore.GetPublicKey() ?? string.Empty;
             localDeviceId = localDevice.DeviceId;
+            localDeviceName = localDevice.DeviceName;
 
             // 使用 Rust TCP 服务器
             var result = NativeCore.StartTcpServer((ushort)ServerPort);
@@ -58,18 +62,37 @@ public class NetworkService(
                 var battery = systemInfoService.GetSystemBatteryLevel();
                 var isCharging = systemInfoService.GetSystemChargingStatus();
                 var signedBattery = isCharging ? Math.Abs(battery) : -Math.Abs(battery);
-                logger.LogInformation("步骤17-StartServer: 电量获取完成，调用 InitializeNewFeatures");
+                logger.LogInformation("步骤17-StartServer: 电量获取完成，启动统一心跳调度器");
                 NativeCore.CreateSenderQueue();
                 logger.LogInformation("步骤17-StartServer: CreateSenderQueue 完成");
                 NativeCore.StartSenderQueue();
                 logger.LogInformation("步骤17-StartServer: StartSenderQueue 完成");
-                NativeCore.StartHeartbeatSender(localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc", "", 4000, 0);
-                logger.LogInformation("步骤17-StartServer: StartHeartbeatSender 完成");
+                NativeCore.StartHeartbeatScheduler(localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc", 2000);
+                logger.LogInformation("步骤17-StartServer: StartHeartbeatScheduler 完成");
                 NativeCore.StartOfflineDetector(12, 5000);
                 logger.LogInformation("步骤17-StartServer: StartOfflineDetector 完成");
+
+                // 登记已配对设备到 known_devices（心跳调度器与自动扫描依赖此列表）
+                foreach (var paired in PairedDevices.ToList())
+                {
+                    var ip = paired.IpAddresses?.FirstOrDefault();
+                    if (!string.IsNullOrEmpty(ip))
+                    {
+                        NativeCore.AddKnownDevice(paired.Id, ip);
+                    }
+                }
+                logger.LogInformation("步骤17-StartServer: 已登记 {count} 个已配对设备", PairedDevices.Count);
+
                 NativeCore.StartKnownDeviceScanner();
                 logger.LogInformation("步骤17-StartServer: StartKnownDeviceScanner 完成");
-                logger.LogInformation("步骤17-StartServer: InitializeNewFeatures 完成");
+
+                // 启动设备状态快照轮询（1s 拉取 Rust 注册表，与安卓端一致）
+                StartDeviceStatePolling();
+                logger.LogInformation("步骤17-StartServer: 设备状态快照轮询已启动");
+
+                // 订阅电量变化监听（实时推送本机电量/充电状态）
+                systemInfoService.BatteryChanged += OnBatteryChanged;
+                logger.LogInformation("步骤17-StartServer: 电量变化监听已注册");
 
                 // 注册网络变化监听
                 logger.LogInformation("步骤17-StartServer: 注册网络变化监听");
@@ -154,6 +177,12 @@ public class NetworkService(
 
             var nonNullDevice = device!;
             ConnectionStatusChanged?.Invoke(this, (nonNullDevice, true));
+
+            // 登记到 known_devices，供心跳调度器与自动扫描驱动
+            if (!string.IsNullOrEmpty(remoteIpAddress))
+            {
+                NativeCore.AddKnownDevice(device.Id, remoteIpAddress);
+            }
 
             // 延迟请求应用列表，避免阻塞握手
             // 仅对新配对设备自动触发
@@ -296,6 +325,8 @@ public class NetworkService(
                     deviceManager.ActiveDevice = d;
                     ConnectionStatusChanged?.Invoke(this, (d, true));
                 });
+                // 登记到 known_devices，供心跳调度器与自动扫描驱动
+                NativeCore.AddKnownDevice(remoteUuid, remoteIp);
                 logger.LogInformation($"配对完成（更新已有设备）: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
@@ -325,6 +356,8 @@ public class NetworkService(
                     deviceManager.ActiveDevice = d;
                     ConnectionStatusChanged?.Invoke(this, (d, true));
                 });
+                // 登记到 known_devices，供心跳调度器与自动扫描驱动
+                NativeCore.AddKnownDevice(remoteUuid, remoteIp);
                 logger.LogInformation($"新设备配对完成: {remoteUuid}");
                 DelayedRequestAppList(remoteUuid);
             }
@@ -419,6 +452,74 @@ public class NetworkService(
         logger.LogDebug("网络地址变化，通知 Rust core");
         var localIp = NativeCore.GetLocalIp();
         NativeCore.OnNetworkChanged(localIp);
+    }
+
+    /// <summary>
+    /// 启动设备状态快照轮询：每 1s 拉取 Rust 设备注册表，更新电量/在线状态（与安卓端 refreshDevicesFromRust 一致）
+    /// </summary>
+    private void StartDeviceStatePolling()
+    {
+        deviceStatePollingTimer?.Dispose();
+        deviceStatePollingTimer = new System.Threading.Timer(_ => PollDeviceStates(), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void PollDeviceStates()
+    {
+        try
+        {
+            var json = NativeCore.GetDeviceList(12000, 5000);
+            if (string.IsNullOrEmpty(json)) return;
+
+            using var doc = JsonDocument.Parse(json);
+            foreach (var item in doc.RootElement.EnumerateArray())
+            {
+                var uuid = item.TryGetProperty("uuid", out var uuidEl) ? uuidEl.GetString() : null;
+                if (string.IsNullOrEmpty(uuid) || uuid == localDeviceId) continue;
+
+                var device = deviceManager.FindDeviceById(uuid);
+                if (device is null) continue;
+
+                var battery = item.TryGetProperty("battery", out var battEl) ? battEl.GetInt32() : -101;
+                // 未知电量（超出 [-100,100]）不覆盖已显示的电量/充电状态
+                if (Math.Abs(battery) <= 100)
+                {
+                    deviceManager.UpdateDeviceStatus(device, new DeviceStatus
+                    {
+                        BatteryStatus = Math.Abs(battery),
+                        ChargingStatus = battery > 0,
+                    });
+                }
+
+                // online（注册表视角最近心跳活跃）复活连接状态；离线状态由 offline_detector 回调处理
+                var online = item.TryGetProperty("online", out var onlineEl) && onlineEl.GetBoolean();
+                if (online)
+                {
+                    MarkDeviceAlive(device);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "轮询设备状态快照失败");
+        }
+    }
+
+    /// <summary>
+    /// 本机电量/充电状态变化：更新调度器广播参数（内部联动 mDNS 广告 TXT）
+    /// </summary>
+    private void OnBatteryChanged(object? sender, EventArgs e)
+    {
+        try
+        {
+            var battery = systemInfoService.GetSystemBatteryLevel();
+            var isCharging = systemInfoService.GetSystemChargingStatus();
+            var signedBattery = isCharging ? Math.Abs(battery) : -Math.Abs(battery);
+            NativeCore.UpdateHeartbeatSchedulerParams(localDeviceName ?? "", signedBattery, "pc");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "处理电量变化失败");
+        }
     }
 
     private void UpdateDeviceState(PairedDevice device, Action<PairedDevice> update)

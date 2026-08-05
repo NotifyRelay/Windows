@@ -82,6 +82,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     {
         logger.LogInformation("RemoveDevice: 开始移除设备 {deviceId} {deviceName}", device.Id, device.Name);
         NativeCore.RemoveDevice(device.Id);
+        NativeCore.RemoveKnownDevice(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {

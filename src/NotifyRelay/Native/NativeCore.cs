@@ -160,18 +160,6 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
     }
 
-
-
-    public static void SendHeartbeatUdp(string uuid, string name, ushort port, int battery, string deviceType)
-    {
-        NotifyRelayCore.Safe.SendHeartbeatUdp(_ctx, uuid, name, port, battery, deviceType);
-    }
-
-    public static void SendDiscovery(string uuid, string name, ushort port, int battery, string deviceType)
-    {
-        NotifyRelayCore.Safe.SendDiscovery(_ctx, uuid, name, port, battery, deviceType);
-    }
-
     public static void SendDataMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
     {
         NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
@@ -531,26 +519,29 @@ public static class NativeCore
         _callbackRefs.Add(onTcpErrorCb);
     }
 
-    // ======== Heartbeat sender ========
-    private static long _heartbeatHandle;
+    // ======== Heartbeat scheduler ========
     private static long _offlineDetectorHandle;
     private static long _senderQueueHandle;
 
-    public static long StartHeartbeatSender(string uuid, string name, int battery, string deviceType, string ip, ulong intervalMs = 4000, int mode = 0)
+    public static long StartHeartbeatScheduler(string uuid, string name, int battery, string deviceType, ulong intervalMs = 2000)
     {
-        _heartbeatHandle = NotifyRelayCore.Safe.StartHeartbeatSender(_ctx, uuid, name, battery, deviceType, ip, intervalMs, mode);
-        return _heartbeatHandle;
+        return NotifyRelayCore.Safe.StartHeartbeatScheduler(_ctx, uuid, name, battery, deviceType, intervalMs);
     }
 
-    public static void UpdateHeartbeatParams(long handlePtr, string uuid, string name, int battery, string deviceType)
+    public static void UpdateHeartbeatSchedulerParams(string name, int battery, string deviceType)
     {
-        NotifyRelayCore.Safe.UpdateHeartbeatParams(_ctx, handlePtr, uuid, name, battery, deviceType);
+        NotifyRelayCore.Safe.UpdateHeartbeatSchedulerParams(_ctx, name, battery, deviceType);
     }
 
-    public static void StopHeartbeatSender()
+    public static void StopHeartbeatScheduler()
     {
-        NotifyRelayCore.nrc_stop_heartbeat_sender(_ctx, _heartbeatHandle);
-        _heartbeatHandle = 0;
+        NotifyRelayCore.Safe.StopHeartbeatScheduler(_ctx);
+    }
+
+    // ======== Device state snapshot ========
+    public static string? GetDeviceList(long authedTimeoutMs = 12000, long unauthedTimeoutMs = 5000)
+    {
+        return NotifyRelayCore.Safe.GetDeviceList(_ctx, authedTimeoutMs, unauthedTimeoutMs);
     }
 
     // ======== Offline detector ========
@@ -666,16 +657,6 @@ public static class NativeCore
         NotifyRelayCore.Safe.RemoveKnownDevice(_ctx, uuid);
     }
 
-    public static void RecordDiscoveredDevice(string uuid, string? name, string ip, ushort port, int battery, string deviceType)
-    {
-        NotifyRelayCore.Safe.RecordDiscoveredDevice(_ctx, uuid, name, ip, port, battery, deviceType);
-    }
-
-    public static string? GetDiscoveredDevices()
-    {
-        return NotifyRelayCore.PtrToStringAndFree(NotifyRelayCore.nrc_get_discovered_devices(_ctx));
-    }
-
     public static void StartKnownDeviceScanner()
     {
         NotifyRelayCore.nrc_start_known_device_scanner(_ctx);
@@ -700,31 +681,6 @@ public static class NativeCore
     public static void StopMdnsDiscovery()
     {
         NotifyRelayCore.Safe.StopMdnsDiscovery(_ctx);
-    }
-
-    // ======== Initialize new core features ========
-    public static void InitializeNewFeatures(string localDeviceId, string deviceName, int battery, string deviceType)
-    {
-        // 1. 创建发送队列
-        CreateSenderQueue();
-        StartSenderQueue();
-
-        // 2. 启动心跳发送器（UDP 模式）
-        StartHeartbeatSender(localDeviceId, deviceName, battery, deviceType, "", 4000, 0);
-
-        // 3. 启动离线检测
-        StartOfflineDetector(12, 5000);
-
-        // 4. 启动已知设备扫描
-        StartKnownDeviceScanner();
-    }
-
-    public static void StopNewFeatures()
-    {
-        StopHeartbeatSender();
-        StopSenderQueue();
-        NotifyRelayCore.nrc_stop_offline_detector(_ctx);
-        NotifyRelayCore.nrc_stop_known_device_scanner(_ctx);
     }
 
     public static int AudioStart(string direction, int sampleRate, int channels, string remoteUuid)

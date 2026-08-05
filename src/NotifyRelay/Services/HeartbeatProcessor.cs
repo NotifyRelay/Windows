@@ -1,6 +1,5 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Native;
 
 namespace NotifyRelay.Services;
 
@@ -24,9 +23,6 @@ public class HeartbeatProcessor
     public void HandleUdpHeartbeat(string uuid, string? name, ushort port, int battery, string deviceType, string? ip)
     {
         DeviceDiscovered?.Invoke(uuid, name, port, battery, deviceType, ip);
-
-        var actualIp = ip ?? NativeCore.GetLocalIp() ?? "0.0.0.0";
-        NativeCore.RecordDiscoveredDevice(uuid, name, actualIp, port, battery, deviceType);
 
         var targetDevice = _deviceManager.FindDeviceById(uuid);
         if (targetDevice == null) return;
@@ -63,7 +59,6 @@ public class HeartbeatProcessor
     public void HandleMdnsDiscovered(string uuid, string? name, string ip, ushort port, int battery, string deviceType)
     {
         MdnsDeviceDiscovered?.Invoke(uuid, name, ip, port, deviceType);
-        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, battery, deviceType);
     }
 
     private void MarkDeviceAlive(PairedDevice device)

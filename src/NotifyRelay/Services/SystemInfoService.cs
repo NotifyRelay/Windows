@@ -7,10 +7,33 @@ public interface ISystemInfoService
 {
     int GetSystemBatteryLevel();
     bool GetSystemChargingStatus();
+    event EventHandler? BatteryChanged;
 }
 
-public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoService
+public class SystemInfoService : ISystemInfoService
 {
+    private readonly ILogger<SystemInfoService> _logger;
+
+    public event EventHandler? BatteryChanged;
+
+    public SystemInfoService(ILogger<SystemInfoService> logger)
+    {
+        _logger = logger;
+        try
+        {
+            Battery.AggregateBattery.ReportUpdated += OnBatteryReportUpdated;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("注册电量变化监听失败：{ex}", ex);
+        }
+    }
+
+    private void OnBatteryReportUpdated(Battery sender, object args)
+    {
+        BatteryChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>
     /// 获取系统电量百分比
     /// </summary>
@@ -40,7 +63,7 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
         }
         catch (Exception ex)
         {
-            logger.LogWarning("获取系统电量失败：{ex}", ex);
+            _logger.LogWarning("获取系统电量失败：{ex}", ex);
             // 异常情况下返回默认值100%
             return 100;
         }
@@ -64,7 +87,7 @@ public class SystemInfoService(ILogger<SystemInfoService> logger) : ISystemInfoS
         }
         catch (Exception ex)
         {
-            logger.LogWarning("获取系统充电状态失败：{ex}", ex);
+            _logger.LogWarning("获取系统充电状态失败：{ex}", ex);
             // 异常情况下返回默认值false
             return false;
         }
