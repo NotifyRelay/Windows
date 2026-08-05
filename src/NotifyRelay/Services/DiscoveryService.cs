@@ -39,15 +39,15 @@ public class DiscoveryService(
 
             var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
-            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, localDevice.DeviceName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc");
-            NativeCore.StartMdnsDiscovery();
-            logger.LogInformation("Rust mDNS 服务已启动");
-
-            // 通过 Rust 内核启动周期性设备广播
             var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
             var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
             var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
+            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, localDevice.DeviceName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc", signedBattery);
+            NativeCore.StartMdnsDiscovery();
+            logger.LogInformation("Rust mDNS 服务已启动");
+
+            // 通过 Rust 内核启动周期性设备广播
             NativeCore.PeriodicBroadcast(1, localDevice.DeviceId, localDevice.DeviceName, signedBattery, "pc");
 
             // 订阅心跳处理器发现事件和 mDNS 发现事件
@@ -79,8 +79,12 @@ public class DiscoveryService(
 
             var networkService = networkServiceFactory();
             var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
+            var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
+            var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
+            var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
+            var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
             NativeCore.StopMdnsAdvertiser();
-            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, newName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc");
+            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, newName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc", signedBattery);
         }
         catch (Exception ex)
         {

@@ -41,9 +41,10 @@ public class HeartbeatProcessor
                 });
                 _deviceManager.SaveDevice(targetDevice);
             }
-            var absBattery = battery < 0 ? Math.Abs(battery) : battery;
-            var isCharging = battery >= 0;
-            if (absBattery >= 0)
+            var absBattery = Math.Abs(battery);
+            var isCharging = battery > 0;
+            // 未知电量（超出 [-100,100]）不更新已显示的电量/充电状态
+            if (absBattery <= 100)
             {
                 _deviceManager.UpdateDeviceStatus(targetDevice, new DeviceStatus
                 {
@@ -59,10 +60,10 @@ public class HeartbeatProcessor
         }
     }
 
-    public void HandleMdnsDiscovered(string uuid, string? name, string ip, ushort port, string deviceType)
+    public void HandleMdnsDiscovered(string uuid, string? name, string ip, ushort port, int battery, string deviceType)
     {
         MdnsDeviceDiscovered?.Invoke(uuid, name, ip, port, deviceType);
-        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, -1, deviceType);
+        NativeCore.RecordDiscoveredDevice(uuid, name, ip, port, battery, deviceType);
     }
 
     private void MarkDeviceAlive(PairedDevice device)

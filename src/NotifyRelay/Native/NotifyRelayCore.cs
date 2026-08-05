@@ -198,7 +198,7 @@ public static class NotifyRelayCore
 
     // ======== mDNS ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_start_mdns_advertiser(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, IntPtr pubKey, IntPtr deviceType);
+    public static extern int nrc_start_mdns_advertiser(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, IntPtr pubKey, IntPtr deviceType, int battery);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_mdns_advertiser(IntPtr ctx);
@@ -276,7 +276,7 @@ public static class NotifyRelayCore
     public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnMdnsDiscoveredCb(IntPtr uuid, IntPtr name, IntPtr ip, ushort port, IntPtr deviceType, IntPtr userData);
+    public delegate void OnMdnsDiscoveredCb(IntPtr uuid, IntPtr name, IntPtr ip, ushort port, int battery, IntPtr deviceType, IntPtr userData);
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
@@ -828,10 +828,10 @@ public static class NotifyRelayCore
         }
 
         // ======== mDNS ========
-        public static int StartMdnsAdvertiser(IntPtr ctx, string uuid, string name, ushort port, string pubKey, string deviceTypeStr)
+        public static int StartMdnsAdvertiser(IntPtr ctx, string uuid, string name, ushort port, string pubKey, string deviceTypeStr, int battery)
         {
             var u = StringToPtr(uuid); var n = StringToPtr(name); var pk = StringToPtr(pubKey); var dt = StringToPtr(deviceTypeStr);
-            var result = NotifyRelayCore.nrc_start_mdns_advertiser(ctx, u, n, port, pk, dt);
+            var result = NotifyRelayCore.nrc_start_mdns_advertiser(ctx, u, n, port, pk, dt, battery);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(pk); Marshal.FreeHGlobal(dt);
             return result;
         }

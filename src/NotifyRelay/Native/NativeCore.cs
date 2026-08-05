@@ -470,18 +470,18 @@ public static class NativeCore
         NotifyRelayCore.nrc_set_on_heartbeat_udp_cb(_ctx, onHeartbeatUdpCb);
         _callbackRefs.Add(onHeartbeatUdpCb);
 
-        NotifyRelayCore.OnMdnsDiscoveredCb onMdnsDiscoveredCb = (uuidPtr, namePtr, ipPtr, port, deviceTypePtr, userData) =>
+        NotifyRelayCore.OnMdnsDiscoveredCb onMdnsDiscoveredCb = (uuidPtr, namePtr, ipPtr, port, battery, deviceTypePtr, userData) =>
         {
             var uuid = Marshal.PtrToStringUTF8(uuidPtr);
             var name = Marshal.PtrToStringUTF8(namePtr);
             var ip = Marshal.PtrToStringUTF8(ipPtr);
             var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
             if (uuid == null || ip == null) return;
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_mdns_discovered: uuid={uuid}, ip={ip}, name={name}, port={port}");
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_mdns_discovered: uuid={uuid}, ip={ip}, name={name}, port={port}, battery={battery}");
 
             var hp = HeartbeatProcessor;
             if (hp == null) return;
-            hp.HandleMdnsDiscovered(uuid, name, ip, port, deviceType);
+            hp.HandleMdnsDiscovered(uuid, name, ip, port, battery, deviceType);
         };
         NotifyRelayCore.nrc_set_on_mdns_discovered_cb(_ctx, onMdnsDiscoveredCb);
         _callbackRefs.Add(onMdnsDiscoveredCb);
@@ -682,9 +682,9 @@ public static class NativeCore
     }
 
     // ======== mDNS ========
-    public static int StartMdnsAdvertiser(string uuid, string name, ushort port, string pubKey, string deviceType)
+    public static int StartMdnsAdvertiser(string uuid, string name, ushort port, string pubKey, string deviceType, int battery)
     {
-        return NotifyRelayCore.Safe.StartMdnsAdvertiser(_ctx, uuid, name, port, pubKey, deviceType);
+        return NotifyRelayCore.Safe.StartMdnsAdvertiser(_ctx, uuid, name, port, pubKey, deviceType, battery);
     }
 
     public static void StopMdnsAdvertiser()
