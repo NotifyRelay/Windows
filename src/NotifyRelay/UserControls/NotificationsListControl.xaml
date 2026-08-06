@@ -1,0 +1,580 @@
+<UserControl
+    x:Class="NotifyRelay.UserControls.NotificationsListControl"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:converters="using:NotifyRelay.Converters"
+    xmlns:helpers="using:NotifyRelay.Helpers"
+    xmlns:local="using:NotifyRelay.UserControls"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:models="using:NotifyRelay.Data.Models"
+    xmlns:viewmodels="using:NotifyRelay.ViewModels"
+    xmlns:wctconverters="using:CommunityToolkit.WinUI.Converters"
+    x:Name="UserControlRoot">
+
+    <UserControl.Resources>
+        <local:DashboardItemTemplateSelector x:Key="DashboardItemTemplateSelector"
+            MusicMediaBlockTemplate="{StaticResource MusicMediaBlockTemplate}"
+            GroupedNotificationTemplate="{StaticResource GroupedNotificationTemplate}" />
+        
+        <wctconverters:BoolToObjectConverter x:Key="BoolToPinTextConverter"
+            FalseValue="{helpers:ResourceString Name=Pin}"
+            TrueValue="{helpers:ResourceString Name=Unpin}" />
+        
+        <wctconverters:BoolToObjectConverter x:Key="BoolToPinGlyphConverter" FalseValue="&#xE718;" TrueValue="&#xE77A;" />
+        <wctconverters:BoolToObjectConverter x:Key="BoolToCollapseGlyphConverter" FalseValue="&#xE71D;" TrueValue="&#xE90A;" />
+        <wctconverters:BoolToObjectConverter x:Key="BoolToRowConverter" FalseValue="1" TrueValue="0" />
+        <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
+
+        <converters:DateTimeConverter x:Key="DateTimeConverter" />
+        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
+        <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
+        <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
+        <converters:BoolToOpacityConverter x:Key="BoolToOpacityConverter" />
+        
+        <!--  可复用的单条通知模板  -->
+        <DataTemplate x:Key="NotificationItemTemplate" x:DataType="models:Notification">
+            <Border Padding="10" Background="Transparent" PointerEntered="OnPointerEntered" PointerExited="OnPointerExited">
+                <Grid RowSpacing="10" HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    
+                <!--  应用名称  -->
+                <TextBlock
+                    Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,0,2"
+                    FontSize="13"
+                    FontWeight="SemiBold"
+                    Foreground="Gray"
+                    HorizontalAlignment="Center"
+                    Text="{x:Bind AppName}"
+                    TextWrapping="NoWrap" />
+                <!--  应用图标  -->
+                <Image
+                    Grid.Row="1"
+                    Grid.Column="0"
+                    Width="64"
+                    Height="64"
+                    VerticalAlignment="Top"
+                    Source="{x:Bind Icon, Mode=OneWay}" />
+                   
+                <!--  通知内容  -->
+                <Grid
+                    Grid.Row="0"
+                    Grid.RowSpan="2"
+                    Grid.Column="1"
+                    Margin="10,0,0,0"
+                    HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <!--  标题 -->
+                    <TextBlock
+                        Grid.Row="0"
+                        Grid.Column="0"
+                        FontSize="13"
+                        FontWeight="Medium"
+                        Text="{x:Bind Title}"
+                        VerticalAlignment="Center"
+                        TextTrimming="CharacterEllipsis" />
+                    <!--  时间戳 -->
+                    <TextBlock
+                        x:Name="TimeStampTextBlock"
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Margin="10,0,10,0"
+                        Foreground="Gray"
+                        FontSize="12"
+                        Text="{x:Bind TimeStamp, Converter={StaticResource DateTimeConverter}}"
+                        VerticalAlignment="Center" />
+                    <!--  置顶/关闭 按钮（右侧） -->
+                    <StackPanel
+                        Grid.Row="0"
+                        Grid.Column="2"
+                        Orientation="Horizontal"
+                        Spacing="4"
+                        HorizontalAlignment="Right">
+                        <Button
+                            x:Name="PinButton"
+                            Width="24"
+                            Height="24"
+                            Margin="0,0,5,0"
+                            Padding="4"
+                            Background="Transparent"
+                            BorderBrush="Transparent"
+                            Click="ToggleNotificationPinClick"
+                            DataContext="{x:Bind}"
+                            IsHitTestVisible="False"
+                            Opacity="{x:Bind Pinned, Converter={StaticResource BoolToOpacityConverter}}"
+                            VerticalAlignment="Center">
+                            <FontIcon x:Name="PinIcon" Glyph="{x:Bind Pinned, Converter={StaticResource BoolToPinGlyphConverter}}" FontSize="14" Tag="{x:Bind Pinned}" />
+                            <ToolTipService.ToolTip>
+                                <ToolTip Content="{x:Bind Pinned, Converter={StaticResource BoolToPinTextConverter}}" />
+                            </ToolTipService.ToolTip>
+                        </Button>
+                        <!--  关闭按钮  -->
+                        <Button
+                            x:Name="CloseButton"
+                            Width="24"
+                            Height="24"
+                            Padding="4"
+                            Command="{Binding ViewModel.RemoveNotificationCommand, ElementName=UserControlRoot}"
+                            CommandParameter="{x:Bind}"
+                            IsHitTestVisible="False"
+                            Opacity="0"
+                            Style="{StaticResource AlternateCloseButtonStyle}"
+                            VerticalAlignment="Center" />
+                    </StackPanel>
+                    
+                    <!--  通知内容区域  -->
+                    <StackPanel
+                        Grid.Row="1"
+                        Grid.ColumnSpan="3"
+                        Margin="0,5,0,0"
+                        Spacing="5"
+                        HorizontalAlignment="Stretch">
+
+                        <!--  Display Text if GroupedMessages is empty  -->
+                        <TextBlock
+                            x:Name="FallbackTextBlock"
+                            x:Load="{x:Bind HasGroupedMessages, Converter={StaticResource BoolNegationConverter}}"
+                            Foreground="Gray"
+                            IsTextSelectionEnabled="True"
+                            Text="{x:Bind Text}"
+                            TextWrapping="Wrap" />
+                        <!--  Display GroupedMessages if not empty  -->
+                        <ItemsRepeater
+                            x:Name="GroupedMessagesRepeater"
+                            HorizontalAlignment="Stretch"
+                            x:Load="{x:Bind HasGroupedMessages}"
+                            ItemsSource="{x:Bind GroupedMessages}">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Vertical" Spacing="5" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:NotificationGroup">
+                                    <StackPanel>
+                                        <TextBlock FontWeight="SemiBold" Text="{x:Bind Sender}" />
+                                        <ItemsRepeater ItemsSource="{x:Bind Messages}">
+                                            <ItemsRepeater.Layout>
+                                                <StackLayout Orientation="Vertical" Spacing="2" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <TextBlock
+                                                        Foreground="Gray"
+                                                        IsTextSelectionEnabled="True"
+                                                        Text="{x:Bind}"
+                                                        TextWrapping="Wrap" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                         
+                        <!--  设备按钮列表，显示通知的所有来源设备  -->
+                        <ItemsRepeater
+                            x:Name="DeviceButtonsRepeater"
+                            Margin="0,5,0,0"
+                            HorizontalAlignment="Left"
+                            ItemsSource="{x:Bind SourceDevices}"
+                            Tag="{x:Bind}"
+                            ElementPrepared="DeviceButtonsRepeater_ElementPrepared">
+                            <ItemsRepeater.Layout>
+                                <StackLayout Orientation="Horizontal" Spacing="5" />
+                            </ItemsRepeater.Layout>
+                            <ItemsRepeater.ItemTemplate>
+                                <DataTemplate x:DataType="models:SourceDevice">
+                                    <Button
+                                        Padding="8,3"
+                                        Background="Transparent"
+                                        BorderBrush="Gray"
+                                        BorderThickness="1"
+                                        Click="OpenAppClick"
+                                        Tag="{x:Bind}"
+                                        CornerRadius="4"
+                                        FontSize="12"
+                                        ToolTipService.ToolTip="在应用程序中打开">
+                                        <TextBlock
+                                            Text="{x:Bind DeviceName}"
+                                            TextWrapping="NoWrap" />
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsRepeater.ItemTemplate>
+                        </ItemsRepeater>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- 媒体块模板 -->
+        <DataTemplate x:Key="MusicMediaBlockTemplate" x:DataType="models:MusicMediaBlock">
+            <Border
+                Padding="10"
+                Margin="0,0,0,8"
+                Background="{ThemeResource CardBackgroundFillColorDefault}"
+                BorderBrush="{ThemeResource CardStrokeColorDefault}"
+                BorderThickness="1"
+                CornerRadius="8">
+                <Grid RowSpacing="10" HorizontalAlignment="Stretch">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Image
+                        Grid.Column="0"
+                        Width="100"
+                        Height="100"
+                        VerticalAlignment="Top"
+                        Source="{x:Bind CoverUrl, Mode=OneWay, Converter={StaticResource StringToImageSourceConverter}}" />
+                    <StackPanel
+                        Grid.Column="1"
+                        Margin="10,0,0,0"
+                        Spacing="5">
+                        <TextBlock
+                            FontWeight="SemiBold"
+                            FontSize="18"
+                            Text="{x:Bind Title, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Foreground="Gray"
+                            FontSize="14"
+                            Text="{x:Bind Text, Mode=OneWay}"
+                            TextWrapping="Wrap" />
+                        <TextBlock
+                            Foreground="Gray"
+                            FontSize="12"
+                            Text="{x:Bind DeviceName, Mode=OneWay}" />
+                        <StackPanel
+                            Orientation="Horizontal"
+                            Margin="0,10,0,0"
+                            Spacing="10">
+                            <Button
+                                Width="36"
+                                Height="36"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Gray"
+                                BorderThickness="1"
+                                Command="{Binding ViewModel.SendMediaControlCommand, ElementName=UserControlRoot}"
+                                CommandParameter="{x:Bind PreviousCommandParameter, Mode=OneWay}"
+                                CornerRadius="18">
+                                <FontIcon Glyph="&#xE76B;" />
+                            </Button>
+                            <Button
+                                Width="36"
+                                Height="36"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Gray"
+                                BorderThickness="1"
+                                Command="{Binding ViewModel.SendMediaControlCommand, ElementName=UserControlRoot}"
+                                CommandParameter="{x:Bind PlayPauseCommandParameter, Mode=OneWay}"
+                                CornerRadius="18">
+                                <FontIcon Glyph="&#xE102;" />
+                            </Button>
+                            <Button
+                                Width="36"
+                                Height="36"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Gray"
+                                BorderThickness="1"
+                                Command="{Binding ViewModel.SendMediaControlCommand, ElementName=UserControlRoot}"
+                                CommandParameter="{x:Bind NextCommandParameter, Mode=OneWay}"
+                                CornerRadius="18">
+                                <FontIcon Glyph="&#xE76C;" />
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- 分组通知模板 -->
+        <DataTemplate x:Key="GroupedNotificationTemplate" x:DataType="models:GroupedNotification">
+            <Border
+                Padding="0"
+                Background="{ThemeResource CardBackgroundFillColorDefault}"
+                BorderBrush="{ThemeResource CardStrokeColorDefault}"
+                BorderThickness="1"
+                CornerRadius="8"
+                HorizontalAlignment="Stretch">
+                <!--  单条通知的特殊处理：直接显示通知内容，不显示折叠区  -->
+                <ContentControl HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                    <StackPanel HorizontalAlignment="Stretch">
+                        <!--  单条通知模板  -->
+                        <Grid x:Name="SingleNotificationGrid" x:Load="{x:Bind IsSingle}">
+                            <ItemsRepeater ItemsSource="{x:Bind Notifications}" ItemTemplate="{StaticResource NotificationItemTemplate}" />
+                        </Grid>
+                        
+                        <!--  多条通知模板  -->
+                        <Grid x:Name="MultipleNotificationsGrid" x:Load="{x:Bind IsSingle, Converter={StaticResource BoolNegationConverter}}" HorizontalAlignment="Stretch">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <!--  折叠/展开按钮  -->
+                            <Button
+                                Grid.Row="0"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
+                                Click="ToggleGroupCollapse"
+                                Tag="{x:Bind}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch">
+                                <Grid ColumnSpacing="10" HorizontalAlignment="Stretch">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <!--  应用图标  -->
+                                    <Image
+                                        Grid.Column="0"
+                                        Width="32"
+                                        Height="32"
+                                        Margin="10,10,0,10"
+                                        VerticalAlignment="Center"
+                                        Source="{x:Bind Icon, Mode=OneWay}" />
+                                    <!--  应用名称和通知数量  -->
+                                    <StackPanel
+                                        Grid.Column="1"
+                                        Margin="0,10,0,10"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Left">
+                                        <TextBlock
+                                            FontSize="14"
+                                            FontWeight="Medium"
+                                            Text="{x:Bind DisplayApp}" />
+                                        <TextBlock
+                                            FontSize="12"
+                                            Foreground="Gray"
+                                            Text="{x:Bind NotificationCountText, Mode=OneWay}" />
+                                    </StackPanel>
+                                    <!--  最新通知时间  -->
+                                    <TextBlock
+                                        Grid.Column="2"
+                                        Margin="0,10,10,10"
+                                        FontSize="12"
+                                        Foreground="Gray"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Text="{x:Bind FormattedLatestTime, Mode=OneWay}" />
+                                    <!--  折叠/展开图标  -->
+                                    <FontIcon
+                                        Grid.Column="3"
+                                        Margin="0,10,0,10"
+                                        Glyph="{x:Bind IsCollapsed, Converter={StaticResource BoolToCollapseGlyphConverter}, Mode=OneWay}"
+                                        VerticalAlignment="Center" />
+                                    <!--  清除该应用所有通知按钮  -->
+                                    <Button
+                                        Grid.Column="4"
+                                        Width="40"
+                                        Height="40"
+                                        Padding="0"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        BorderThickness="0"
+                                        Command="{Binding ViewModel.ClearAllNotificationsCommand, ElementName=UserControlRoot}"
+                                        CommandParameter="{x:Bind AppPackage}"
+                                        ToolTipService.ToolTip="清除该应用所有通知">
+                                        <FontIcon Glyph="&#xE711;" FontSize="14" />
+                                    </Button>
+                                </Grid>
+                            </Button>
+                            <!--  分隔线  -->
+                            <Rectangle
+                                Grid.Row="0"
+                                Height="1"
+                                Margin="0,0,0,0"
+                                VerticalAlignment="Bottom"
+                                Fill="{ThemeResource SystemControlForegroundBaseMediumLowBrush}"
+                                Visibility="{x:Bind IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}, Mode=OneWay}" />
+                            <!--  折叠状态下的前三条通知预览，点击整个区域可展开  -->
+                            <Button
+                                Grid.Row="1"
+                                Padding="0"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="0"
+                                Click="ToggleGroupCollapse"
+                                Tag="{x:Bind}"
+                                Visibility="{x:Bind IsCollapsed, Mode=OneWay}"
+                                HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Stretch">
+                                <StackPanel HorizontalAlignment="Stretch">
+                                    <!--  前三条通知  -->
+                                    <ItemsRepeater ItemsSource="{x:Bind CollapsedNotifications, Mode=OneWay}" HorizontalAlignment="Stretch">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Orientation="Vertical" Spacing="5" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="models:Notification">
+                                                <Grid ColumnSpacing="10"
+                                                        Margin="10,5,10,0" HorizontalAlignment="Stretch">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <!--  通知标题  -->
+                                                    <TextBlock
+                                                        Grid.Column="0"
+                                                        Margin="1,0,0,0"
+                                                        FontSize="13"
+                                                        FontWeight="Medium"
+                                                        Text="{x:Bind Title}"
+                                                        TextWrapping="Wrap" />
+                                                    <!--  分隔符  -->
+                                                    <TextBlock
+                                                        Grid.Column="1"
+                                                        Margin="0,0,10,0"
+                                                        FontSize="12"
+                                                        Foreground="Gray"
+                                                        Text="" />
+                                                    <!--  通知内容  -->
+                                                    <TextBlock
+                                                        Grid.Column="2"
+                                                        FontSize="12"
+                                                        Foreground="Gray"
+                                                        Text="{x:Bind Text}"
+                                                        TextWrapping="Wrap" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                    <!--  更多通知提示  -->
+                                    <TextBlock
+                                        Margin="10,5,10,10"
+                                        FontSize="12"
+                                        Foreground="Gray"
+                                        HorizontalAlignment="Left">
+                                        <Run Text="共" />
+                                        <Run Text="{x:Bind Notifications.Count, Mode=OneWay}" />
+                                        <Run Text="条，点击展开" />
+                                    </TextBlock>
+                                </StackPanel>
+                            </Button>
+
+                            <!--  展开状态下的完整通知列表  -->
+                            <StackPanel
+                                Grid.Row="1"
+                                Margin="0,0,0,0"
+                                Visibility="{x:Bind IsCollapsed, Converter={StaticResource InverseBooleanToVisibilityConverter}, Mode=OneWay}"
+                                HorizontalAlignment="Stretch">
+                                <!--  通知列表  -->
+                                <ItemsRepeater ItemsSource="{x:Bind Notifications}" HorizontalAlignment="Stretch">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Orientation="Vertical" Spacing="7" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                    <DataTemplate x:DataType="models:Notification">
+                                        <StackPanel HorizontalAlignment="Stretch">
+                                            <Border
+                                                Padding="10"
+                                                Margin="0,0,0,0"
+                                                Background="Transparent"
+                                                BorderBrush="Transparent"
+                                                BorderThickness="0"
+                                                PointerEntered="OnPointerEntered"
+                                                PointerExited="OnPointerExited"
+                                                HorizontalAlignment="Stretch">
+                                                <ContentControl Content="{x:Bind}" ContentTemplate="{StaticResource NotificationItemTemplate}" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" />
+                                            </Border>
+                                            <!--  通知分割线  -->
+                                            <Rectangle
+                                                Height="1"
+                                                Margin="0,7,0,0"
+                                                Fill="{ThemeResource SystemControlForegroundBaseMediumLowBrush}" HorizontalAlignment="Stretch" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                            </StackPanel>
+                        </Grid>
+                    </StackPanel>
+                </ContentControl>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Grid
+        Margin="18,10,0,10"
+        VerticalAlignment="Stretch"
+        HorizontalAlignment="Stretch">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!--  Notifications Heading  -->
+            <TextBlock
+                Grid.Column="0"
+                FontSize="20"
+                FontWeight="SemiBold"
+                Text="{helpers:ResourceString Name=Notifications}" />
+
+            <!--  Clear All Button  -->
+            <Button
+                Grid.Column="1"
+                Margin="0,0,0,0"
+                Padding="10,5"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Center"
+                Background="Transparent"
+                BorderBrush="Transparent"
+                Command="{x:Bind ViewModel.ClearAllNotificationallCommand}"
+                Content="{helpers:ResourceString Name=NotificationsClearButton}"
+                FontSize="14" />
+
+        </Grid>
+        <ScrollViewer
+            x:Name="NotificationsScrollViewer"
+            Grid.Row="1"
+            Margin="0,10,0,0"
+            Padding="0,0,0,40"
+            HorizontalScrollBarVisibility="Disabled"
+            HorizontalScrollMode="Disabled"
+            VerticalScrollBarVisibility="Auto"
+            VerticalScrollMode="Enabled"
+            VerticalAlignment="Stretch"
+            HorizontalAlignment="Stretch"
+            ViewChanged="OnScrollViewerViewChanged">
+            <ItemsRepeater
+                ItemsSource="{x:Bind ViewModel.DashboardItems, Mode=OneWay}"
+                ItemTemplate="{StaticResource DashboardItemTemplateSelector}"
+                HorizontalAlignment="Stretch">
+                <ItemsRepeater.Layout>
+                    <StackLayout Orientation="Vertical" Spacing="10" />
+                </ItemsRepeater.Layout>
+            </ItemsRepeater>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

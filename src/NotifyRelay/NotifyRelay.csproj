@@ -1,0 +1,123 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
+
+        <OutputType>WinExe</OutputType>
+
+        <!-- Display name -->
+        <ApplicationTitle>NotifyRelay</ApplicationTitle>
+        <!-- App Identifier -->
+        <ApplicationId>xzy-nien.NotifyRelay</ApplicationId>
+        <!-- Versions -->
+        <ApplicationDisplayVersion>2.1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>3</ApplicationVersion>
+        <!-- Package Publisher -->
+        <ApplicationPublisher>xzy-nien</ApplicationPublisher>
+        <!-- Package Description -->
+        <Description>NotifyRelay</Description>
+        <Platforms>x64;ARM64;x86</Platforms>
+        <LangVersion>Preview</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefaultLanguage>zh-cn</DefaultLanguage>
+        <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
+        <UseWinUI>true</UseWinUI>
+
+        <WindowsPackageType>MSIX</WindowsPackageType>
+        <EnableMsixTooling>true</EnableMsixTooling>
+        <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
+        <PublishTrimmed>false</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <!-- Disable ILLink  -->
+        <RunILLink>false</RunILLink>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
+        <RuntimeHostConfigurationOption Include="System.Runtime.InteropServices.BuiltInComInterop.IsSupported" Value="true" />
+        <RuntimeHostConfigurationOption Include="System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization" Value="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="Assets\Icons\IconResource.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Assets\NotifyRelayAppIcon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <!-- 嵌入资源：测试弹幕图标以字节流形式读取，避免打包态下文件系统路径不可用 -->
+        <EmbeddedResource Include="Assets\NotifyRelayAppIcon.png" />
+        <Content Include="ffmpeg\**" Condition="Exists('ffmpeg\ffmpeg.exe')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="AdvancedSharpAdbClient" />
+        <PackageReference Include="BouncyCastle.Cryptography" />
+        <PackageReference Include="CommunityToolkit.Mvvm" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+        <PackageReference Include="FFMpegCore" />
+        <PackageReference Include="Markdig" />
+        <PackageReference Include="CommunityToolkit.WinUI.Converters" />
+        <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
+        <PackageReference Include="H.NotifyIcon.WinUI" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.WindowsAppSDK" />
+        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Localization" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Debug" />
+        <PackageReference Include="Serilog.Sinks.File" />
+        <PackageReference Include="WinUIEx" />
+        <PackageReference Include="NAudio" />
+        <PackageReference Include="NetCoreServer" />
+        <PackageReference Include="sqlite-net-pcl" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+        <PackageReference Include="SQLitePCLRaw.provider.sqlite3" />
+        <PackageReference Include="SSH.NET" />
+        <PackageReference Include="System.Management" />
+        <PackageReference Include="Vanara.PInvoke.CldApi" />
+        <PackageReference Include="Vanara.PInvoke.Ole" />
+        <PackageReference Include="Vanara.PInvoke.Shell32" />
+        <PackageReference Include="Vortice.Direct2D1" />
+        <PackageReference Include="Vortice.Mathematics" />
+    </ItemGroup>
+    <ItemGroup>
+        <Content Include="Assets\Splash\splash_screen.svg">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="appsettings.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="appsettings.development.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <!-- 构建 Rust 原生库 -->
+    <Target Name="BuildRustNative" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+        <PropertyGroup>
+            <RustProjectDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\notify-relay-core'))</RustProjectDir>
+            <RustTargetDir>$([MSBuild]::NormalizeDirectory('$(RustProjectDir)build\target\release'))</RustTargetDir>
+            <RustDllPath>$([MSBuild]::NormalizePath('$(RustTargetDir)notify_relay_core.dll'))</RustDllPath>
+        </PropertyGroup>
+        <ItemGroup>
+            <RustSourceFiles Include="$(RustProjectDir)src\**\*.rs" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.toml" />
+            <RustSourceFiles Include="$(RustProjectDir)Cargo.lock" />
+        </ItemGroup>
+        <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
+        <Exec Command="cargo build --release" WorkingDirectory="$(RustProjectDir)" ConsoleToMSBuild="true" />
+        <Message Text="复制 DLL 到输出目录: $(RustDllPath) -&gt; $(OutDir)" Importance="high" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
+    </Target>
+</Project>
