@@ -19,7 +19,7 @@ public interface IAdbService
     bool IsMonitoring { get; }
     AdbClient AdbClient { get; }
     void TryConnectTcp(string host);
-    Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null);
+    Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null, string? deviceId = null);
 
     Task<bool> IsLocked(DeviceData deviceData);
     Task<bool> TryAutoReconnectAsync(PairedDevice device);

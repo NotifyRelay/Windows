@@ -25,6 +25,10 @@ public class AdbService(
     // 防重入/防循环：记录正在处理无线 ADB 建立的 hostIp，避免 adb tcpip 重启 adbd 诱发的重复触发
     private readonly ConcurrentDictionary<string, object?> _pendingWireless = new();
 
+    // 失败冷却（key=配对设备 ID）：无线 ADB 建立失败后，在本次有线连接期间不再重试；
+    // 仅当 USB 设备断开后重新连接（有线重新连接）时才清除，允许再次尝试
+    private readonly ConcurrentDictionary<string, object?> _wirelessFailCooldown = new();
+
     public ObservableCollection<AdbDevice> AdbDevices { get; } = [];
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
 
@@ -193,6 +197,12 @@ public class AdbService(
             });
             logger.LogDebug($"设备已连接：{connectedDevice.Model} ({connectedDevice.Serial})");
 
+            // 有线（USB）重新连接 → 清除该设备的无线 ADB 失败冷却，允许重新尝试
+            if (connectedDevice.Type == DeviceType.USB && !string.IsNullOrEmpty(connectedDevice.AndroidId))
+            {
+                _wirelessFailCooldown.TryRemove(connectedDevice.AndroidId, out _);
+            }
+
             // USB 设备上线时，若已开启 AdbAutoConnect 则自动建立无线 ADB（幂等、无副作用）
             await TryEnableWirelessForUsbDeviceAsync(connectedDevice);
         }
@@ -262,6 +272,12 @@ public class AdbService(
             });
 
             logger.LogDebug($"设备已连接：{deviceInfo.Model} ({deviceInfo.Serial})");
+
+            // 有线（USB）重新连接 → 清除该设备的无线 ADB 失败冷却，允许重新尝试
+            if (deviceInfo.Type == DeviceType.USB && !string.IsNullOrEmpty(deviceInfo.AndroidId))
+            {
+                _wirelessFailCooldown.TryRemove(deviceInfo.AndroidId, out _);
+            }
 
             // USB 设备上线时，若已开启 AdbAutoConnect 则自动建立无线 ADB（幂等、无副作用）
             await TryEnableWirelessForUsbDeviceAsync(deviceInfo);
@@ -706,10 +722,17 @@ public class AdbService(
     /// 3) 仅当直连失败且提供了 usbSerial 时，才对该 USB 设备执行一次 adb tcpip 5555 再重试，
     ///    以避免在 AS 安装等过程中重复重启 adbd 造成打断。
     /// </summary>
-    public async Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null)
+    public async Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null, string? deviceId = null)
     {
         try
         {
+            // 失败冷却：本次有线连接期间失败过则不重试
+            if (!string.IsNullOrEmpty(deviceId) && _wirelessFailCooldown.ContainsKey(deviceId))
+            {
+                logger.LogTrace("无线 ADB {Host}:5555 失败冷却中，跳过", hostIp);
+                return false;
+            }
+
             // 幂等：若已存在该 hostIp:5555 在线无线设备，直接返回
             bool alreadyConnected = false;
             await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
@@ -725,15 +748,22 @@ public class AdbService(
             // 先尝试直连（无副作用）
             if (await ConnectWireless(hostIp))
             {
-                logger.LogDebug("直连无线 ADB 成功：{Host}:5555", hostIp);
-                await AddWirelessDeviceToListIfMissingAsync(hostIp);
-                return true;
+                // 成功判定：须通过无线连接读取到目标文件文本，而非仅 adb connect 返回成功
+                if (await VerifyWirelessFileAsync(hostIp))
+                {
+                    logger.LogDebug("直连无线 ADB 成功：{Host}:5555", hostIp);
+                    if (!string.IsNullOrEmpty(deviceId)) _wirelessFailCooldown.TryRemove(deviceId, out _);
+                    await AddWirelessDeviceToListIfMissingAsync(hostIp);
+                    return true;
+                }
+                logger.LogWarning("无线 ADB {Host}:5555 连接成功但目标文件文本验证失败，按失败处理", hostIp);
             }
 
             // 直连失败且需要提供 USB 序列号时才启用 tcpip（会重启 adbd）
             if (string.IsNullOrEmpty(usbSerial))
             {
                 logger.LogDebug("无法直连 {Host}:5555 且无可用 USB 设备序列号，跳过启用 tcpip", hostIp);
+                RecordWirelessFailure(deviceId);
                 return false;
             }
 
@@ -751,6 +781,7 @@ public class AdbService(
                 if (!tcpipEnabled)
                 {
                     logger.LogError("启用 TCP/IP 模式失败：{Serial}", usbSerial);
+                    RecordWirelessFailure(deviceId);
                     return false;
                 }
 
@@ -758,12 +789,18 @@ public class AdbService(
 
                 if (await ConnectWireless(hostIp))
                 {
-                    logger.LogDebug("启用 TCP/IP 模式后成功连接无线 ADB {Host}:5555", hostIp);
-                    await AddWirelessDeviceToListIfMissingAsync(hostIp);
-                    return true;
+                    if (await VerifyWirelessFileAsync(hostIp))
+                    {
+                        logger.LogDebug("启用 TCP/IP 模式后成功连接无线 ADB {Host}:5555", hostIp);
+                        if (!string.IsNullOrEmpty(deviceId)) _wirelessFailCooldown.TryRemove(deviceId, out _);
+                        await AddWirelessDeviceToListIfMissingAsync(hostIp);
+                        return true;
+                    }
+                    logger.LogWarning("启用 TCP/IP 模式后无线 ADB {Host}:5555 目标文件文本验证失败，按失败处理", hostIp);
                 }
 
                 logger.LogError("启用 TCP/IP 模式后仍无法连接无线 ADB {Host}:5555", hostIp);
+                RecordWirelessFailure(deviceId);
                 return false;
             }
             finally
@@ -774,6 +811,54 @@ public class AdbService(
         catch (Exception ex)
         {
             logger.LogError(ex, "建立无线 ADB {Host} 时出错", hostIp);
+            RecordWirelessFailure(deviceId);
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 记录无线 ADB 失败冷却（key=配对设备 ID），本次有线连接期间不再重试。
+    /// </summary>
+    private void RecordWirelessFailure(string? deviceId)
+    {
+        if (!string.IsNullOrEmpty(deviceId))
+        {
+            _wirelessFailCooldown.TryAdd(deviceId, null);
+        }
+    }
+
+    /// <summary>
+    /// 通过无线连接读取目标文件（device_info.txt）文本，非空才算无线 ADB 真正建立成功。
+    /// </summary>
+    private async Task<bool> VerifyWirelessFileAsync(string hostIp)
+    {
+        try
+        {
+            var devices = await adbClient.GetDevicesAsync();
+            var device = devices.FirstOrDefault(d => d.Serial == $"{hostIp}:5555");
+            if (device == null)
+            {
+                logger.LogWarning("无线设备 {Host}:5555 未出现在 adb devices 中", hostIp);
+                return false;
+            }
+
+            var receiver = new ConsoleOutputReceiver();
+            await adbClient.ExecuteShellCommandAsync(
+                device,
+                "cat /storage/emulated/0/Android/data/com.xzyht.notifyrelay/files/device_info.txt",
+                receiver);
+            var text = receiver.ToString().Trim();
+            if (string.IsNullOrEmpty(text))
+            {
+                logger.LogWarning("无线设备 {Host}:5555 目标文件文本为空", hostIp);
+                return false;
+            }
+            logger.LogDebug("无线设备 {Host}:5555 目标文件文本验证通过", hostIp);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "验证无线设备 {Host}:5555 目标文件文本时出错", hostIp);
             return false;
         }
     }
@@ -835,15 +920,21 @@ public class AdbService(
         {
             if (usbDevice.Type != DeviceType.USB || !usbDevice.IsOnline) return;
 
+            // 有线成功判据：必须已获取到目标文件文本（AndroidId 非空）且与已配对设备严格匹配
             var paired = await FindPairedDeviceAsync(usbDevice);
             if (paired == null)
             {
-                logger.LogTrace("USB 设备 {Serial} 无匹配已配对设备，跳过无线 ADB 自动连接", usbDevice.Serial);
+                logger.LogTrace("USB 设备 {Serial} 未匹配到已配对设备，跳过无线 ADB 自动连接", usbDevice.Serial);
                 return;
             }
             if (!paired.DeviceSettings.AdbAutoConnect)
             {
                 logger.LogTrace("USB 设备 {Serial} 的 AdbAutoConnect 未开启，跳过", usbDevice.Serial);
+                return;
+            }
+            if (_wirelessFailCooldown.ContainsKey(paired.Id))
+            {
+                logger.LogTrace("USB 设备 {Serial} 的无线 ADB 处于失败冷却中，本次有线连接期间不再重试", usbDevice.Serial);
                 return;
             }
 
@@ -854,7 +945,7 @@ public class AdbService(
                 return;
             }
 
-            await TryEnableWirelessAdbAsync(ip.Trim(), usbDevice.Serial);
+            await TryEnableWirelessAdbAsync(ip.Trim(), usbDevice.Serial, paired.Id);
         }
         catch (Exception ex)
         {
@@ -867,14 +958,11 @@ public class AdbService(
         PairedDevice? result = null;
         await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
-            result = deviceManager.PairedDevices.FirstOrDefault(pd =>
-                (!string.IsNullOrEmpty(usbDevice.AndroidId) && pd.Id == usbDevice.AndroidId) ||
-                (string.IsNullOrEmpty(usbDevice.AndroidId) &&
-                    !string.IsNullOrEmpty(usbDevice.Model) &&
-                    !string.IsNullOrEmpty(pd.Model) &&
-                    (pd.Model.Equals(usbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                     pd.Model.Contains(usbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                     usbDevice.Model.Contains(pd.Model, StringComparison.OrdinalIgnoreCase))));
+            // 有线成功判据：目标文件文本（AndroidId）已获取且与已配对设备严格匹配
+            if (!string.IsNullOrEmpty(usbDevice.AndroidId))
+            {
+                result = deviceManager.PairedDevices.FirstOrDefault(pd => pd.Id == usbDevice.AndroidId);
+            }
         });
         return result;
     }
@@ -951,11 +1039,36 @@ public class AdbService(
     {
         try
         {
+            // 反查配对设备 ID（冷却按设备 ID 维度，USB 重连时可精确清除）
+            string? deviceId = null;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                deviceId = deviceManager.PairedDevices.FirstOrDefault(pd =>
+                    (pd.IpAddresses != null && pd.IpAddresses.Any(ip => string.Equals(ip?.Trim(), host, StringComparison.OrdinalIgnoreCase))) ||
+                    string.Equals(pd.RemoteIpAddress?.Trim(), host, StringComparison.OrdinalIgnoreCase))?.Id;
+            });
+            if (string.IsNullOrEmpty(deviceId))
+            {
+                logger.LogTrace("握手触发无线 ADB：{Host} 未匹配到已配对设备，跳过", host);
+                return;
+            }
+            if (_wirelessFailCooldown.ContainsKey(deviceId))
+            {
+                logger.LogTrace("握手触发无线 ADB：设备 {DeviceId} 失败冷却中，跳过", deviceId);
+                return;
+            }
+
             // 相对无感的触发：设备被标记在线后，延迟 5s，期间若未离线才建立无线 ADB。
             // 这样可避免在瞬时握手/抖动时立即动作，从而不轻易打断正在进行的操作（如 AS 安装）。
             logger.LogDebug("握手触发无线 ADB：设备 {Host} 已上线，延迟 5s 观察是否保持在线", host);
             await Task.Delay(5000);
 
+            // 延迟期间可能已进入失败冷却，二次检查
+            if (_wirelessFailCooldown.ContainsKey(deviceId))
+            {
+                logger.LogTrace("握手触发无线 ADB：设备 {DeviceId} 延迟期间进入失败冷却，取消", deviceId);
+                return;
+            }
             if (!await IsPairedDeviceOnlineAsync(host))
             {
                 logger.LogDebug("延迟 5s 后设备 {Host} 已离线，取消无线 ADB 自动连接", host);
@@ -968,7 +1081,7 @@ public class AdbService(
                 logger.LogDebug("未找到与 {Host} 匹配的 USB 设备，仅尝试直连无线 ADB", host);
             }
 
-            await TryEnableWirelessAdbAsync(host, usbSerial);
+            await TryEnableWirelessAdbAsync(host, usbSerial, deviceId);
         }
         catch (Exception ex)
         {
