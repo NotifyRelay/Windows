@@ -180,11 +180,12 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_app_sync_parse_applist_response(IntPtr payloadJson);
 
     // ======== State merge (push full; receive via on_data) ========
+    // isQuery: 1=查询回调响应推送（心跳查询发现变更后由平台推送），0=正常主动推送
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_push_superisland_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd);
+    public static extern int nrc_push_superisland_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_push_media_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd);
+    public static extern int nrc_push_media_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
 
     // ======== Network change ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -261,6 +262,10 @@ public static class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDataCb(IntPtr uuid, IntPtr messageType, IntPtr plaintext, IntPtr userData);
 
+    // 状态查询回调（Rust 心跳线程锁外调用）：返回 0=不存在 / 1=存在无变更 / 2=存在有变更
+    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+    public delegate int OnStateQueryCb(IntPtr uuid, IntPtr featureId, int isMedia, IntPtr userData);
+
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnLogCb(int level, IntPtr message);
 
@@ -288,6 +293,8 @@ public static class NotifyRelayCore
     public static extern void nrc_set_on_pairing_cb(IntPtr ctx, OnPairingCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_data_cb(IntPtr ctx, OnDataCb cb);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern void nrc_set_on_state_query_cb(IntPtr ctx, OnStateQueryCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -718,18 +725,19 @@ public static class NotifyRelayCore
 
         // 推送「全量」超级岛/媒体状态给某设备；Rust 内部做 diff，合并后的全量经 on_data 回调回传。
         // queuePtr 为 SenderQueue 句柄（与 EnqueueMessage 共用同一队列）。
-        public static int PushSuperIslandState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd)
+        // isQuery: true=查询回调响应推送（心跳查询发现变更后由平台推送），false=正常主动推送。
+        public static int PushSuperIslandState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd, bool isQuery = false)
         {
             var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
-            var result = NotifyRelayCore.nrc_push_superisland_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0);
+            var result = NotifyRelayCore.nrc_push_superisland_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
             return result;
         }
 
-        public static int PushMediaState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd)
+        public static int PushMediaState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd, bool isQuery = false)
         {
             var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
-            var result = NotifyRelayCore.nrc_push_media_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0);
+            var result = NotifyRelayCore.nrc_push_media_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
             return result;
         }

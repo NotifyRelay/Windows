@@ -17,6 +17,10 @@ public static class NativeCore
     internal static NetworkService? NetworkService { get; set; }
     internal static HeartbeatProcessor? HeartbeatProcessor { get; set; }
 
+    // 媒体会话存在性查询委托（由 WindowsPlaybackService 注册）：返回 true=仍有活跃媒体会话，false=无
+    // Rust 心跳查询回调（on_state_query）调用，运行在 Rust 心跳线程；无活跃会话时 Rust 移除媒体发送会话。
+    public static Func<string, bool>? MediaSessionQueryHandler { get; set; }
+
     // 保持回调委托不被 GC 回收
     private static readonly List<Delegate> _callbackRefs = new();
 
@@ -443,6 +447,29 @@ public static class NativeCore
         };
         NotifyRelayCore.nrc_set_on_data_cb(_ctx, onDataCb);
         _callbackRefs.Add(onDataCb);
+
+        // ---- on_state_query (超级岛/媒体心跳查询回调：0=不存在 / 1=存在无变更 / 2=存在有变更) ----
+        // 运行在 Rust 心跳线程且锁已释放；PC 仅作为媒体发送端：
+        // 媒体会话存在性由 WindowsPlaybackService 提供（MediaSessionQueryHandler），
+        // 无活跃会话 → 0（Rust 移除会话）；有 → 1 保活（状态变更由事件驱动推送）。
+        NotifyRelayCore.OnStateQueryCb onStateQueryCb = (uuidPtr, featureIdPtr, isMedia, userData) =>
+        {
+            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
+            var featureId = Marshal.PtrToStringUTF8(featureIdPtr);
+            if (uuid == null || featureId == null) return 0;
+            if (isMedia == 0) return 0; // PC 仅发送媒体会话，无超级岛会话
+            try
+            {
+                return MediaSessionQueryHandler?.Invoke(uuid) == true ? 1 : 0;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] on_state_query error: {ex.Message}");
+                return 1; // 异常保守保活，等待下一次查询
+            }
+        };
+        NotifyRelayCore.nrc_set_on_state_query_cb(_ctx, onStateQueryCb);
+        _callbackRefs.Add(onStateQueryCb);
 
         NotifyRelayCore.OnHeartbeatUdpCb onHeartbeatUdpCb = (uuidPtr, namePtr, port, battery, deviceTypePtr, ipPtr, userData) =>
         {

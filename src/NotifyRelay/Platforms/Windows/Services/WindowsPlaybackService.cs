@@ -90,6 +90,16 @@ public class WindowsPlaybackService(
 
             manager.SessionsChanged += SessionsChanged;
 
+            // 注册媒体会话存在性查询（Rust 心跳查询回调 on_state_query 使用）：
+            // 无活跃媒体会话时 Rust 移除媒体发送会话，避免接收端持续收到陈旧全量
+            NativeCore.MediaSessionQueryHandler = _ =>
+            {
+                lock (activeSessions)
+                {
+                    return activeSessions.Count > 0;
+                }
+            };
+
             sessionManager.ConnectionStatusChanged += async (sender, args) =>
             {
                 //if (args.IsConnected && args.Device.DeviceSettings?.MediaSessionSyncEnabled == true)
