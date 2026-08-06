@@ -1058,6 +1058,18 @@ public class AdbService(
                 return;
             }
 
+            // 无线 ADB 已连接则直接跳过，避免握手反复触发 5s 观察流程
+            bool wirelessOnline = false;
+            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            {
+                wirelessOnline = AdbDevices.Any(d => d.Serial == $"{host}:5555" && d.IsOnline);
+            });
+            if (wirelessOnline)
+            {
+                logger.LogTrace("握手触发无线 ADB：设备 {Host} 无线 ADB 已在线，跳过", host);
+                return;
+            }
+
             // 相对无感的触发：设备被标记在线后，延迟 5s，期间若未离线才建立无线 ADB。
             // 这样可避免在瞬时握手/抖动时立即动作，从而不轻易打断正在进行的操作（如 AS 安装）。
             logger.LogDebug("握手触发无线 ADB：设备 {Host} 已上线，延迟 5s 观察是否保持在线", host);

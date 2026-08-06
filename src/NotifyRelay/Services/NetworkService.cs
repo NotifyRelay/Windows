@@ -75,7 +75,10 @@ public class NetworkService(
                 // 登记已配对设备到 known_devices（心跳调度器与自动扫描依赖此列表）
                 foreach (var paired in PairedDevices.ToList())
                 {
-                    var ip = paired.IpAddresses?.FirstOrDefault();
+                    // 跳过本机自身记录（历史残留或配对异常写入），避免自我连接循环
+                    if (paired.Id == localDeviceId) continue;
+                    // 优先用最近一次握手更新的 IP，其次用最新追加的 IP，避免旧 IP 残留导致心跳连错目标
+                    var ip = paired.RemoteIpAddress ?? paired.IpAddresses?.LastOrDefault();
                     if (!string.IsNullOrEmpty(ip))
                     {
                         NativeCore.AddKnownDevice(paired.Id, ip);
@@ -172,14 +175,15 @@ public class NetworkService(
             {
                 var localBattery = systemInfoService.GetSystemBatteryLevel();
                 var localIp = NativeCore.GetLocalIp() ?? string.Empty;
-                NativeCore.SendAccept(localDeviceId, localPublicKey, localIp, localBattery, "pc");
+                NativeCore.SendAccept(remoteDeviceId, localPublicKey, localIp, localBattery, "pc");
             }
 
             var nonNullDevice = device!;
             ConnectionStatusChanged?.Invoke(this, (nonNullDevice, true));
 
             // 登记到 known_devices，供心跳调度器与自动扫描驱动
-            if (!string.IsNullOrEmpty(remoteIpAddress))
+            // 跳过本机自身记录，避免自我连接循环
+            if (!string.IsNullOrEmpty(remoteIpAddress) && device.Id != localDeviceId)
             {
                 NativeCore.AddKnownDevice(device.Id, remoteIpAddress);
             }
@@ -193,7 +197,7 @@ public class NetworkService(
         }
         else
         {
-            NativeCore.SendReject(localDeviceId ?? string.Empty);
+            NativeCore.SendReject(remoteDeviceId);
             logger.LogInformation("设备验证失败或被拒绝");
         }
     }
@@ -280,7 +284,7 @@ public class NetworkService(
         try
         {
             logger.LogWarning("收到 PAIRING_RESP，但 PC 当前不作为配对发起端。忽略: {uuid}", remoteUuid);
-            NativeCore.SendReject(localDeviceId ?? string.Empty);
+            NativeCore.SendReject(remoteUuid);
         }
         catch (Exception ex)
         {
