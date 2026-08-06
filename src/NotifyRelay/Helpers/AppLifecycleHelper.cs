@@ -72,11 +72,27 @@ public static class AppLifecycleHelper
         await deviceManager.Initialize();
         logger.LogInformation("步骤15：设备管理器初始化完成");
 
+        // 清理历史残留的本机配对记录（自我握手循环等异常写入），避免登记到 known_devices 引发自我连接
+        try
+        {
+            var staleSelf = deviceManager.PairedDevices.FirstOrDefault(d => d.Id == localDevice.DeviceId);
+            if (staleSelf is not null)
+            {
+                logger.LogWarning("检测到本机残留配对记录，自动清理: {deviceId}", staleSelf.Id);
+                deviceManager.RemoveDevice(staleSelf);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "清理本机残留配对记录失败");
+        }
+
         // 密钥迁移（轻量同步操作，必须在服务启动前完成）
         logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
         int migratedCount = 0;
         foreach (var device in deviceManager.PairedDevices)
         {
+            if (device.Id == localDevice.DeviceId) continue;
             if (device.SharedSecret != null && device.SharedSecret.Length == 32)
             {
                 NativeCore.MigrateSharedSecret(device.Id, device.SharedSecret);

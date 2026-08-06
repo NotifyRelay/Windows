@@ -386,7 +386,11 @@ public static class NativeCore
                             device.LastHeartbeat = DateTime.UtcNow;
                             if (!string.IsNullOrEmpty(extra))
                             {
-                                device.Name = extra;
+                                // 回调运行在 Rust 线程，绑定到 Name 的 UI 元素需在 UI 线程更新
+                                App.MainWindow?.DispatcherQueue?.TryEnqueue(() =>
+                                {
+                                    device.Name = extra;
+                                });
                                 DeviceManager?.SaveDevice(device);
                             }
                         }
