@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
@@ -23,6 +24,9 @@ public static class NativeCore
 
     // 保持回调委托不被 GC 回收
     private static readonly List<Delegate> _callbackRefs = new();
+
+    // 已上线的设备集合（仅用于控制"设备已连接"日志仅状态变化时打印；维持性心跳连接不上线下线不打印）
+    private static readonly ConcurrentDictionary<string, byte> _deviceOnline = new();
 
     public static IntPtr Context => _ctx;
 
@@ -289,7 +293,11 @@ public static class NativeCore
             var extra = Marshal.PtrToStringUTF8(extraPtr);
             if (uuid == null || msgType == null) return;
 
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_pairing: type={msgType}, uuid={uuid}");
+            // HEARTBEAT_TCP 是维持性心跳（每设备周期连接），静默；其余为真实配对事件，仅状态变化时打印
+            if (msgType != "HEARTBEAT_TCP")
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] 收到配对事件: 类型={msgType}, 设备={uuid}");
+            }
 
             switch (msgType)
             {
@@ -312,7 +320,6 @@ public static class NativeCore
                     break;
                 case "PAIRING_INIT":
                     {
-                        System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: PAIRING_INIT 进入");
                         if (data == null) return;
                         string spake2Pub = "", ip = "", deviceType = "unknown";
                         try
@@ -324,8 +331,7 @@ public static class NativeCore
                         }
                         catch { }
                         var ns = NetworkService;
-                        if (ns == null) { System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: NetworkService=null"); return; }
-                        System.Diagnostics.Debug.WriteLine("[CoreCb] on_pairing: PAIRING_INIT 调用 HandlePairingInitAsync");
+                        if (ns == null) return;
                         _ = ns.HandlePairingInitAsync(uuid, spake2Pub, ip, intValue, deviceType);
                     }
                     break;
@@ -406,7 +412,7 @@ public static class NativeCore
             var device = FindDevice(uuidPtr);
             var msgType = Marshal.PtrToStringUTF8(msgTypePtr);
             var text = Marshal.PtrToStringUTF8(plaintextPtr);
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_data: type={msgType}, uuid={device?.Id}, text_len={text?.Length}, device_found={device != null}");
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] 收到数据: 类型={msgType}, 设备={device?.Id}, 长度={text?.Length}, 设备匹配={device != null}");
             if (device == null || text == null || msgType == null) return;
 
             switch (msgType)
@@ -496,7 +502,7 @@ public static class NativeCore
             var ip = Marshal.PtrToStringUTF8(ipPtr);
             var deviceType = Marshal.PtrToStringUTF8(deviceTypePtr) ?? "unknown";
             if (uuid == null || ip == null) return;
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_mdns_discovered: uuid={uuid}, ip={ip}, name={name}, port={port}, battery={battery}");
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] 发现设备: {uuid}, ip={ip}, 名称={name}, 端口={port}, 电量={battery}");
 
             var hp = HeartbeatProcessor;
             if (hp == null) return;
@@ -509,6 +515,11 @@ public static class NativeCore
         {
             var uuid = Marshal.PtrToStringUTF8(uuidPtr);
             if (uuid == null) return;
+            // 设备真离线（超时未响应），打印并清除在线状态，下次重新上线时"设备已连接"会再次打印
+            if (_deviceOnline.TryRemove(uuid, out _))
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] 设备已离线: {uuid}");
+            }
             var dispatcher = App.MainWindow?.DispatcherQueue;
             if (dispatcher != null && !dispatcher.HasThreadAccess)
             {
@@ -527,16 +538,18 @@ public static class NativeCore
             var uuid = Marshal.PtrToStringUTF8(uuidPtr);
             var ip = Marshal.PtrToStringUTF8(ipPtr) ?? "";
             if (uuid == null) return;
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_connected: uuid={uuid}, ip={ip}");
+            // 仅首次上线（或离线后重新上线）打印；维持性心跳连接的反复上下线静默
+            if (_deviceOnline.TryAdd(uuid, 0))
+            {
+                System.Diagnostics.Debug.WriteLine($"[CoreCb] 设备已连接: {uuid} ({ip})");
+            }
         };
         NotifyRelayCore.nrc_set_on_device_connected_cb(_ctx, onDeviceConnectedCb);
         _callbackRefs.Add(onDeviceConnectedCb);
 
         NotifyRelayCore.OnDeviceDisconnectedCb onDeviceDisconnectedCb = (uuidPtr, userData) =>
         {
-            var uuid = Marshal.PtrToStringUTF8(uuidPtr);
-            if (uuid == null) return;
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_device_disconnected: uuid={uuid}");
+            // 心跳维持连接的断开不打印，真实离线由 on_device_timeout（超时检测）体现
         };
         NotifyRelayCore.nrc_set_on_device_disconnected_cb(_ctx, onDeviceDisconnectedCb);
         _callbackRefs.Add(onDeviceDisconnectedCb);
@@ -544,7 +557,7 @@ public static class NativeCore
         NotifyRelayCore.OnTcpErrorCb onTcpErrorCb = (errorPtr, userData) =>
         {
             var error = Marshal.PtrToStringUTF8(errorPtr) ?? "unknown";
-            System.Diagnostics.Debug.WriteLine($"[CoreCb] on_tcp_error: {error}");
+            System.Diagnostics.Debug.WriteLine($"[CoreCb] TCP 错误: {error}");
         };
         NotifyRelayCore.nrc_set_on_tcp_error_cb(_ctx, onTcpErrorCb);
         _callbackRefs.Add(onTcpErrorCb);
