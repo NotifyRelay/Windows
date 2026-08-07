@@ -1,0 +1,13 @@
+namespace NotifyRelay.Data.Contracts;
+
+public interface IUserSettingsService
+{
+    IGeneralSettingsService GeneralSettingsService { get; }
+
+    /// <summary>
+    /// Gets the device-specific settings for a given device ID
+    /// </summary>
+    /// <param name="deviceId">The unique identifier for the device</param>
+    /// <returns>Device-specific settings service</returns>
+    IDeviceSettingsService GetDeviceSettings(string deviceId);
+}
