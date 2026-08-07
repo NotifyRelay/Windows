@@ -57,15 +57,6 @@ public static class NativeCore
         _gitHash = GetGitHash();
     }
 
-    public static void Destroy()
-    {
-        if (_ctx != IntPtr.Zero)
-        {
-            NotifyRelayCore.nrc_destroy(_ctx);
-            _ctx = IntPtr.Zero;
-        }
-    }
-
     public static string? GetGitHash()
     {
         var ptr = NotifyRelayCore.nrc_get_git_hash();
@@ -83,11 +74,6 @@ public static class NativeCore
     public static int RemoveDevice(string deviceUuid)
     {
         return NotifyRelayCore.Safe.RemoveDevice(_ctx, deviceUuid);
-    }
-
-    public static string? EncryptMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
-    {
-        return NotifyRelayCore.Safe.EncryptMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
     }
 
     // ======== New methods ========
@@ -115,11 +101,6 @@ public static class NativeCore
     public static string? ExportDeviceKey(string deviceUuid)
     {
         return NotifyRelayCore.Safe.ExportDeviceKey(_ctx, deviceUuid);
-    }
-
-    public static int ProcessLine(string line)
-    {
-        return NotifyRelayCore.Safe.ProcessLine(_ctx, line);
     }
 
     public static int PeriodicBroadcast(int action, string? uuid = null, string? name = null, int battery = -1, string? deviceType = null)
@@ -163,43 +144,11 @@ public static class NativeCore
         NotifyRelayCore.Safe.ClearPairingCode(_ctx);
     }
 
-    public static int ValidatePairingCode(string code)
-    {
-        return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
-    }
-
-    public static void SendDataMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
-    {
-        NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
-    }
-
     // ======== Network layer wrappers ========
 
     public static int StartTcpServer(ushort port)
     {
         return NotifyRelayCore.Safe.StartTcpServer(_ctx, port);
-    }
-
-    public static int StopTcpServer()
-    {
-        return NotifyRelayCore.Safe.StopTcpServer(_ctx);
-    }
-
-
-
-    public static int BroadcastMessage(string message)
-    {
-        return NotifyRelayCore.Safe.BroadcastMessage(_ctx, message);
-    }
-
-    public static int GetConnectedDeviceCount()
-    {
-        return NotifyRelayCore.Safe.GetConnectedDeviceCount(_ctx);
-    }
-
-    public static int IsDeviceConnected(string uuid)
-    {
-        return NotifyRelayCore.Safe.IsDeviceConnected(_ctx, uuid);
     }
 
     public static int RemoveDeviceSession(string uuid)
@@ -217,11 +166,6 @@ public static class NativeCore
     public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
     {
         return NotifyRelayCore.Safe.ComputeFeatureId(superPkg, paramV2Raw, title, text, instanceId);
-    }
-
-    public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
-    {
-        return NotifyRelayCore.Safe.ComputeFeatureIdSimple(packageName, title, text);
     }
 
     public static string? ExportState()
@@ -577,11 +521,6 @@ public static class NativeCore
         NotifyRelayCore.Safe.UpdateHeartbeatSchedulerParams(_ctx, name, battery, deviceType);
     }
 
-    public static void StopHeartbeatScheduler()
-    {
-        NotifyRelayCore.Safe.StopHeartbeatScheduler(_ctx);
-    }
-
     // ======== Device state snapshot ========
     public static string? GetDeviceList(long authedTimeoutMs = 12000, long unauthedTimeoutMs = 5000)
     {
@@ -621,12 +560,6 @@ public static class NativeCore
     public static void PushMediaState(string deviceUuid, string fullJson, bool isEnd = false)
     {
         NotifyRelayCore.Safe.PushMediaState(_ctx, _senderQueueHandle, deviceUuid, fullJson, isEnd);
-    }
-
-    public static void StopSenderQueue()
-    {
-        NotifyRelayCore.nrc_stop_sender_queue(_ctx, _senderQueueHandle);
-        _senderQueueHandle = 0;
     }
 
     // ======== Clipboard ========
