@@ -179,8 +179,17 @@ public class NetworkService(
         }
         else
         {
-            NativeCore.SendReject(remoteDeviceId);
-            logger.LogInformation("设备验证失败或被拒绝");
+            // Rust 已对该设备自动 ACCEPT（auto_accept=true），
+            // 平台库缺失仅影响持久化，不应再补发 REJECT 造成对端状态冲突
+            if (!autoAccept)
+            {
+                NativeCore.SendReject(remoteDeviceId);
+                logger.LogInformation("设备验证失败或被拒绝");
+            }
+            else
+            {
+                logger.LogWarning($"设备不在配对库但已由 Rust 自动接受(auto_accept)，跳过 REJECT: {remoteDeviceId}");
+            }
         }
     }
 
