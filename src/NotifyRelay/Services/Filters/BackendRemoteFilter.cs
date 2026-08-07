@@ -16,11 +16,6 @@ public class BackendRemoteFilter
 {
     private readonly ILogger<BackendRemoteFilter> _logger;
 
-    // 最近通知的去重缓存 (title, text, timestamp)
-    private readonly LinkedList<(string Title, string Text, DateTime Timestamp)> _recentNotifications = new();
-    private const int MaxRecentNotifications = 200;
-    private static readonly TimeSpan DedupWindow = TimeSpan.FromSeconds(30);
-
     public BackendRemoteFilter(ILogger<BackendRemoteFilter> logger)
     {
         _logger = logger;
@@ -108,50 +103,5 @@ public class BackendRemoteFilter
     {
         var result = NotifyRelayCore.Safe.CheckFilterMode(NativeCore.Context, mappedPkg, originalPkg, title, text);
         return result != 0;
-    }
-
-    // ====== 文本去重 ======
-
-    /// <summary>
-    /// 判断是否与最近通知重复（80%+ 匹配率）— 委托给 Rust Core
-    /// </summary>
-    private bool IsDuplicate(string newTitle, string newText)
-    {
-        CleanupStaleEntries();
-
-        lock (_recentNotifications)
-        {
-            foreach (var (existingTitle, existingText, _) in _recentNotifications)
-            {
-                if (NotifyRelayCore.Safe.ShouldDeduplicate(newTitle, newText, existingTitle, existingText) != 0)
-                    return true;
-            }
-        }
-
-        return false;
-    }
-
-    /// <summary>
-    /// 记录通知到去重缓存
-    /// </summary>
-    public void RecordNotification(string title, string text)
-    {
-        lock (_recentNotifications)
-        {
-            _recentNotifications.AddFirst((title, text, DateTime.UtcNow));
-
-            while (_recentNotifications.Count > MaxRecentNotifications)
-                _recentNotifications.RemoveLast();
-        }
-    }
-
-    private void CleanupStaleEntries()
-    {
-        var cutoff = DateTime.UtcNow - DedupWindow;
-        lock (_recentNotifications)
-        {
-            while (_recentNotifications.Last?.Value.Timestamp < cutoff)
-                _recentNotifications.RemoveLast();
-        }
     }
 }

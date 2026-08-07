@@ -11,8 +11,7 @@ namespace NotifyRelay.Services;
 public class DiscoveryService(
     ILogger logger,
     IDeviceManager deviceManager,
-    HeartbeatProcessor heartbeatProcessor,
-    Func<INetworkService> networkServiceFactory
+    HeartbeatProcessor heartbeatProcessor
     ) : IDiscoveryService
 {
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
@@ -37,15 +36,11 @@ public class DiscoveryService(
             deviceManager.LocalDeviceNameChanged += OnLocalDeviceNameChanged;
             logger.LogInformation("事件处理程序已设置");
 
-            var networkService = networkServiceFactory();
-            var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
             var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
             var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, localDevice.DeviceName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc", signedBattery);
-            NativeCore.StartMdnsDiscovery();
-            logger.LogInformation("Rust mDNS 服务已启动");
+            logger.LogInformation("Rust mDNS 服务由统一启动接口（nrc_start_core）管理");
 
             // 通过 Rust 内核启动周期性设备广播
             NativeCore.PeriodicBroadcast(1, localDevice.DeviceId, localDevice.DeviceName, signedBattery, "pc");
@@ -77,14 +72,12 @@ public class DiscoveryService(
             localDevice.DeviceName = newName;
             NativeCore.PeriodicBroadcast(2, name: newName);
 
-            var networkService = networkServiceFactory();
-            var serverPort = networkService.ServerPort == 0 ? 23333 : networkService.ServerPort;
             var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
             var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
             var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-            NativeCore.StopMdnsAdvertiser();
-            NativeCore.StartMdnsAdvertiser(localDevice.DeviceId, newName, (ushort)serverPort, NativeCore.GetPublicKey() ?? string.Empty, "pc", signedBattery);
+            // 更新心跳调度器广播信息与 mDNS 广告（Rust 端重建广告使新名称生效）
+            NativeCore.UpdateHeartbeatSchedulerParams(newName, signedBattery, "pc");
         }
         catch (Exception ex)
         {
@@ -152,8 +145,7 @@ public class DiscoveryService(
 
         try
         {
-            NativeCore.StopMdnsAdvertiser();
-            NativeCore.StopMdnsDiscovery();
+            // mDNS 广告/发现的停止统一交由核心关闭流程（nrc_start_core 统一管理），此处不再主动调用
             deviceManager.LocalDeviceNameChanged -= OnLocalDeviceNameChanged;
             dispatcher.TryEnqueue(() =>
             {

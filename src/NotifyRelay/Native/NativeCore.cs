@@ -57,15 +57,6 @@ public static class NativeCore
         _gitHash = GetGitHash();
     }
 
-    public static void Destroy()
-    {
-        if (_ctx != IntPtr.Zero)
-        {
-            NotifyRelayCore.nrc_destroy(_ctx);
-            _ctx = IntPtr.Zero;
-        }
-    }
-
     public static string? GetGitHash()
     {
         var ptr = NotifyRelayCore.nrc_get_git_hash();
@@ -83,11 +74,6 @@ public static class NativeCore
     public static int RemoveDevice(string deviceUuid)
     {
         return NotifyRelayCore.Safe.RemoveDevice(_ctx, deviceUuid);
-    }
-
-    public static string? EncryptMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
-    {
-        return NotifyRelayCore.Safe.EncryptMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
     }
 
     // ======== New methods ========
@@ -115,11 +101,6 @@ public static class NativeCore
     public static string? ExportDeviceKey(string deviceUuid)
     {
         return NotifyRelayCore.Safe.ExportDeviceKey(_ctx, deviceUuid);
-    }
-
-    public static int ProcessLine(string line)
-    {
-        return NotifyRelayCore.Safe.ProcessLine(_ctx, line);
     }
 
     public static int PeriodicBroadcast(int action, string? uuid = null, string? name = null, int battery = -1, string? deviceType = null)
@@ -163,43 +144,12 @@ public static class NativeCore
         NotifyRelayCore.Safe.ClearPairingCode(_ctx);
     }
 
-    public static int ValidatePairingCode(string code)
-    {
-        return NotifyRelayCore.Safe.ValidatePairingCode(_ctx, code);
-    }
-
-    public static void SendDataMessage(string header, string localUuid, string localPubKey, string remoteUuid, string plaintext)
-    {
-        NotifyRelayCore.Safe.SendDataMessage(_ctx, header, localUuid, localPubKey, remoteUuid, plaintext);
-    }
-
     // ======== Network layer wrappers ========
 
-    public static int StartTcpServer(ushort port)
+    public static long StartCore(string uuid, string name, int battery, string deviceType, ushort tcpPort, string pubKey, ulong heartbeatIntervalMs = 2000, long offlineTimeoutSec = 12, ulong offlineCheckIntervalMs = 5000, ulong reconnectIntervalSecs = 10, uint reconnectMaxRetries = 5)
     {
-        return NotifyRelayCore.Safe.StartTcpServer(_ctx, port);
-    }
-
-    public static int StopTcpServer()
-    {
-        return NotifyRelayCore.Safe.StopTcpServer(_ctx);
-    }
-
-
-
-    public static int BroadcastMessage(string message)
-    {
-        return NotifyRelayCore.Safe.BroadcastMessage(_ctx, message);
-    }
-
-    public static int GetConnectedDeviceCount()
-    {
-        return NotifyRelayCore.Safe.GetConnectedDeviceCount(_ctx);
-    }
-
-    public static int IsDeviceConnected(string uuid)
-    {
-        return NotifyRelayCore.Safe.IsDeviceConnected(_ctx, uuid);
+        _senderQueueHandle = NotifyRelayCore.Safe.StartCore(_ctx, uuid, name, battery, deviceType, tcpPort, pubKey, heartbeatIntervalMs, offlineTimeoutSec, offlineCheckIntervalMs, reconnectIntervalSecs, reconnectMaxRetries);
+        return _senderQueueHandle;
     }
 
     public static int RemoveDeviceSession(string uuid)
@@ -217,11 +167,6 @@ public static class NativeCore
     public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
     {
         return NotifyRelayCore.Safe.ComputeFeatureId(superPkg, paramV2Raw, title, text, instanceId);
-    }
-
-    public static string? ComputeFeatureIdSimple(string packageName, string title, string text)
-    {
-        return NotifyRelayCore.Safe.ComputeFeatureIdSimple(packageName, title, text);
     }
 
     public static string? ExportState()
@@ -305,17 +250,20 @@ public static class NativeCore
                     {
                         if (data == null) return;
                         string pubKey = "", ip = "", deviceType = "unknown";
+                        bool autoAccept = false;
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             pubKey = doc.RootElement.GetProperty("pub_key").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                            if (doc.RootElement.TryGetProperty("auto_accept", out var aa) && aa.ValueKind == System.Text.Json.JsonValueKind.True)
+                                autoAccept = true;
                         }
                         catch { }
                         var ns = NetworkService;
                         if (ns == null) return;
-                        _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, intValue, deviceType);
+                        _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, intValue, deviceType, autoAccept);
                     }
                     break;
                 case "PAIRING_INIT":
@@ -324,7 +272,7 @@ public static class NativeCore
                         string spake2Pub = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
@@ -341,7 +289,7 @@ public static class NativeCore
                         string spake2Pub = "", ltPub = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
                             ltPub = doc.RootElement.GetProperty("lt_pub").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
@@ -359,7 +307,7 @@ public static class NativeCore
                         string ltPubKey = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             ltPubKey = doc.RootElement.GetProperty("lt_pub_key").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
@@ -564,22 +512,11 @@ public static class NativeCore
     }
 
     // ======== Heartbeat scheduler ========
-    private static long _offlineDetectorHandle;
     private static long _senderQueueHandle;
-
-    public static long StartHeartbeatScheduler(string uuid, string name, int battery, string deviceType, ulong intervalMs = 2000)
-    {
-        return NotifyRelayCore.Safe.StartHeartbeatScheduler(_ctx, uuid, name, battery, deviceType, intervalMs);
-    }
 
     public static void UpdateHeartbeatSchedulerParams(string name, int battery, string deviceType)
     {
         NotifyRelayCore.Safe.UpdateHeartbeatSchedulerParams(_ctx, name, battery, deviceType);
-    }
-
-    public static void StopHeartbeatScheduler()
-    {
-        NotifyRelayCore.Safe.StopHeartbeatScheduler(_ctx);
     }
 
     // ======== Device state snapshot ========
@@ -588,24 +525,8 @@ public static class NativeCore
         return NotifyRelayCore.Safe.GetDeviceList(_ctx, authedTimeoutMs, unauthedTimeoutMs);
     }
 
-    // ======== Offline detector ========
-    public static long StartOfflineDetector(long timeoutSec = 12, ulong checkIntervalMs = 5000)
-    {
-        _offlineDetectorHandle = NotifyRelayCore.Safe.StartOfflineDetector(_ctx, timeoutSec, checkIntervalMs);
-        return _offlineDetectorHandle;
-    }
-
     // ======== Sender queue ========
-    public static long CreateSenderQueue()
-    {
-        _senderQueueHandle = NotifyRelayCore.Safe.CreateSenderQueue(_ctx);
-        return _senderQueueHandle;
-    }
-
-    public static void StartSenderQueue()
-    {
-        NotifyRelayCore.Safe.StartSenderQueue(_ctx, _senderQueueHandle);
-    }
+    public static long SenderQueueHandle => _senderQueueHandle;
 
     public static void EnqueueMessage(string deviceUuid, string header, string plaintext, string? dedupKey = null)
     {
@@ -621,12 +542,6 @@ public static class NativeCore
     public static void PushMediaState(string deviceUuid, string fullJson, bool isEnd = false)
     {
         NotifyRelayCore.Safe.PushMediaState(_ctx, _senderQueueHandle, deviceUuid, fullJson, isEnd);
-    }
-
-    public static void StopSenderQueue()
-    {
-        NotifyRelayCore.nrc_stop_sender_queue(_ctx, _senderQueueHandle);
-        _senderQueueHandle = 0;
     }
 
     // ======== Clipboard ========
@@ -701,25 +616,10 @@ public static class NativeCore
         NotifyRelayCore.Safe.RemoveKnownDevice(_ctx, uuid);
     }
 
-    public static void StartKnownDeviceScanner()
-    {
-        NotifyRelayCore.nrc_start_known_device_scanner(_ctx);
-    }
-
     // ======== mDNS ========
-    public static int StartMdnsAdvertiser(string uuid, string name, ushort port, string pubKey, string deviceType, int battery)
-    {
-        return NotifyRelayCore.Safe.StartMdnsAdvertiser(_ctx, uuid, name, port, pubKey, deviceType, battery);
-    }
-
     public static void StopMdnsAdvertiser()
     {
         NotifyRelayCore.Safe.StopMdnsAdvertiser(_ctx);
-    }
-
-    public static int StartMdnsDiscovery()
-    {
-        return NotifyRelayCore.Safe.StartMdnsDiscovery(_ctx);
     }
 
     public static void StopMdnsDiscovery()
