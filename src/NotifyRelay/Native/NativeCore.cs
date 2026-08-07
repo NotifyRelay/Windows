@@ -250,17 +250,20 @@ public static class NativeCore
                     {
                         if (data == null) return;
                         string pubKey = "", ip = "", deviceType = "unknown";
+                        bool autoAccept = false;
                         try
                         {
                             var doc = System.Text.Json.JsonDocument.Parse(data);
                             pubKey = doc.RootElement.GetProperty("pub_key").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
+                            if (doc.RootElement.TryGetProperty("auto_accept", out var aa) && aa.ValueKind == System.Text.Json.JsonValueKind.True)
+                                autoAccept = true;
                         }
                         catch { }
                         var ns = NetworkService;
                         if (ns == null) return;
-                        _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, intValue, deviceType);
+                        _ = ns.HandleHandshakeAsync(uuid, pubKey, ip, intValue, deviceType, autoAccept);
                     }
                     break;
                 case "PAIRING_INIT":

@@ -120,9 +120,9 @@ public class NetworkService(
         NativeCore.RemoveDeviceSession(deviceId);
     }
 
-    public async Task HandleHandshakeAsync(string remoteDeviceId, string remotePublicKey, string remoteIpAddress, int battery, string remoteDeviceType)
+    public async Task HandleHandshakeAsync(string remoteDeviceId, string remotePublicKey, string remoteIpAddress, int battery, string remoteDeviceType, bool autoAccept = false)
     {
-        logger.LogInformation($"收到握手来自 {remoteIpAddress} (类型: {remoteDeviceType})");
+        logger.LogInformation($"收到握手来自 {remoteIpAddress} (类型: {remoteDeviceType}, auto_accept: {autoAccept})");
 
         // 检查是否是已知设备，如果是已知设备（重连），则不自动请求应用列表
         bool isKnownDevice = PairedDevices.Any(d => d.Id == remoteDeviceId);
@@ -148,11 +148,16 @@ public class NetworkService(
                 }
             });
 
-            if (localDeviceId is not null && localPublicKey is not null)
+            // Rust 侧已对已配对设备自动发送 ACCEPT（auto_accept=true），
+            // 平台侧无需重复发送，仅保留 UI 持久化与 known_device 登记
+            if (!autoAccept)
             {
-                var localBattery = systemInfoService.GetSystemBatteryLevel();
-                var localIp = NativeCore.GetLocalIp() ?? string.Empty;
-                NativeCore.SendAccept(remoteDeviceId, localPublicKey, localIp, localBattery, "pc");
+                if (localDeviceId is not null && localPublicKey is not null)
+                {
+                    var localBattery = systemInfoService.GetSystemBatteryLevel();
+                    var localIp = NativeCore.GetLocalIp() ?? string.Empty;
+                    NativeCore.SendAccept(remoteDeviceId, localPublicKey, localIp, localBattery, "pc");
+                }
             }
 
             var nonNullDevice = device!;
@@ -166,8 +171,8 @@ public class NetworkService(
             }
 
             // 延迟请求应用列表，避免阻塞握手
-            // 仅对新配对设备自动触发
-            if (!isKnownDevice)
+            // 仅对新配对设备自动触发；auto_accept 场景已由 Rust 延迟 3s 自动发送
+            if (!isKnownDevice && !autoAccept)
             {
                 DelayedRequestAppList(device.Id);
             }
@@ -309,7 +314,6 @@ public class NetworkService(
                 // 登记到 known_devices，供心跳调度器与自动扫描驱动
                 NativeCore.AddKnownDevice(remoteUuid, remoteIp);
                 logger.LogInformation($"配对完成（更新已有设备）: {remoteUuid}");
-                DelayedRequestAppList(remoteUuid);
             }
             else
             {
@@ -340,7 +344,6 @@ public class NetworkService(
                 // 登记到 known_devices，供心跳调度器与自动扫描驱动
                 NativeCore.AddKnownDevice(remoteUuid, remoteIp);
                 logger.LogInformation($"新设备配对完成: {remoteUuid}");
-                DelayedRequestAppList(remoteUuid);
             }
         }
         catch (Exception ex)
