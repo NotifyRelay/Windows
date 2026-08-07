@@ -145,8 +145,7 @@ public class DiscoveryService(
 
         try
         {
-            NativeCore.StopMdnsAdvertiser();
-            NativeCore.StopMdnsDiscovery();
+            // mDNS 广告/发现的停止统一交由核心关闭流程（nrc_start_core 统一管理），此处不再主动调用
             deviceManager.LocalDeviceNameChanged -= OnLocalDeviceNameChanged;
             dispatcher.TryEnqueue(() =>
             {

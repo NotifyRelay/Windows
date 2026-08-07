@@ -253,7 +253,7 @@ public static class NativeCore
                         bool autoAccept = false;
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             pubKey = doc.RootElement.GetProperty("pub_key").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
@@ -272,7 +272,7 @@ public static class NativeCore
                         string spake2Pub = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
@@ -289,7 +289,7 @@ public static class NativeCore
                         string spake2Pub = "", ltPub = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             spake2Pub = doc.RootElement.GetProperty("spake2_pub").GetString() ?? "";
                             ltPub = doc.RootElement.GetProperty("lt_pub").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
@@ -307,7 +307,7 @@ public static class NativeCore
                         string ltPubKey = "", ip = "", deviceType = "unknown";
                         try
                         {
-                            var doc = System.Text.Json.JsonDocument.Parse(data);
+                            using var doc = System.Text.Json.JsonDocument.Parse(data);
                             ltPubKey = doc.RootElement.GetProperty("lt_pub_key").GetString() ?? "";
                             ip = doc.RootElement.GetProperty("ip").GetString() ?? "";
                             deviceType = doc.RootElement.GetProperty("device_type").GetString() ?? "unknown";
