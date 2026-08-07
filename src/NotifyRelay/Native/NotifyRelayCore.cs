@@ -75,24 +75,15 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_clear_pairing_code(IntPtr ctx);
 
-    // ======== New: OneShot TCP (ctx param, unified timeout) ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_oneshot_send_receive(IntPtr ctx, IntPtr ip, ushort port, IntPtr payload, uint timeoutMs);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_oneshot_send_only(IntPtr ctx, IntPtr ip, ushort port, IntPtr payload, uint timeoutMs);
-
     // ======== Network layer ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_start_tcp_server(IntPtr ctx, ushort port);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_remove_device_session(IntPtr ctx, IntPtr uuid);
 
-    // ======== Heartbeat scheduler (统一心跳调度, 替代 per-device sender) ========
+    // ======== Core start (统一启动 TCP/UDP、心跳、离线检测、发送队列、扫描、重连、mDNS) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_start_heartbeat_scheduler(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ulong intervalMs);
+    public static extern long nrc_start_core(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ushort tcpPort, IntPtr pubKey, ulong heartbeatIntervalMs, long offlineTimeoutSec, ulong offlineCheckIntervalMs, ulong reconnectIntervalSecs, uint reconnectMaxRetries);
 
+    // ======== Heartbeat scheduler params (电量/名称变化) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_update_heartbeat_scheduler_params(IntPtr ctx, IntPtr name, int battery, IntPtr deviceType);
 
@@ -100,17 +91,7 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_get_device_list(IntPtr ctx, long authedTimeoutMs, long unauthedTimeoutMs);
 
-    // ======== Offline detector ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_start_offline_detector(IntPtr ctx, long timeoutSec, ulong checkIntervalMs);
-
     // ======== Sender queue ========
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern long nrc_create_sender_queue(IntPtr ctx);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_start_sender_queue(IntPtr ctx, long queuePtr);
-
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_enqueue_message(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr header, IntPtr plaintext, IntPtr dedupKey);
 
@@ -155,13 +136,7 @@ public static class NotifyRelayCore
 
     // ======== mDNS ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_start_mdns_advertiser(IntPtr ctx, IntPtr uuid, IntPtr name, ushort port, IntPtr pubKey, IntPtr deviceType, int battery);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_mdns_advertiser(IntPtr ctx);
-
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_start_mdns_discovery(IntPtr ctx);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_stop_mdns_discovery(IntPtr ctx);
@@ -173,9 +148,6 @@ public static class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_remove_known_device(IntPtr ctx, IntPtr uuid);
 
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_start_known_device_scanner(IntPtr ctx);
-
     // ======== Filter ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_set_filter_config(IntPtr ctx, IntPtr configJson);
@@ -183,16 +155,12 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_map_local_package(IntPtr ctx, IntPtr pkg);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_check_filter_mode(IntPtr ctx, IntPtr mappedPkg, IntPtr originalPkg, IntPtr title, IntPtr text);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_filter_notification(IntPtr ctx, IntPtr pkg, IntPtr title, IntPtr text);
 
     // ======== Other utilities ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_should_deduplicate(IntPtr newTitle, IntPtr newText, IntPtr oldTitle, IntPtr oldText);
 
     // ======== FTP credentials ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -388,23 +356,6 @@ public static class NotifyRelayCore
             NotifyRelayCore.nrc_clear_pairing_code(ctx);
         }
 
-        // ======== OneShot TCP ========
-        public static int OneShotSendReceive(IntPtr ctx, string ip, ushort port, string payload, uint timeoutMs = 5000)
-        {
-            var i = StringToPtr(ip); var p = StringToPtr(payload);
-            var result = NotifyRelayCore.nrc_oneshot_send_receive(ctx, i, port, p, timeoutMs);
-            Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(p);
-            return result;
-        }
-
-        public static int OneShotSendOnly(IntPtr ctx, string ip, ushort port, string payload, uint timeoutMs = 5000)
-        {
-            var i = StringToPtr(ip); var p = StringToPtr(payload);
-            var result = NotifyRelayCore.nrc_oneshot_send_only(ctx, i, port, p, timeoutMs);
-            Marshal.FreeHGlobal(i); Marshal.FreeHGlobal(p);
-            return result;
-        }
-
         // ======== State persistence ========
         public static string? ExportState(IntPtr ctx)
         {
@@ -500,22 +451,6 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static int ShouldDeduplicate(string newTitle, string newText, string oldTitle, string oldText)
-        {
-            var nt = StringToPtr(newTitle); var ntx = StringToPtr(newText); var ot = StringToPtr(oldTitle); var otx = StringToPtr(oldText);
-            var result = NotifyRelayCore.nrc_should_deduplicate(nt, ntx, ot, otx);
-            Marshal.FreeHGlobal(nt); Marshal.FreeHGlobal(ntx); Marshal.FreeHGlobal(ot); Marshal.FreeHGlobal(otx);
-            return result;
-        }
-
-        public static bool FilterNotification(IntPtr ctx, string pkg, string title, string text)
-        {
-            var p = StringToPtr(pkg); var t = StringToPtr(title); var tx = StringToPtr(text);
-            var result = NotifyRelayCore.nrc_filter_notification(ctx, p, t, tx);
-            Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx);
-            return result != 0;
-        }
-
         // ======== FTP ========
         public static string? DeriveFtpCredentials(string sharedSecretB64)
         {
@@ -540,7 +475,13 @@ public static class NotifyRelayCore
         }
 
         // ======== Network wrappers ========
-        public static int StartTcpServer(IntPtr ctx, ushort port) => NotifyRelayCore.nrc_start_tcp_server(ctx, port);
+        public static long StartCore(IntPtr ctx, string uuid, string name, int battery, string deviceType, ushort tcpPort, string pubKey, ulong heartbeatIntervalMs, long offlineTimeoutSec, ulong offlineCheckIntervalMs, ulong reconnectIntervalSecs, uint reconnectMaxRetries)
+        {
+            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType); var pk = StringToPtr(pubKey);
+            var result = NotifyRelayCore.nrc_start_core(ctx, u, n, battery, d, tcpPort, pk, heartbeatIntervalMs, offlineTimeoutSec, offlineCheckIntervalMs, reconnectIntervalSecs, reconnectMaxRetries);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d); Marshal.FreeHGlobal(pk);
+            return result;
+        }
 
         public static int RemoveDeviceSession(IntPtr ctx, string uuid)
         {
@@ -550,15 +491,7 @@ public static class NotifyRelayCore
             return result;
         }
 
-        // ======== Heartbeat scheduler ========
-        public static long StartHeartbeatScheduler(IntPtr ctx, string uuid, string name, int battery, string deviceType, ulong intervalMs)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_start_heartbeat_scheduler(ctx, u, n, battery, d, intervalMs);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(d);
-            return result;
-        }
-
+        // ======== Heartbeat scheduler params ========
         public static void UpdateHeartbeatSchedulerParams(IntPtr ctx, string name, int battery, string deviceType)
         {
             var n = StringToPtr(name); var d = StringToPtr(deviceType);
@@ -571,23 +504,7 @@ public static class NotifyRelayCore
             return PtrToStringAndFree(NotifyRelayCore.nrc_get_device_list(ctx, authedTimeoutMs, unauthedTimeoutMs));
         }
 
-        // ======== Offline detector ========
-        public static long StartOfflineDetector(IntPtr ctx, long timeoutSec, ulong checkIntervalMs)
-        {
-            return NotifyRelayCore.nrc_start_offline_detector(ctx, timeoutSec, checkIntervalMs);
-        }
-
         // ======== Sender queue ========
-        public static long CreateSenderQueue(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_create_sender_queue(ctx);
-        }
-
-        public static void StartSenderQueue(IntPtr ctx, long queuePtr)
-        {
-            NotifyRelayCore.nrc_start_sender_queue(ctx, queuePtr);
-        }
-
         public static void EnqueueMessage(IntPtr ctx, long queuePtr, string deviceUuid, string header, string plaintext, string? dedupKey)
         {
             var u = StringToPtr(deviceUuid);
@@ -691,22 +608,9 @@ public static class NotifyRelayCore
         }
 
         // ======== mDNS ========
-        public static int StartMdnsAdvertiser(IntPtr ctx, string uuid, string name, ushort port, string pubKey, string deviceTypeStr, int battery)
-        {
-            var u = StringToPtr(uuid); var n = StringToPtr(name); var pk = StringToPtr(pubKey); var dt = StringToPtr(deviceTypeStr);
-            var result = NotifyRelayCore.nrc_start_mdns_advertiser(ctx, u, n, port, pk, dt, battery);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(n); Marshal.FreeHGlobal(pk); Marshal.FreeHGlobal(dt);
-            return result;
-        }
-
         public static void StopMdnsAdvertiser(IntPtr ctx)
         {
             NotifyRelayCore.nrc_stop_mdns_advertiser(ctx);
-        }
-
-        public static int StartMdnsDiscovery(IntPtr ctx)
-        {
-            return NotifyRelayCore.nrc_start_mdns_discovery(ctx);
         }
 
         public static void StopMdnsDiscovery(IntPtr ctx)

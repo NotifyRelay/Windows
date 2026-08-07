@@ -35,8 +35,6 @@ public class WindowsPlaybackService(
     private readonly MMDeviceEnumerator enumerator = new();
 
     private readonly Dictionary<string, double> lastTimelinePosition = [];
-    private readonly Dictionary<string, DateTime> lastSessionUpdateTime = [];
-    private const int MinUpdateIntervalMs = 5000; // 最小更新间隔，5秒
 
     // WinRT device watcher for audio endpoint changes
     private DeviceWatcher? deviceWatcher;
@@ -590,22 +588,11 @@ public class WindowsPlaybackService(
             var overlayEnabled = generalSettings.DanmakuMediaCardEnabled;
             var forceGamebar = generalSettings.GamebarRelayEnabled;
 
-            // 远程发送节流 + 推送（受 EnableSendMediaNotifications 控制）
-            string key = $"{source}|{(root.TryGetProperty("sessionType", out var stProp) ? stProp.GetString() : "default")}";
-
+            // 远程推送（受 EnableSendMediaNotifications 控制）
+            // 推送「全量」媒体状态；差异计算（FULL/DELTA）与合并由 Rust 合并引擎负责。
             bool shouldSendRemote = generalSettings.EnableSendMediaNotifications;
-            bool remoteThrottled = false;
-            if (shouldSendRemote && lastSessionUpdateTime.TryGetValue(key, out var lastTime))
+            if (shouldSendRemote)
             {
-                if ((DateTime.Now - lastTime).TotalMilliseconds < MinUpdateIntervalMs)
-                    remoteThrottled = true;
-            }
-
-            if (shouldSendRemote && !remoteThrottled)
-            {
-                lastSessionUpdateTime[key] = DateTime.Now;
-
-                // 推送「全量」媒体状态；差异计算（FULL/DELTA）与合并由 Rust 合并引擎负责。
                 string mediaJson = JsonSerializer.Serialize(new
                 {
                     title = trackTitle ?? string.Empty,

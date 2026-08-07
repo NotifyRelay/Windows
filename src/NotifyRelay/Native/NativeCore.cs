@@ -146,9 +146,10 @@ public static class NativeCore
 
     // ======== Network layer wrappers ========
 
-    public static int StartTcpServer(ushort port)
+    public static long StartCore(string uuid, string name, int battery, string deviceType, ushort tcpPort, string pubKey, ulong heartbeatIntervalMs = 2000, long offlineTimeoutSec = 12, ulong offlineCheckIntervalMs = 5000, ulong reconnectIntervalSecs = 10, uint reconnectMaxRetries = 5)
     {
-        return NotifyRelayCore.Safe.StartTcpServer(_ctx, port);
+        _senderQueueHandle = NotifyRelayCore.Safe.StartCore(_ctx, uuid, name, battery, deviceType, tcpPort, pubKey, heartbeatIntervalMs, offlineTimeoutSec, offlineCheckIntervalMs, reconnectIntervalSecs, reconnectMaxRetries);
+        return _senderQueueHandle;
     }
 
     public static int RemoveDeviceSession(string uuid)
@@ -508,13 +509,7 @@ public static class NativeCore
     }
 
     // ======== Heartbeat scheduler ========
-    private static long _offlineDetectorHandle;
     private static long _senderQueueHandle;
-
-    public static long StartHeartbeatScheduler(string uuid, string name, int battery, string deviceType, ulong intervalMs = 2000)
-    {
-        return NotifyRelayCore.Safe.StartHeartbeatScheduler(_ctx, uuid, name, battery, deviceType, intervalMs);
-    }
 
     public static void UpdateHeartbeatSchedulerParams(string name, int battery, string deviceType)
     {
@@ -527,24 +522,8 @@ public static class NativeCore
         return NotifyRelayCore.Safe.GetDeviceList(_ctx, authedTimeoutMs, unauthedTimeoutMs);
     }
 
-    // ======== Offline detector ========
-    public static long StartOfflineDetector(long timeoutSec = 12, ulong checkIntervalMs = 5000)
-    {
-        _offlineDetectorHandle = NotifyRelayCore.Safe.StartOfflineDetector(_ctx, timeoutSec, checkIntervalMs);
-        return _offlineDetectorHandle;
-    }
-
     // ======== Sender queue ========
-    public static long CreateSenderQueue()
-    {
-        _senderQueueHandle = NotifyRelayCore.Safe.CreateSenderQueue(_ctx);
-        return _senderQueueHandle;
-    }
-
-    public static void StartSenderQueue()
-    {
-        NotifyRelayCore.Safe.StartSenderQueue(_ctx, _senderQueueHandle);
-    }
+    public static long SenderQueueHandle => _senderQueueHandle;
 
     public static void EnqueueMessage(string deviceUuid, string header, string plaintext, string? dedupKey = null)
     {
@@ -634,25 +613,10 @@ public static class NativeCore
         NotifyRelayCore.Safe.RemoveKnownDevice(_ctx, uuid);
     }
 
-    public static void StartKnownDeviceScanner()
-    {
-        NotifyRelayCore.nrc_start_known_device_scanner(_ctx);
-    }
-
     // ======== mDNS ========
-    public static int StartMdnsAdvertiser(string uuid, string name, ushort port, string pubKey, string deviceType, int battery)
-    {
-        return NotifyRelayCore.Safe.StartMdnsAdvertiser(_ctx, uuid, name, port, pubKey, deviceType, battery);
-    }
-
     public static void StopMdnsAdvertiser()
     {
         NotifyRelayCore.Safe.StopMdnsAdvertiser(_ctx);
-    }
-
-    public static int StartMdnsDiscovery()
-    {
-        return NotifyRelayCore.Safe.StartMdnsDiscovery(_ctx);
     }
 
     public static void StopMdnsDiscovery()
