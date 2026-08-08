@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
+        <Platforms>x64;ARM64;x86</Platforms>
+        <LangVersion>Preview</LangVersion>
+    </PropertyGroup>
+    <!--
+        notify-relay-core Rust 子模块独立构建项目（对齐 Android nativecore 模块）。
+        主项目通过 ProjectReference 引用本项目即可获得 notify_relay_core.dll 与 FFI 封装。
+    -->
+    <Target Name="BuildRust" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
+        <PropertyGroup>
+            <RustProjectDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)notify-relay-core'))</RustProjectDir>
+            <RustTargetDir>$([MSBuild]::NormalizeDirectory('$(RustProjectDir)build\target'))</RustTargetDir>
+            <RustDllPath>$([MSBuild]::NormalizePath('$(RustTargetDir)release\notify_relay_core.dll'))</RustDllPath>
+        </PropertyGroup>
+        <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
+        <Exec Command="&quot;$(UserProfile)\.cargo\bin\cargo.exe&quot; build --release --manifest-path $(RustProjectDir)Cargo.toml --target-dir $(RustTargetDir)"
+              WorkingDirectory="$(RustProjectDir)" StandardOutputImportance="high" />
+        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+    </Target>
+
+    <!-- 将原生 DLL 作为项目输出传播给引用项目（ProjectReference 自动复制到引用方输出目录） -->
+    <Target Name="IncludeNativeDll" DependsOnTargets="BuildRust" Returns="@(BuildOutputInPackage)">
+        <ItemGroup>
+            <BuildOutputInPackage Include="$(RustDllPath)">
+                <TargetPath>notify_relay_core.dll</TargetPath>
+            </BuildOutputInPackage>
+        </ItemGroup>
+    </Target>
+    <PropertyGroup>
+        <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeNativeDll</TargetsForTfmSpecificBuildOutput>
+    </PropertyGroup>
+</Project>

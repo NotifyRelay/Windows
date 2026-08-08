@@ -57,6 +57,7 @@
         </Content>
     </ItemGroup>
     <ItemGroup>
+        <ProjectReference Include="..\NotifyRelay.NativeCore\NotifyRelay.NativeCore.csproj" />
         <ProjectReference Include="..\NotifyRelay.Overlay\NotifyRelay.Overlay.csproj" />
         <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" />
     </ItemGroup>
@@ -103,22 +104,4 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
-    <!-- 构建 Rust 原生库 -->
-    <Target Name="BuildRustNative" BeforeTargets="BeforeBuild" Condition="'$(DesignTimeBuild)' != 'true'">
-        <PropertyGroup>
-            <RustProjectDir>$([MSBuild]::NormalizeDirectory('$(MSBuildThisFileDirectory)..\..\notify-relay-core'))</RustProjectDir>
-            <RustTargetDir>$([MSBuild]::NormalizeDirectory('$(RustProjectDir)build\target\release'))</RustTargetDir>
-            <RustDllPath>$([MSBuild]::NormalizePath('$(RustTargetDir)notify_relay_core.dll'))</RustDllPath>
-        </PropertyGroup>
-        <ItemGroup>
-            <RustSourceFiles Include="$(RustProjectDir)src\**\*.rs" />
-            <RustSourceFiles Include="$(RustProjectDir)Cargo.toml" />
-            <RustSourceFiles Include="$(RustProjectDir)Cargo.lock" />
-        </ItemGroup>
-        <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
-        <Exec Command="cargo build --release" WorkingDirectory="$(RustProjectDir)" ConsoleToMSBuild="true" />
-        <Message Text="复制 DLL 到输出目录: $(RustDllPath) -&gt; $(OutDir)" Importance="high" />
-        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
-        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
-    </Target>
 </Project>
