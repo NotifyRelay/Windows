@@ -153,7 +153,11 @@ public partial class OverlayRenderService
                 if (!string.IsNullOrEmpty(state.Subtitle)) existing.State.Subtitle = state.Subtitle;
                 if (!string.IsNullOrEmpty(state.Extra)) existing.State.Extra = state.Extra;
                 if (state.IconPng != null) existing.State.IconPng = state.IconPng;
-                if (state.Pics != null) existing.State.Pics = state.Pics;
+                if (state.Pics != null)
+                {
+                    existing.State.Pics = state.Pics;
+                    InvalidateSuperIslandPics(existing);
+                }
                 if (state.Progress > 0) existing.State.Progress = state.Progress;
                 if (state.TimerType != TimerType.None) existing.State.TimerType = state.TimerType;
                 if (state.TimerValue > 0) existing.State.TimerValue = state.TimerValue;
@@ -282,6 +286,7 @@ public partial class OverlayRenderService
                     s.SubtitleLayout?.Dispose(); s.SubtitleLayout = null;
                     s.AdditionalTextLayout?.Dispose(); s.AdditionalTextLayout = null;
                     s.ExtraLayout?.Dispose(); s.ExtraLayout = null;
+                    InvalidateSuperIslandPics(s);
                 }
             }
         }
@@ -289,5 +294,17 @@ public partial class OverlayRenderService
         {
             Monitor.Exit(_lock);
         }
+    }
+
+    /// <summary>使 SuperIsland 多图位图槽失效并延迟释放（Pics 更新或覆盖层重建时调用）。</summary>
+    private void InvalidateSuperIslandPics(SuperIslandItem s)
+    {
+        DeferDispose(s.AvatarBitmap); s.AvatarBitmap = null;
+        DeferDispose(s.BigImageLeftBitmap); s.BigImageLeftBitmap = null;
+        DeferDispose(s.BigImageRightBitmap); s.BigImageRightBitmap = null;
+        DeferDispose(s.PicInfoBitmap); s.PicInfoBitmap = null;
+        DeferDispose(s.LeftIconBitmap); s.LeftIconBitmap = null;
+        DeferDispose(s.RightIconBitmap); s.RightIconBitmap = null;
+        s.FailedPicKeys.Clear();
     }
 }

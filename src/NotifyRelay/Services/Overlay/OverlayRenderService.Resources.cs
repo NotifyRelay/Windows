@@ -94,6 +94,100 @@ public partial class OverlayRenderService
             using var format = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 11);
             item.ExtraLayout = _dwFactory.CreateTextLayout(item.State.Extra, format, 380, 20);
         }
+
+        // 多图位图槽：按需懒加载，失败键记入 FailedPicKeys 避免每帧重复解析
+        var pics = item.State.Pics;
+        if (pics == null || pics.Count == 0) return;
+
+        var pv = item.State.ParamV2;
+        item.AvatarBitmap = EnsurePicBitmap(item.AvatarBitmap, pics, pv?.ChatInfo?.PicProfile, item.FailedPicKeys, rt);
+        item.BigImageLeftBitmap = EnsurePicBitmap(item.BigImageLeftBitmap, pics,
+            pv?.HighlightInfo?.BigImageLeft ?? ResolveFocusPicKey(pics, pv?.HighlightInfo?.PicFunction), item.FailedPicKeys, rt);
+        item.BigImageRightBitmap = EnsurePicBitmap(item.BigImageRightBitmap, pics, pv?.HighlightInfo?.BigImageRight, item.FailedPicKeys, rt);
+        item.PicInfoBitmap = EnsurePicBitmap(item.PicInfoBitmap, pics, pv?.PicInfo?.Pic, item.FailedPicKeys, rt);
+        item.LeftIconBitmap = EnsurePicBitmap(item.LeftIconBitmap, pics,
+            ResolveFocusPicKey(pics, pv?.ParamIsland?.BigIslandArea?.AComponent?.PicKey), item.FailedPicKeys, rt);
+        item.RightIconBitmap = EnsurePicBitmap(item.RightIconBitmap, pics, GetBComponentPicKey(pv), item.FailedPicKeys, rt);
+    }
+
+    /// <summary>从 Pics 字典按 key 懒加载位图；失败（无 key/缺值/解码失败）返回 null 并记忆失败键。</summary>
+    private ID2D1Bitmap? EnsurePicBitmap(ID2D1Bitmap? current, Dictionary<string, string> pics,
+        string? key, HashSet<string> failed, ID2D1DCRenderTarget rt)
+    {
+        if (current != null) return current;
+        if (string.IsNullOrEmpty(key) || !pics.TryGetValue(key, out var value) || failed.Contains(key)) return null;
+        try
+        {
+            var png = DecodePicBytes(value);
+            if (png == null)
+            {
+                failed.Add(key);
+                return null;
+            }
+            return LoadBitmapFromPng(png, rt);
+        }
+        catch
+        {
+            failed.Add(key);
+            return null;
+        }
+    }
+
+    /// <summary>解析 B 区组件的图片键（仅显示位图的组件）。</summary>
+    private static string? GetBComponentPicKey(ParamV2? pv)
+    {
+        var b = pv?.ParamIsland?.BigIslandArea?.BComponent;
+        return b switch
+        {
+            BImageTextData img => img.PicKey,
+            BPicInfoData pic => pic.PicKey,
+            _ => null
+        };
+    }
+
+    /// <summary>
+    /// 焦点图标键解析（对齐 Android FocusIconResolver.getFocusIconUrl）：
+    /// 主键命中优先；否则按 expand 主题图标 → aod/ado_pic/app_icon → ic_* → 其余 pic_* 顺序回退。
+    /// </summary>
+    private static string? ResolveFocusPicKey(Dictionary<string, string> pics, string? primaryKey)
+    {
+        if (!string.IsNullOrEmpty(primaryKey) && primaryKey.StartsWith("miui.focus.", StringComparison.OrdinalIgnoreCase)
+            && pics.ContainsKey(primaryKey))
+        {
+            return primaryKey;
+        }
+        foreach (var k in new[] { "miui.focus.pic_expand_light", "miui.focus.pic_expand_dark" })
+        {
+            if (pics.ContainsKey(k)) return k;
+        }
+        foreach (var k in new[] { "miui.focus.pic_aod", "miui.focus.pic_ado_pic", "miui.focus.pic_app_icon" })
+        {
+            if (pics.ContainsKey(k)) return k;
+        }
+        foreach (var k in pics.Keys)
+        {
+            if (k.StartsWith("miui.focus.ic_", StringComparison.OrdinalIgnoreCase)) return k;
+        }
+        foreach (var k in pics.Keys)
+        {
+            if (k.StartsWith("miui.focus.pic_", StringComparison.OrdinalIgnoreCase)
+                && !k.Equals("miui.focus.pics", StringComparison.OrdinalIgnoreCase)) return k;
+        }
+        return null;
+    }
+
+    /// <summary>将 Pics 值（data URL 或纯 base64）解码为 PNG 字节，失败返回 null。</summary>
+    private static byte[]? DecodePicBytes(string? value)
+    {
+        if (string.IsNullOrEmpty(value)) return null;
+        var s = value;
+        var idx = s.IndexOf(',');
+        if (idx > 0 && s.AsSpan(0, idx).Contains("base64", StringComparison.OrdinalIgnoreCase))
+        {
+            s = s[(idx + 1)..];
+        }
+        try { return Convert.FromBase64String(s); }
+        catch { return null; }
     }
 
     /// <summary>

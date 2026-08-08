@@ -117,17 +117,29 @@ public class SuperIslandItem : OverlayItem
     public IDWriteTextLayout? AdditionalTextLayout { get; set; }
     public IDWriteTextLayout? ExtraLayout { get; set; }
 
+    // 多图位图槽（对应 Android 各模板组件图片）
+    public ID2D1Bitmap? AvatarBitmap { get; set; }         // chatInfo 头像
+    public ID2D1Bitmap? BigImageLeftBitmap { get; set; }   // highlightInfo 左侧大图
+    public ID2D1Bitmap? BigImageRightBitmap { get; set; }  // highlightInfo 右侧大图
+    public ID2D1Bitmap? PicInfoBitmap { get; set; }        // picInfo 图片
+    public ID2D1Bitmap? LeftIconBitmap { get; set; }       // A 区图标
+    public ID2D1Bitmap? RightIconBitmap { get; set; }      // B 区图标
+
+    /// <summary>加载失败的图片键集合（Pics 更新时清除），避免每帧重复解析无效图。</summary>
+    public HashSet<string> FailedPicKeys { get; } = [];
+
     public string SourceId { get; set; } = string.Empty;
     public string DeviceName { get; set; } = string.Empty;
 
     public double Opacity { get; set; } = 1.0;
     public double LastUpdateTime { get; set; }
-    public const double TimeoutSeconds = 10;
+    public const double TimeoutSeconds = 12;
 
-    // 展开/收起状态（类似 MediaCardItem）
+    // 展开/收起状态（对齐 Android：3s 自动收起；媒体条目 20s 移除）
     public bool IsExpanded { get; set; } = true;
     public double ExpandedSince { get; set; }
-    public const double AutoCollapseSeconds = 5.0;
+    public const double AutoCollapseSeconds = 3.0;
+    public const double MediaTimeoutSeconds = 20;
 
     public SuperIslandItem()
     {
@@ -145,5 +157,11 @@ public class SuperIslandItem : OverlayItem
         SubtitleLayout?.Dispose();
         AdditionalTextLayout?.Dispose();
         ExtraLayout?.Dispose();
+        AvatarBitmap?.Dispose();
+        BigImageLeftBitmap?.Dispose();
+        BigImageRightBitmap?.Dispose();
+        PicInfoBitmap?.Dispose();
+        LeftIconBitmap?.Dispose();
+        RightIconBitmap?.Dispose();
     }
 }
