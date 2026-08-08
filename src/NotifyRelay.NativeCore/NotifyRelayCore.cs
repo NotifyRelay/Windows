@@ -121,10 +121,10 @@ public static class NotifyRelayCore
     // ======== State merge (push full; receive via on_data) ========
     // isQuery: 1=查询回调响应推送（心跳查询发现变更后由平台推送），0=正常主动推送
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_push_superisland_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
+    public static extern int nrc_push_superisland_state(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int nrc_push_media_state(IntPtr ctx, IntPtr queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
+    public static extern int nrc_push_media_state(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr fullJson, int isEnd, int isQuery);
 
     // ======== Network change ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -521,7 +521,7 @@ public static class NotifyRelayCore
         public static int PushSuperIslandState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd, bool isQuery = false)
         {
             var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
-            var result = NotifyRelayCore.nrc_push_superisland_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
+            var result = NotifyRelayCore.nrc_push_superisland_state(ctx, queuePtr, u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
             return result;
         }
@@ -529,7 +529,7 @@ public static class NotifyRelayCore
         public static int PushMediaState(IntPtr ctx, long queuePtr, string deviceUuid, string fullJson, bool isEnd, bool isQuery = false)
         {
             var u = StringToPtr(deviceUuid); var p = StringToPtr(fullJson);
-            var result = NotifyRelayCore.nrc_push_media_state(ctx, new IntPtr(queuePtr), u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
+            var result = NotifyRelayCore.nrc_push_media_state(ctx, queuePtr, u, p, isEnd ? 1 : 0, isQuery ? 1 : 0);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p);
             return result;
         }
