@@ -403,6 +403,7 @@ public static class AppLifecycleHelper
         .AddSingleton<UserSettingsService>()
         .AddSingleton<IUserSettingsService>(sp => sp.GetRequiredService<UserSettingsService>())
         .AddSingleton<IGeneralSettingsService>(sp => sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
+        .AddSingleton<IOverlaySettings>(sp => (IOverlaySettings)sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
         .AddSingleton<NotifyRelay.Worker.Configuration.IDeepSeekBalanceSettings, DeepSeekBalanceSettingsAccessor>()
 
         // Database and Repositories
