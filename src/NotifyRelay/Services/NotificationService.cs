@@ -290,7 +290,9 @@ public class NotificationService(
                             UpdateActiveNotifications();
 
 #if WINDOWS
-                            if (device.DeviceSettings.IgnoreWindowsApps && await IsAppActiveAsync(appName ?? "")) return;
+                            bool isNotifyRelaySelf = appPackage?.Contains("notifyrelay", StringComparison.OrdinalIgnoreCase) == true
+                                || appName?.Contains("notifyrelay", StringComparison.OrdinalIgnoreCase) == true;
+                            if (device.DeviceSettings.IgnoreWindowsApps && !isNotifyRelaySelf && await IsAppActiveAsync(appName ?? "")) return;
 #endif
 
                             if (isNewToUser && notificationType == NotificationType.New)
