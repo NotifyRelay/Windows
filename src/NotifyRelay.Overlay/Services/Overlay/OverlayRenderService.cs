@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
-using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using Vortice;
 using Vortice.Direct2D1;
@@ -13,7 +12,7 @@ namespace NotifyRelay.Services.Overlay;
 public sealed partial class OverlayRenderService : IDisposable
 {
     private readonly ILogger<OverlayRenderService> _logger;
-    private readonly IGeneralSettingsService _settings;
+    private readonly IOverlaySettings _settings;
     private readonly ID2D1Factory _d2dFactory;
     private readonly IDWriteFactory _dwFactory;
     private readonly IWICImagingFactory _wicFactory;
@@ -57,7 +56,7 @@ public sealed partial class OverlayRenderService : IDisposable
     private int _screenMode;              // 当前多屏模式，变化时触发覆盖层重建
     private readonly Random _rand = new();
 
-    public OverlayRenderService(ILogger<OverlayRenderService> logger, IGeneralSettingsService settings)
+    public OverlayRenderService(ILogger<OverlayRenderService> logger, IOverlaySettings settings)
     {
         _logger = logger;
         _settings = settings;

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
+        <Platforms>x64;ARM64;x86</Platforms>
+        <LangVersion>Preview</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Vortice.Direct2D1" />
+        <PackageReference Include="Vortice.Mathematics" />
+    </ItemGroup>
+</Project>

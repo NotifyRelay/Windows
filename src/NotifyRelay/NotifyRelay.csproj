@@ -57,6 +57,7 @@
         </Content>
     </ItemGroup>
     <ItemGroup>
+        <ProjectReference Include="..\NotifyRelay.Overlay\NotifyRelay.Overlay.csproj" />
         <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" />
     </ItemGroup>
     <ItemGroup>

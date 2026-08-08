@@ -5,12 +5,13 @@ using NotifyRelay.Data.Configuration;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Services.Overlay;
 using Windows.UI;
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.Services.Settings;
 
-internal sealed class GeneralSettingsService : IGeneralSettingsService
+internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlaySettings
 {
     private readonly IConfigurationRoot _configuration;
     private readonly UISettings _uiSettings = new();
