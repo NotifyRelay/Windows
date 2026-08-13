@@ -67,9 +67,8 @@ public partial class OverlayRenderService
             return;
         }
 
-        // Render media card (max 1) — 居中灵动岛胶囊
-        var media = mediaItems.FirstOrDefault();
-        if (media != null)
+        // Render media cards — 居中灵动岛胶囊
+        foreach (var media in mediaItems)
         {
             // 自动收起：媒体字段变更后 5 秒自动收起
             if (media.IsExpanded && (now - media.ExpandedSince) / freq > MediaCardItem.AutoCollapseSeconds)
@@ -82,8 +81,8 @@ public partial class OverlayRenderService
             y += media.IsExpanded ? 108 : 48;
         }
 
-        // Render SuperIsland cards (max 3) — 居中灵动岛胶囊
-        foreach (var si in superItems.Take(3))
+        // Render SuperIsland cards — 居中灵动岛胶囊
+        foreach (var si in superItems)
         {
             // 自动收起：对齐 Android 3s 自动收起（summaryOnly 条目禁止展开）
             if (si.IsExpanded && !si.State.SummaryOnly &&
@@ -93,7 +92,7 @@ public partial class OverlayRenderService
             }
 
             EnsureSuperIslandResources(si, rt);
-            float cardHeight = DrawSuperIslandCard(si, rt, screenWidth, y);
+            float cardHeight = DrawSuperIslandCard(si, rt, screenWidth, y, now, freq);
             y += cardHeight;
         }
 
@@ -329,20 +328,22 @@ public partial class OverlayRenderService
     /// 绘制超级岛卡片（收起态胶囊 / 展开态大岛），返回实际占用的高度。
     /// 布局对齐 Android superislandui：胶囊 = A区 + B区；展开 = 按模板分支渲染。
     /// </summary>
-    private float DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float screenWidth, float y)
+    private float DrawSuperIslandCard(SuperIslandItem item, ID2D1DCRenderTarget rt, float screenWidth, float y, double now, double freq)
     {
         if (!item.IsExpanded || item.State.SummaryOnly)
         {
-            return DrawSuperIslandCollapsed(item, rt, screenWidth, y);
+            return DrawSuperIslandCollapsed(item, rt, screenWidth, y, now, freq);
         }
         return DrawSuperIslandExpanded(item, rt, screenWidth, y);
     }
 
     // ---------- 收起态（胶囊，对齐 BigIslandCollapsedCompose） ----------
 
-    private float DrawSuperIslandCollapsed(SuperIslandItem item, ID2D1DCRenderTarget rt, float screenWidth, float y)
+    /// <summary>收起态文本块显示宽度上限（对齐 Android CommonTextBlockCompose maxWidth=160.dp）。</summary>
+    private const float CollapsedTextMaxWidth = 160;
+
+    private float DrawSuperIslandCollapsed(SuperIslandItem item, ID2D1DCRenderTarget rt, float screenWidth, float y, double now, double freq)
     {
-        const float pillHeight = 40;
         const float hPad = 10;
         const float gapAB = 48;
         const float opacity = 0.9f;
@@ -352,6 +353,10 @@ public partial class OverlayRenderService
         var big = pv?.ParamIsland?.BigIslandArea;
         var aComp = big?.AComponent;
         var bComp = big?.BComponent;
+
+        // A 区文本块是否两行（标题 + 内容）：胶囊高度自适应（对齐 Android 折叠态随内容增高）
+        bool aTwoLine = aComp != null && !string.IsNullOrEmpty(aComp.Title) && !string.IsNullOrEmpty(aComp.Content);
+        float pillHeight = aTwoLine ? 46 : 40;
 
         // 计算内容宽度（A区 + 间距 + B区），wrapContentWidth 自适应
         float aWidth = MeasureAComponent(item, aComp);
@@ -363,6 +368,16 @@ public partial class OverlayRenderService
             // 兜底：标题作为 B 区文本
             bWidth = MeasureTextWidth(state.Title ?? state.Subtitle ?? "", "Microsoft YaHei", DWriteFontWeight.Normal, 12);
             hasB = bWidth > 0;
+        }
+
+        // 收起态滚动锚点：显示文本变化时重置（对齐 Android AutoScrollText lastText 检查）
+        var fallbackText = state.Title ?? state.Subtitle ?? "";
+        var bText = (bComp == null || bComp is BEmptyData) ? fallbackText : ResolveBText(bComp, state);
+        var scrollKey = string.Join('\u0001', aComp?.Title, aComp?.Content, bText);
+        if (item.CollapsedScrollKey != scrollKey)
+        {
+            item.CollapsedScrollKey = scrollKey;
+            item.CollapsedScrollTime = now;
         }
 
         float contentWidth = (hasA ? aWidth : 0) + (hasA && hasB ? gapAB : 0) + (hasB ? bWidth : 0);
@@ -381,7 +396,7 @@ public partial class OverlayRenderService
 
         if (hasA)
         {
-            cx += DrawAComponent(item, rt, cx, centerY);
+            cx += DrawAComponent(item, rt, cx, centerY, now, freq);
         }
         if (hasA && hasB)
         {
@@ -389,7 +404,22 @@ public partial class OverlayRenderService
         }
         if (hasB)
         {
-            DrawBComponent(item, state, bComp, rt, cx, centerY, pillWidth - hPad * 2 - (cx - pillX));
+            // B 区可用宽度直接使用其测量宽度：胶囊总宽已按“A区+间距+B区测量值”自适应，
+            // 若再用 pillWidth 反扣 A 区/间距/内边距会造成双重扣减，导致计时器(i.e. "00:00")换行被裁剪
+            if (bComp == null || bComp is BEmptyData)
+            {
+                // 兜底：标题/副标题作为 B 区单行文本（滚动处理，对齐 Android BTextInfo fallback）
+                var fallback = state.Title ?? state.Subtitle ?? "";
+                if (!string.IsNullOrEmpty(fallback))
+                {
+                    DrawScrollableText(item, fallback, "Microsoft YaHei", DWriteFontWeight.Normal, 12,
+                        new Color4(1, 1, 1, 0.9f), rt, cx, centerY - 9, bWidth, 18, now, freq);
+                }
+            }
+            else
+            {
+                DrawBComponent(item, state, bComp, rt, cx, centerY, bWidth, now, freq);
+            }
         }
 
         return pillHeight;
@@ -409,11 +439,11 @@ public partial class OverlayRenderService
             float contentW = MeasureTextWidth(content, "Microsoft YaHei", DWriteFontWeight.Normal, 12);
             textW = Math.Max(titleW, contentW);
         }
-        return iconSize + (textW > 0 ? 6 + Math.Min(textW, 160) : 0);
+        return iconSize + (textW > 0 ? 6 + Math.Min(textW, CollapsedTextMaxWidth) : 0);
     }
 
     /// <summary>绘制 A 区（图标 + 文本块），返回占用宽度。</summary>
-    private float DrawAComponent(SuperIslandItem item, ID2D1DCRenderTarget rt, float x, float centerY)
+    private float DrawAComponent(SuperIslandItem item, ID2D1DCRenderTarget rt, float x, float centerY, double now, double freq)
     {
         var aComp = item.State.ParamV2?.ParamIsland?.BigIslandArea?.AComponent;
         if (aComp == null) return 0;
@@ -427,7 +457,7 @@ public partial class OverlayRenderService
             var content = aComp.Content ?? "";
             float titleW = MeasureTextWidth(title, "Microsoft YaHei", DWriteFontWeight.Bold, 14);
             float contentW = MeasureTextWidth(content, "Microsoft YaHei", DWriteFontWeight.Normal, 12);
-            textW = Math.Min(Math.Max(titleW, contentW), 160);
+            textW = Math.Min(Math.Max(titleW, contentW), CollapsedTextMaxWidth);
         }
 
         float drawX = x;
@@ -456,19 +486,18 @@ public partial class OverlayRenderService
                 : new Color4(1, 1, 1, 0.9f);
             if (!string.IsNullOrEmpty(title))
             {
-                using var fmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Bold, 14);
-                using var lyt = CreateTruncatedLayout(title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, Math.Min(textW, 160), 20);
-                using var brush = CreateSolidColorBrush(rt, titleColor);
-                rt.DrawTextLayout(new Vector2(drawX, centerY - 10), lyt, brush);
+                // 两行时标题 top=centerY-19（文本块整体在胶囊内垂直居中）；单行时垂直居中
+                DrawScrollableText(item, title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, titleColor,
+                    rt, drawX, aComp.Content != null ? centerY - 19 : centerY - 10, textW, 20, now, freq);
             }
             if (!string.IsNullOrEmpty(content))
             {
-                using var fmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 12);
-                using var lyt = CreateTruncatedLayout(content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, Math.Min(textW, 160), 18);
-                using var brush = CreateSolidColorBrush(rt, new Color4(0.8f, 0.8f, 0.8f, 0.9f));
-                rt.DrawTextLayout(new Vector2(drawX, centerY - 9 + (string.IsNullOrEmpty(title) ? 0 : 2)), lyt, brush);
+                // 内容行：有标题时紧接标题下一行（top=centerY+1，标题底 centerY+1）；无标题时单行垂直居中
+                DrawScrollableText(item, content, "Microsoft YaHei", DWriteFontWeight.Normal, 12,
+                    new Color4(0.8f, 0.8f, 0.8f, 0.9f), rt, drawX,
+                    string.IsNullOrEmpty(title) ? centerY - 9 : centerY + 1, textW, 18, now, freq);
             }
-            drawX += Math.Min(textW, 160);
+            drawX += textW;
         }
 
         return drawX - x;
@@ -480,11 +509,13 @@ public partial class OverlayRenderService
         if (bComp == null || bComp is BEmptyData) return 0;
 
         var text = ResolveBText(bComp, state);
-        float textW = text != null ? MeasureTextWidth(text, "Microsoft YaHei", DWriteFontWeight.Normal, 12) : 0;
+        // 等宽数字（BDigitInfoData）绘制用 Consolas，测量必须用同一字体，否则宽度差导致换行
+        string fontFamily = bComp is BDigitInfoData ? "Consolas" : "Microsoft YaHei";
+        float textW = text != null ? MeasureTextWidth(text, fontFamily, DWriteFontWeight.Normal, 12) : 0;
 
         return bComp switch
         {
-            BImageTextData img => (img.PicKey != null ? 18 + 6 : 0) + (text != null ? Math.Min(textW, 160) : 0),
+            BImageTextData img => (img.PicKey != null ? 18 + 6 : 0) + (text != null ? Math.Min(textW, CollapsedTextMaxWidth) : 0),
             BDigitInfoData => text != null ? Math.Min(textW, 120) : 0,
             BProgressTextInfoData => 20 + 6 + (text != null ? Math.Min(textW, 100) : 0),
             BPicInfoData => 24,
@@ -494,7 +525,7 @@ public partial class OverlayRenderService
 
     /// <summary>绘制 B 区（文本 / 等宽数字 / 进度圆环 / 图片），返回占用宽度。</summary>
     private float DrawBComponent(SuperIslandItem item, SuperIslandState state, BComponentData? bComp,
-        ID2D1DCRenderTarget rt, float x, float centerY, float maxWidth)
+        ID2D1DCRenderTarget rt, float x, float centerY, float maxWidth, double now, double freq)
     {
         if (bComp == null || bComp is BEmptyData) return 0;
 
@@ -513,12 +544,11 @@ public partial class OverlayRenderService
                 if (text != null)
                 {
                     Color4 c = img.ShowHighlightColor ? new Color4(0.25f, 0.77f, 1.0f, 0.9f) : new Color4(1, 1, 1, 0.9f);
-                    using var lyt = CreateTruncatedLayout(text, "Microsoft YaHei",
+                    float availW = Math.Max(0, Math.Min(maxWidth - (drawX - x), CollapsedTextMaxWidth));
+                    DrawScrollableText(item, text, "Microsoft YaHei",
                         img.Kind is "imageText2" or "textInfo" ? DWriteFontWeight.Bold : DWriteFontWeight.Normal,
-                        12, maxWidth - (drawX - x), 18);
-                    using var brush = CreateSolidColorBrush(rt, c);
-                    rt.DrawTextLayout(new Vector2(drawX, centerY - 9), lyt, brush);
-                    drawX += Math.Min(MeasureTextWidth(text, "Microsoft YaHei", DWriteFontWeight.Normal, 12), maxWidth - (drawX - x));
+                        12, c, rt, drawX, centerY - 9, availW, 18, now, freq);
+                    drawX += availW;
                 }
                 break;
 
@@ -632,57 +662,273 @@ public partial class OverlayRenderService
         var cardX = (screenWidth - cardWidth) / 2;
 
         float contentWidth = cardWidth - pad * 2;
-        float cx = cardX + pad;
-        float cy = y + pad;
 
-        // 按模板分支选择布局并计算内容高度
-        float contentHeight;
-        if (pv?.ChatInfo != null)
-        {
-            contentHeight = DrawChatInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.HighlightInfo != null)
-        {
-            contentHeight = DrawHighlightTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.MultiProgressInfo != null)
-        {
-            contentHeight = DrawMultiProgressTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.PicInfo != null)
-        {
-            contentHeight = DrawPicInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.AnimTextInfo != null)
-        {
-            contentHeight = DrawAnimTextTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null)
-        {
-            contentHeight = DrawActionsTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else if (pv?.BaseInfo != null)
-        {
-            contentHeight = DrawBaseInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
-        else
-        {
-            contentHeight = DrawDefaultTemplate(item, rt, cx, cy, contentWidth, opacity);
-        }
+        // 先测量内容高度（不依赖绘制），避免背景覆盖内容
+        float contentHeight = MeasureExpandedTemplate(item);
 
         float cardHeight = contentHeight + pad * 2;
 
-        // 大岛背景：黑 0.92、圆角 16
+        // 大岛背景（先画背景，内容后绘制于其上）
         using var bgBrush = CreateSolidColorBrush(rt, new Color4(0, 0, 0, 0.92f * opacity));
         var bgRR = new RoundedRectangle(new RectangleF(cardX, y, cardWidth, cardHeight), 16, 16);
         rt.FillRoundedRectangle(ref bgRR, bgBrush);
 
+        // 再按模板分支绘制内容
+        float cx = cardX + pad;
+        float cy = y + pad;
+
+        LogProbe($"EXPAND entry: SourceId={item.SourceId} K={(pv == null ? "pvNULL" : pv.ParamIsland != null ? "paramIsland" : pv.BaseInfo != null ? "baseInfo" : pv.ChatInfo != null ? "chatInfo" : pv.AnimTextInfo != null ? "animTextInfo" : pv.HighlightInfo != null ? "highlightInfo" : pv.PicInfo != null ? "picInfo" : pv.MultiProgressInfo != null ? "multiProgressInfo" : (pv.TextButton != null || pv.Actions != null || pv.HintInfo != null) ? "actions/hint" : "default")}");
+
+        string kind = pv?.ParamIsland != null ? "paramIsland"
+            : pv?.BaseInfo != null ? "baseInfo"
+            : pv?.ChatInfo != null ? "chatInfo"
+            : pv?.AnimTextInfo != null ? "animTextInfo"
+            : pv?.HighlightInfo != null ? "highlightInfo"
+            : pv?.PicInfo != null ? "picInfo"
+            : pv?.MultiProgressInfo != null ? "multiProgressInfo"
+            : pv?.TextButton != null ? "textButton"
+            : "default";
+
+        try
+        {
+            float mainH = 0;
+            if (pv?.ParamIsland != null && (pv.ParamIsland.SmallIslandArea != null || pv.ParamIsland.BigIslandArea != null))
+            {
+                LogProbe("dispatch -> paramIsland");
+                mainH = DrawParamIslandTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.BaseInfo != null)
+            {
+                LogProbe("dispatch -> baseInfo");
+                mainH = DrawBaseInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.ChatInfo != null)
+            {
+                LogProbe("dispatch -> chatInfo");
+                mainH = DrawChatInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.AnimTextInfo != null)
+            {
+                LogProbe("dispatch -> animTextInfo");
+                mainH = DrawAnimTextTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.HighlightInfo != null)
+            {
+                LogProbe("dispatch -> highlightInfo");
+                mainH = DrawHighlightTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.PicInfo != null)
+            {
+                LogProbe("dispatch -> picInfo");
+                mainH = DrawPicInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null)
+            {
+                LogProbe("dispatch -> actions/hint");
+                mainH = DrawActionsTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else
+            {
+                LogProbe("dispatch -> default");
+                mainH = DrawDefaultTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+
+            // 追加进度组件（对齐 Android：when 主链后 multiProgressInfo ?: progressInfo 独立追加）
+            float progY = cy + mainH;
+            if (pv?.MultiProgressInfo != null)
+            {
+                LogProbe("append -> multiProgressInfo");
+                DrawMultiProgressTemplate(item, rt, cx, progY, contentWidth, opacity);
+            }
+            else if (pv?.ProgressInfo != null)
+            {
+                LogProbe("append -> progressInfo");
+                DrawLinearProgress(rt, pv.ProgressInfo, cx, progY, contentWidth, opacity);
+            }
+        }
+        catch (Exception ex)
+        {
+            OverlayCrashLog.Write($"DrawSuperIslandExpanded 内容绘制异常 (SourceId={item.SourceId}, Kind={kind})", ex);
+        }
+
+        // 临时调试：屏幕下方品红行 = 展开态实际模板与关键文本
+        LogProbe("TPL-K=" + kind + " BI-T:[" + (pv?.BaseInfo?.Title ?? "∅") + "] BI-C:[" + (pv?.BaseInfo?.Content ?? "∅")
+            + "] PI-B:[" + (pv?.ParamIsland?.BigIslandArea?.PrimaryText ?? "∅") + "] PI-B2:[" + (pv?.ParamIsland?.BigIslandArea?.SecondaryText ?? "∅")
+            + "] T:[" + state.Title + "] ST:[" + state.Subtitle + "] Ex:[" + state.Extra + "]");
+
         return cardHeight;
+    }
+
+    /// <summary>节流的执行轨迹探针：仅写文件，不受 D2D 状态影响（按消息去重，每条 ≥500ms 一条）。</summary>
+    private readonly Dictionary<string, long> _lastProbeLogByMessage = new();
+
+    private void LogProbe(string message)
+    {
+        long now = Stopwatch.GetTimestamp();
+        if (_lastProbeLogByMessage.TryGetValue(message, out long last)
+            && now - last < Stopwatch.Frequency / 2) return;
+        if (_lastProbeLogByMessage.Count > 256) _lastProbeLogByMessage.Clear();
+        _lastProbeLogByMessage[message] = now;
+        OverlayCrashLog.Write("[PROBE] " + message);
+    }
+
+    /// <summary>临时调试：在卡片下方绘制模板执行标记，避免遮挡卡片内容。</summary>
+    private void DebugTemplateExec(ID2D1DCRenderTarget rt, float x, float y, string tag, string msg)
+    {
+        try
+        {
+            LogProbe($"EXEC {tag}: {msg}");
+            using var tfDbg = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Bold, 12);
+            using var lytDbg = _dwFactory.CreateTextLayout($"{tag} {msg}", tfDbg, 700, 18);
+            using var bDbg = CreateSolidColorBrush(rt, new Color4(0.25f, 0.77f, 1.0f, 1f));
+            rt.DrawTextLayout(new Vector2(x + 80, y + 700), lytDbg, bDbg);
+        }
+        catch (Exception dbgEx)
+        {
+            OverlayCrashLog.Write("DebugTemplateExec 异常", dbgEx);
+        }
+    }
+
+    /// <summary>测量展开态模板内容高度（对齐各 Draw*Template 的返回值公式）。</summary>
+    private float MeasureExpandedTemplate(SuperIslandItem item)
+    {
+        const float contentWidth = 380 - 16;
+        var pv = item.State.ParamV2;
+        float h;
+        if (pv?.ParamIsland != null && (pv.ParamIsland.SmallIslandArea != null || pv.ParamIsland.BigIslandArea != null)) h = MeasureParamIslandHeight(item);
+        else if (pv?.BaseInfo != null) h = MeasureBaseInfoHeight(item);
+        else if (pv?.ChatInfo != null) h = MeasureChatInfoHeight(item);
+        else if (pv?.AnimTextInfo != null) h = MeasureAnimTextHeight(item);
+        else if (pv?.HighlightInfo != null) h = MeasureHighlightHeight(item);
+        else if (pv?.PicInfo != null) h = 48 + 4;
+        else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null) h = MeasureActionsHeight(item, contentWidth);
+        else h = MeasureDefaultHeight(item);
+
+        // 追加进度组件测量（对齐 Android：主链后 multiProgressInfo ?: progressInfo）
+        if (pv?.MultiProgressInfo != null) h += MeasureMultiProgressHeight(item);
+        else if (pv?.ProgressInfo != null) h += 10;
+        return h;
+    }
+
+    /// <summary>测量 param_island 模板高度（对齐 DrawParamIslandTemplate 的 ty 推进）。</summary>
+    private float MeasureParamIslandHeight(SuperIslandItem item)
+    {
+        var island = item.State.ParamV2!.ParamIsland!;
+        const float iconSize = 40;
+        float h = 0;
+        var small = island.SmallIslandArea;
+        if (small != null)
+        {
+            if (!string.IsNullOrEmpty(small.PrimaryText)) h += 20;
+            if (!string.IsNullOrEmpty(small.SecondaryText)) h += 20;
+        }
+        var big = island.BigIslandArea;
+        if (big != null)
+        {
+            float rowTop = h + 8;
+            float rowH = Math.Max(iconSize, 20 + (string.IsNullOrEmpty(big.SecondaryText) ? 0 : 18));
+            h = rowTop + rowH;
+        }
+        return h + 2;
+    }
+
+    private float MeasureChatInfoHeight(SuperIslandItem item)
+    {
+        var chat = item.State.ParamV2!.ChatInfo!;
+        const float avatarSize = 48;
+        float textHeight = MeasureTextHeight(chat.Title ?? "", 14) + MeasureTextHeight(chat.Content ?? "", 12);
+        return Math.Max(avatarSize, textHeight) + 6;
+    }
+
+    private float MeasureHighlightHeight(SuperIslandItem item)
+    {
+        var hi = item.State.ParamV2!.HighlightInfo!;
+        float effIconSize = hi.IconOnly ? 48 : 40;
+        float h = 0;
+        if (!string.IsNullOrEmpty(hi.Title)) h += 22;
+        if (hi.TimerInfo != null) h += 22;
+        if (!string.IsNullOrEmpty(hi.Content) && hi.Type != 1) h += 18;
+        if (!string.IsNullOrEmpty(hi.SubContent)) h += 18;
+        return Math.Max(effIconSize, h) + 4;
+    }
+
+    private float MeasureMultiProgressHeight(SuperIslandItem item)
+    {
+        var mp = item.State.ParamV2!.MultiProgressInfo!;
+        float h = !string.IsNullOrEmpty(mp.Title) ? 12 : 0;
+        return h + 55 + 2;
+    }
+
+    private float MeasureAnimTextHeight(SuperIslandItem item)
+    {
+        var anim = item.State.ParamV2!.AnimTextInfo!;
+        const float iconSize = 40;
+        float h = 0;
+        if (!string.IsNullOrEmpty(anim.Title)) h += 22;
+        if (anim.TimerInfo != null) h += 22;
+        if (!string.IsNullOrEmpty(anim.Content)) h += 18;
+        return Math.Max(iconSize, h) + 4;
+    }
+
+    private float MeasureActionsHeight(SuperIslandItem item, float contentWidth)
+    {
+        var pv = item.State.ParamV2!;
+        var hint = pv.HintInfo;
+        float h = 0;
+        if (hint != null)
+        {
+            if (!string.IsNullOrEmpty(hint.Title)) h += 22;
+            if (!string.IsNullOrEmpty(hint.SubTitle)) h += 20;
+            if (hint.ActionInfo != null) h += 34;
+        }
+        else
+        {
+            var actions = pv.TextButton?.Actions ?? pv.Actions ?? [];
+            int count = Math.Min(actions.Count, 2);
+            if (count > 0) h += 34;
+        }
+        return h + 2;
+    }
+
+    private float MeasureBaseInfoHeight(SuperIslandItem item)
+    {
+        var bi = item.State.ParamV2!.BaseInfo!;
+        float h = 0;
+        if (bi.Type == 1)
+        {
+            if (!string.IsNullOrEmpty(bi.Content ?? bi.SubContent)) h += 18;
+            if (!string.IsNullOrEmpty(bi.Title ?? bi.SubTitle)) h += 20;
+            if (!string.IsNullOrEmpty(bi.ExtraTitle)) h += 18;
+        }
+        else
+        {
+            if (!string.IsNullOrEmpty(bi.Title ?? bi.SubTitle)) h += 20;
+            if (!string.IsNullOrEmpty(bi.ExtraTitle)) h += 20;
+            if (!string.IsNullOrEmpty(bi.Content ?? bi.SubContent)) h += 18;
+        }
+        if (!string.IsNullOrEmpty(bi.SpecialTitle)) h += 22;
+        return h + 2;
+    }
+
+    private float MeasureDefaultHeight(SuperIslandItem item)
+    {
+        var state = item.State;
+        const float iconSize = 28;
+        float h = 0;
+        string titleText = state.Title ?? "";
+        if (!string.IsNullOrEmpty(state.Subtitle))
+            titleText = string.IsNullOrEmpty(titleText) ? state.Subtitle : $"{titleText} · {state.Subtitle}";
+        if (!string.IsNullOrEmpty(titleText)) h += 22;
+        if (!string.IsNullOrEmpty(state.AdditionalText)) h += 18;
+        if (state.HasExtra && item.ExtraLayout != null) h += 20;
+        if (state.HasProgress) h += 12;
+        return Math.Max(iconSize, h) + 2;
     }
 
     private float DrawChatInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
     {
         var chat = item.State.ParamV2!.ChatInfo!;
+        LogProbe("ChatInfoTemplate entry: T=" + (chat.Title ?? "nul") + " C=" + (chat.Content ?? "nul") + " Pic=" + (chat.PicProfile != null ? "y" : "n") + " Avatar=" + (item.AvatarBitmap != null ? "y" : "n") + " Timer=" + (chat.TimerInfo != null ? "y" : "n"));
         const float avatarSize = 48;
         float textW = contentWidth - avatarSize - 12;
         float textHeight = MeasureTextHeight(chat.Title ?? "", 14) + MeasureTextHeight(chat.Content ?? "", 12);
@@ -727,6 +973,7 @@ public partial class OverlayRenderService
     private float DrawHighlightTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
     {
         var hi = item.State.ParamV2!.HighlightInfo!;
+        LogProbe("HighlightTemplate entry: T=" + (hi.Title ?? "nul") + " C=" + (hi.Content ?? "nul") + " Sub=" + (hi.SubContent ?? "nul") + " Icon=" + (hi.PicFunction ?? "nul") + "/" + (item.IconBitmap != null ? "bmp" : "-") + " Big=" + (item.BigImageLeftBitmap != null ? "L" : "-") + (item.BigImageRightBitmap != null ? "R" : "-") + " Timer=" + (hi.TimerInfo != null ? "y" : "n") + " type=" + hi.Type);
         const float iconSize = 40;
         const float bigImageSize = 44;
         float bigImages = (item.BigImageLeftBitmap != null ? bigImageSize + 6 : 0) + (item.BigImageRightBitmap != null ? bigImageSize : 0);
@@ -797,8 +1044,93 @@ public partial class OverlayRenderService
         return Math.Max(effIconSize, ty - cy) + 4;
     }
 
+    /// <summary>
+    /// 展开态 param_island 模板（对齐 Android ParamIslandCompose）：
+    /// 顶部 smallIslandArea 摘要（主/次文本），下方 bigIslandArea 图标+主次文本。
+    /// </summary>
+    private float DrawParamIslandTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
+    {
+        var island = item.State.ParamV2!.ParamIsland!;
+        LogProbe("ParamIslandTemplate entry: small=" + (island.SmallIslandArea != null ? "y" : "n") + " big=" + (island.BigIslandArea != null ? "y" : "n")
+            + " S=" + (island.SmallIslandArea?.PrimaryText ?? "nul") + " B=" + (island.BigIslandArea?.PrimaryText ?? "nul")
+            + " B2=" + (island.BigIslandArea?.SecondaryText ?? "nul")
+            + " L=" + (island.BigIslandArea?.LeftImage ?? "nul") + " R=" + (island.BigIslandArea?.RightImage ?? "nul"));
+
+        const float iconSize = 40;
+        float ty = cy;
+
+        // smallIslandArea：摘要文本区
+        var small = island.SmallIslandArea;
+        if (small != null)
+        {
+            if (!string.IsNullOrEmpty(small.PrimaryText))
+            {
+                DrawHtmlText(rt, small.PrimaryText, cx, ty, contentWidth, 14, true, new Color4(1, 1, 1, opacity), 20);
+                ty += 20;
+            }
+            if (!string.IsNullOrEmpty(small.SecondaryText))
+            {
+                DrawHtmlText(rt, small.SecondaryText, cx, ty + 2, contentWidth, 12, false, new Color4(0.55f, 0.55f, 0.55f, opacity), 18);
+                ty += 20;
+            }
+        }
+
+        // bigIslandArea：图标 + 文本行
+        var big = island.BigIslandArea;
+        if (big != null)
+        {
+            float rowY = ty + 8;
+            float tx = cx;
+            // 左侧图标（leftImage）
+            if (!string.IsNullOrEmpty(big.LeftImage) && item.LeftIconBitmap != null)
+            {
+                DrawCoverBitmap(rt, item.LeftIconBitmap, tx, rowY, iconSize, opacity);
+                tx += iconSize + 12;
+            }
+            else if (!string.IsNullOrEmpty(big.LeftImage))
+            {
+                DrawCirclePlaceholder(rt, tx, rowY, iconSize, opacity);
+                tx += iconSize + 12;
+            }
+
+            float textW = contentWidth - (tx - cx);
+            if (!string.IsNullOrEmpty(big.RightImage)) textW -= iconSize + 12;
+
+            // 文本：主文本（白粗）+ 次文本（灰）
+            float textY = rowY;
+            if (!string.IsNullOrEmpty(big.PrimaryText))
+            {
+                DrawHtmlText(rt, big.PrimaryText, tx, textY, textW, 14, true, new Color4(1, 1, 1, opacity), 20);
+                textY += 20;
+            }
+            if (!string.IsNullOrEmpty(big.SecondaryText))
+            {
+                DrawHtmlText(rt, big.SecondaryText, tx, textY + 2, textW, 12, false, new Color4(0.55f, 0.55f, 0.55f, opacity), 18);
+            }
+
+            // 右侧图标（rightImage）
+            if (!string.IsNullOrEmpty(big.RightImage))
+            {
+                float rightX = cx + contentWidth - iconSize;
+                if (item.RightIconBitmap != null)
+                {
+                    DrawCoverBitmap(rt, item.RightIconBitmap, rightX, rowY, iconSize, opacity);
+                }
+                else
+                {
+                    DrawCirclePlaceholder(rt, rightX, rowY, iconSize, opacity);
+                }
+            }
+
+            ty = rowY + Math.Max(iconSize, 20 + (string.IsNullOrEmpty(big.SecondaryText) ? 0 : 18));
+        }
+
+        return ty - cy + 2;
+    }
+
     private float DrawBaseInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
     {
+        LogProbe($"BaseInfoTemplate entry: T={(item.State.ParamV2!.BaseInfo!.Title ?? "∅")} C={(item.State.ParamV2!.BaseInfo!.Content ?? "∅")} type={item.State.ParamV2!.BaseInfo!.Type}");
         var bi = item.State.ParamV2!.BaseInfo!;
         float ty = cy;
 
@@ -843,10 +1175,139 @@ public partial class OverlayRenderService
         if (string.IsNullOrEmpty(text)) return y;
         var color = ParseHexColor(colorHex) ?? new Color4(1, 1, 1, opacity);
         if (!bold && colorHex == null) color = new Color4(0.75f, 0.75f, 0.75f, opacity);
+        LogProbe($"TEXTLINE y={y} text={text} size={size} bold={bold} hex={colorHex ?? "null"} maxW={maxWidth}");
+
+        // HTML 颜色分段渲染（对齐 Android parseSimpleHtmlToAnnotatedString：<font color> 着色，其他标签剥掉）
+        var segments = ParseHtmlColorSegments(text);
+        if (segments.Count > 1)
+        {
+            var weight = bold ? DWriteFontWeight.Bold : DWriteFontWeight.Normal;
+            float totalW = 0;
+            foreach (var seg in segments)
+                totalW += MeasureTextWidth(seg.Text, "Microsoft YaHei", weight, size);
+            if (totalW <= maxWidth)
+            {
+                float sx = x;
+                foreach (var seg in segments)
+                {
+                    using var segLyt = CreateTruncatedLayout(seg.Text, "Microsoft YaHei", weight, size,
+                        Math.Max(1, maxWidth - (sx - x)), size + 6);
+                    using var segBrush = CreateSolidColorBrush(rt, seg.Color ?? color);
+                    rt.DrawTextLayout(new Vector2(sx, y), segLyt, segBrush);
+                    sx += segLyt.Metrics.Width;
+                }
+                LogProbe("TEXTLINE drawn OK");
+                return y + size + 6;
+            }
+        }
+
         using var lyt = CreateTruncatedLayout(text, "Microsoft YaHei", bold ? DWriteFontWeight.Bold : DWriteFontWeight.Normal, size, maxWidth, size + 6);
         using var brush = CreateSolidColorBrush(rt, color);
         rt.DrawTextLayout(new Vector2(x, y), lyt, brush);
+        LogProbe("TEXTLINE drawn OK");
         return y + size + 6;
+    }
+
+    /// <summary>
+    /// 通用 HTML 着色文本行：对齐 Android parseSimpleHtmlToAnnotatedString，
+    /// 支持 &lt;font color&gt; 分段着色，超宽时回退整行截断。返回实际行高。
+    /// </summary>
+    private float DrawHtmlText(ID2D1DCRenderTarget rt, string text, float x, float y, float maxWidth,
+        float size, bool bold, Color4 baseColor, float lineHeight = 0)
+    {
+        LogProbe("HTML-IN [" + text + "]");
+        var weight = bold ? DWriteFontWeight.Bold : DWriteFontWeight.Normal;
+        var segments = ParseHtmlColorSegments(text);
+        if (segments.Count > 1)
+        {
+            float totalW = 0;
+            foreach (var seg in segments)
+                totalW += MeasureTextWidth(seg.Text, "Microsoft YaHei", weight, size);
+            if (totalW <= maxWidth)
+            {
+                float sx = x;
+                foreach (var seg in segments)
+                {
+                    using var segLyt = CreateTruncatedLayout(seg.Text, "Microsoft YaHei", weight, size,
+                        Math.Max(1, maxWidth - (sx - x)), size + 6);
+                    using var segBrush = CreateSolidColorBrush(rt, seg.Color ?? baseColor);
+                    rt.DrawTextLayout(new Vector2(sx, y), segLyt, segBrush);
+                    sx += segLyt.Metrics.Width;
+                }
+                return lineHeight > 0 ? lineHeight : size + 6;
+            }
+        }
+
+        using var lyt = CreateTruncatedLayout(text, "Microsoft YaHei", weight, size, maxWidth, lineHeight > 0 ? lineHeight : size + 6);
+        using var brush = CreateSolidColorBrush(rt, baseColor);
+        rt.DrawTextLayout(new Vector2(x, y), lyt, brush);
+        return lineHeight > 0 ? lineHeight : size + 6;
+    }
+
+    /// <summary>
+    /// 解析简单 HTML 颜色标签为分段文本（对齐 Android parseSimpleHtmlToAnnotatedString）：
+    /// 仅支持 &lt;font color='#RRGGBB'&gt;（单/双引号、3/6 位十六进制），其余标签剥掉保留文本。
+    /// </summary>
+    private static List<(string Text, Color4? Color)> ParseHtmlColorSegments(string html)
+    {
+        // 还原 JSON 转义序列与 HTML 实体（对齐 Android unescapeHtml）：\u003c 等可能经协议二次转义
+        html = html.Replace("\\u003c", "<").Replace("\\u003e", ">")
+            .Replace("\\u0027", "'").Replace("\\u0022", "\"").Replace("\\u0026", "&")
+            .Replace("&lt;", "<").Replace("&gt;", ">")
+            .Replace("&quot;", "\"").Replace("&apos;", "'").Replace("&amp;", "&");
+        var result = new List<(string, Color4?)>();
+        var stack = new List<Color4?>();
+        var sb = new System.Text.StringBuilder();
+
+        void Flush()
+        {
+            if (sb.Length == 0) return;
+            result.Add((sb.ToString(), stack.Count > 0 ? stack[stack.Count - 1] : null));
+            sb.Clear();
+        }
+
+        int pos = 0;
+        while (pos < html.Length)
+        {
+            int lt = html.IndexOf('<', pos);
+            if (lt < 0) { sb.Append(html, pos, html.Length - pos); break; }
+            if (lt > pos) sb.Append(html, pos, lt - pos);
+            int gt = html.IndexOf('>', lt);
+            if (gt < 0) { sb.Append(html, lt, html.Length - lt); break; }
+
+            var tag = html.Substring(lt + 1, gt - lt - 1).Trim();
+            if (tag.StartsWith("font", StringComparison.OrdinalIgnoreCase))
+            {
+                Color4? spanColor = null;
+                int ci = tag.IndexOf("color", StringComparison.OrdinalIgnoreCase);
+                if (ci >= 0)
+                {
+                    int eq = tag.IndexOf('=', ci);
+                    if (eq >= 0 && eq + 1 < tag.Length)
+                    {
+                        char q = tag[eq + 1];
+                        if (q is '\'' or '"')
+                        {
+                            int end = tag.IndexOf(q, eq + 2);
+                            if (end > eq + 1)
+                            {
+                                spanColor = ParseHexColor(tag.Substring(eq + 2, end - eq - 2));
+                            }
+                        }
+                    }
+                }
+                Flush();
+                stack.Add(spanColor);
+            }
+            else if (tag.StartsWith("/font", StringComparison.OrdinalIgnoreCase))
+            {
+                Flush();
+                if (stack.Count > 0) stack.RemoveAt(stack.Count - 1);
+            }
+            pos = gt + 1;
+        }
+        Flush();
+        return result;
     }
 
     private float DrawPicInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
@@ -973,59 +1434,145 @@ public partial class OverlayRenderService
         return ty - cy + 2;
     }
 
+    /// <summary>
+    /// 多节点进度组件（对齐 Android MultiProgressCompose）：
+    /// 标题 + 贴底进度条 + 底对齐等距节点行 + 进度指针（1-99 时显示）。
+    /// </summary>
     private float DrawMultiProgressTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
     {
         var mp = item.State.ParamV2!.MultiProgressInfo!;
+        const float nodeSize = 55;
+        const float barHeight = 8;
+        const float pointerSize = 47;
         float ty = cy;
 
-        // 标题行
+        // 标题行（Android: 14sp Normal；PC 深色背景适配白色；支持 <font color> 着色）
         if (!string.IsNullOrEmpty(mp.Title))
         {
-            using var lyt = CreateTruncatedLayout(mp.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, contentWidth, 20);
-            using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
-            rt.DrawTextLayout(new Vector2(cx, ty), lyt, brush);
-            ty += 24;
+            DrawHtmlText(rt, mp.Title, cx, ty, contentWidth, 14, false, new Color4(1, 1, 1, opacity), 20);
+            ty += 12;
         }
 
-        // 轨道（8px 高圆角）+ 前景
-        const float barHeight = 8;
-        const float nodeSize = 55;
-        int points = Math.Clamp(mp.Points ?? 3, 1, 4);
-        float nodeGap = (contentWidth - nodeSize) / Math.Max(1, points - 1);
-        float barY = ty + nodeSize / 2f - barHeight / 2f;
-        float barW = contentWidth;
+        int requested = mp.Points ?? 3;
+        int nodeCount = Math.Max(1, requested);
+        int segmentCount = Math.Max(1, nodeCount - 1);
+        float progressValue = Math.Clamp(mp.Progress, 0, 100);
+        float pct = progressValue / 100f;
+        int pointerIndex = Math.Clamp((int)(pct * segmentCount), 0, nodeCount - 1);
+        bool isFood = string.Equals(item.State.ParamV2?.Business, "food_delivery", StringComparison.OrdinalIgnoreCase);
 
-        // 背景轨道（20% alpha）
         var trackColor = ParseHexColor(mp.Color) ?? new Color4(0.07f, 0.73f, 1.0f, 1.0f);  // 默认 #0ABAFF
+        float bottom = ty + nodeSize;
+        float barY = bottom - barHeight;
+
+        // 进度条背景（primary 20% alpha）
         using var trackBrush = CreateSolidColorBrush(rt, new Color4(trackColor.R, trackColor.G, trackColor.B, 0.2f * opacity));
-        var trackRR = new RoundedRectangle(new RectangleF(cx, barY, barW, barHeight), barHeight / 2f, barHeight / 2f);
+        var trackRR = new RoundedRectangle(new RectangleF(cx, barY, contentWidth, barHeight), barHeight / 2f, barHeight / 2f);
         rt.FillRoundedRectangle(ref trackRR, trackBrush);
 
-        // 前景
-        float pct = Math.Clamp(mp.Progress / 100f, 0f, 1f);
+        // 进度条前景
         if (pct > 0)
         {
-            using var fillBrush = CreateSolidColorBrush(rt, new Color4(trackColor.R, trackColor.G, trackColor.B, 0.9f * opacity));
-            var fillRR = new RoundedRectangle(new RectangleF(cx, barY, Math.Max(barHeight, barW * pct), barHeight), barHeight / 2f, barHeight / 2f);
+            using var fillBrush = CreateSolidColorBrush(rt, new Color4(trackColor.R, trackColor.G, trackColor.B, opacity));
+            var fillRR = new RoundedRectangle(new RectangleF(cx, barY, Math.Max(barHeight, contentWidth * pct), barHeight), barHeight / 2f, barHeight / 2f);
             rt.FillRoundedRectangle(ref fillRR, fillBrush);
         }
 
-        // 节点（无节点图时用 27.5px 圆形指示器）
-        const float dotSize = 27.5f;
-        for (int i = 0; i < points; i++)
+        // 节点行（底对齐、等距均分）
+        if (requested > 0)
         {
-            float nx = cx + nodeGap * i;
-            float ncy = cy + nodeSize / 2f;
-            bool reached = mp.Progress > 0 && (i == 0 || (float)i / Math.Max(1, points - 1) * 100f <= mp.Progress);
-            using var dotBrush = CreateSolidColorBrush(rt, reached
-                ? new Color4(trackColor.R, trackColor.G, trackColor.B, 0.9f * opacity)
-                : new Color4(0.4f, 0.4f, 0.4f, 0.6f * opacity));
-            var dotCenter = new Vector2(nx + dotSize / 2f, ncy);
-            var dotEllipse = new Ellipse(dotCenter, dotSize / 2f, dotSize / 2f);
-            rt.FillEllipse(dotEllipse, dotBrush);
+            for (int i = 0; i < nodeCount; i++)
+            {
+                bool isLast = i == nodeCount - 1;
+                bool isCompleted = i <= pointerIndex;
+                bool isFirst = i == 0;
+                bool nodeInvisible = isFirst && isFood;
+
+                float nx = cx + (segmentCount > 0 ? i * (contentWidth - nodeSize) / segmentCount : 0);
+                float ny = bottom - nodeSize;
+
+                // 节点图标选择（对齐 Android MultiProgressCompose）
+                string? iconKey = null;
+                ID2D1Bitmap? bmp = null;
+                if (isLast && isCompleted)
+                {
+                    iconKey = mp.PicEnd ?? mp.PicMiddle;
+                    bmp = item.MultiEndBitmap ?? item.MultiMiddleBitmap;
+                }
+                else if (isLast)
+                {
+                    iconKey = mp.PicEndUnselected ?? mp.PicMiddleUnselected;
+                    bmp = item.MultiEndUnselBitmap ?? item.MultiMiddleUnselBitmap;
+                }
+                else if (isCompleted)
+                {
+                    iconKey = mp.PicMiddle ?? mp.PicForwardBox;
+                    bmp = item.MultiMiddleBitmap ?? item.MultiForwardBoxBitmap;
+                }
+                else
+                {
+                    iconKey = mp.PicMiddleUnselected ?? mp.PicForwardBox;
+                    bmp = item.MultiMiddleUnselBitmap ?? item.MultiForwardBoxBitmap;
+                }
+
+                if (nodeInvisible) continue;
+
+                if (bmp != null)
+                {
+                    DrawCoverBitmap(rt, bmp, nx, ny, nodeSize, opacity);
+                }
+                else if (string.IsNullOrEmpty(iconKey))
+                {
+                    // 默认圆形指示器（27.5px）
+                    using var dotBrush = CreateSolidColorBrush(rt, isCompleted
+                        ? new Color4(trackColor.R, trackColor.G, trackColor.B, opacity)
+                        : new Color4(trackColor.R, trackColor.G, trackColor.B, 0.3f * opacity));
+                    var dotCenter = new Vector2(nx + nodeSize / 2f, ny + nodeSize / 2f);
+                    var dotEllipse = new Ellipse(dotCenter, nodeSize / 4f, nodeSize / 4f);
+                    rt.FillEllipse(dotEllipse, dotBrush);
+                }
+            }
         }
 
-        return ty + nodeSize - cy + 2;
+        // 进度指针（仅 1-99 显示，贴底悬浮最上层）
+        if (progressValue >= 1 && progressValue <= 99 && requested > 0)
+        {
+            var pointerBmp = item.MultiForwardBitmap ?? item.MultiForwardBoxBitmap;
+            float pointerHalf = pointerSize / 2f;
+            float px = Math.Clamp(contentWidth * pct, pointerHalf, Math.Max(pointerHalf, contentWidth - pointerHalf));
+            float py = bottom - pointerSize;
+            if (pointerBmp != null)
+            {
+                DrawCoverBitmap(rt, pointerBmp, cx + px - pointerHalf, py, pointerSize, opacity);
+            }
+            else
+            {
+                using var ptrBrush = CreateSolidColorBrush(rt, new Color4(trackColor.R, trackColor.G, trackColor.B, opacity));
+                var ptrCenter = new Vector2(cx + px, py + pointerHalf);
+                var ptrEllipse = new Ellipse(ptrCenter, pointerHalf, pointerHalf);
+                rt.FillEllipse(ptrEllipse, ptrBrush);
+            }
+        }
+
+        return bottom - cy + 2;
+    }
+
+    /// <summary>
+    /// 线性进度条（对齐 Android ProgressCompose：LinearProgressIndicator，
+    /// 仅前景色 colorProgress ?? #00FF00，不画轨道）。
+    /// </summary>
+    private float DrawLinearProgress(ID2D1DCRenderTarget rt, ProgressData pi, float x, float y, float width, float opacity)
+    {
+        const float barHeight = 4;
+        float pct = Math.Clamp(pi.Progress / 100f, 0f, 1f);
+        var color = ParseHexColor(pi.ColorProgress ?? pi.ColorProgressEnd) ?? new Color4(0, 1, 0, 1f);
+        if (pct > 0)
+        {
+            using var fillBrush = CreateSolidColorBrush(rt, new Color4(color.R, color.G, color.B, opacity));
+            var fillRR = new RoundedRectangle(new RectangleF(x, y, Math.Max(barHeight, width * pct), barHeight), 2, 2);
+            rt.FillRoundedRectangle(ref fillRR, fillBrush);
+        }
+        return 10;
     }
 
     private float DrawDefaultTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
@@ -1049,9 +1596,7 @@ public partial class OverlayRenderService
             titleText = string.IsNullOrEmpty(titleText) ? state.Subtitle : $"{titleText} · {state.Subtitle}";
         if (!string.IsNullOrEmpty(titleText))
         {
-            using var lyt = CreateTruncatedLayout(titleText, "Microsoft YaHei", DWriteFontWeight.SemiBold, 14, textW, 22);
-            using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
-            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            DrawHtmlText(rt, titleText, tx, ty, textW, 14, true, new Color4(1, 1, 1, opacity), 22);
             ty += 22;
         }
 
@@ -1070,9 +1615,7 @@ public partial class OverlayRenderService
         // AdditionalText
         if (!string.IsNullOrEmpty(state.AdditionalText))
         {
-            using var lyt = CreateTruncatedLayout(state.AdditionalText, "Microsoft YaHei", DWriteFontWeight.Normal, 11, textW, 18);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.7f, 0.7f, 0.7f, opacity));
-            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            DrawHtmlText(rt, state.AdditionalText, tx, ty, textW, 11, false, new Color4(0.7f, 0.7f, 0.7f, opacity), 18);
             ty += 18;
         }
 

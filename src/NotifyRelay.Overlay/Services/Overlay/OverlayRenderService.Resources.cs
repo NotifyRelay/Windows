@@ -8,6 +8,9 @@ namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {
+    /// <summary>网络 URL 图片下载用 HttpClient（复用，避免每帧重建）。</summary>
+    private static readonly HttpClient s_httpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
+
     private void EnsureDanmakuResources(DanmakuItem item, ID2D1DCRenderTarget rt)
     {
         if (item.TextLayout == null)
@@ -100,35 +103,118 @@ public partial class OverlayRenderService
         if (pics == null || pics.Count == 0) return;
 
         var pv = item.State.ParamV2;
-        item.AvatarBitmap = EnsurePicBitmap(item.AvatarBitmap, pics, pv?.ChatInfo?.PicProfile, item.FailedPicKeys, rt);
-        item.BigImageLeftBitmap = EnsurePicBitmap(item.BigImageLeftBitmap, pics,
-            pv?.HighlightInfo?.BigImageLeft ?? ResolveFocusPicKey(pics, pv?.HighlightInfo?.PicFunction), item.FailedPicKeys, rt);
-        item.BigImageRightBitmap = EnsurePicBitmap(item.BigImageRightBitmap, pics, pv?.HighlightInfo?.BigImageRight, item.FailedPicKeys, rt);
-        item.PicInfoBitmap = EnsurePicBitmap(item.PicInfoBitmap, pics, pv?.PicInfo?.Pic, item.FailedPicKeys, rt);
-        item.LeftIconBitmap = EnsurePicBitmap(item.LeftIconBitmap, pics,
-            ResolveFocusPicKey(pics, pv?.ParamIsland?.BigIslandArea?.AComponent?.PicKey), item.FailedPicKeys, rt);
-        item.RightIconBitmap = EnsurePicBitmap(item.RightIconBitmap, pics, GetBComponentPicKey(pv), item.FailedPicKeys, rt);
+        item.AvatarBitmap = EnsurePicBitmap(item, item.AvatarBitmap, pics, pv?.ChatInfo?.PicProfile, rt);
+        item.BigImageLeftBitmap = EnsurePicBitmap(item, item.BigImageLeftBitmap, pics,
+            pv?.HighlightInfo?.BigImageLeft ?? ResolveFocusPicKey(pics, pv?.HighlightInfo?.PicFunction), rt);
+        item.BigImageRightBitmap = EnsurePicBitmap(item, item.BigImageRightBitmap, pics, pv?.HighlightInfo?.BigImageRight, rt);
+        item.PicInfoBitmap = EnsurePicBitmap(item, item.PicInfoBitmap, pics, pv?.PicInfo?.Pic, rt);
+        var island = pv?.ParamIsland?.BigIslandArea;
+        item.LeftIconBitmap = EnsurePicBitmap(item, item.LeftIconBitmap, pics,
+            island?.LeftImage ?? ResolveFocusPicKey(pics, island?.AComponent?.PicKey), rt);
+        item.RightIconBitmap = EnsurePicBitmap(item, item.RightIconBitmap, pics,
+            island?.RightImage ?? GetBComponentPicKey(pv), rt);
+
+        // multiProgressInfo 节点与指针图（对齐 Android MultiProgressCompose）
+        var mp = pv?.MultiProgressInfo;
+        item.MultiForwardBitmap = EnsurePicBitmap(item, item.MultiForwardBitmap, pics, mp?.PicForward, rt);
+        item.MultiForwardBoxBitmap = EnsurePicBitmap(item, item.MultiForwardBoxBitmap, pics, mp?.PicForwardBox, rt);
+        item.MultiMiddleBitmap = EnsurePicBitmap(item, item.MultiMiddleBitmap, pics, mp?.PicMiddle, rt);
+        item.MultiMiddleUnselBitmap = EnsurePicBitmap(item, item.MultiMiddleUnselBitmap, pics, mp?.PicMiddleUnselected, rt);
+        item.MultiEndBitmap = EnsurePicBitmap(item, item.MultiEndBitmap, pics, mp?.PicEnd, rt);
+        item.MultiEndUnselBitmap = EnsurePicBitmap(item, item.MultiEndUnselBitmap, pics, mp?.PicEndUnselected, rt);
+
+        // 网络 URL 图片：本帧发起异步下载（不阻塞渲染线程），下帧起生效
+        EnsureUrlPics(item, pics);
     }
 
-    /// <summary>从 Pics 字典按 key 懒加载位图；失败（无 key/缺值/解码失败）返回 null 并记忆失败键。</summary>
-    private ID2D1Bitmap? EnsurePicBitmap(ID2D1Bitmap? current, Dictionary<string, string> pics,
-        string? key, HashSet<string> failed, ID2D1DCRenderTarget rt)
+    /// <summary>发起 Pics 中网络 URL 图片的异步下载（去重），完成后写入 UrlPngCache。</summary>
+    private void EnsureUrlPics(SuperIslandItem item, Dictionary<string, string> pics)
+    {
+        foreach (var kv in pics)
+        {
+            if (!IsHttpUrl(kv.Value)) continue;
+            if (item.UrlPngCache.ContainsKey(kv.Key)
+                || !item.UrlFetching.TryAdd(kv.Key, 0)
+                || item.FailedPicKeys.Contains(kv.Key))
+            {
+                continue;
+            }
+            var key = kv.Key;
+            var url = kv.Value;
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var bytes = await s_httpClient.GetByteArrayAsync(url, cts.Token);
+                    if (bytes is { Length: > 0 })
+                    {
+                        lock (item.UrlPngCache) item.UrlPngCache[key] = bytes;
+                    }
+                    else
+                    {
+                        lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
+                    }
+                }
+                catch
+                {
+                    lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
+                }
+                finally
+                {
+                    item.UrlFetching.TryRemove(key, out _);
+                }
+            });
+        }
+    }
+
+    private static bool IsHttpUrl(string value)
+        => value.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+        || value.StartsWith("https://", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>从 Pics 字典按 key 懒加载位图；网络 URL 走异步下载缓存，失败键记忆避免重复。</summary>
+    private ID2D1Bitmap? EnsurePicBitmap(SuperIslandItem item, ID2D1Bitmap? current, Dictionary<string, string> pics,
+        string? key, ID2D1DCRenderTarget rt)
     {
         if (current != null) return current;
-        if (string.IsNullOrEmpty(key) || !pics.TryGetValue(key, out var value) || failed.Contains(key)) return null;
+        if (string.IsNullOrEmpty(key) || !pics.TryGetValue(key, out var value)) return null;
+        lock (item.FailedPicKeys)
+        {
+            if (item.FailedPicKeys.Contains(key)) return null;
+        }
+        if (IsHttpUrl(value))
+        {
+            // 网络 URL：下载完成后从 UrlPngCache 解码（EnsureUrlPics 已发起异步下载）
+            lock (item.UrlPngCache)
+            {
+                if (!item.UrlPngCache.TryGetValue(key, out var png))
+                {
+                    return null;
+                }
+                try
+                {
+                    return LoadBitmapFromPng(png, rt);
+                }
+                catch
+                {
+                    lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
+                    return null;
+                }
+            }
+        }
         try
         {
             var png = DecodePicBytes(value);
             if (png == null)
             {
-                failed.Add(key);
+                lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
                 return null;
             }
             return LoadBitmapFromPng(png, rt);
         }
         catch
         {
-            failed.Add(key);
+            lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
             return null;
         }
     }

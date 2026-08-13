@@ -143,6 +143,7 @@ public partial class OverlayRenderService
             if (existing != null)
             {
                 // 处理增量变更合并
+                int oldProgress = existing.State.Progress;
                 if (!string.IsNullOrEmpty(state.ChangesJson))
                 {
                     existing.State.MergeChanges(state.ChangesJson);
@@ -170,6 +171,13 @@ public partial class OverlayRenderService
 
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
 
+                // 进度变化 → 重新展开（对齐 Android：进度更新时浮窗弹回展开态）
+                if (existing.State.Progress != oldProgress)
+                {
+                    existing.IsExpanded = true;
+                    existing.ExpandedSince = Stopwatch.GetTimestamp();
+                }
+
                 // 触发 UI 刷新：使缓存的 Layout 失效（延迟释放，由渲染线程统一执行）
                 DeferDispose(existing.TitleLayout);
                 existing.TitleLayout = null;
@@ -179,13 +187,6 @@ public partial class OverlayRenderService
                 existing.AdditionalTextLayout = null;
                 DeferDispose(existing.ExtraLayout);
                 existing.ExtraLayout = null;
-
-                // Extra 变更时重新展开
-                if (!string.IsNullOrEmpty(state.Extra))
-                {
-                    existing.IsExpanded = true;
-                    existing.ExpandedSince = Stopwatch.GetTimestamp();
-                }
                 return;
             }
 
@@ -305,6 +306,8 @@ public partial class OverlayRenderService
         DeferDispose(s.PicInfoBitmap); s.PicInfoBitmap = null;
         DeferDispose(s.LeftIconBitmap); s.LeftIconBitmap = null;
         DeferDispose(s.RightIconBitmap); s.RightIconBitmap = null;
-        s.FailedPicKeys.Clear();
+        lock (s.FailedPicKeys) s.FailedPicKeys.Clear();
+        lock (s.UrlPngCache) s.UrlPngCache.Clear();
+        s.UrlFetching.Clear();
     }
 }

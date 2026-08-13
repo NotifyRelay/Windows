@@ -148,10 +148,11 @@ public static partial class SuperIslandParamV2Parser
 
     // ---------- templates 解析 ----------
 
-    private static BaseInfoData ParseBaseInfo(JsonElement root)
+    private static BaseInfoData? ParseBaseInfo(JsonElement root)
     {
-        var bi = root.GetPropertyOrNull("baseInfo")!;
-        return new BaseInfoData
+        var bi = root.GetPropertyOrNull("baseInfo");
+        if (bi == null) return null;
+        var result = new BaseInfoData
         {
             Type = bi.GetInt32OrDefault("type", 1),
             Title = GetString(bi, "title")?.TrimOrNull(),
@@ -172,12 +173,19 @@ public static partial class SuperIslandParamV2Parser
             ShowDivider = GetBool(bi, "showDivider"),
             ShowContentDivider = GetBool(bi, "showContentDivider"),
         };
+        if (result.Title == null && result.SubTitle == null && result.ExtraTitle == null
+            && result.SpecialTitle == null && result.Content == null && result.SubContent == null)
+        {
+            return null;
+        }
+        return result;
     }
 
-    private static ChatInfoData ParseChatInfo(JsonElement root)
+    private static ChatInfoData? ParseChatInfo(JsonElement root)
     {
-        var ci = root.GetPropertyOrNull("chatInfo")!;
-        return new ChatInfoData
+        var ci = root.GetPropertyOrNull("chatInfo");
+        if (ci == null) return null;
+        var result = new ChatInfoData
         {
             PicProfile = GetString(ci, "picProfile")?.TrimOrNull(),
             PicProfileDark = GetString(ci, "picProfileDark")?.TrimOrNull(),
@@ -188,12 +196,19 @@ public static partial class SuperIslandParamV2Parser
             ColorTitle = GetString(ci, "colorTitle")?.TrimOrNull(),
             ColorContent = GetString(ci, "colorContent")?.TrimOrNull(),
         };
+        if (result.Title == null && result.Content == null && result.PicProfile == null
+            && result.AppIconPkg == null && result.TimerInfo == null)
+        {
+            return null;
+        }
+        return result;
     }
 
-    private static HighlightInfoData ParseHighlightInfo(JsonElement root)
+    private static HighlightInfoData? ParseHighlightInfo(JsonElement root)
     {
-        var hi = root.GetPropertyOrNull("highlightInfo")!;
-        return new HighlightInfoData
+        var hi = root.GetPropertyOrNull("highlightInfo");
+        if (hi == null) return null;
+        var result = new HighlightInfoData
         {
             Title = GetString(hi, "title")?.TrimOrNull(),
             TimerInfo = ParseTimerInfo(hi),
@@ -209,6 +224,13 @@ public static partial class SuperIslandParamV2Parser
             BigImageRight = GetString(hi, "bigImageRight")?.TrimOrNull(),
             IconOnly = GetBool(hi, "iconOnly"),
         };
+        if (result.Title == null && result.Content == null && result.SubContent == null
+            && result.PicFunction == null && result.PicFunctionDark == null
+            && result.BigImageLeft == null && result.BigImageRight == null && result.TimerInfo == null)
+        {
+            return null;
+        }
+        return result;
     }
 
     /// <summary>highlightInfo 缺失时从 iconTextInfo 回退构造。</summary>
@@ -284,9 +306,10 @@ public static partial class SuperIslandParamV2Parser
 
     // ---------- components 解析 ----------
 
-    private static ProgressData ParseProgressInfo(JsonElement parent)
+    private static ProgressData? ParseProgressInfo(JsonElement parent)
     {
-        var pi = parent.GetPropertyOrNull("progressInfo")!;
+        var pi = parent.GetPropertyOrNull("progressInfo");
+        if (pi == null) return null;
         return new ProgressData
         {
             Progress = pi.GetInt32OrDefault("progress", 0),
@@ -302,9 +325,10 @@ public static partial class SuperIslandParamV2Parser
         };
     }
 
-    private static MultiProgressData ParseMultiProgressInfo(JsonElement root)
+    private static MultiProgressData? ParseMultiProgressInfo(JsonElement root)
     {
-        var mpi = root.GetPropertyOrNull("multiProgressInfo")!;
+        var mpi = root.GetPropertyOrNull("multiProgressInfo");
+        if (mpi == null) return null;
         var middleUnselected = GetString(mpi, "picMiddleUnselected")?.TrimOrNull()
             ?? GetString(mpi, "picMiddelUnselected")?.TrimOrNull(); // 兼容拼写
         var points = GetInt32(mpi, "points");
