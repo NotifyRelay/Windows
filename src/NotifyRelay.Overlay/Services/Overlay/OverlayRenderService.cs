@@ -182,6 +182,7 @@ public sealed partial class OverlayRenderService : IDisposable
         try
         {
             EnsureWindowClass();
+            InstallTopmostMonitor();
             SyncOverlays();
             _ctrlHwnd = CreateControlWindow();
 
@@ -209,6 +210,10 @@ public sealed partial class OverlayRenderService : IDisposable
                 {
                     _displayDirty = false;
                     SyncOverlays();
+                    // 周期巡检兜底：无条件重断言 TOPMOST 层级（约每秒一次，成本极低）。
+                    // 覆盖"标志仍在但 z-order 被全屏游戏/系统重建压到普通窗口之下"的失效场景，
+                    // 以及 WinEvent 钩子漏触发的置顶重置。
+                    ReassertOverlaysTopmost();
                 }
 
                 DispatchRequests();
@@ -286,6 +291,7 @@ public sealed partial class OverlayRenderService : IDisposable
         finally
         {
             UninstallHookAndControlWindow();
+            UninstallTopmostMonitor();
             timeEndPeriod(1);
             // 渲染线程退出时销毁自身创建的窗口，避免全屏覆盖层滞留屏幕抢占鼠标/层级
             CleanupOverlays();
