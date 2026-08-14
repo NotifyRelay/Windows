@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.AudioRelay;
@@ -81,6 +82,7 @@ public class VirtualSpeakerViewModel : INotifyPropertyChanged
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly AudioRelayService _audioRelayService;
     private readonly IDeviceManager _deviceManager;
+    private readonly DispatcherQueue? _dispatcher;
 
     public event EventHandler? StatusChanged;
 
@@ -90,8 +92,19 @@ public class VirtualSpeakerViewModel : INotifyPropertyChanged
         get => _statusText;
         set
         {
-            _statusText = value;
-            OnPropertyChanged();
+            if (_dispatcher != null && !_dispatcher.HasThreadAccess)
+            {
+                _dispatcher.TryEnqueue(() =>
+                {
+                    _statusText = value;
+                    OnPropertyChanged();
+                });
+            }
+            else
+            {
+                _statusText = value;
+                OnPropertyChanged();
+            }
         }
     }
 
@@ -104,12 +117,27 @@ public class VirtualSpeakerViewModel : INotifyPropertyChanged
         _audioRelayService = Ioc.Default.GetService<AudioRelayService>()!;
         _deviceManager = Ioc.Default.GetService<IDeviceManager>()!;
 
+        _dispatcher = DispatcherQueue.GetForCurrentThread();
+
         _audioRelayService.StatusChanged += (s, e) =>
         {
-            StatusChanged?.Invoke(this, EventArgs.Empty);
-            StatusText = _audioRelayService.IsActive ? "状态：运行中" : "状态：未启动";
-            OnPropertyChanged(nameof(IsActive));
-            OnPropertyChanged(nameof(CanStart));
+            void UpdateAction()
+            {
+                StatusChanged?.Invoke(this, EventArgs.Empty);
+                _statusText = _audioRelayService.IsActive ? "状态：运行中" : "状态：未启动";
+                OnPropertyChanged(nameof(StatusText));
+                OnPropertyChanged(nameof(IsActive));
+                OnPropertyChanged(nameof(CanStart));
+            }
+
+            if (_dispatcher != null && !_dispatcher.HasThreadAccess)
+            {
+                _dispatcher.TryEnqueue(UpdateAction);
+            }
+            else
+            {
+                UpdateAction();
+            }
         };
     }
 
