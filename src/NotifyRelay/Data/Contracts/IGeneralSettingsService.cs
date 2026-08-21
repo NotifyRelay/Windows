@@ -218,6 +218,24 @@ public interface IGeneralSettingsService
     float HeartRateScale { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to hide the heart rate overlay
+    /// while the device is disconnected (default true).
+    /// </summary>
+    bool HeartRateHideWhenDisconnected { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to automatically connect to the
+    /// last connected heart rate device on app startup (default false).
+    /// </summary>
+    bool HeartRateAutoConnectEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last manually connected heart rate device address
+    /// (decimal string; internal use for auto connect).
+    /// </summary>
+    string HeartRateLastDeviceAddress { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.
     /// </summary>
     bool EnableDynamicLighting { get; set; }

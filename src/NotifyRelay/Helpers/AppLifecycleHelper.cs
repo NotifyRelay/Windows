@@ -136,6 +136,16 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "启动Overlay渲染引擎失败");
         }
 
+        // 心率设备启动自动连接（需开启开关且存在上次连接地址）
+        try
+        {
+            Ioc.Default.GetRequiredService<NotifyRelay.Services.HeartRate.HeartRateBleService>().TryAutoConnectOnStartup();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "心率设备启动自动连接失败");
+        }
+
         // ===== 并行阶段C：核心服务启动 =====
         logger.LogInformation("步骤17：启动核心服务...");
         var tcpServerTask = networkService.StartServerAsync();

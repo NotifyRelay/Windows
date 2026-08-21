@@ -431,6 +431,24 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
         set => _configuration.Set(SettingsKey(nameof(HeartRateScale)), Math.Clamp(value, 0.5f, 2f));
     }
 
+    public bool HeartRateHideWhenDisconnected
+    {
+        get => _configuration.Get(SettingsKey(nameof(HeartRateHideWhenDisconnected)), true);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateHideWhenDisconnected)), value);
+    }
+
+    public bool HeartRateAutoConnectEnabled
+    {
+        get => _configuration.Get(SettingsKey(nameof(HeartRateAutoConnectEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(HeartRateAutoConnectEnabled)), value);
+    }
+
+    public string HeartRateLastDeviceAddress
+    {
+        get => _configuration.Get(SettingsKey(nameof(HeartRateLastDeviceAddress)), string.Empty)!;
+        set => _configuration.Set(SettingsKey(nameof(HeartRateLastDeviceAddress)), value ?? string.Empty);
+    }
+
     // 动态光效设置
     public bool EnableDynamicLighting
     {

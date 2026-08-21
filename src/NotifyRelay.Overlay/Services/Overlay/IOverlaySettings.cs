@@ -36,4 +36,5 @@ public interface IOverlaySettings
     int HeartRateHighAlert { get; set; }
     int HeartRateSpikeDelta { get; set; }
     float HeartRateScale { get; set; }
+    bool HeartRateHideWhenDisconnected { get; set; }
 }

@@ -20,6 +20,7 @@ public partial class OverlayRenderService
     private float _hrOutlineWidth = 2f;     // 简洁文本描边粗细（像素，0.1~3）
     private float _hrScale = 1f;            // 整体显示大小缩放（0.5~2）
     private bool _hrAlertEnabled;           // 异常时心跳加速开关
+    private bool _hrHideWhenDisconnected = true; // 未连接时不显示心率元素
     private int _hrLowAlert = 50;           // 心率过低阈值（启用异常加速时生效）
     private int _hrHighAlert = 120;         // 心率过高阈值（启用异常加速时生效）
     private int _hrSpikeDelta = 20;         // 相对近期均值骤升阈值
@@ -32,7 +33,7 @@ public partial class OverlayRenderService
     private ID2D1PathGeometry? _hrHeartGeometry;
 
     /// <summary>更新心率覆盖层配置（启用、样式组合、目标屏、位置百分比、颜色）。</summary>
-    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth, float scale, bool alertEnabled, int lowAlert, int highAlert, int spikeDelta)
+    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct, string colorHex, float outlineWidth, float scale, bool alertEnabled, int lowAlert, int highAlert, int spikeDelta, bool hideWhenDisconnected = true)
     {
         if (!Monitor.TryEnter(_lock, 2000))
         {
@@ -55,6 +56,7 @@ public partial class OverlayRenderService
             _hrLowAlert = lowAlert;
             _hrHighAlert = highAlert;
             _hrSpikeDelta = spikeDelta;
+            _hrHideWhenDisconnected = hideWhenDisconnected;
             if (!enabled)
             {
                 // 关闭显示时清空历史，避免下次开启残留旧曲线
@@ -138,12 +140,12 @@ public partial class OverlayRenderService
     public IReadOnlyList<(string DeviceName, bool IsPrimary)> GetScreenList()
         => EnumerateScreens().ConvertAll(s => (s.DeviceName, s.IsPrimary));
 
-    /// <summary>心率覆盖层是否需要保持渲染（启用即显示，未连接时显示占位）。</summary>
+    /// <summary>心率覆盖层是否需要保持渲染（启用即显示；开启"未连接时隐藏"则需已连接）。</summary>
     private bool HeartRateActive()
     {
         if (Monitor.TryEnter(_lock, 2000))
         {
-            try { return _hrEnabled; }
+            try { return _hrEnabled && (!_hrHideWhenDisconnected || _hrConnected); }
             finally { Monitor.Exit(_lock); }
         }
         return false;   // 锁被异常持有：跳过本帧判定
@@ -160,7 +162,7 @@ public partial class OverlayRenderService
         }
         try
         {
-            if (!_hrEnabled) return false;
+            if (!_hrEnabled || (_hrHideWhenDisconnected && !_hrConnected)) return false;
             target = _hrTargetScreen;
         }
         finally
@@ -191,7 +193,8 @@ public partial class OverlayRenderService
             s.HeartRateAlertEnabled,
             s.HeartRateLowAlert,
             s.HeartRateHighAlert,
-            s.HeartRateSpikeDelta);
+            s.HeartRateSpikeDelta,
+            s.HeartRateHideWhenDisconnected);
     }
 
     /// <summary>绘制自由浮动心率元素（文本 / 胶囊卡片 / 心形+曲线，可组合）。</summary>
@@ -213,7 +216,7 @@ public partial class OverlayRenderService
         }
         try
         {
-            if (!_hrEnabled) return;
+            if (!_hrEnabled || (_hrHideWhenDisconnected && !_hrConnected)) return;
             bpm = _hrBpm;
             connected = _hrConnected;
             flags = _hrStyleFlags;

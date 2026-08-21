@@ -64,6 +64,13 @@
                 </wuc:SettingsExpander.Items>
             </wuc:SettingsExpander>
 
+            <wuc:SettingsCard Header="启动时自动连接" Description="应用启动后自动连接上次连接的心率设备（默认关闭）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE702;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateAutoConnectEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+            </wuc:SettingsCard>
+
             <TextBlock Text="覆盖层显示" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
 
             <wuc:SettingsCard Header="显示心率" Description="在覆盖层显示自由浮动的心率元素（未连接时显示占位）">
@@ -71,6 +78,10 @@
                     <FontIcon Glyph="&#xEB51;" />
                 </wuc:SettingsCard.HeaderIcon>
                 <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateOverlayEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="未连接时隐藏" Description="设备未连接时不显示心率元素；关闭则显示占位（默认开启）">
+                <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateHideWhenDisconnected, Mode=TwoWay}" OnContent="" OffContent="" />
             </wuc:SettingsCard>
 
             <wuc:SettingsCard Header="显示样式" Description="可组合选择多种样式，叠加时背景在下、文本在上">

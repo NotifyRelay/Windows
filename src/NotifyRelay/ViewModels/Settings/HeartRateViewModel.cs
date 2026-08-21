@@ -77,7 +77,7 @@ public class HeartRateViewModel : INotifyPropertyChanged
         HeartRateConnectionState.Scanning => "正在扫描心率设备…",
         HeartRateConnectionState.Connecting => "正在连接…",
         HeartRateConnectionState.Connected => _currentBpm > 0 ? $"已连接 · {_currentBpm} BPM" : "已连接，等待数据…",
-        HeartRateConnectionState.Reconnecting => "连接已断开，正在重连…",
+        HeartRateConnectionState.Reconnecting => "正在自动连接心率设备…",
         _ => "未连接"
     };
 
@@ -159,6 +159,20 @@ public class HeartRateViewModel : INotifyPropertyChanged
     {
         get => _settings.HeartRateScale;
         set { _settings.HeartRateScale = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>未连接时不显示心率元素（默认开启）。</summary>
+    public bool HeartRateHideWhenDisconnected
+    {
+        get => _settings.HeartRateHideWhenDisconnected;
+        set { _settings.HeartRateHideWhenDisconnected = value; OnPropertyChanged(); PushConfig(); }
+    }
+
+    /// <summary>应用启动时自动连接上次连接的设备（默认关闭）。</summary>
+    public bool HeartRateAutoConnectEnabled
+    {
+        get => _settings.HeartRateAutoConnectEnabled;
+        set { _settings.HeartRateAutoConnectEnabled = value; OnPropertyChanged(); }
     }
 
     /// <summary>异常时心跳加速开关。</summary>
@@ -310,7 +324,8 @@ public class HeartRateViewModel : INotifyPropertyChanged
             _settings.HeartRateAlertEnabled,
             _settings.HeartRateLowAlert,
             _settings.HeartRateHighAlert,
-            _settings.HeartRateSpikeDelta);
+            _settings.HeartRateSpikeDelta,
+            _settings.HeartRateHideWhenDisconnected);
     }
 
     protected void OnPropertyChanged([CallerMemberName] string propertyName = "")

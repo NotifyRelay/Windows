@@ -2,6 +2,7 @@ using Windows.Devices.Bluetooth;
 using Windows.Devices.Bluetooth.Advertisement;
 using Windows.Devices.Bluetooth.GenericAttributeProfile;
 using Windows.Storage.Streams;
+using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.Services.HeartRate;
 
@@ -27,8 +28,9 @@ public sealed class HeartRateDeviceInfo
 /// <summary>
 /// BLE 心率服务：扫描（仅广播标准心率服务 0x180D 的设备）、手动连接、
 /// 订阅心率测量特征值 0x2A37 并按标准格式解析，断开与状态事件。
-/// 不跨重启记忆设备；会话内记住最后一次手动连接成功的设备地址，
-/// 意外断线时后台自动重连（用户主动断开则不重连）。
+/// 会话内记住最后一次手动连接成功的设备地址，意外断线时后台自动重连
+/// （用户主动断开则本次会话不重连）；开启"启动时自动连接"后，应用启动时
+/// 自动连接上次手动连接的设备（地址跨重启持久化）。
 /// </summary>
 public sealed class HeartRateBleService : IDisposable
 {
@@ -39,6 +41,7 @@ public sealed class HeartRateBleService : IDisposable
     private static readonly TimeSpan ReconnectInterval = TimeSpan.FromSeconds(3);
 
     private readonly ILogger<HeartRateBleService> _logger;
+    private readonly IGeneralSettingsService _settings;
     private readonly object _sync = new();
     // 连接过程串行化，防止手动连接与后台重连并发建立双连接
     private readonly SemaphoreSlim _connectLock = new(1, 1);
@@ -65,9 +68,10 @@ public sealed class HeartRateBleService : IDisposable
 
     public HeartRateConnectionState State => _state;
 
-    public HeartRateBleService(ILogger<HeartRateBleService> logger)
+    public HeartRateBleService(ILogger<HeartRateBleService> logger, IGeneralSettingsService settings)
     {
         _logger = logger;
+        _settings = settings;
     }
 
     private void SetState(HeartRateConnectionState state)
@@ -143,6 +147,9 @@ public sealed class HeartRateBleService : IDisposable
         if (ok)
         {
             lock (_sync) _autoReconnectAddress = address;
+            // 持久化最后连接地址，供"启动时自动连接"使用（用户主动断开不清除）
+            try { _settings.HeartRateLastDeviceAddress = address.ToString(); }
+            catch (Exception ex) { _logger.LogWarning(ex, "保存心率设备地址失败"); }
         }
         else
         {
@@ -359,6 +366,35 @@ public sealed class HeartRateBleService : IDisposable
         CleanupConnection();
         if (_state != HeartRateConnectionState.Scanning)
             SetState(HeartRateConnectionState.Disconnected);
+    }
+
+    /// <summary>
+    /// 应用启动时尝试自动连接上次连接的设备：需开启"启动时自动连接"开关
+    /// 且存在持久化地址。复用断线自动重连循环，后台按固定间隔重试直到连上
+    /// 或被用户操作（扫描/手动连接/断开）取消。
+    /// </summary>
+    public void TryAutoConnectOnStartup()
+    {
+        try
+        {
+            if (!_settings.HeartRateAutoConnectEnabled) return;
+            string saved = _settings.HeartRateLastDeviceAddress;
+            if (string.IsNullOrWhiteSpace(saved) || !ulong.TryParse(saved, out ulong address) || address == 0)
+                return;
+
+            lock (_sync)
+            {
+                if (_state != HeartRateConnectionState.Disconnected || _device != null) return;
+                // 写入会话内记忆地址：连上后若意外断线可继续走既有断链复联逻辑
+                _autoReconnectAddress = address;
+            }
+            _logger.LogInformation("心率 BLE 启动自动连接 {Address:X12}", address);
+            StartReconnect(address);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "心率 BLE 启动自动连接失败");
+        }
     }
 
     public void Dispose()
