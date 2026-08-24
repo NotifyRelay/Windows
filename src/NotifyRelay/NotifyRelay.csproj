@@ -104,4 +104,17 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
     </ItemGroup>
+    <!--
+        Rust core 原生 DLL 强制同步（Move 模式）：
+        子项目 BuildRust 已把最新 DLL Move 到其 OutDir；此处再从子项目 OutDir Move 到主项目输出目录。
+        Move 会移走源：子项目 OutDir 与 release 均被清空，下次构建子项目时 cargo 必重新生成，保证每次构建都产出最新 DLL。
+        AppX 打包目录为第二目标（Move 无法多目标），从主项目 OutDir 分发。
+    -->
+    <Target Name="SyncRustCoreDll" AfterTargets="Build">
+        <PropertyGroup>
+            <RustCoreOutDll>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..\NotifyRelay.NativeCore\bin\$(Platform)\$(Configuration)\$(TargetFramework)\notify_relay_core.dll'))</RustCoreOutDll>
+        </PropertyGroup>
+        <Move Condition="Exists('$(RustCoreOutDll)')" SourceFiles="$(RustCoreOutDll)" DestinationFolder="$(OutDir)" />
+        <Copy Condition="Exists('$(OutDir)AppX')" SourceFiles="$(OutDir)notify_relay_core.dll" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
+    </Target>
 </Project>

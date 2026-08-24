@@ -17,18 +17,7 @@
         <Message Text="构建 Rust 原生库: $(RustProjectDir)" Importance="high" />
         <Exec Command="&quot;$(UserProfile)\.cargo\bin\cargo.exe&quot; build --release --manifest-path $(RustProjectDir)Cargo.toml --target-dir $(RustTargetDir)"
               WorkingDirectory="$(RustProjectDir)" StandardOutputImportance="high" />
-        <Copy SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="false" />
+        <!-- 用 Move 而非 Copy：移走 release 产物后，下次构建 cargo 必重新生成，保证每次构建都产出最新 DLL -->
+        <Move SourceFiles="$(RustDllPath)" DestinationFolder="$(OutDir)" />
     </Target>
-
-    <!-- 将原生 DLL 作为项目输出传播给引用项目（ProjectReference 自动复制到引用方输出目录） -->
-    <Target Name="IncludeNativeDll" DependsOnTargets="BuildRust" Returns="@(BuildOutputInPackage)">
-        <ItemGroup>
-            <BuildOutputInPackage Include="$(RustDllPath)">
-                <TargetPath>notify_relay_core.dll</TargetPath>
-            </BuildOutputInPackage>
-        </ItemGroup>
-    </Target>
-    <PropertyGroup>
-        <TargetsForTfmSpecificBuildOutput>$(TargetsForTfmSpecificBuildOutput);IncludeNativeDll</TargetsForTfmSpecificBuildOutput>
-    </PropertyGroup>
 </Project>
