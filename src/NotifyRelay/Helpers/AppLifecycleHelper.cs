@@ -68,24 +68,9 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤14：生成并初始化UUID...");
         localDevice = await deviceManager.GetLocalDeviceAsync();
         logger.LogInformation("步骤14：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
-
-        // UUID 以 Rust 私有库为准（库有记录则覆盖平台表，平台端仅作首启生成源）
-        try
-        {
-            var rustUuid = NativeCore.GetLocalUuid();
-            if (!string.IsNullOrEmpty(rustUuid) && rustUuid != localDevice.DeviceId)
-            {
-                logger.LogInformation("步骤14：UUID 以 Rust 持久化为准: {rustUuid} (原: {oldId})", rustUuid, localDevice.DeviceId);
-                var oldId = localDevice.DeviceId;
-                localDevice.DeviceId = rustUuid;
-                var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
-                repo.RenameLocalDeviceKey(oldId, rustUuid);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "步骤14：获取 Rust UUID 失败，保留平台 UUID");
-        }
+        // 注意：此处不读取 Rust UUID——升级用户以平台表 DeviceId 为迁移种子，
+        // 由 StartCore（步骤17）传入 Rust 库；全新安装用户在 GetLocalDeviceAsync 首启已生成
+        // 一致性对齐在步骤17b（FinalizeRustPersistenceAsync）进行
 
         logger.LogInformation("步骤15：初始化设备管理器...");
         await deviceManager.Initialize();
