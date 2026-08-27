@@ -1,6 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
+using NotifyRelay.Native;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -140,13 +141,20 @@ public class NetworkDriveMapper
 
                     if (!string.IsNullOrEmpty(ipAddress))
                     {
-                        if (device.SharedSecret == null || device.SharedSecret.Length == 0)
+                        // 共享密钥由 Rust 私有库持有：经导出接口取 base64 AES 派生 FTP 凭据
+                        var aesB64 = System.Text.Json.JsonDocument
+                            .Parse(NativeCore.ExportDeviceKey(device.Id) ?? "{}")
+                            .RootElement
+                            .TryGetProperty("aes_key_b64", out var aesProp)
+                                ? aesProp.GetString()
+                                : null;
+                        if (string.IsNullOrEmpty(aesB64))
                         {
                             _logger.LogWarning("FTP 启动成功但设备 {DeviceName} 没有共享密钥，无法派生凭据", device.Name);
                             return;
                         }
                         // 从 sharedSecret 派生与 Android 端一致的 FTP 凭据
-                        var creds = NotifyCryptoHelper.DeriveftpCredentials(device.SharedSecret);
+                        var creds = NotifyCryptoHelper.DeriveftpCredentials(Convert.FromBase64String(aesB64));
 
                         await Task.Run(() =>
                         {

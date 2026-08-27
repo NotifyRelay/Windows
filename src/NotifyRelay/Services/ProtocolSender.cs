@@ -72,7 +72,7 @@ public class ProtocolSender : IProtocolSender
     {
         try
         {
-            if (device.SharedSecret == null)
+            if (NativeCore.ExportDeviceKey(device.Id) == null)
             {
                 _logger.LogWarning("设备未认证或未接受：{deviceName}", device.Name);
                 return;

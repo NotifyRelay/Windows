@@ -52,7 +52,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 existingDevice.IpAddresses = device.IpAddresses;
                 existingDevice.Wallpaper = device.Wallpaper;
                 existingDevice.Session = device.Session;
-                existingDevice.SharedSecret = device.SharedSecret;
                 existingDevice.RemotePublicKey = device.RemotePublicKey;
                 updateAction?.Invoke(existingDevice);
                 tcs.SetResult(existingDevice);
@@ -119,7 +118,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             Name = device.Name,
             Model = device.Model,
             IpAddresses = device.IpAddresses ?? [],
-            SharedSecret = device.SharedSecret,
             PublicKey = device.RemotePublicKey,
             HasSentftpRequest = device.HasSentftpRequest,
         };
@@ -145,20 +143,12 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 logger.LogError("导出设备密钥失败: {deviceId}", deviceId);
                 return null;
             }
-            var aesB64 = JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString();
-            if (string.IsNullOrEmpty(aesB64))
-            {
-                logger.LogError("解析设备 AES 密钥失败: {deviceId}", deviceId);
-                return null;
-            }
-            var sharedSecretBytes = Convert.FromBase64String(aesB64);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
                 existingDevice.LastConnected = DateTime.Now;
                 existingDevice.Name = deviceName ?? existingDevice.Name;
                 existingDevice.PublicKey = remotePublicKey;
-                existingDevice.SharedSecret = sharedSecretBytes;
 
                 if (ipAddress is not null && !existingDevice.IpAddresses.Contains(ipAddress))
                 {
@@ -205,14 +195,12 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 NativeCore.GenerateKeypair();
                 var publicKeyBase64 = NativeCore.GetPublicKey();
                 var deviceId = Guid.NewGuid().ToString();
-                var stateJson = NativeCore.ExportState();
-                var encryptedState = stateJson != null ? NativeCore.EncryptLocalState(stateJson, deviceId) : null;
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = deviceId,
                     DeviceName = name,
                     PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
-                    StateJson = encryptedState ?? string.Empty,
+                    StateJson = string.Empty, // 密钥状态由 Rust 私有库持有，平台端零存储
                 };
                 repository.AddOrUpdateLocalDevice(localDevice);
 
@@ -227,6 +215,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var rustPubKey = NativeCore.GetPublicKey();
                 if (rustPubKey == null)
                 {
+                    // 旧平台加密状态 blob（迁移源）：解密后导入 Rust 内存，
+                    // 由 uuid 进入核心后的落盘校验负责清理 StateJson（见 AppLifecycleHelper）
                     bool stateRestored = false;
                     if (!string.IsNullOrEmpty(localDevice.StateJson))
                     {
@@ -251,8 +241,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                         rustPubKey = NativeCore.GetPublicKey();
                         if (rustPubKey != null)
                             localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        var newState = NativeCore.ExportState();
-                        localDevice.StateJson = newState != null ? NativeCore.EncryptLocalState(newState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }
@@ -262,8 +250,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                     if (rustPubKey != cachedPubKey)
                     {
                         localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        var updatedState = NativeCore.ExportState();
-                        localDevice.StateJson = updatedState != null ? NativeCore.EncryptLocalState(updatedState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }
