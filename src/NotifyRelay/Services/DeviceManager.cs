@@ -194,7 +194,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
                 NativeCore.GenerateKeypair();
                 var publicKeyBase64 = NativeCore.GetPublicKey();
-                var deviceId = Guid.NewGuid().ToString();
+                // 本机 UUID 由 Rust 生成/持有（库落盘），平台端仅读取；Guid 仅异常兜底
+                var deviceId = NativeCore.GetLocalUuid() ?? Guid.NewGuid().ToString();
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = deviceId,
