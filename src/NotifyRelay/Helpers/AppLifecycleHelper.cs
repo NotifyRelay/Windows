@@ -93,6 +93,7 @@ public static class AppLifecycleHelper
 
         // 密钥迁移（轻量同步操作，必须在服务启动前完成）
         logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
+        bool allMigrationsSucceeded = true;
         try
         {
             var deviceRepo = Ioc.Default.GetRequiredService<DeviceRepository>();
@@ -102,7 +103,12 @@ public static class AppLifecycleHelper
                 if (device.DeviceId == localDevice.DeviceId) continue;
                 if (device.SharedSecret is { Length: 32 })
                 {
-                    NativeCore.MigrateSharedSecret(device.DeviceId, device.SharedSecret);
+                    if (NativeCore.MigrateSharedSecret(device.DeviceId, device.SharedSecret) != 0)
+                    {
+                        logger.LogWarning("步骤15a：设备 {deviceId} 密钥迁移持久化失败，保留旧密钥", device.DeviceId);
+                        allMigrationsSucceeded = false;
+                        continue;
+                    }
                     NativeCore.RenameDevice(device.DeviceId, string.IsNullOrEmpty(device.Name) ? device.DeviceId : device.Name);
                     migratedCount++;
                 }
@@ -112,6 +118,7 @@ public static class AppLifecycleHelper
         catch (Exception ex)
         {
             logger.LogError(ex, "步骤15a：迁移旧设备密钥失败");
+            allMigrationsSucceeded = false;
         }
 
         logger.LogInformation("步骤15：初始化通知服务...");
@@ -179,7 +186,7 @@ public static class AppLifecycleHelper
         // 步骤17b：Rust 持久化收尾（uuid 已进入核心，触发落盘后清理平台旧存储）
         try
         {
-            await FinalizeRustPersistenceAsync(logger, localDevice);
+            await FinalizeRustPersistenceAsync(logger, localDevice, allMigrationsSucceeded);
         }
         catch (Exception ex)
         {
@@ -201,7 +208,7 @@ public static class AppLifecycleHelper
     /// - 平台表 DeviceId 与库对齐
     /// - 清理旧平台存储：LocalDeviceEntity.StateJson 值、RemoteDeviceEntity.SharedSecret 列值
     /// </summary>
-    private static async Task FinalizeRustPersistenceAsync(ILogger logger, LocalDeviceEntity localDevice)
+    private static async Task FinalizeRustPersistenceAsync(ILogger logger, LocalDeviceEntity localDevice, bool allMigrationsSucceeded)
     {
         var rustUuid = NativeCore.GetLocalUuid();
         if (string.IsNullOrEmpty(rustUuid))
@@ -216,7 +223,12 @@ public static class AppLifecycleHelper
             logger.LogInformation("步骤17b：UUID 以 Rust 持久化为准: {rustUuid} (原: {oldId})", rustUuid, localDevice.DeviceId);
             var oldId = localDevice.DeviceId;
             localDevice.DeviceId = rustUuid;
-            repo.RenameLocalDeviceKey(oldId, rustUuid);
+            if (!repo.RenameLocalDeviceKey(oldId, rustUuid))
+            {
+                logger.LogWarning("步骤17b：平台主键更新失败，保持旧 DeviceId 以维护内存与数据库一致性");
+                localDevice.DeviceId = oldId;
+                return;
+            }
         }
 
         if (!string.IsNullOrEmpty(localDevice.StateJson))
@@ -227,10 +239,18 @@ public static class AppLifecycleHelper
         }
 
         // 远程设备旧密钥列值已全部迁移至 Rust，清空平台存储
-        int cleared = repo.ClearRemoteSecrets();
-        if (cleared > 0)
+        // 仅当所有设备迁移均成功且持久化已确认后才清理，否则保留旧密钥允许下次启动重试
+        if (allMigrationsSucceeded)
         {
-            logger.LogInformation("步骤17b：已清空 {count} 条旧设备密钥记录", cleared);
+            int cleared = repo.ClearRemoteSecrets();
+            if (cleared > 0)
+            {
+                logger.LogInformation("步骤17b：已清空 {count} 条旧设备密钥记录", cleared);
+            }
+        }
+        else
+        {
+            logger.LogWarning("步骤17b：存在迁移失败的设备，跳过清空旧密钥列，下次启动将重试");
         }
 
         await Task.CompletedTask;

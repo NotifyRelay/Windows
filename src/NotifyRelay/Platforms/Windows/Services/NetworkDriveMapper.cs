@@ -142,12 +142,12 @@ public class NetworkDriveMapper
                     if (!string.IsNullOrEmpty(ipAddress))
                     {
                         // 共享密钥由 Rust 私有库持有：经导出接口取 base64 AES 派生 FTP 凭据
-                        var aesB64 = System.Text.Json.JsonDocument
-                            .Parse(NativeCore.ExportDeviceKey(device.Id) ?? "{}")
-                            .RootElement
-                            .TryGetProperty("aes_key_b64", out var aesProp)
-                                ? aesProp.GetString()
-                                : null;
+                        string? aesB64 = null;
+                        using (var keyDoc = System.Text.Json.JsonDocument.Parse(NativeCore.ExportDeviceKey(device.Id) ?? "{}"))
+                        {
+                            if (keyDoc.RootElement.TryGetProperty("aes_key_b64", out var aesProp))
+                                aesB64 = aesProp.GetString();
+                        }
                         if (string.IsNullOrEmpty(aesB64))
                         {
                             _logger.LogWarning("FTP 启动成功但设备 {DeviceName} 没有共享密钥，无法派生凭据", device.Name);

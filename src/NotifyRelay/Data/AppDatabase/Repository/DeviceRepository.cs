@@ -33,32 +33,32 @@ public class DeviceRepository(DatabaseContext context, ILogger logger)
     /// <summary>
     /// 主键变更：设备 UUID 以 Rust 私有库为准时更新平台表主键
     /// </summary>
-    public void RenameLocalDeviceKey(string oldId, string newId)
+    public bool RenameLocalDeviceKey(string oldId, string newId)
     {
         try
         {
-            context.Database.Execute(
+            var rows = context.Database.Execute(
                 "UPDATE LocalDeviceEntity SET DeviceId = ? WHERE DeviceId = ?",
                 newId,
                 oldId);
+            return rows > 0;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "更新本地设备主键失败 {oldId} -> {newId}", oldId, newId);
+            return false;
         }
     }
 
     /// <summary>
-    /// 清空旧设备密钥列值（密钥已迁移至 Rust 私有库），返回清空行数
+    /// 清空旧设备密钥列值（密钥已迁移至 Rust 私有库），返回受影响行数
     /// </summary>
     public int ClearRemoteSecrets()
     {
         try
         {
-            // 行数的语义：受影响行（sqlite-net 单列值的改变即受影响）
-            context.Database.Execute(
+            return context.Database.Execute(
                 "UPDATE RemoteDeviceEntity SET SharedSecret = NULL WHERE SharedSecret IS NOT NULL");
-            return 1;
         }
         catch (Exception ex)
         {
@@ -77,15 +77,7 @@ public class DeviceRepository(DatabaseContext context, ILogger logger)
     /// </summary>
     public List<RemoteDeviceEntity> GetRemoteDevices()
     {
-        try
-        {
-            return context.Database.Table<RemoteDeviceEntity>().ToList();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "读取远端设备失败");
-            return [];
-        }
+        return context.Database.Table<RemoteDeviceEntity>().ToList();
     }
 
     public bool HasDevice(string deviceId, out RemoteDeviceEntity device)
