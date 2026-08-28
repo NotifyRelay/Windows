@@ -593,8 +593,12 @@ public class WindowsPlaybackService(
             bool shouldSendRemote = generalSettings.EnableSendMediaNotifications;
             if (shouldSendRemote)
             {
+                // source 即 SourceAppUserModelId，用作 packageName；appName 取显示名，缺失时 fallback
+                var appName = ResolveMediaAppName(source);
                 string mediaJson = JsonSerializer.Serialize(new
                 {
+                    packageName = source ?? string.Empty,
+                    appName = appName,
                     title = trackTitle ?? string.Empty,
                     text = artist ?? string.Empty,
                     coverUrl = thumbnail ?? string.Empty,
@@ -994,6 +998,26 @@ public class WindowsPlaybackService(
         {
             logger.LogError(ex, "发送媒体控制响应时出错");
         }
+    }
+
+    /// <summary>
+    /// 根据 SourceAppUserModelId 解析媒体应用显示名，缺失时 fallback 到本应用名。
+    /// </summary>
+    private string ResolveMediaAppName(string? sourceAppUserModelId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceAppUserModelId))
+            return "NotifyRelay";
+
+        // 取 ! 之前的部分作为可读名（如 "Spotify.exe" → "Spotify"）
+        var name = sourceAppUserModelId.Contains('!')
+            ? sourceAppUserModelId.Split('!')[0]
+            : sourceAppUserModelId;
+
+        // 去掉 .exe 后缀
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            name = name[..^4];
+
+        return string.IsNullOrWhiteSpace(name) ? "NotifyRelay" : name;
     }
 
     /// <summary>
