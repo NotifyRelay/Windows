@@ -52,7 +52,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 existingDevice.IpAddresses = device.IpAddresses;
                 existingDevice.Wallpaper = device.Wallpaper;
                 existingDevice.Session = device.Session;
-                existingDevice.SharedSecret = device.SharedSecret;
                 existingDevice.RemotePublicKey = device.RemotePublicKey;
                 updateAction?.Invoke(existingDevice);
                 tcs.SetResult(existingDevice);
@@ -78,11 +77,18 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         return await repository.GetLastConnectedDevice();
     }
 
-    public void RemoveDevice(PairedDevice device)
+    public bool RemoveDevice(PairedDevice device)
     {
         logger.LogInformation("RemoveDevice: 开始移除设备 {deviceId} {deviceName}", device.Id, device.Name);
-        NativeCore.RemoveDevice(device.Id);
+        // Rust 持久化删除（内存/库行/密钥状态），失败时中止平台侧清理：
+        // 否则平台记录已删而 Rust 库仍持有旧密钥，重启后设备复活造成两端不一致
+        if (NativeCore.RemoveDevice(device.Id) != 0)
+        {
+            logger.LogError("RemoveDevice: Rust 持久化删除失败 {deviceId}，中止平台侧清理", device.Id);
+            return false;
+        }
         NativeCore.RemoveKnownDevice(device.Id);
+        NativeCore.RemoveDeviceSession(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
@@ -109,6 +115,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 logger.LogError(ex, "移除设备 {id} 时出错", device.Id);
             }
         });
+        return true;
     }
 
     public void SaveDevice(PairedDevice device)
@@ -119,7 +126,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             Name = device.Name,
             Model = device.Model,
             IpAddresses = device.IpAddresses ?? [],
-            SharedSecret = device.SharedSecret,
             PublicKey = device.RemotePublicKey,
             HasSentftpRequest = device.HasSentftpRequest,
         };
@@ -145,20 +151,12 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 logger.LogError("导出设备密钥失败: {deviceId}", deviceId);
                 return null;
             }
-            var aesB64 = JsonDocument.Parse(keyJson).RootElement.GetProperty("aes_key_b64").GetString();
-            if (string.IsNullOrEmpty(aesB64))
-            {
-                logger.LogError("解析设备 AES 密钥失败: {deviceId}", deviceId);
-                return null;
-            }
-            var sharedSecretBytes = Convert.FromBase64String(aesB64);
 
             if (repository.HasDevice(deviceId, out var existingDevice))
             {
                 existingDevice.LastConnected = DateTime.Now;
                 existingDevice.Name = deviceName ?? existingDevice.Name;
                 existingDevice.PublicKey = remotePublicKey;
-                existingDevice.SharedSecret = sharedSecretBytes;
 
                 if (ipAddress is not null && !existingDevice.IpAddresses.Contains(ipAddress))
                 {
@@ -204,15 +202,14 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var (name, _) = await UserInformation.GetCurrentUserInfoAsync();
                 NativeCore.GenerateKeypair();
                 var publicKeyBase64 = NativeCore.GetPublicKey();
-                var deviceId = Guid.NewGuid().ToString();
-                var stateJson = NativeCore.ExportState();
-                var encryptedState = stateJson != null ? NativeCore.EncryptLocalState(stateJson, deviceId) : null;
+                // 本机 UUID 由 Rust 生成/持有（库落盘），平台端仅读取；Guid 仅异常兜底
+                var deviceId = NativeCore.GetLocalUuid() ?? Guid.NewGuid().ToString();
                 localDevice = new LocalDeviceEntity
                 {
                     DeviceId = deviceId,
                     DeviceName = name,
                     PublicKey = Encoding.UTF8.GetBytes(publicKeyBase64 ?? string.Empty),
-                    StateJson = encryptedState ?? string.Empty,
+                    StateJson = string.Empty, // 密钥状态由 Rust 私有库持有，平台端零存储
                 };
                 repository.AddOrUpdateLocalDevice(localDevice);
 
@@ -227,6 +224,8 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 var rustPubKey = NativeCore.GetPublicKey();
                 if (rustPubKey == null)
                 {
+                    // 旧平台加密状态 blob（迁移源）：解密后导入 Rust 内存，
+                    // 由 uuid 进入核心后的落盘校验负责清理 StateJson（见 AppLifecycleHelper）
                     bool stateRestored = false;
                     if (!string.IsNullOrEmpty(localDevice.StateJson))
                     {
@@ -251,8 +250,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                         rustPubKey = NativeCore.GetPublicKey();
                         if (rustPubKey != null)
                             localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        var newState = NativeCore.ExportState();
-                        localDevice.StateJson = newState != null ? NativeCore.EncryptLocalState(newState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }
@@ -262,8 +259,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                     if (rustPubKey != cachedPubKey)
                     {
                         localDevice.PublicKey = Encoding.UTF8.GetBytes(rustPubKey);
-                        var updatedState = NativeCore.ExportState();
-                        localDevice.StateJson = updatedState != null ? NativeCore.EncryptLocalState(updatedState, localDevice.DeviceId) ?? string.Empty : string.Empty;
                         repository.AddOrUpdateLocalDevice(localDevice);
                     }
                 }

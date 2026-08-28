@@ -32,9 +32,10 @@ public interface IDeviceManager
     Task<PairedDevice?> GetLastConnectedDevice();
 
     /// <summary>
-    /// Removes the device from the database.
+    /// Removes the device from Rust 与数据库。
+    /// Rust 持久化删除失败时返回 false 且不清理平台侧记录（防止重启后设备复活造成两端不一致）。
     /// </summary>
-    void RemoveDevice(PairedDevice device);
+    bool RemoveDevice(PairedDevice device);
 
     /// <summary>
     /// 持久化设备变更（名称、IP等）到数据库

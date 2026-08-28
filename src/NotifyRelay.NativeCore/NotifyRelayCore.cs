@@ -50,6 +50,12 @@ public static class NotifyRelayCore
     public static extern IntPtr nrc_export_device_key(IntPtr ctx, IntPtr deviceUuid);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_get_local_uuid(IntPtr ctx);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_rename_device(IntPtr ctx, IntPtr deviceUuid, IntPtr name);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_free_string(IntPtr s);
 
     // ======== Updated Send functions ========
@@ -392,6 +398,21 @@ public static class NotifyRelayCore
             var result = NotifyRelayCore.nrc_export_device_key(ctx, u);
             Marshal.FreeHGlobal(u);
             return PtrToStringAndFree(result);
+        }
+
+        public static string? GetLocalUuid(IntPtr ctx)
+        {
+            return PtrToStringAndFree(NotifyRelayCore.nrc_get_local_uuid(ctx));
+        }
+
+        public static int RenameDevice(IntPtr ctx, string deviceUuid, string name)
+        {
+            var u = StringToPtr(deviceUuid);
+            var n = StringToPtr(name);
+            var result = NotifyRelayCore.nrc_rename_device(ctx, u, n);
+            Marshal.FreeHGlobal(u);
+            Marshal.FreeHGlobal(n);
+            return result;
         }
 
         // ======== Key management wrappers ========
