@@ -650,7 +650,17 @@ public sealed partial class DeviceSettingsViewModel : BaseViewModel
                 }
 
                 FtpService.Remove(device.Id);
-                DeviceManager.RemoveDevice(device);
+                if (!DeviceManager.RemoveDevice(device))
+                {
+                    var errorDialog = new ContentDialog
+                    {
+                        Title = "Error",
+                        Content = "删除设备失败：Rust 持久化删除未完成，请重试",
+                        CloseButtonText = "OK",
+                        XamlRoot = App.MainWindow.Content!.XamlRoot
+                    };
+                    await errorDialog.ShowAsync();
+                }
             }
             catch (Exception ex)
             {

@@ -77,11 +77,18 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         return await repository.GetLastConnectedDevice();
     }
 
-    public void RemoveDevice(PairedDevice device)
+    public bool RemoveDevice(PairedDevice device)
     {
         logger.LogInformation("RemoveDevice: 开始移除设备 {deviceId} {deviceName}", device.Id, device.Name);
-        NativeCore.RemoveDevice(device.Id);
+        // Rust 持久化删除（内存/库行/密钥状态），失败时中止平台侧清理：
+        // 否则平台记录已删而 Rust 库仍持有旧密钥，重启后设备复活造成两端不一致
+        if (NativeCore.RemoveDevice(device.Id) != 0)
+        {
+            logger.LogError("RemoveDevice: Rust 持久化删除失败 {deviceId}，中止平台侧清理", device.Id);
+            return false;
+        }
         NativeCore.RemoveKnownDevice(device.Id);
+        NativeCore.RemoveDeviceSession(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
@@ -108,6 +115,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
                 logger.LogError(ex, "移除设备 {id} 时出错", device.Id);
             }
         });
+        return true;
     }
 
     public void SaveDevice(PairedDevice device)
