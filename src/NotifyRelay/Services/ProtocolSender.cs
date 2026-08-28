@@ -78,6 +78,15 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
+            // Rust core 统一使用带 DATA_ 前缀的帧类型标识，接收端（core 归一化表）只识别 DATA_*。
+            // 业务报文 type 可能不带前缀（如 ICON_REQUEST/APP_LIST_REQUEST），
+            // 发送前统一规范化为 DATA_*，否则对端 core 会归一化为 UNKNOWN 导致消息被平台丢弃。
+            // 注意：此规范化曾于 57c0799 随 QUIC V2 回退被误撤销，导致 PC 端应用列表/图标同步失效。
+            if (!string.IsNullOrEmpty(header) && !header.StartsWith("DATA_", StringComparison.Ordinal))
+            {
+                header = "DATA_" + header;
+            }
+
             // 使用 Rust core 发送队列加密发送（IP 由 Rust 内部管理）
             var dedupKey = NativeCore.ComputeDedupKey(device.Id, plaintext);
             NativeCore.EnqueueMessage(device.Id, header, plaintext, dedupKey);
