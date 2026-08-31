@@ -620,9 +620,12 @@ public sealed partial class OverlayRenderService : IDisposable
         if (rt == null) return;
 
         bool isHeartRateTarget = IsHeartRateTarget(o);
+        bool hasKeyboardContent = o.IsPrimary && _settings.KeyboardOverlayEnabled
+            && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any();
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
-            || isHeartRateTarget;
+            || isHeartRateTarget
+            || hasKeyboardContent;
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
@@ -655,6 +658,10 @@ public sealed partial class OverlayRenderService : IDisposable
 
         if (isHeartRateTarget)
             DrawHeartRate(o);
+
+        // 渲染键盘按键状态（左上角）
+        if (o.IsPrimary)
+            RenderKeyboardState(o, now, freq);
 
         rt.EndDraw();
 

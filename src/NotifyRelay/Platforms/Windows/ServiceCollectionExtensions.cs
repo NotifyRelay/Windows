@@ -9,6 +9,7 @@ using NotifyRelay.Platforms.Windows.RemoteStorage.Shell.Local;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Worker;
 using NotifyRelay.Platforms.Windows.RemoteStorage.Worker.IO;
 using NotifyRelay.Platforms.Windows.Services;
+using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Platforms.Windows;
 
@@ -29,6 +30,9 @@ public static class ServiceCollectionExtensions
 
         // 注册FTP服务，用于处理网络磁盘映射的移除操作
         services.AddSingleton<IftpService, WindowftpService>();
+
+        // 注册键盘钩子服务
+        services.AddSingleton<KeyboardHookService>();
 
         return services;
     }

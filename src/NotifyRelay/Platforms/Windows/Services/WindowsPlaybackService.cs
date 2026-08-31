@@ -27,7 +27,7 @@ public class WindowsPlaybackService(
     IProtocolSender protocolSender,
     IGeneralSettingsService generalSettings) : IPlaybackService
 {
-    private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
     private GlobalSystemMediaTransportControlsSessionManager? manager;
 

@@ -156,6 +156,24 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "启动Overlay渲染引擎失败");
         }
 
+        // 初始化键盘钩子服务
+        try
+        {
+            var keyboardHook = Ioc.Default.GetRequiredService<Platforms.Windows.Services.KeyboardHookService>();
+            var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+            overlay.SetKeyboardStateProvider(keyboardHook);
+
+            if (Ioc.Default.GetRequiredService<IGeneralSettingsService>().KeyboardOverlayEnabled)
+            {
+                keyboardHook.Install();
+                logger.LogInformation("键盘钩子服务启动成功");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "初始化键盘钩子服务失败");
+        }
+
         // 心率设备启动自动连接（需开启开关且存在上次连接地址）
         try
         {

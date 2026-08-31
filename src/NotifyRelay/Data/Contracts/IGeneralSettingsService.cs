@@ -1,6 +1,7 @@
 using Microsoft.UI.Windowing;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Platforms.Windows.Services;
 
 namespace NotifyRelay.Data.Contracts;
 
@@ -269,4 +270,14 @@ public interface IGeneralSettingsService
     /// Gets or sets a value indicating whether to send media notifications to connected devices.
     /// </summary>
     bool EnableSendMediaNotifications { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether keyboard overlay is enabled.
+    /// </summary>
+    bool KeyboardOverlayEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the keyboard shortcut mappings list.
+    /// </summary>
+    List<KeyboardMappingConfig> KeyboardMappings { get; set; }
 }

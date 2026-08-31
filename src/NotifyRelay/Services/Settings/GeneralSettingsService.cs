@@ -5,6 +5,7 @@ using NotifyRelay.Data.Configuration;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services.Overlay;
 using Windows.UI;
 using Windows.UI.ViewManagement;
@@ -490,5 +491,18 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
     {
         get => _configuration.Get(SettingsKey(nameof(EnableSendMediaNotifications)), true);
         set => _configuration.Set(SettingsKey(nameof(EnableSendMediaNotifications)), value);
+    }
+
+    // 键盘叠加层设置
+    public bool KeyboardOverlayEnabled
+    {
+        get => _configuration.Get(SettingsKey(nameof(KeyboardOverlayEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(KeyboardOverlayEnabled)), value);
+    }
+
+    public List<KeyboardMappingConfig> KeyboardMappings
+    {
+        get => _configuration.Get(SettingsKey(nameof(KeyboardMappings)), new List<KeyboardMappingConfig>())!;
+        set => _configuration.Set(SettingsKey(nameof(KeyboardMappings)), value);
     }
 }

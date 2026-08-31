@@ -1,0 +1,87 @@
+<Page
+    x:Class="NotifyRelay.Views.Settings.OverlayKeyboardPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:viewmodels="using:NotifyRelay.ViewModels.Settings"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
+    xmlns:services="using:NotifyRelay.Platforms.Windows.Services"
+    mc:Ignorable="d">
+
+    <Page.DataContext>
+        <viewmodels:KeyboardViewModel />
+    </Page.DataContext>
+
+    <Grid>
+        <ScrollViewer Padding="0,0,40,0">
+            <StackPanel Spacing="4">
+                <wuc:SettingsCard Header="启用键盘叠加层" Description="在屏幕左上角显示当前按下的按键状态">
+                    <wuc:SettingsCard.HeaderIcon>
+                        <FontIcon Glyph="&#xE92E;" />
+                    </wuc:SettingsCard.HeaderIcon>
+                    <ToggleSwitch IsOn="{x:Bind ViewModel.KeyboardOverlayEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+                </wuc:SettingsCard>
+
+                <TextBlock Text="快捷键映射" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
+
+                <TextBlock Text="复杂快捷键 → 简单快捷键，用于键盘换层或无反馈快捷键的视觉指示"
+                           FontSize="12" Foreground="Gray" Margin="0,0,0,8" />
+
+                <ItemsControl ItemsSource="{x:Bind ViewModel.Mappings}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="services:KeyboardMappingConfig">
+                            <wuc:SettingsCard Header="{x:Bind Name}" Margin="0,4">
+                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                    <TextBlock Text="{x:Bind GetMappingDisplay()}"
+                                               VerticalAlignment="Center" />
+                                    <Button Content="编辑" Tag="{x:Bind}"
+                                            Click="EditMappingButton_Click" />
+                                    <Button Content="删除" Tag="{x:Bind}"
+                                            Click="DeleteMappingButton_Click" />
+                                </StackPanel>
+                            </wuc:SettingsCard>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Button Content="添加映射" Click="AddMappingButton_Click" Margin="0,8,0,0" />
+
+                <TextBlock x:Name="EmptyMessage"
+                           Text="暂无快捷键映射，点击上方按钮添加"
+                           FontSize="12" Foreground="Gray"
+                           Visibility="Collapsed" Margin="0,8,0,0" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <ContentDialog x:Name="MappingDialog" Title="快捷键映射"
+                       PrimaryButtonText="确定" SecondaryButtonText="取消"
+                       PrimaryButtonClick="MappingDialog_PrimaryButtonClick">
+            <StackPanel Spacing="12" MinWidth="400">
+                <TextBox x:Name="MappingNameBox" Header="名称" PlaceholderText="如：游戏移动键" />
+
+                <ComboBox x:Name="ActivationKeyCombo" Header="启动键（可选）">
+                    <ComboBoxItem Content="无" Tag="-1" />
+                    <ComboBoxItem Content="CapsLock" Tag="20" />
+                    <ComboBoxItem Content="Left Shift" Tag="160" />
+                    <ComboBoxItem Content="Right Shift" Tag="161" />
+                    <ComboBoxItem Content="Left Ctrl" Tag="162" />
+                    <ComboBoxItem Content="Right Ctrl" Tag="163" />
+                    <ComboBoxItem Content="Left Alt" Tag="164" />
+                    <ComboBoxItem Content="Right Alt" Tag="165" />
+                </ComboBox>
+
+                <ComboBox x:Name="SourceKey1Combo" Header="源键1" />
+                <ComboBox x:Name="SourceKey2Combo" Header="源键2（可选）" />
+                <ComboBox x:Name="SourceKey3Combo" Header="源键3（可选）" />
+
+                <ComboBox x:Name="TargetKeyCombo" Header="目标键" />
+
+                <TextBox x:Name="DisplayTextBox" Header="叠加层显示文本（可选）"
+                         PlaceholderText="如：移动" />
+
+                <ToggleSwitch x:Name="EnabledSwitch" Header="启用" IsOn="True" />
+            </StackPanel>
+        </ContentDialog>
+    </Grid>
+</Page>

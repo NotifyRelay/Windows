@@ -61,6 +61,11 @@
                         <FontIcon Glyph="&#xEB51;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="键盘" Tag="KeyboardPage">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE92E;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <Frame x:Name="OverlayContentFrame" Padding="40,20,0,0" />
