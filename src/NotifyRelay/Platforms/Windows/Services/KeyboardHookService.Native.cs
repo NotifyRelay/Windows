@@ -75,7 +75,7 @@ internal static partial class NativeMethods
         public ushort wParamH;
     }
 
-    [LibraryImport("user32.dll", SetLastError = true)]
+    [LibraryImport("user32.dll", EntryPoint = "SetWindowsHookExW", SetLastError = true)]
     public static partial IntPtr SetWindowsHookEx(int idHook, LowLevelKeyboardProc lpfn, IntPtr hMod, uint dwThreadId);
 
     [LibraryImport("user32.dll", SetLastError = true)]
