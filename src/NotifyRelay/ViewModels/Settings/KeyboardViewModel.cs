@@ -39,16 +39,7 @@ public class KeyboardViewModel : INotifyPropertyChanged
 
     private void UpdateHookService()
     {
-        if (_keyboardHookService == null) return;
-
-        if (KeyboardOverlayEnabled)
-        {
-            _keyboardHookService.Install();
-        }
-        else
-        {
-            _keyboardHookService.Uninstall();
-        }
+        _keyboardHookService?.SyncState();
     }
 
     public void AddMapping(KeyboardMappingConfig mapping)

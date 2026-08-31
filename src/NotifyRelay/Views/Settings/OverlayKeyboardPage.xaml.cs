@@ -1,6 +1,5 @@
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.ViewModels.Settings;
-using Windows.UI.Core;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -12,6 +11,7 @@ public sealed partial class OverlayKeyboardPage : Page
     public KeyboardViewModel ViewModel => (KeyboardViewModel)DataContext;
 
     private KeyboardMappingConfig? _editingMapping;
+    private KeyboardHookService? _hookService;
 
     // 按键监听状态
     private enum ListeningTarget { None, Source, Target }
@@ -30,29 +30,22 @@ public sealed partial class OverlayKeyboardPage : Page
     public OverlayKeyboardPage()
     {
         InitializeComponent();
+        _hookService = Ioc.Default.GetService<KeyboardHookService>();
         UpdateEmptyMessage();
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
-        var cw = App.MainWindow?.CoreWindow;
-        if (cw != null)
-        {
-            cw.KeyDown += OnCoreWindowKeyDown;
-            cw.KeyUp += OnCoreWindowKeyUp;
-        }
+        if (_hookService != null)
+            _hookService.KeyStateChanged += OnHookKeyStateChanged;
     }
 
     protected override void OnNavigatedFrom(NavigationEventArgs e)
     {
         base.OnNavigatedFrom(e);
-        var cw = App.MainWindow?.CoreWindow;
-        if (cw != null)
-        {
-            cw.KeyDown -= OnCoreWindowKeyDown;
-            cw.KeyUp -= OnCoreWindowKeyUp;
-        }
+        if (_hookService != null)
+            _hookService.KeyStateChanged -= OnHookKeyStateChanged;
         StopListening();
     }
 
@@ -63,7 +56,7 @@ public sealed partial class OverlayKeyboardPage : Page
             : Visibility.Collapsed;
     }
 
-    #region 按键监听
+    #region 按键监听（通过钩子事件）
 
     private void StartListening(ListeningTarget target)
     {
@@ -85,7 +78,6 @@ public sealed partial class OverlayKeyboardPage : Page
         _capturedKeys.Clear();
         ListeningHint.Visibility = Visibility.Collapsed;
 
-        // 恢复按钮文本颜色
         SourceKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
         TargetKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
     }
@@ -117,44 +109,46 @@ public sealed partial class OverlayKeyboardPage : Page
         StopListening();
     }
 
-    private void OnCoreWindowKeyDown(CoreWindow sender, KeyEventArgs args)
+    private void OnHookKeyStateChanged(object? sender, KeyStateChangedEventArgs e)
     {
         if (_listeningTarget == ListeningTarget.None) return;
 
-        int vk = (int)args.VirtualKey;
-
-        // 记录按键
-        if (!_capturedKeys.Contains(vk))
+        DispatcherQueue.TryEnqueue(() =>
         {
-            _capturedKeys.Add(vk);
-        }
+            int vk = e.Key;
 
-        // 如果是非修饰键，立即完成
-        if (!ModifierKeys.Contains(vk))
-        {
-            _modifiersOnly = false;
-            args.Handled = true;
-            DispatcherQueue.TryEnqueue(() => FinishListening());
-        }
-    }
-
-    private void OnCoreWindowKeyUp(CoreWindow sender, KeyEventArgs args)
-    {
-        if (_listeningTarget == ListeningTarget.None) return;
-
-        int vk = (int)args.VirtualKey;
-
-        // 如果只剩修饰键被按下，且之前只按了修饰键，则完成
-        if (ModifierKeys.Contains(vk) && _modifiersOnly && _capturedKeys.Count > 0)
-        {
-            DispatcherQueue.TryEnqueue(async () =>
+            if (e.IsPressed)
             {
-                await System.Threading.Tasks.Task.Delay(150);
-                if (_listeningTarget != ListeningTarget.None && _modifiersOnly && _capturedKeys.Count > 0)
+                // 记录按键
+                if (!_capturedKeys.Contains(vk))
                 {
+                    _capturedKeys.Add(vk);
+                }
+
+                // 如果是非修饰键，立即完成
+                if (!ModifierKeys.Contains(vk))
+                {
+                    _modifiersOnly = false;
                     FinishListening();
                 }
-            });
+            }
+            else
+            {
+                // 按键释放：如果只按了修饰键，延迟后完成
+                if (ModifierKeys.Contains(vk) && _modifiersOnly && _capturedKeys.Count > 0)
+                {
+                    _ = DelayedFinish();
+                }
+            }
+        });
+    }
+
+    private async Task DelayedFinish()
+    {
+        await System.Threading.Tasks.Task.Delay(150);
+        if (_listeningTarget != ListeningTarget.None && _modifiersOnly && _capturedKeys.Count > 0)
+        {
+            FinishListening();
         }
     }
 
@@ -229,7 +223,6 @@ public sealed partial class OverlayKeyboardPage : Page
             return;
         }
 
-        // 解析源键
         var sourceKeys = new List<int>();
         if (SourceKeyText.Text != "点击设置")
         {
@@ -246,7 +239,6 @@ public sealed partial class OverlayKeyboardPage : Page
             return;
         }
 
-        // 解析目标键（可选）
         int targetKey = 0;
         if (TargetKeyText.Text != "点击设置")
         {

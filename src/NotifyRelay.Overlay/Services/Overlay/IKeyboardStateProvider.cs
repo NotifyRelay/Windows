@@ -10,4 +10,17 @@ public interface IKeyboardStateProvider
 
     /// <summary>检查指定键是否按下。</summary>
     bool IsKeyDown(int vkCode);
+
+    /// <summary>快捷键映射触发时推送，携带需在叠加层显示的 DisplayText。</summary>
+    event EventHandler<KeyMappingDisplayEventArgs>? MappingTriggered;
+}
+
+/// <summary>快捷键映射触发事件参数。</summary>
+public class KeyMappingDisplayEventArgs : EventArgs
+{
+    /// <summary>映射配置中的显示文本。</summary>
+    public string DisplayText { get; set; } = string.Empty;
+
+    /// <summary>映射的目标键码。</summary>
+    public int TargetKey { get; set; }
 }

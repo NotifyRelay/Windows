@@ -56,6 +56,11 @@ public sealed partial class OverlayRenderService : IDisposable
     private int _screenMode;              // 当前多屏模式，变化时触发覆盖层重建
     private readonly Random _rand = new();
 
+    // 快捷键映射触发时的提示文本（由钩子线程推送，渲染线程消费，受 _lock 保护）
+    private string? _keyMappingHintText;
+    private long _keyMappingHintTick;     // Stopwatch 时间戳
+    private const int KeyMappingHintTimeoutMs = 1500;
+
     public OverlayRenderService(ILogger<OverlayRenderService> logger, IOverlaySettings settings)
     {
         _logger = logger;
@@ -228,6 +233,8 @@ public sealed partial class OverlayRenderService : IDisposable
                 if (!hasContent) hasContent = HeartRateActive();
                 if (!hasContent && _settings.KeyboardOverlayEnabled
                     && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
+                    hasContent = true;
+                if (!hasContent && HasKeyMappingHint())
                     hasContent = true;
 
                 if (!hasContent)
@@ -607,6 +614,38 @@ public sealed partial class OverlayRenderService : IDisposable
         }
     }
 
+    /// <summary>是否存在活跃的快捷键映射提示（未超时），用于 hasContent 判定。</summary>
+    private bool HasKeyMappingHint()
+    {
+        if (_keyMappingHintText == null) return false;
+        lock (_lock)
+        {
+            return _keyMappingHintText != null
+                && (Stopwatch.GetTimestamp() - _keyMappingHintTick) * 1000 / Stopwatch.Frequency < KeyMappingHintTimeoutMs;
+        }
+    }
+
+    /// <summary>渲染线程读取映射提示文本，并返回淡出不透明度；超时则清空。</summary>
+    private string? GetKeyMappingHintForRender(out float opacity)
+    {
+        opacity = 0;
+        if (_keyMappingHintText == null) return null;
+        lock (_lock)
+        {
+            if (_keyMappingHintText == null) return null;
+            long elapsedMs = (Stopwatch.GetTimestamp() - _keyMappingHintTick) * 1000 / Stopwatch.Frequency;
+            if (elapsedMs >= KeyMappingHintTimeoutMs)
+            {
+                _keyMappingHintText = null;
+                return null;
+            }
+            // 最后 30% 时长淡出
+            float remaining = 1f - (float)elapsedMs / KeyMappingHintTimeoutMs;
+            opacity = remaining < 0.3f ? remaining / 0.3f : 1f;
+            return _keyMappingHintText;
+        }
+    }
+
     private bool TopItemsActive()
     {
         lock (_lock)
@@ -623,8 +662,10 @@ public sealed partial class OverlayRenderService : IDisposable
         if (rt == null) return;
 
         bool isHeartRateTarget = IsHeartRateTarget(o);
-        bool hasKeyboardContent = o.IsPrimary && _settings.KeyboardOverlayEnabled
-            && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any();
+        bool hasKeyboardContent = o.IsPrimary && (
+            (_settings.KeyboardOverlayEnabled
+                && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
+            || HasKeyMappingHint());
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget

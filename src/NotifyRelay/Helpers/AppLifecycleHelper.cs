@@ -163,11 +163,9 @@ public static class AppLifecycleHelper
             var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
             overlay.SetKeyboardStateProvider(keyboardHook);
 
-            if (Ioc.Default.GetRequiredService<IGeneralSettingsService>().KeyboardOverlayEnabled)
-            {
-                keyboardHook.Install();
-                logger.LogInformation("键盘钩子服务启动成功");
-            }
+            // 按当前开关状态自动安装/卸载钩子
+            keyboardHook.SyncState();
+            logger.LogInformation("键盘钩子服务状态已同步");
         }
         catch (Exception ex)
         {

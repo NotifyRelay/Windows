@@ -31,6 +31,9 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     // 按键状态变化事件
     public event EventHandler<KeyStateChangedEventArgs>? KeyStateChanged;
 
+    // 快捷键映射触发事件：推送 DisplayText 供叠加层显示
+    public event EventHandler<KeyMappingDisplayEventArgs>? MappingTriggered;
+
     /// <summary>当前所有按键状态的快照。</summary>
     public IReadOnlyDictionary<int, bool> KeyStates => _keyStates;
 
@@ -60,25 +63,27 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     {
         if (_hookId != IntPtr.Zero) return;
 
-        using var process = System.Diagnostics.Process.GetCurrentProcess();
         using var module = System.Diagnostics.Process.GetCurrentProcess().MainModule;
-        if (module?.BaseAddress != null)
+        if (module?.BaseAddress == null)
         {
-            _hookId = NativeMethods.SetWindowsHookEx(
-                NativeMethods.WH_KEYBOARD_LL,
-                _hookProc,
-                NativeMethods.GetModuleHandle(module.ModuleName),
-                0);
+            _logger.LogWarning("键盘钩子安装失败：无法获取主模块句柄");
+            return;
+        }
 
-            if (_hookId == IntPtr.Zero)
-            {
-                var error = Marshal.GetLastWin32Error();
-                _logger.LogError("安装键盘钩子失败，错误码: {Error}", error);
-            }
-            else
-            {
-                _logger.LogInformation("键盘钩子已安装");
-            }
+        _hookId = NativeMethods.SetWindowsHookEx(
+            NativeMethods.WH_KEYBOARD_LL,
+            _hookProc,
+            NativeMethods.GetModuleHandle(module.ModuleName),
+            0);
+
+        if (_hookId == IntPtr.Zero)
+        {
+            var error = Marshal.GetLastWin32Error();
+            _logger.LogError("安装键盘钩子失败，错误码: {Error}", error);
+        }
+        else
+        {
+            _logger.LogInformation("键盘钩子已安装");
         }
     }
 
@@ -92,6 +97,15 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
             _logger.LogInformation("键盘钩子已卸载");
         }
         _hookId = IntPtr.Zero;
+    }
+
+    /// <summary>按当前开关状态同步钩子安装/卸载，供启动与开关切换复用。</summary>
+    public void SyncState()
+    {
+        if (_settings.KeyboardOverlayEnabled)
+            Install();
+        else
+            Uninstall();
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -153,6 +167,16 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
             {
                 // 执行映射：发送目标键
                 SendKeyPress(mapping.TargetKey);
+
+                // 通知叠加层显示 DisplayText（若有）
+                if (!string.IsNullOrEmpty(mapping.DisplayText))
+                {
+                    MappingTriggered?.Invoke(this, new KeyMappingDisplayEventArgs
+                    {
+                        DisplayText = mapping.DisplayText,
+                        TargetKey = mapping.TargetKey
+                    });
+                }
 
                 _logger.LogDebug("快捷键映射触发: {Source} → {Target}",
                     string.Join("+", mapping.SourceKeys.Select(k => GetKeyName(k))),

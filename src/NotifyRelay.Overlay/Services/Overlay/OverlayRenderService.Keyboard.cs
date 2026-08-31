@@ -62,7 +62,22 @@ public partial class OverlayRenderService
     /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
     public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
     {
+        if (_keyboardStateProvider != null)
+            _keyboardStateProvider.MappingTriggered -= OnMappingTriggered;
         _keyboardStateProvider = provider;
+        if (provider != null)
+            provider.MappingTriggered += OnMappingTriggered;
+    }
+
+    /// <summary>快捷键映射触发回调：记录提示文本与时间戳（钩子线程调用）。</summary>
+    private void OnMappingTriggered(object? sender, KeyMappingDisplayEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.DisplayText)) return;
+        lock (_lock)
+        {
+            _keyMappingHintText = e.DisplayText;
+            _keyMappingHintTick = Stopwatch.GetTimestamp();
+        }
     }
 
     /// <summary>在左上角渲染键盘按键状态指示器。</summary>
@@ -75,7 +90,6 @@ public partial class OverlayRenderService
         if (rt == null) return;
 
         var pressedKeys = _keyboardStateProvider.GetPressedKeys().ToList();
-        if (pressedKeys.Count == 0) return;
 
         // 过滤出需要显示的按键
         var displayKeys = pressedKeys
@@ -83,7 +97,9 @@ public partial class OverlayRenderService
             .Distinct()
             .ToList();
 
-        if (displayKeys.Count == 0) return;
+        // 映射触发提示（独立于按键状态，无按键按下时仍可能显示）
+        var hint = GetKeyMappingHintForRender(out float hintOpacity);
+        if (displayKeys.Count == 0 && hint == null) return;
 
         float x = KeyStartX;
         float y = KeyStartY;
@@ -125,6 +141,25 @@ public partial class OverlayRenderService
                 x = KeyStartX;
                 y += KeyBoxSize + KeyBoxMargin;
             }
+        }
+
+        // 渲染映射触发提示文本（按键状态下方一行，带超时淡出）
+        if (hint != null)
+        {
+            float hintY = y + KeyBoxSize + KeyBoxMargin;
+            using var hintLayout = _dwFactory.CreateTextLayout(hint, format, 600, KeyBoxSize * 2);
+            float hintWidth = hintLayout.Metrics.Width;
+            float hintBoxWidth = hintWidth + KeyBoxPadding * 2;
+            float hintBoxHeight = KeyBoxSize;
+            var hintRect = new RoundedRectangle(new RectangleF(KeyStartX, hintY, hintBoxWidth, hintBoxHeight), KeyBoxRadius, KeyBoxRadius);
+            using var hintBgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.6f * hintOpacity));
+            rt.FillRoundedRectangle(ref hintRect, hintBgBrush);
+            using var hintBorderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.5f * hintOpacity));
+            rt.DrawRoundedRectangle(hintRect, hintBorderBrush, 1.5f);
+            using var hintTextBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, hintOpacity));
+            float hintTextX = KeyStartX + KeyBoxPadding;
+            float hintTextY = hintY + (hintBoxHeight - KeyFontSize) / 2;
+            rt.DrawTextLayout(new Vector2(hintTextX, hintTextY), hintLayout, hintTextBrush);
         }
     }
 
