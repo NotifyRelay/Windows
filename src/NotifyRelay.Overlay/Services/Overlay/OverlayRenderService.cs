@@ -226,6 +226,9 @@ public sealed partial class OverlayRenderService : IDisposable
                 }
                 if (!hasContent && !_requests.IsEmpty) hasContent = true;
                 if (!hasContent) hasContent = HeartRateActive();
+                if (!hasContent && _settings.KeyboardOverlayEnabled
+                    && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
+                    hasContent = true;
 
                 if (!hasContent)
                 {

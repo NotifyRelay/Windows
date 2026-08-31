@@ -28,9 +28,6 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     // 活跃的映射：源键组合（排序后）→ 映射配置
     private Dictionary<string, KeyboardMappingConfig> _activeMappings = new();
 
-    // 启动键按下状态
-    private readonly ConcurrentDictionary<int, bool> _activationKeyStates = new();
-
     // 按键状态变化事件
     public event EventHandler<KeyStateChangedEventArgs>? KeyStateChanged;
 
@@ -117,12 +114,6 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
                 AllStates = _keyStates.ToDictionary(kvp => kvp.Key, kvp => kvp.Value)
             });
 
-            // 处理启动键
-            if (HandleActivationKey(vkCode, isKeyDown))
-            {
-                return (IntPtr)1; // 吞掉事件
-            }
-
             // 处理快捷键映射
             if (HandleKeyMapping(vkCode, isKeyDown))
             {
@@ -131,22 +122,6 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
         }
 
         return NativeMethods.CallNextHookEx(_hookId, nCode, wParam, lParam);
-    }
-
-    private bool HandleActivationKey(int vkCode, bool isKeyDown)
-    {
-        var mappings = _settings.KeyboardMappings.Where(m => m.Enabled).ToList();
-
-        foreach (var mapping in mappings)
-        {
-            if (mapping.ActivationKey == vkCode)
-            {
-                _activationKeyStates[vkCode] = isKeyDown;
-                return false; // 不吞掉启动键本身
-            }
-        }
-
-        return false;
     }
 
     private bool HandleKeyMapping(int vkCode, bool isKeyDown)
@@ -159,7 +134,7 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
             if (!mapping.SourceKeys.Contains(vkCode)) continue;
 
             // 获取或创建该映射的按键状态跟踪
-            var stateKey = mapping.Id ?? $"{mapping.ActivationKey}_{string.Join(",", mapping.SourceKeys)}";
+            var stateKey = mapping.Id ?? string.Join(",", mapping.SourceKeys);
             var pressedKeys = _mappingKeyStates.GetOrAdd(stateKey, _ => new HashSet<int>());
 
             if (isKeyDown)
@@ -171,14 +146,10 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
                 pressedKeys.Remove(vkCode);
             }
 
-            // 检查是否所有源键都按下（包含启动键）
+            // 检查是否所有源键都按下
             bool allSourceKeysPressed = mapping.SourceKeys.All(k => pressedKeys.Contains(k));
-            bool activationKeyPressed = _activationKeyStates.TryGetValue(mapping.ActivationKey, out bool isActive) && isActive;
 
-            // 如果指定了启动键，需要启动键也按下
-            bool shouldTrigger = activationKeyPressed ? allSourceKeysPressed : allSourceKeysPressed;
-
-            if (shouldTrigger && isKeyDown)
+            if (allSourceKeysPressed && isKeyDown)
             {
                 // 执行映射：发送目标键
                 SendKeyPress(mapping.TargetKey);
@@ -271,7 +242,6 @@ public class KeyboardMappingConfig
 {
     public string? Id { get; set; }
     public string Name { get; set; } = string.Empty;
-    public int ActivationKey { get; set; }
     public List<int> SourceKeys { get; set; } = new();
     public int TargetKey { get; set; }
     public string? DisplayText { get; set; }
@@ -281,12 +251,16 @@ public class KeyboardMappingConfig
     public string GetMappingDisplay()
     {
         var source = string.Join("+", SourceKeys.Select(k => GetKeyName(k)));
-        var target = GetKeyName(TargetKey);
-        var display = string.IsNullOrEmpty(DisplayText) ? target : $"{target} ({DisplayText})";
-        return $"{source} → {display}";
+        if (TargetKey > 0)
+        {
+            var target = GetKeyName(TargetKey);
+            var display = string.IsNullOrEmpty(DisplayText) ? target : $"{target} ({DisplayText})";
+            return $"{source} → {display}";
+        }
+        return string.IsNullOrEmpty(DisplayText) ? source : $"{source} ({DisplayText})";
     }
 
-    private static string GetKeyName(int vkCode)
+    public static string GetKeyName(int vkCode)
     {
         return vkCode switch
         {

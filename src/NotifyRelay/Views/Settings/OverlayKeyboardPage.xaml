@@ -25,7 +25,7 @@
 
                 <TextBlock Text="快捷键映射" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
 
-                <TextBlock Text="复杂快捷键 → 简单快捷键，用于键盘换层或无反馈快捷键的视觉指示"
+                <TextBlock Text="按下快捷键后，在叠加层显示指定文本或执行映射按键"
                            FontSize="12" Foreground="Gray" Margin="0,0,0,8" />
 
                 <ItemsControl ItemsSource="{x:Bind ViewModel.Mappings}">
@@ -56,31 +56,40 @@
 
         <ContentDialog x:Name="MappingDialog" Title="快捷键映射"
                        PrimaryButtonText="确定" SecondaryButtonText="取消"
-                       PrimaryButtonClick="MappingDialog_PrimaryButtonClick">
+                       PrimaryButtonClick="MappingDialog_PrimaryButtonClick"
+                       Closing="MappingDialog_Closing">
             <StackPanel Spacing="12" MinWidth="400">
                 <TextBox x:Name="MappingNameBox" Header="名称" PlaceholderText="如：游戏移动键" />
 
-                <ComboBox x:Name="ActivationKeyCombo" Header="启动键（可选）">
-                    <ComboBoxItem Content="无" Tag="-1" />
-                    <ComboBoxItem Content="CapsLock" Tag="20" />
-                    <ComboBoxItem Content="Left Shift" Tag="160" />
-                    <ComboBoxItem Content="Right Shift" Tag="161" />
-                    <ComboBoxItem Content="Left Ctrl" Tag="162" />
-                    <ComboBoxItem Content="Right Ctrl" Tag="163" />
-                    <ComboBoxItem Content="Left Alt" Tag="164" />
-                    <ComboBoxItem Content="Right Alt" Tag="165" />
-                </ComboBox>
+                <StackPanel Spacing="4">
+                    <TextBlock Text="应用快捷键" FontWeight="SemiBold" />
+                    <TextBlock Text="按下此组合键时触发（如 Ctrl+W）"
+                               FontSize="11" Foreground="Gray" />
+                    <Button x:Name="SourceKeyButton" Click="SourceKeyButton_Click"
+                            HorizontalAlignment="Left" MinWidth="200">
+                        <TextBlock x:Name="SourceKeyText" Text="点击设置" />
+                    </Button>
+                </StackPanel>
 
-                <ComboBox x:Name="SourceKey1Combo" Header="源键1" />
-                <ComboBox x:Name="SourceKey2Combo" Header="源键2（可选）" />
-                <ComboBox x:Name="SourceKey3Combo" Header="源键3（可选）" />
-
-                <ComboBox x:Name="TargetKeyCombo" Header="目标键" />
+                <StackPanel Spacing="4">
+                    <TextBlock Text="实际执行快捷键" FontWeight="SemiBold" />
+                    <TextBlock Text="触发时发送的按键（可选，如单个 W 键）"
+                               FontSize="11" Foreground="Gray" />
+                    <Button x:Name="TargetKeyButton" Click="TargetKeyButton_Click"
+                            HorizontalAlignment="Left" MinWidth="200">
+                        <TextBlock x:Name="TargetKeyText" Text="点击设置" />
+                    </Button>
+                </StackPanel>
 
                 <TextBox x:Name="DisplayTextBox" Header="叠加层显示文本（可选）"
                          PlaceholderText="如：移动" />
 
                 <ToggleSwitch x:Name="EnabledSwitch" Header="启用" IsOn="True" />
+
+                <TextBlock x:Name="ListeningHint"
+                           Text="请按下按键..." FontWeight="SemiBold"
+                           Foreground="{ThemeResource SystemAccentColor}"
+                           Visibility="Collapsed" />
             </StackPanel>
         </ContentDialog>
     </Grid>

@@ -1,5 +1,6 @@
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.ViewModels.Settings;
+using Windows.UI.Core;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -12,34 +13,47 @@ public sealed partial class OverlayKeyboardPage : Page
 
     private KeyboardMappingConfig? _editingMapping;
 
+    // 按键监听状态
+    private enum ListeningTarget { None, Source, Target }
+    private ListeningTarget _listeningTarget = ListeningTarget.None;
+    private readonly List<int> _capturedKeys = new();
+    private bool _modifiersOnly = true;
+
+    // 修饰键码
+    private static readonly HashSet<int> ModifierKeys = new()
+    {
+        0xA0, 0xA1, // LShift, RShift
+        0xA2, 0xA3, // LCtrl, RCtrl
+        0xA4, 0xA5  // LAlt, RAlt
+    };
+
     public OverlayKeyboardPage()
     {
         InitializeComponent();
-        LoadKeyOptions();
         UpdateEmptyMessage();
     }
 
-    private void LoadKeyOptions()
+    protected override void OnNavigatedTo(NavigationEventArgs e)
     {
-        var keys = KeyboardViewModel.GetAvailableKeys();
-
-        void PopulateCombo(ComboBox combo)
+        base.OnNavigatedTo(e);
+        var cw = App.MainWindow?.CoreWindow;
+        if (cw != null)
         {
-            combo.Items.Clear();
-            foreach (var key in keys)
-            {
-                combo.Items.Add(new ComboBoxItem
-                {
-                    Content = key.DisplayName,
-                    Tag = key.VkCode
-                });
-            }
+            cw.KeyDown += OnCoreWindowKeyDown;
+            cw.KeyUp += OnCoreWindowKeyUp;
         }
+    }
 
-        PopulateCombo(SourceKey1Combo);
-        PopulateCombo(SourceKey2Combo);
-        PopulateCombo(SourceKey3Combo);
-        PopulateCombo(TargetKeyCombo);
+    protected override void OnNavigatedFrom(NavigationEventArgs e)
+    {
+        base.OnNavigatedFrom(e);
+        var cw = App.MainWindow?.CoreWindow;
+        if (cw != null)
+        {
+            cw.KeyDown -= OnCoreWindowKeyDown;
+            cw.KeyUp -= OnCoreWindowKeyUp;
+        }
+        StopListening();
     }
 
     private void UpdateEmptyMessage()
@@ -49,18 +63,131 @@ public sealed partial class OverlayKeyboardPage : Page
             : Visibility.Collapsed;
     }
 
+    #region 按键监听
+
+    private void StartListening(ListeningTarget target)
+    {
+        _listeningTarget = target;
+        _capturedKeys.Clear();
+        _modifiersOnly = true;
+        ListeningHint.Visibility = Visibility.Visible;
+
+        var btn = target == ListeningTarget.Source ? SourceKeyButton : TargetKeyButton;
+        var tb = target == ListeningTarget.Source ? SourceKeyText : TargetKeyText;
+        tb.Text = "请按下按键...";
+        tb.Foreground = new Microsoft.UI.Xaml.Media.SolidColorBrush(Windows.UI.Color.FromArgb(255, 136, 136, 136));
+        btn.Content = tb;
+    }
+
+    private void StopListening()
+    {
+        _listeningTarget = ListeningTarget.None;
+        _capturedKeys.Clear();
+        ListeningHint.Visibility = Visibility.Collapsed;
+
+        // 恢复按钮文本颜色
+        SourceKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+        TargetKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+    }
+
+    private void FinishListening()
+    {
+        if (_listeningTarget == ListeningTarget.None) return;
+
+        if (_capturedKeys.Count == 0)
+        {
+            StopListening();
+            return;
+        }
+
+        var keys = _capturedKeys.ToList();
+        var displayText = string.Join("+", keys.Select(KeyboardMappingConfig.GetKeyName));
+
+        if (_listeningTarget == ListeningTarget.Source)
+        {
+            SourceKeyText.Text = displayText;
+            SourceKeyButton.Content = SourceKeyText;
+        }
+        else
+        {
+            TargetKeyText.Text = displayText;
+            TargetKeyButton.Content = TargetKeyText;
+        }
+
+        StopListening();
+    }
+
+    private void OnCoreWindowKeyDown(CoreWindow sender, KeyEventArgs args)
+    {
+        if (_listeningTarget == ListeningTarget.None) return;
+
+        int vk = (int)args.VirtualKey;
+
+        // 记录按键
+        if (!_capturedKeys.Contains(vk))
+        {
+            _capturedKeys.Add(vk);
+        }
+
+        // 如果是非修饰键，立即完成
+        if (!ModifierKeys.Contains(vk))
+        {
+            _modifiersOnly = false;
+            args.Handled = true;
+            DispatcherQueue.TryEnqueue(() => FinishListening());
+        }
+    }
+
+    private void OnCoreWindowKeyUp(CoreWindow sender, KeyEventArgs args)
+    {
+        if (_listeningTarget == ListeningTarget.None) return;
+
+        int vk = (int)args.VirtualKey;
+
+        // 如果只剩修饰键被按下，且之前只按了修饰键，则完成
+        if (ModifierKeys.Contains(vk) && _modifiersOnly && _capturedKeys.Count > 0)
+        {
+            DispatcherQueue.TryEnqueue(async () =>
+            {
+                await System.Threading.Tasks.Task.Delay(150);
+                if (_listeningTarget != ListeningTarget.None && _modifiersOnly && _capturedKeys.Count > 0)
+                {
+                    FinishListening();
+                }
+            });
+        }
+    }
+
+    private void SourceKeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_listeningTarget != ListeningTarget.None) return;
+        StartListening(ListeningTarget.Source);
+    }
+
+    private void TargetKeyButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_listeningTarget != ListeningTarget.None) return;
+        StartListening(ListeningTarget.Target);
+    }
+
+    #endregion
+
+    #region 映射管理
+
     private void AddMappingButton_Click(object sender, RoutedEventArgs e)
     {
         _editingMapping = null;
         MappingNameBox.Text = string.Empty;
-        ActivationKeyCombo.SelectedIndex = 0;
-        SourceKey1Combo.SelectedIndex = -1;
-        SourceKey2Combo.SelectedIndex = -1;
-        SourceKey3Combo.SelectedIndex = -1;
-        TargetKeyCombo.SelectedIndex = -1;
+        SourceKeyText.Text = "点击设置";
+        SourceKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+        SourceKeyButton.Content = SourceKeyText;
+        TargetKeyText.Text = "点击设置";
+        TargetKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+        TargetKeyButton.Content = TargetKeyText;
         DisplayTextBox.Text = string.Empty;
         EnabledSwitch.IsOn = true;
 
+        MappingDialog.XamlRoot = this.XamlRoot;
         _ = MappingDialog.ShowAsync();
     }
 
@@ -70,14 +197,16 @@ public sealed partial class OverlayKeyboardPage : Page
         {
             _editingMapping = mapping;
             MappingNameBox.Text = mapping.Name;
-            SetComboValue(ActivationKeyCombo, mapping.ActivationKey.ToString());
-            SetComboValue(SourceKey1Combo, mapping.SourceKeys.ElementAtOrDefault(0).ToString());
-            SetComboValue(SourceKey2Combo, mapping.SourceKeys.ElementAtOrDefault(1).ToString());
-            SetComboValue(SourceKey3Combo, mapping.SourceKeys.ElementAtOrDefault(2).ToString());
-            SetComboValue(TargetKeyCombo, mapping.TargetKey.ToString());
+            SourceKeyText.Text = string.Join("+", mapping.SourceKeys.Select(KeyboardMappingConfig.GetKeyName));
+            SourceKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            SourceKeyButton.Content = SourceKeyText;
+            TargetKeyText.Text = mapping.TargetKey > 0 ? KeyboardMappingConfig.GetKeyName(mapping.TargetKey) : "点击设置";
+            TargetKeyText.Foreground = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorPrimaryBrush"];
+            TargetKeyButton.Content = TargetKeyText;
             DisplayTextBox.Text = mapping.DisplayText ?? string.Empty;
             EnabledSwitch.IsOn = mapping.Enabled;
 
+            MappingDialog.XamlRoot = this.XamlRoot;
             _ = MappingDialog.ShowAsync();
         }
     }
@@ -91,29 +220,6 @@ public sealed partial class OverlayKeyboardPage : Page
         }
     }
 
-    private void SetComboValue(ComboBox combo, string? vkCodeStr)
-    {
-        if (string.IsNullOrEmpty(vkCodeStr)) return;
-
-        for (int i = 0; i < combo.Items.Count; i++)
-        {
-            if (combo.Items[i] is ComboBoxItem item && item.Tag?.ToString() == vkCodeStr)
-            {
-                combo.SelectedIndex = i;
-                return;
-            }
-        }
-    }
-
-    private int? GetComboValue(ComboBox combo)
-    {
-        if (combo.SelectedItem is ComboBoxItem item && item.Tag is int vkCode)
-        {
-            return vkCode;
-        }
-        return null;
-    }
-
     private void MappingDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
         var name = MappingNameBox.Text.Trim();
@@ -123,13 +229,16 @@ public sealed partial class OverlayKeyboardPage : Page
             return;
         }
 
+        // 解析源键
         var sourceKeys = new List<int>();
-        if (GetComboValue(SourceKey1Combo) is int key1)
-            sourceKeys.Add(key1);
-        if (GetComboValue(SourceKey2Combo) is int key2)
-            sourceKeys.Add(key2);
-        if (GetComboValue(SourceKey3Combo) is int key3)
-            sourceKeys.Add(key3);
+        if (SourceKeyText.Text != "点击设置")
+        {
+            foreach (var part in SourceKeyText.Text.Split('+'))
+            {
+                var vk = ParseKeyName(part.Trim());
+                if (vk > 0) sourceKeys.Add(vk);
+            }
+        }
 
         if (sourceKeys.Count == 0)
         {
@@ -137,13 +246,13 @@ public sealed partial class OverlayKeyboardPage : Page
             return;
         }
 
-        if (GetComboValue(TargetKeyCombo) is not int targetKey)
+        // 解析目标键（可选）
+        int targetKey = 0;
+        if (TargetKeyText.Text != "点击设置")
         {
-            args.Cancel = true;
-            return;
+            targetKey = ParseKeyName(TargetKeyText.Text.Trim());
         }
 
-        var activationKey = GetComboValue(ActivationKeyCombo) ?? -1;
         var displayText = DisplayTextBox.Text.Trim();
         var enabled = EnabledSwitch.IsOn;
 
@@ -151,7 +260,6 @@ public sealed partial class OverlayKeyboardPage : Page
         {
             Id = _editingMapping?.Id ?? Guid.NewGuid().ToString("N")[..8],
             Name = name,
-            ActivationKey = activationKey,
             SourceKeys = sourceKeys,
             TargetKey = targetKey,
             DisplayText = string.IsNullOrEmpty(displayText) ? null : displayText,
@@ -169,4 +277,43 @@ public sealed partial class OverlayKeyboardPage : Page
 
         UpdateEmptyMessage();
     }
+
+    private void MappingDialog_Closing(ContentDialog sender, ContentDialogClosingEventArgs args)
+    {
+        StopListening();
+    }
+
+    private static int ParseKeyName(string name)
+    {
+        return name switch
+        {
+            "Backspace" => 0x08,
+            "Tab" => 0x09,
+            "Enter" => 0x0D,
+            "Shift" => 0x10,
+            "Ctrl" => 0x11,
+            "Alt" => 0x12,
+            "CapsLock" => 0x14,
+            "Escape" => 0x1B,
+            "Space" => 0x20,
+            "LShift" => 0xA0,
+            "RShift" => 0xA1,
+            "LCtrl" => 0xA2,
+            "RCtrl" => 0xA3,
+            "LAlt" => 0xA4,
+            "RAlt" => 0xA5,
+            _ when name.StartsWith("F") && int.TryParse(name[1..], out int fNum) && fNum is >= 1 and <= 24 => 0x6F + fNum,
+            _ when name.Length == 1 && char.IsLetterOrDigit(name[0]) => name[0] switch
+            {
+                >= '0' and <= '9' => name[0],
+                >= 'A' and <= 'Z' => name[0],
+                >= 'a' and <= 'z' => char.ToUpper(name[0]),
+                _ => 0
+            },
+            _ when name.StartsWith("0x") && int.TryParse(name[2..], System.Globalization.NumberStyles.HexNumber, null, out int hex) => hex,
+            _ => 0
+        };
+    }
+
+    #endregion
 }
