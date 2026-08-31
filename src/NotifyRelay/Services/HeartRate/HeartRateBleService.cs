@@ -110,8 +110,17 @@ public sealed class HeartRateBleService : IDisposable
             };
 
             _watcher = watcher;
-            watcher.Start();
-            SetState(HeartRateConnectionState.Scanning);
+            try
+            {
+                watcher.Start();
+                SetState(HeartRateConnectionState.Scanning);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "心率 BLE 扫描启动失败（蓝牙可能未开启）");
+                _watcher = null;
+                try { watcher.Stop(); } catch { }
+            }
         }
     }
 
