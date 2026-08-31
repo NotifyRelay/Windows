@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
@@ -15,6 +16,7 @@ using Windows.Media;
 using Windows.Media.Control;
 using Windows.Devices.Enumeration;
 using Windows.Media.Devices;
+using Windows.System;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -34,6 +36,7 @@ public class WindowsPlaybackService(
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
 
+    private static readonly ConcurrentDictionary<string, string> _appNameCache = new();
     private readonly Dictionary<string, double> lastTimelinePosition = [];
 
     // WinRT device watcher for audio endpoint changes
@@ -1008,10 +1011,38 @@ public class WindowsPlaybackService(
         if (string.IsNullOrWhiteSpace(sourceAppUserModelId))
             return "NotifyRelay";
 
-        // 取 ! 之前的部分作为可读名（如 "Spotify.exe" → "Spotify"）
-        var name = sourceAppUserModelId.Contains('!')
-            ? sourceAppUserModelId.Split('!')[0]
-            : sourceAppUserModelId;
+        // 打包应用 AUMID 格式包含 '!'，尝试通过 AppInfo API 解析显示名
+        if (sourceAppUserModelId.Contains('!'))
+        {
+            if (_appNameCache.TryGetValue(sourceAppUserModelId, out var cached))
+                return cached;
+
+            try
+            {
+                var appInfo = AppInfo.GetFromAppUserModelId(sourceAppUserModelId);
+                var displayName = appInfo?.DisplayInfo?.DisplayName;
+                if (!string.IsNullOrWhiteSpace(displayName))
+                {
+                    _appNameCache[sourceAppUserModelId] = displayName;
+                    return displayName;
+                }
+            }
+            catch
+            {
+                // packageQuery 权限不足或 AUMID 无效，fallback 到分割逻辑
+            }
+
+            // API 失败时 fallback：取 ! 之前的部分
+            var fallbackName = sourceAppUserModelId.Split('!')[0];
+            if (!string.IsNullOrWhiteSpace(fallbackName))
+            {
+                _appNameCache[sourceAppUserModelId] = fallbackName;
+                return fallbackName;
+            }
+        }
+
+        // 非打包输入（如 "Spotify.exe"）：直接使用
+        var name = sourceAppUserModelId;
 
         // 去掉 .exe 后缀
         if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
