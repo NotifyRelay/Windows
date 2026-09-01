@@ -32,6 +32,9 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
     private Thread? _renderThread;
     private volatile bool _running;
+    // 恢复清理挂起标志：看门狗检测到卡死并确认旧线程退出后置位，
+    // 由新启动的渲染线程在创建窗口前执行残留资源清理（保证窗口操作线程亲和）。
+    private volatile bool _recoveryCleanupPending;
 
     private int _consecutiveRenderFails;
     private const int MaxConsecutiveRenderFails = 60;
@@ -167,6 +170,14 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         timeBeginPeriod(1);
         try
         {
+            // 恢复场景：旧线程退出后残留窗口/DC 可能未被回收，必须在渲染线程（窗口创建线程）执行清理，
+            // 清理成功、句柄状态归零后再由下方流程重建窗口，避免跨线程 DestroyWindow 引发句柄状态错乱。
+            if (_recoveryCleanupPending)
+            {
+                _recoveryCleanupPending = false;
+                PerformRecoveryCleanup();
+            }
+
             _controlWindow.EnsureWindowClass();
             _topmostMonitor.Install(EnsureOverlaysTopmost);
             SyncOverlays();
@@ -542,9 +553,17 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         set => _renderThread = value;
     }
 
-    void IOverlayWatchdogHost.CleanupForRecovery()
+    void IOverlayWatchdogHost.RequestRecoveryCleanup()
+        // 仅置位标志：实际清理由新渲染线程在 RenderLoop 启动时执行，确保窗口操作线程亲和
+        => _recoveryCleanupPending = true;
+
+    /// <summary>
+    /// 恢复清理的具体执行（仅由渲染线程调用）：销毁控制窗口与覆盖层窗口。
+    /// 窗口句柄/DC 均由渲染线程创建，须在渲染线程执行 Win32.DestroyWindow 与
+    /// OverlayWindowManager.Cleanup，且清理成功（句柄归零）后再由重建流程更新状态。
+    /// </summary>
+    private void PerformRecoveryCleanup()
     {
-        // 旧线程可能未执行 finally：清理控制窗口与覆盖层窗口，由重启后的新线程重建
         _controlWindow.Destroy();
         CleanupOverlays();
     }

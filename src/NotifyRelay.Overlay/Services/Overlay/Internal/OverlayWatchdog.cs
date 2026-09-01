@@ -18,8 +18,9 @@ internal interface IOverlayWatchdogHost
     /// <summary>渲染线程句柄；看门狗 Join 后置 null，避免与重启后的新线程混淆。</summary>
     Thread? RenderThread { get; set; }
 
-    /// <summary>清理控制窗口与覆盖层窗口，交由重启后的新线程重建。</summary>
-    void CleanupForRecovery();
+    /// <summary>请求恢复清理：仅置位标志，实际清理（Win32.DestroyWindow / OverlayWindowManager.Cleanup）
+    /// 交由重启后的渲染线程在启动时执行，避免看门狗线程直接操作窗口句柄。</summary>
+    void RequestRecoveryCleanup();
 
     /// <summary>重启渲染循环。</summary>
     void Restart();
@@ -106,8 +107,9 @@ internal sealed class OverlayWatchdog
 
         if (exited)
         {
-            // 旧线程可能未执行 finally：清理控制窗口与覆盖层窗口，由重启后的新线程重建
-            _host.CleanupForRecovery();
+            // 旧线程可能未执行 finally：向渲染线程投递清理请求（不直接操作窗口句柄），
+            // 由重启后的新渲染线程在启动时执行残留资源清理并重建
+            _host.RequestRecoveryCleanup();
             _host.Restart();
             _logger.LogWarning("覆盖层渲染线程已恢复并重启");
         }
