@@ -20,6 +20,16 @@ public partial class OverlayRenderService
     private bool _clockShowSeconds = true;    // 是否显示秒
     private bool _clockUse24Hour = true;      // 是否使用 24 小时制
 
+    // 时钟渲染缓存（仅渲染线程访问）：仅在时间文本 / 渲染目标 / 视觉配置变化时重建，
+    // 避免启用时钟后每帧重建 IDWriteTextLayout 与画刷。
+    private string? _clockCacheText;                 // 上次已绘制的时间文本
+    private IDWriteTextLayout? _clockCacheLayout;     // 缓存文本布局
+    private ID2D1SolidColorBrush? _clockCacheBrush;   // 缓存前景画刷
+    private ID2D1SolidColorBrush? _clockCacheStroke; // 缓存描边画刷
+    private ID2D1DCRenderTarget? _clockCacheBrushRt; // 画刷所属渲染目标（变化即失效）
+    private float _clockCacheScale;
+    private byte _clockCacheR, _clockCacheG, _clockCacheB;
+
     /// <summary>更新时间浮窗配置（启用、目标屏、位置百分比、颜色、描边、缩放、格式）。</summary>
     public void SetClockConfig(bool enabled, string targetScreen, float xPct, float yPct,
         string colorHex, float outlineWidth, float scale, bool showSeconds, bool use24Hour)
@@ -100,7 +110,32 @@ public partial class OverlayRenderService
             s.ClockUse24Hour);
     }
 
+    /// <summary>按显示精度（秒/分）返回时间格式串。</summary>
+    private static string ClockFormat(bool use24Hour, bool showSeconds) => (use24Hour, showSeconds) switch
+    {
+        (true, true) => "HH:mm:ss",
+        (true, false) => "HH:mm",
+        (false, true) => "h:mm:ss tt",
+        (false, false) => "h:mm tt"
+    };
+
+    /// <summary>生成当前时间文本（按当前显示精度），用于变化检测。</summary>
+    private string GetClockTimeText()
+    {
+        bool showSeconds, use24Hour;
+        lock (_lock)
+        {
+            showSeconds = _clockShowSeconds;
+            use24Hour = _clockUse24Hour;
+        }
+        return DateTime.Now.ToString(ClockFormat(use24Hour, showSeconds), CultureInfo.CurrentCulture);
+    }
+
     /// <summary>绘制自由浮动的时间文本（无背景，仅字体描边，参考心率描边）。</summary>
+    /// <remarks>
+    /// 仅当时间文本 / 渲染目标 / 视觉配置变化时重建 IDWriteTextLayout 与画刷并执行绘制；
+    /// 其余帧复用缓存（如时钟窗口同时挂有其他内容时仅重绘缓存，保证窗口仍可见）。
+    /// </remarks>
     private void DrawClock(ScreenOverlay o)
     {
         var rt = o.RenderTarget;
@@ -131,22 +166,49 @@ public partial class OverlayRenderService
             Monitor.Exit(_lock);
         }
 
-        string format = (use24Hour, showSeconds) switch
+        string timeText = DateTime.Now.ToString(ClockFormat(use24Hour, showSeconds), CultureInfo.CurrentCulture);
+
+        // 仅在文本变化 / 渲染目标变化 / 视觉配置变化时重建布局与画刷（渲染目标变化使缓存画刷失效）
+        bool rtChanged = _clockCacheBrushRt != rt;
+        bool visualChanged = _clockCacheScale != scale
+            || _clockCacheR != _clockColorR || _clockCacheG != _clockColorG || _clockCacheB != _clockColorB;
+        bool needRebuild = timeText != _clockCacheText || rtChanged || visualChanged || _clockCacheLayout == null;
+
+        IDWriteTextLayout layout;
+        ID2D1SolidColorBrush brush, stroke;
+        if (needRebuild)
         {
-            (true, true) => "HH:mm:ss",
-            (true, false) => "HH:mm",
-            (false, true) => "h:mm:ss tt",
-            (false, false) => "h:mm tt"
-        };
-        string timeText = DateTime.Now.ToString(format, CultureInfo.CurrentCulture);
+            _clockCacheLayout?.Dispose();
+            _clockCacheBrush?.Dispose();
+            _clockCacheStroke?.Dispose();
 
-        const float opacity = 0.95f;
-        float fontSize = 48f * scale;
-        float effOutline = outlineW * scale;   // 整体缩放后实际描边宽度
+            const float opacity = 0.95f;
+            float fontSize = 48f * scale;
+            var fmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Bold, fontSize);
+            layout = _dwFactory.CreateTextLayout(timeText, fmt, 10000, fontSize * 1.4f);
+            layout.WordWrapping = WordWrapping.NoWrap;
+            fmt.Dispose();
 
-        using var fmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Bold, fontSize);
-        using var layout = _dwFactory.CreateTextLayout(timeText, fmt, 10000, fontSize * 1.4f);
-        layout.WordWrapping = WordWrapping.NoWrap;
+            brush = CreateSolidColorBrush(rt, new Color4(textColor.R, textColor.G, textColor.B, opacity));
+            stroke = CreateSolidColorBrush(rt, new Color4(strokeColor.R, strokeColor.G, strokeColor.B, opacity));
+
+            _clockCacheLayout = layout;
+            _clockCacheBrush = brush;
+            _clockCacheStroke = stroke;
+            _clockCacheBrushRt = rt;
+            _clockCacheText = timeText;
+            _clockCacheScale = scale;
+            _clockCacheR = _clockColorR;
+            _clockCacheG = _clockColorG;
+            _clockCacheB = _clockColorB;
+        }
+        else
+        {
+            layout = _clockCacheLayout!;
+            brush = _clockCacheBrush!;
+            stroke = _clockCacheStroke!;
+        }
+
         float textWidth = layout.Metrics.WidthIncludingTrailingWhitespace;
         float textHeight = layout.Metrics.Height;
 
@@ -156,9 +218,9 @@ public partial class OverlayRenderService
         float top = Math.Clamp(cyAnchor - textHeight / 2f, 0, Math.Max(0, o.Height - textHeight));
 
         // 仅描边，无背景：8 方向偏移绘制（外圈 + 内半圈减少间隙，覆盖 0~outlineW）
+        float effOutline = outlineW * scale;   // 整体缩放后实际描边宽度
         if (effOutline > 0.05f)
         {
-            using var strokeBrush = CreateSolidColorBrush(rt, new Color4(strokeColor.R, strokeColor.G, strokeColor.B, opacity));
             float[] radii = { effOutline, effOutline * 0.5f };
             foreach (var r in radii)
             {
@@ -167,13 +229,22 @@ public partial class OverlayRenderService
                     for (int dy = -1; dy <= 1; dy++)
                     {
                         if (dx == 0 && dy == 0) continue;
-                        rt.DrawTextLayout(new Vector2(left + dx * r, top + dy * r), layout, strokeBrush);
+                        rt.DrawTextLayout(new Vector2(left + dx * r, top + dy * r), layout, stroke);
                     }
             }
         }
 
         // 主文本（前景）
-        using var brush = CreateSolidColorBrush(rt, new Color4(textColor.R, textColor.G, textColor.B, opacity));
         rt.DrawTextLayout(new Vector2(left, top), layout, brush);
+    }
+
+    /// <summary>释放时钟渲染缓存（窗口清理/停止时调用，渲染线程内 rt 仍有效）。</summary>
+    private void DisposeClockResources()
+    {
+        _clockCacheLayout?.Dispose(); _clockCacheLayout = null;
+        _clockCacheBrush?.Dispose(); _clockCacheBrush = null;
+        _clockCacheStroke?.Dispose(); _clockCacheStroke = null;
+        _clockCacheBrushRt = null;
+        _clockCacheText = null;
     }
 }

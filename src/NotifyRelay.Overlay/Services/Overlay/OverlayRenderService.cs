@@ -337,6 +337,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     /// <summary>销毁并清空所有覆盖层窗口与顶部卡片资源（渲染线程调用）。</summary>
     private void CleanupOverlays()
     {
+        DisposeClockResources();
         _windowManager.Cleanup();
         lock (_lock)
         {
@@ -413,16 +414,29 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         bool isLogiTargetScreen = IsLogiBatteryTarget(o);
         bool isClockTarget = IsClockTarget(o);
 
-        bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
+        // 时钟时间文本（仅时钟目标屏计算一次，用于变化检测）
+        string? clockText = isClockTarget ? GetClockTimeText() : null;
+
+        // 除时钟外的其他内容：决定本窗口是否仍需清除并重绘
+        bool otherContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget
             || hasKeyboardContent
-            || isLogiTargetScreen  // ← 独立：不受其他叠加层元素控制
-            || isClockTarget;
+            || isLogiTargetScreen;  // ← 独立：不受其他叠加层元素控制
+        bool hasContent = otherContent || isClockTarget;
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
             return;
+        }
+
+        // 时钟是否需要刷新：时间文本变化 / 渲染目标变化（缓存画刷失效） / 窗口尚未可见。
+        // 仅时钟且无其他内容、本帧无需刷新时，保留窗口上一帧画面可见、跳过清除与重绘，避免每帧重绘。
+        bool clockDirty = isClockTarget
+            && (clockText != _clockCacheText || _clockCacheBrushRt != o.RenderTarget || !o.Visible);
+        if (isClockTarget && !clockDirty && !otherContent)
+        {
+            return;   // 时钟窗口保持可见，不重绘
         }
 
         rt.BeginDraw();
