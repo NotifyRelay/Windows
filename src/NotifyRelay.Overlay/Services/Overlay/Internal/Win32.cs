@@ -231,11 +231,31 @@ internal static class Win32
     [DllImport("user32.dll")]
     public static extern bool UnhookWinEvent(IntPtr hWinEventHook);
 
+    // 32 位 user32.dll 不导出 *WindowLongPtrW（该名称在 Win32 头文件中仅为 64 位的宏别名），
+    // 因此按 IntPtr.Size 分派：64 位走 *WindowLongPtrW，32 位走 *WindowLongW。
     [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
-    public static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+    private static extern IntPtr GetWindowLongPtrW(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
-    public static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+    private static extern IntPtr SetWindowLongPtrW(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    private static extern int GetWindowLongW(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    private static extern int SetWindowLongW(IntPtr hWnd, int nIndex, int dwNewLong);
+
+    /// <summary>读取窗口 long 值（32/64 位兼容包装）。</summary>
+    public static IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex)
+        => IntPtr.Size == 8
+            ? GetWindowLongPtrW(hWnd, nIndex)
+            : new IntPtr(GetWindowLongW(hWnd, nIndex));
+
+    /// <summary>写入窗口 long 值（32/64 位兼容包装）。</summary>
+    public static IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong)
+        => IntPtr.Size == 8
+            ? SetWindowLongPtrW(hWnd, nIndex, dwNewLong)
+            : new IntPtr(SetWindowLongW(hWnd, nIndex, dwNewLong.ToInt32()));
 
     #endregion
 }
