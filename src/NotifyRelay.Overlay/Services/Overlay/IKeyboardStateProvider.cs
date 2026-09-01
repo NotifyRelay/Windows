@@ -11,6 +11,9 @@ public interface IKeyboardStateProvider
     /// <summary>检查指定键是否按下。</summary>
     bool IsKeyDown(int vkCode);
 
+    /// <summary>检查指定切换键（如 Caps Lock、Num Lock）是否处于开启（锁定）状态。</summary>
+    bool IsKeyToggled(int vkCode);
+
     /// <summary>快捷键映射触发时推送，携带需在叠加层显示的 DisplayText。</summary>
     event EventHandler<KeyMappingDisplayEventArgs>? MappingTriggered;
 }

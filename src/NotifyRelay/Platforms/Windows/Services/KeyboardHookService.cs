@@ -22,6 +22,12 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     // 按键状态字典：Key → 是否按下
     private readonly ConcurrentDictionary<int, bool> _keyStates = new();
 
+    // 切换键（锁定键）状态字典：Key → 是否开启（如 Caps Lock / Num Lock / Scroll Lock）
+    private readonly ConcurrentDictionary<int, bool> _toggleStates = new();
+
+    // 切换键（锁定键）虚拟键码集合
+    private static readonly HashSet<int> ToggleKeys = new() { 0x14, 0x90, 0x91 };
+
     // 映射中的源键组合状态：映射ID → 按下的源键集合
     private readonly ConcurrentDictionary<string, HashSet<int>> _mappingKeyStates = new();
 
@@ -69,6 +75,10 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
             _logger.LogWarning("键盘钩子安装失败：无法获取主模块句柄");
             return;
         }
+
+        // 安装前先读取切换键的初始锁定状态
+        foreach (var vk in ToggleKeys)
+            _toggleStates[vk] = (NativeMethods.GetKeyState(vk) & 0x0001) != 0;
 
         _hookId = NativeMethods.SetWindowsHookEx(
             NativeMethods.WH_KEYBOARD_LL,
@@ -119,6 +129,12 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
 
             // 更新按键状态
             _keyStates[vkCode] = isKeyDown;
+
+            // 切换键（Caps/Num/Scroll Lock）在按下时翻转锁定状态
+            if (isKeyDown && ToggleKeys.Contains(vkCode))
+            {
+                _toggleStates.AddOrUpdate(vkCode, _ => true, (_, old) => !old);
+            }
 
             // 触发状态变化事件
             KeyStateChanged?.Invoke(this, new KeyStateChangedEventArgs
@@ -211,6 +227,12 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     public bool IsKeyDown(int vkCode)
     {
         return _keyStates.TryGetValue(vkCode, out bool isDown) && isDown;
+    }
+
+    /// <summary>检查指定切换键（如 Caps Lock）是否处于开启（锁定）状态。</summary>
+    public bool IsKeyToggled(int vkCode)
+    {
+        return _toggleStates.TryGetValue(vkCode, out bool toggled) && toggled;
     }
 
     /// <summary>获取当前所有按下的键。</summary>

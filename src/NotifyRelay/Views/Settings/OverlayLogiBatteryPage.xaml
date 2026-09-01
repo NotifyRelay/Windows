@@ -86,9 +86,6 @@
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
-                            <TextBlock Text="数据来源：logi-battery 子模块导出的 Rust FFI (logi_battery.dll)。检测范围：HID++ 1.0/2.0 直连与接收器配对设备。"
-                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                       FontSize="12" TextWrapping="Wrap" />
                         </StackPanel>
                     </wuc:SettingsCard>
                 </wuc:SettingsExpander.Items>
@@ -139,10 +136,6 @@
             <wuc:SettingsCard Header="垂直位置 (Y)" Description="0-100%，相对所选屏幕高度">
                 <Slider Minimum="0" Maximum="100" Value="{x:Bind ViewModel.YPercent, Mode=TwoWay}" Width="240" />
             </wuc:SettingsCard>
-
-            <TextBlock Text="电池图标与颜色分段逻辑与主页『设备电池』字体图标完全一致（共享 BatteryIconUtility）。"
-                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                       Margin="0,12,0,0" TextWrapping="Wrap" />
 
         </StackPanel>
     </ScrollViewer>
