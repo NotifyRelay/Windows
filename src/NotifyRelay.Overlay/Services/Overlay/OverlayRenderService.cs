@@ -556,6 +556,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     public void Dispose()
     {
         Stop();
+        DisposeLogiBatteryCache();
         DisposeHeartGeometry();
         _wicFactory.Dispose();
         _dwFactory.Dispose();

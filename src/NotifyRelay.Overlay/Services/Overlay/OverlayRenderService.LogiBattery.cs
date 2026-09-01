@@ -22,6 +22,37 @@ public partial class OverlayRenderService
     private ILogiBatteryProvider? _logiBatteryProvider;
     private List<LogiBatteryDeviceInfo> _logiBatteryDevices = [];
 
+    // 渲染资源缓存：避免每帧创建 DirectWrite 文本格式 / 文本布局 / 画刷对象，
+    // 也避免每帧对设备名做二分查找截断。
+    // 文本格式与文本布局由 _dwFactory 创建，与渲染目标无关，可跨窗口复用；
+    // 画刷由具体渲染目标(rt)创建，与 rt 绑定，故在 rt 变化时重建。
+    // 失效条件：设备数据版本变化(DevicesUpdated / Provider 切换)、scale 变化、
+    // nameMaxWidth 变化、渲染目标变化。
+    private IDWriteTextFormat? _logiIconFormat;
+    private IDWriteTextFormat? _logiTextFormat;
+    private ID2D1SolidColorBrush? _logiBgBrush;
+    private ID2D1SolidColorBrush? _logiBorderBrush;
+    private ID2D1SolidColorBrush? _logiTextBrush;
+    private ID2D1DCRenderTarget? _logiBrushRt;       // 画刷归属的渲染目标
+    private float _logiCacheScale = -1f;
+    private float _logiCacheNameMaxWidth = -1f;
+    private long _logiCacheVersion = -1;             // 已构建缓存对应的设备数据版本
+    private long _logiDataVersion;                   // 设备数据版本（快照更新时自增）
+    private readonly Dictionary<string, LogiBatteryRenderEntry> _logiDeviceCaches = new();
+
+    /// <summary>单台设备缓存的渲染资源（与 rt 无关的资源 + 需随 rt 重建的图标画刷）。</summary>
+    private sealed class LogiBatteryRenderEntry
+    {
+        public IDWriteTextLayout? NameLayout;
+        public IDWriteTextLayout? IconLayout;
+        public ID2D1SolidColorBrush? IconBrush;
+        public string DisplayName = string.Empty;
+        public float NameWidth;
+        public Color4 BatteryColor;
+        public float Scale = -1f;
+        public float NameMaxWidth = -1f;
+    }
+
     // 渲染尺寸常量（最终乘以 Scale）
     private const float LogiCardPaddingX = 12f;
     private const float LogiCardPaddingY = 8f;
@@ -43,6 +74,7 @@ public partial class OverlayRenderService
                 p => p.DevicesUpdated += OnLogiBatteryDevicesUpdated,
                 p => p.DevicesUpdated -= OnLogiBatteryDevicesUpdated);
             _logiBatteryDevices = provider != null ? provider.GetDevices().ToList() : [];
+            _logiDataVersion++;
             _displayDirty = true;
         }
     }
@@ -53,6 +85,7 @@ public partial class OverlayRenderService
         {
             if (_logiBatteryProvider != null)
                 _logiBatteryDevices = _logiBatteryProvider.GetDevices().ToList();
+            _logiDataVersion++;
             _displayDirty = true;
         }
     }
@@ -116,10 +149,12 @@ public partial class OverlayRenderService
         if (rt == null) return;
 
         List<LogiBatteryDeviceInfo> snapshot;
+        long dataVersion;
         lock (_lock)
         {
             if (_logiBatteryDevices.Count == 0) return;
             snapshot = _logiBatteryDevices.ToList();
+            dataVersion = _logiDataVersion;
         }
 
         var toRender = new List<LogiBatteryDeviceInfo>(snapshot.Count);
@@ -148,55 +183,173 @@ public partial class OverlayRenderService
         float nameMaxWidth = cardMaxWidth - iconSize - px * 2 - gap;
         if (nameMaxWidth < 20f) nameMaxWidth = 20f;
 
-        using var iconFormat = CreateTextFormat("Segoe MDL2 Assets", DWriteFontWeight.Regular, iconSize);
-        using var textFormat = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.SemiBold, textSize);
-        textFormat.WordWrapping = WordWrapping.NoWrap;
-        // Vortice IDWriteTextFormat 未暴露 Trimming 属性（需要 SetTrimming + InlineObject 组合）。
-        // 为了减少复杂度，这里改为"手动截断 + 追加省略号"：测量超出 nameMaxWidth 时截短字符串补"…"。
+        // 复用/按需重建缓存资源（按 scale + nameMaxWidth + 设备数据版本 + 渲染目标）
+        EnsureLogiRenderCache(rt, toRender, scale, nameMaxWidth, textSize, iconSize, dataVersion);
 
-        const float opacity = 0.9f;
-        using var bgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.6f * opacity));
-        using var borderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.35f * opacity));
-        using var textBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
-
-        // 第一轮：计算每个设备经过"手动省略号截断"后的显示文本与宽度
+        // 第一轮：取缓存中的截断设备名宽度，计算整列最大卡片宽
         float maxCardWidth = 0;
-        var displayInfos = new List<(LogiDevice d, string DisplayName, float NameWidth)>();
         foreach (var d in toRender)
         {
-            string displayName = TruncateNameToWidth(d.DeviceName, textFormat, nameMaxWidth, out var nameW);
-            float naturalCardW = iconSize + gap + nameW + px * 2;
+            if (!_logiDeviceCaches.TryGetValue(d.DeviceId, out var entry) || entry.NameLayout == null) continue;
+            float naturalCardW = iconSize + gap + entry.NameWidth + px * 2;
             float cardW = MathF.Min(cardMaxWidth, naturalCardW);
             if (cardW > maxCardWidth) maxCardWidth = cardW;
-            displayInfos.Add((d, displayName, nameW));
         }
 
         float rowHeight = Math.Max(iconSize, textSize) + py * 2;
         float cursorY = baseY;
-        foreach (var (d, displayName, _) in displayInfos)
+        foreach (var d in toRender)
         {
+            if (!_logiDeviceCaches.TryGetValue(d.DeviceId, out var entry)
+                || entry.NameLayout == null || entry.IconLayout == null || entry.IconBrush == null) continue;
+
             float drawX = MathF.Min(baseX, MathF.Max(0, screenW - maxCardWidth));
             var rect = new RoundedRectangle(new RectangleF(drawX, cursorY, maxCardWidth, rowHeight), radius, radius);
-            rt.FillRoundedRectangle(ref rect, bgBrush);
-            rt.DrawRoundedRectangle(rect, borderBrush, 1f * scale);
+            rt.FillRoundedRectangle(ref rect, _logiBgBrush!);
+            rt.DrawRoundedRectangle(rect, _logiBorderBrush!, 1f * scale);
 
             float innerY = cursorY + py;
             float contentTopOffset = Math.Max(0f, (rowHeight - py * 2 - iconSize) / 2);
 
-            // 1. 电池图标（字形/颜色统一来自共享 BatteryIconUtility）
-            using var iconLayout = _dwFactory.CreateTextLayout(d.BatteryGlyph, iconFormat, iconSize * 2, iconSize * 2);
-            using var iconBrush = rt.CreateSolidColorBrush(d.BatteryColor);
-            rt.DrawTextLayout(new Vector2(drawX + px, innerY + contentTopOffset), iconLayout, iconBrush);
+            // 1. 电池图标（字形/颜色统一来自共享 BatteryIconUtility；资源取自缓存）
+            rt.DrawTextLayout(new Vector2(drawX + px, innerY + contentTopOffset), entry.IconLayout, entry.IconBrush);
 
-            // 2. 设备名（已在 TruncateNameToWidth 截断；再次使用显示名 Draw）
+            // 2. 设备名（截断结果已在缓存构建阶段一次性计算）
             float textX = drawX + px + iconSize + gap;
             float textY = innerY + Math.Max(0, (rowHeight - py * 2 - textSize) / 2);
-            using var nameLayout = _dwFactory.CreateTextLayout(displayName, textFormat, nameMaxWidth + 10f, textSize * 1.4f);
-            rt.DrawTextLayout(new Vector2(textX, textY), nameLayout, textBrush);
+            rt.DrawTextLayout(new Vector2(textX, textY), entry.NameLayout, _logiTextBrush!);
 
             cursorY += rowHeight + LogiCardSpacing * scale;
         }
     }
+
+    /// <summary>
+    /// 确保罗技电池渲染缓存与当前 scale / nameMaxWidth / 设备数据版本 / 渲染目标一致。
+    /// 仅在对应值变化时重建资源，避免每帧创建 DirectWrite 对象与对设备名做二分查找截断。
+    /// </summary>
+    private void EnsureLogiRenderCache(ID2D1DCRenderTarget rt, List<LogiBatteryDeviceInfo> toRender,
+        float scale, float nameMaxWidth, float textSize, float iconSize, long dataVersion)
+    {
+        bool dirty = dataVersion != _logiCacheVersion;
+        bool scaleChanged = !Approximately(_logiCacheScale, scale);
+        bool widthChanged = !Approximately(_logiCacheNameMaxWidth, nameMaxWidth);
+        bool rtChanged = !ReferenceEquals(_logiBrushRt, rt);
+
+        // 兜底：toRender 中存在尚未缓存的设备（理论上数据更新已置脏，此处防止遗漏导致设备不渲染）
+        bool missing = false;
+        foreach (var d in toRender)
+        {
+            if (!_logiDeviceCaches.ContainsKey(d.DeviceId)) { missing = true; break; }
+        }
+
+        // 画刷与渲染目标绑定：rt 变化时重建（颜色固定，不随脏标志重建）
+        if (rtChanged || _logiBgBrush == null)
+        {
+            _logiBgBrush?.Dispose();
+            _logiBorderBrush?.Dispose();
+            _logiTextBrush?.Dispose();
+            const float opacity = 0.9f;
+            _logiBgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.6f * opacity));
+            _logiBorderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.35f * opacity));
+            _logiTextBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
+            _logiBrushRt = rt;
+            // 设备图标画刷同样与 rt 绑定，随 rt 重建
+            foreach (var e in _logiDeviceCaches.Values)
+            {
+                e.IconBrush?.Dispose();
+                e.IconBrush = rt.CreateSolidColorBrush(e.BatteryColor);
+            }
+        }
+
+        // 文本格式随 scale 变化重建（与渲染目标无关，可跨窗口复用）
+        if (scaleChanged || _logiIconFormat == null)
+        {
+            _logiIconFormat?.Dispose();
+            _logiTextFormat?.Dispose();
+            _logiIconFormat = CreateTextFormat("Segoe MDL2 Assets", DWriteFontWeight.Regular, iconSize);
+            _logiTextFormat = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.SemiBold, textSize);
+            _logiTextFormat.WordWrapping = WordWrapping.NoWrap;
+        }
+
+        // 设备级资源：版本 / scale / nameMaxWidth / 缺失 变化时整体重建（截断名也在此一次性计算）
+        if (dirty || scaleChanged || widthChanged || missing)
+        {
+            RebuildLogiDeviceCaches(rt, toRender, scale, nameMaxWidth, textSize, iconSize);
+            _logiCacheVersion = dataVersion;
+            _logiCacheScale = scale;
+            _logiCacheNameMaxWidth = nameMaxWidth;
+        }
+    }
+
+    /// <summary>按当前 toRender 重建每台设备的缓存（截断名、名称/图标布局、图标画刷），并清理已消失设备。</summary>
+    private void RebuildLogiDeviceCaches(ID2D1DCRenderTarget rt, List<LogiBatteryDeviceInfo> toRender,
+        float scale, float nameMaxWidth, float textSize, float iconSize)
+    {
+        var alive = new HashSet<string>(toRender.Count);
+        foreach (var d in toRender) alive.Add(d.DeviceId);
+
+        // 移除已消失设备，释放其资源
+        foreach (var key in _logiDeviceCaches.Keys.ToList())
+        {
+            if (!alive.Contains(key))
+            {
+                DisposeLogiEntry(_logiDeviceCaches[key]);
+                _logiDeviceCaches.Remove(key);
+            }
+        }
+
+        foreach (var d in toRender)
+        {
+            if (!_logiDeviceCaches.TryGetValue(d.DeviceId, out var entry))
+            {
+                entry = new LogiBatteryRenderEntry();
+                _logiDeviceCaches[d.DeviceId] = entry;
+            }
+
+            // 设备名截断仅在此计算（避免每帧二分查找创建 DirectWrite 对象）
+            string displayName = TruncateNameToWidth(d.DeviceName, _logiTextFormat!, nameMaxWidth, out float nameW);
+
+            entry.NameLayout?.Dispose();
+            entry.IconLayout?.Dispose();
+            entry.IconBrush?.Dispose();
+
+            entry.DisplayName = displayName;
+            entry.NameWidth = nameW;
+            entry.NameLayout = _dwFactory.CreateTextLayout(displayName, _logiTextFormat!, nameMaxWidth + 10f, textSize * 1.4f);
+            entry.IconLayout = _dwFactory.CreateTextLayout(d.BatteryGlyph, _logiIconFormat!, iconSize * 2, iconSize * 2);
+            entry.IconBrush = rt.CreateSolidColorBrush(d.BatteryColor);
+            entry.BatteryColor = d.BatteryColor;
+            entry.Scale = scale;
+            entry.NameMaxWidth = nameMaxWidth;
+        }
+    }
+
+    private static void DisposeLogiEntry(LogiBatteryRenderEntry e)
+    {
+        try { e.NameLayout?.Dispose(); } catch { }
+        try { e.IconLayout?.Dispose(); } catch { }
+        try { e.IconBrush?.Dispose(); } catch { }
+    }
+
+    /// <summary>释放罗技电池渲染缓存（服务销毁时调用）。</summary>
+    private void DisposeLogiBatteryCache()
+    {
+        try { _logiIconFormat?.Dispose(); } catch { }
+        try { _logiTextFormat?.Dispose(); } catch { }
+        try { _logiBgBrush?.Dispose(); } catch { }
+        try { _logiBorderBrush?.Dispose(); } catch { }
+        try { _logiTextBrush?.Dispose(); } catch { }
+        foreach (var e in _logiDeviceCaches.Values) DisposeLogiEntry(e);
+        _logiDeviceCaches.Clear();
+        _logiIconFormat = _logiTextFormat = null;
+        _logiBgBrush = _logiBorderBrush = _logiTextBrush = null;
+        _logiBrushRt = null;
+        _logiCacheVersion = -1;
+        _logiCacheScale = -1f;
+        _logiCacheNameMaxWidth = -1f;
+    }
+
+    private static bool Approximately(float a, float b) => Math.Abs(a - b) <= 1e-4f;
 
     /// <summary>
     /// 按目标像素宽度截断设备名；必要时追加"…"（既用于 UI 省略号视觉，也避免长名字撑满卡片）。
