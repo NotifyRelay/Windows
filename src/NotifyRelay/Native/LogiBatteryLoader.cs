@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
@@ -34,14 +35,22 @@ public static class LogiBatteryLoader
         try
         {
             var asmLocation = typeof(LogiBatteryNative).Assembly.Location;
-            var checkDirs = new[]
+            var checkDirs = new List<string>
             {
+                // 应用目录相关候选（保留既有行为）
                 AppContext.BaseDirectory,
-                Path.GetDirectoryName(AppContext.BaseDirectory.TrimEnd('\\', '/')),
-                Path.GetDirectoryName(asmLocation),
-                // 额外兜底：子模块 ffi_test/bin（开发阶段内置 DLL，CI 构建可替换）
-                Path.Combine(GetRepoLogiBatteryPath(), "ffi_test", "bin")
+                Path.GetDirectoryName(AppContext.BaseDirectory.TrimEnd('\\', '/')) ?? string.Empty,
+                Path.GetDirectoryName(asmLocation) ?? string.Empty,
             };
+            // 额外兜底：子模块 ffi_test/bin（开发阶段内置 DLL，CI 构建可替换）。
+            // 仅当仓库路径为完全限定（绝对）路径时追加，避免将空或相对路径传入
+            // Path.Combine/File.Exists/NativeLibrary.Load。
+            var repoLogiBatteryPath = GetRepoLogiBatteryPath();
+            if (!string.IsNullOrEmpty(repoLogiBatteryPath) &&
+                Path.IsPathFullyQualified(repoLogiBatteryPath))
+            {
+                checkDirs.Add(Path.Combine(repoLogiBatteryPath, "ffi_test", "bin"));
+            }
 
             IntPtr loadedHandle = IntPtr.Zero;
             string? loadedFrom = null;
