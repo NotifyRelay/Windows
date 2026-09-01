@@ -570,6 +570,9 @@ public static class AppLifecycleHelper
         .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
         .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
 
+        // 时间浮窗（Clock）ViewModel
+        .AddSingleton<ViewModels.Settings.ClockViewModel>()
+
         // ViewModels
         .AddSingleton<MainPageViewModel>()
         .AddSingleton<DevicesViewModel>()

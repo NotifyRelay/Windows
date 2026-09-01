@@ -93,6 +93,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         // 启动时从已保存设置初始化样式，避免首条弹幕使用默认值（需手动调节才生效）
         LoadInitialStyle();
         LoadInitialHeartRateConfig();
+        LoadInitialClockConfig();
         // 自动引导：按各自开关绑定并启动所有已登记的叠加层功能
         _featureStartup.Initialize(this);
         _watchdog.UpdateHeartbeat();
@@ -213,6 +214,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
                 if (!hasContent) hasContent = HeartRateActive();
                 // 罗技电池独立驱动：只看电量自身条件，不受弹幕/心率/键盘等其他叠加层元素影响
                 if (!hasContent) hasContent = LogiBatteryActive();
+                if (!hasContent) hasContent = ClockActive();
                 if (!hasContent && _settings.KeyboardOverlayEnabled
                     && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
                     hasContent = true;
@@ -398,12 +400,14 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         // 同一窗口上可能还挂着心率/弹幕等内容，不能因为电量暂空就整窗隐藏；
         // 是否真的画出卡片由 RenderLogiBattery 内部按设备过滤决定。
         bool isLogiTargetScreen = IsLogiBatteryTarget(o);
+        bool isClockTarget = IsClockTarget(o);
 
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget
             || hasKeyboardContent
-            || isLogiTargetScreen;  // ← 独立：不受其他叠加层元素控制
+            || isLogiTargetScreen  // ← 独立：不受其他叠加层元素控制
+            || isClockTarget;
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
@@ -436,6 +440,10 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
         if (isHeartRateTarget)
             DrawHeartRate(o);
+
+        // 渲染时间浮窗（无背景、仅描边，自由浮动）
+        if (isClockTarget)
+            DrawClock(o);
 
         // 渲染键盘按键状态（左上角）
         if (o.IsPrimary)

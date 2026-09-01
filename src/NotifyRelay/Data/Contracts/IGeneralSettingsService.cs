@@ -288,4 +288,15 @@ public interface IGeneralSettingsService
     int LogiBatteryYPercent { get; set; }
     float LogiBatteryScale { get; set; }
     bool LogiBatteryHideWhenDisconnected { get; set; }
+
+    // ======== 时间浮窗叠加层（与 IOverlaySettings 契约保持一致） ========
+    bool ClockOverlayEnabled { get; set; }
+    string ClockTargetScreen { get; set; }
+    int ClockXPercent { get; set; }
+    int ClockYPercent { get; set; }
+    string ClockColor { get; set; }
+    float ClockTextOutlineWidth { get; set; }
+    float ClockScale { get; set; }
+    bool ClockShowSeconds { get; set; }
+    bool ClockUse24Hour { get; set; }
 }

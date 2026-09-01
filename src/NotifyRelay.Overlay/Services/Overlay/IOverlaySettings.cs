@@ -47,4 +47,15 @@ public interface IOverlaySettings
     int LogiBatteryYPercent { get; set; }
     float LogiBatteryScale { get; set; }
     bool LogiBatteryHideWhenDisconnected { get; set; }
+
+    // ======== 时间浮窗叠加层（Clock） ========
+    bool ClockOverlayEnabled { get; set; }
+    string ClockTargetScreen { get; set; }
+    int ClockXPercent { get; set; }
+    int ClockYPercent { get; set; }
+    string ClockColor { get; set; }
+    float ClockTextOutlineWidth { get; set; }
+    float ClockScale { get; set; }
+    bool ClockShowSeconds { get; set; }
+    bool ClockUse24Hour { get; set; }
 }
