@@ -18,8 +18,8 @@ public sealed class LogiBatteryDeviceInfo
     /// <summary>设备稳定标识（用于刷新前后对比同一台设备）。</summary>
     public required string DeviceId { get; init; }
 
-    /// <summary>人类可读设备名（NUL 结尾 UTF-8 转换而来）。</summary>
-    public required string DeviceName { get; init; }
+    /// <summary>人类可读设备名（NUL 结尾 UTF-8 转换而来；允许设置页用户手动覆盖赋值）。</summary>
+    public required string DeviceName { get; set; }
 
     /// <summary>接收器配对槽位（0=直连；1..=6=接收器）。</summary>
     public byte Slot { get; init; }

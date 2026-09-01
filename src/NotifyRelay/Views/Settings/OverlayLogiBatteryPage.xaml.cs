@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using NotifyRelay.Models.Render;
 using NotifyRelay.ViewModels.Settings;
 
 namespace NotifyRelay.Views.Settings;
@@ -34,5 +35,21 @@ public sealed partial class OverlayLogiBatteryPage : Page
             if (ViewModel.SelectedScreen != opt)
                 ViewModel.SelectedScreen = opt;
         }
+    }
+
+    /// <summary>
+    /// 用户编辑设备名失焦 → 写入 Provider 的 Override 字典（下次 FFI 刷新后仍保留）。
+    /// 输入 null / 空白 / 与原始名相同时清除 Override（回退到 FFI）。
+    /// </summary>
+    private void DeviceNameTextBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is not TextBox tb) return;
+        if (tb.DataContext is not LogiBatteryDeviceInfo device) return;
+        var provider = Ioc.Default.GetService<NotifyRelay.Services.LogiBatteryProvider>();
+        if (provider == null) return;
+
+        string? newName = tb.Text?.Trim();
+        // 若用户清空，等价于清除 Override → 渲染会回落到 FFI 原始名
+        provider.SetDeviceNameOverride(device.DeviceId, newName);
     }
 }

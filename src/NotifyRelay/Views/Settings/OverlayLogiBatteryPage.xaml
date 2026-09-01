@@ -62,9 +62,16 @@
                                             <Ellipse Grid.Column="1" Width="10" Height="10"
                                                      Fill="{x:Bind Online, Mode=OneWay, Converter={StaticResource LogiBatteryStatusToBrushConverter}}"
                                                      VerticalAlignment="Center" HorizontalAlignment="Left" />
-                                            <!-- 设备名 -->
-                                            <TextBlock Grid.Column="2" Text="{x:Bind DeviceName, Mode=OneWay}"
-                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                            <!-- 设备名（用户可编辑；默认过长用 Tooltip 显示完整） -->
+                                            <TextBox Grid.Column="2" Text="{x:Bind DeviceName, Mode=TwoWay}"
+                                                     VerticalAlignment="Center"
+                                                     BorderThickness="0" Background="Transparent"
+                                                     LostFocus="DeviceNameTextBox_LostFocus"
+                                                     PlaceholderText="点击编辑设备名">
+                                                <ToolTipService.ToolTip>
+                                                    <ToolTip Content="{x:Bind DeviceName, Mode=OneWay}" />
+                                                </ToolTipService.ToolTip>
+                                            </TextBox>
                                             <!-- 充电状态文本 -->
                                             <TextBlock Grid.Column="3" VerticalAlignment="Center"
                                                        Foreground="{ThemeResource TextFillColorSecondaryBrush}">

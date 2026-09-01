@@ -25,6 +25,22 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
     private CancellationTokenSource? _cts;
     private bool _disposed;
 
+    /// <summary>用户手动覆盖的设备名：键 = DeviceId，值 = 用户自定义名称（空字符串也允许）。</summary>
+    public Dictionary<string, string> DeviceNameOverrides { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>设置/清除单个设备的自定义名（name = null 或空字符串 = 回退到 FFI 原名）。</summary>
+    public void SetDeviceNameOverride(string deviceId, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            DeviceNameOverrides.Remove(deviceId);
+        else
+            DeviceNameOverrides[deviceId] = name.Trim();
+
+        // 立即重新应用覆盖（不重新 FFI 轮询），保证 UI 即时反馈
+        ApplyOverridesToCurrent();
+        DevicesUpdated?.Invoke(this, EventArgs.Empty);
+    }
+
     /// <summary>提供给设置页直接绑定（Observable）的副本。</summary>
     public ObservableCollection<OverlayLogiDevice> ObservableDevices { get; } = new();
 
@@ -138,7 +154,10 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
                 LogiBatteryNative.lb_free_devices(list);
             }
 
-            Volatile.Write(ref _devices, devices.AsReadOnly());
+            // 应用用户自定义名（覆盖 FFI 原始名；不影响下次刷新）
+            ApplyOverrides(devices);
+
+            Volatile.Write(ref _devices, devices);
 
             // 更新 Observable（在 UI 线程，但此处在 TP，设置页直接在 ViewModel 订阅 DevicesUpdated 后再 DispatcherQueue）
             DevicesUpdated?.Invoke(this, EventArgs.Empty);
@@ -158,6 +177,41 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
         int len = Array.IndexOf(buffer, (byte)0);
         if (len < 0) len = buffer.Length;
         return Encoding.UTF8.GetString(buffer, 0, len);
+    }
+
+    /// <summary>把用户手动覆盖的设备名应用到给定的列表（基于 DeviceId 匹配）。</summary>
+    private void ApplyOverrides(List<OverlayLogiDevice> devices)
+    {
+        if (DeviceNameOverrides.Count == 0) return;
+        foreach (var d in devices)
+        {
+            if (DeviceNameOverrides.TryGetValue(d.DeviceId, out var custom)
+                && !string.IsNullOrEmpty(custom))
+            {
+                d.DeviceName = custom;
+            }
+        }
+    }
+
+    /// <summary>在不重新 FFI 轮询的情况下，立即应用覆盖到当前 _devices 快照与 ObservableDevices（设置页编辑即时生效）。</summary>
+    private void ApplyOverridesToCurrent()
+    {
+        var snapshot = Volatile.Read(ref _devices) as List<OverlayLogiDevice>;
+        if (snapshot != null)
+        {
+            ApplyOverrides(snapshot);
+        }
+        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+        {
+            foreach (var d in ObservableDevices)
+            {
+                if (DeviceNameOverrides.TryGetValue(d.DeviceId, out var custom)
+                    && !string.IsNullOrEmpty(custom))
+                {
+                    d.DeviceName = custom;
+                }
+            }
+        });
     }
 
     private static unsafe string PtrToStringUtf8(IntPtr ptr)

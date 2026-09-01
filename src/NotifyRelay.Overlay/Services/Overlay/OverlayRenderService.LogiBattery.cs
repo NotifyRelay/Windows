@@ -1,17 +1,20 @@
 using System.Drawing;
 using System.Numerics;
+using System.Text;
 using NotifyRelay.Models.Render;
 using Vortice.Direct2D1;
 using Vortice.DirectWrite;
 using Vortice.Mathematics;
 using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
+using LogiDevice = NotifyRelay.Models.Render.LogiBatteryDeviceInfo;
 
 namespace NotifyRelay.Services.Overlay;
 
 /// <summary>
 /// OverlayRenderService 的罗技电池叠加层渲染 partial。
-/// Direct2D/DirectWrite 绘制图标、设备名、电量%。
-/// 所有电池字体/颜色直接调用 BatteryIconUtility（主页同款，不重复逻辑）。
+/// 渲染内容：电池图标（Segoe MDL2 Assets，共享 BatteryIconUtility 颜色/字形） + 设备名（过长自动省略号截断）。
+/// 不渲染电量%数字：因为图标字形分 6 段 + 颜色编码（红/黄/绿）已经表达电量范围，避免信息冗余。
+/// 设备名来源：FFI 原始名或用户在设置页手动修改的 Override。
 /// </summary>
 public partial class OverlayRenderService
 {
@@ -20,14 +23,15 @@ public partial class OverlayRenderService
     private List<LogiBatteryDeviceInfo> _logiBatteryDevices = [];
 
     // 渲染尺寸常量（最终乘以 Scale）
-    private const float LogiCardPaddingX = 14f;
-    private const float LogiCardPaddingY = 10f;
-    private const float LogiCardSpacing = 8f;
-    private const float LogiCardCornerRadius = 8f;
-    private const float LogiIconSize = 20f;       // Segoe MDL2 图标字号
-    private const float LogiTextBaseSize = 14f;   // 设备名/电量字号
-    private const float LogiIconTextGap = 8f;     // 图标与设备名间距
-    private const float LogiNamePercentGap = 10f; // 设备名与电量%间距
+    private const float LogiCardPaddingX = 12f;
+    private const float LogiCardPaddingY = 8f;
+    private const float LogiCardSpacing = 6f;
+    private const float LogiCardCornerRadius = 7f;
+    private const float LogiIconSize = 20f;        // Segoe MDL2 Assets 图标字号
+    private const float LogiTextSize = 13f;         // 设备名字号
+    private const float LogiIconTextGap = 8f;       // 图标与设备名间距
+    private const float LogiMaxDeviceNameChars = 24;// 单卡片设备名最大字符估计（实际用像素宽度限制+省略号）
+    private const float LogiCardMaxWidthFactor = 0.35f; // 单卡片最大宽度 = 屏幕宽度 × 此系数（防止长设备名撑满屏幕）
 
     /// <summary>注入罗技电池数据提供者（DI 启动后调用）。</summary>
     public void SetLogiBatteryProvider(ILogiBatteryProvider? provider)
@@ -40,7 +44,6 @@ public partial class OverlayRenderService
             if (provider != null)
             {
                 provider.DevicesUpdated += OnLogiBatteryDevicesUpdated;
-                // 立即快照一次
                 _logiBatteryDevices = provider.GetDevices().ToList();
             }
             else
@@ -61,7 +64,6 @@ public partial class OverlayRenderService
         }
     }
 
-    /// <summary>目标屏幕是否为罗技电池叠加层的目标屏。</summary>
     private bool IsLogiBatteryTarget(ScreenOverlay o)
     {
         if (!_settings.LogiBatteryEnabled) return false;
@@ -70,14 +72,9 @@ public partial class OverlayRenderService
             return o.IsPrimary;
         if (string.Equals(target, "span", StringComparison.OrdinalIgnoreCase))
             return ReferenceEquals(o, _spanOverlay);
-        // 默认 "all"：仅在主屏显示（防止多屏重复）
         return o.IsPrimary;
     }
 
-    /// <summary>
-    /// 是否存在需要显示的罗技电池内容：
-    /// 开关开启 + 至少一台设备满足显示条件（在线 HideWhenDisconnected 过滤后）
-    /// </summary>
     private bool HasLogiBatteryContent()
     {
         if (!_settings.LogiBatteryEnabled) return false;
@@ -87,14 +84,16 @@ public partial class OverlayRenderService
             foreach (var d in _logiBatteryDevices)
             {
                 if (_settings.LogiBatteryHideWhenDisconnected && !d.Online) continue;
-                return true; // 至少一台需要显示
+                return true;
             }
         }
         return false;
     }
 
     /// <summary>
-    /// 渲染罗技电池卡片。与键盘渲染模式类似：半透明黑圆角背景 + 图标(MDL2) + 设备名 + 电量%。
+    /// 渲染每台设备：圆角小卡片 = 电池图标 + 设备名（过长自动省略号截断）。
+    /// 单列纵向排列；整张卡片的最大宽度为屏幕宽 × LogiCardMaxWidthFactor，
+    /// 超过后设备名 TextLayout 会被强制 WordEllipsis，确保不会把卡片撑满屏幕。
     /// </summary>
     private void RenderLogiBattery(ScreenOverlay overlay, double now, double freq)
     {
@@ -119,75 +118,119 @@ public partial class OverlayRenderService
 
         float scale = Math.Clamp(_settings.LogiBatteryScale, 0.5f, 4f);
         float iconSize = LogiIconSize * scale;
-        float textSize = LogiTextBaseSize * scale;
+        float textSize = LogiTextSize * scale;
         float px = LogiCardPaddingX * scale;
         float py = LogiCardPaddingY * scale;
         float radius = LogiCardCornerRadius * scale;
+        float gap = LogiIconTextGap * scale;
 
         int screenW = overlay.Width;
         int screenH = overlay.Height;
         float baseX = Math.Clamp(_settings.LogiBatteryXPercent, 0, 100) / 100f * screenW;
         float baseY = Math.Clamp(_settings.LogiBatteryYPercent, 0, 100) / 100f * screenH;
 
+        float cardMaxWidth = Math.Clamp(screenW * LogiCardMaxWidthFactor, 120f * scale, 540f * scale);
+        // 设备名可用最大宽度 = 卡片max - 图标 - 2*pad - gap
+        float nameMaxWidth = cardMaxWidth - iconSize - px * 2 - gap;
+        if (nameMaxWidth < 20f) nameMaxWidth = 20f;
+
         using var iconFormat = CreateTextFormat("Segoe MDL2 Assets", DWriteFontWeight.Regular, iconSize);
         using var textFormat = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.SemiBold, textSize);
+        textFormat.WordWrapping = WordWrapping.NoWrap;
+        // Vortice IDWriteTextFormat 未暴露 Trimming 属性（需要 SetTrimming + InlineObject 组合）。
+        // 为了减少复杂度，这里改为"手动截断 + 追加省略号"：测量超出 nameMaxWidth 时截短字符串补"…"。
 
-        // 先测量所有设备，以确定单卡片最大宽度（左对齐时整齐）
-        var measurements = new List<(LogiBatteryDeviceInfo d, float nameW, float percentW)>();
-        float maxCardWidth = 0;
-        foreach (var d in toRender)
-        {
-            using var nameLayout = _dwFactory.CreateTextLayout(d.DeviceName, textFormat, 1200, textSize * 2);
-            float nameW = nameLayout.Metrics.Width;
-            string percentText = d.HasBattery ? $"{d.BatteryPercent}%" : "--";
-            using var pctLayout = _dwFactory.CreateTextLayout(percentText, textFormat, 200, textSize * 2);
-            float percentW = pctLayout.Metrics.Width;
-
-            float cardInner = LogiIconTextGap + nameW + LogiNamePercentGap + percentW;
-            float totalW = iconSize + cardInner + px * 2;
-            if (totalW > maxCardWidth) maxCardWidth = totalW;
-
-            measurements.Add((d, nameW, percentW));
-        }
-
-        float rowHeight = Math.Max(iconSize, textSize) + py * 2;
-
-        // 颜色画笔（随用随创建，性能可接受）
-        float opacity = 0.85f;
+        const float opacity = 0.9f;
         using var bgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.6f * opacity));
         using var borderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.35f * opacity));
         using var textBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
 
-        float cursorY = baseY;
-        for (int i = 0; i < measurements.Count; i++)
+        // 第一轮：计算每个设备经过"手动省略号截断"后的显示文本与宽度
+        float maxCardWidth = 0;
+        var displayInfos = new List<(LogiDevice d, string DisplayName, float NameWidth)>();
+        foreach (var d in toRender)
         {
-            var (d, nameW, percentW) = measurements[i];
-            // 安全边界：不允许卡片右侧超出屏幕
+            string displayName = TruncateNameToWidth(d.DeviceName, textFormat, nameMaxWidth, out var nameW);
+            float naturalCardW = iconSize + gap + nameW + px * 2;
+            float cardW = MathF.Min(cardMaxWidth, naturalCardW);
+            if (cardW > maxCardWidth) maxCardWidth = cardW;
+            displayInfos.Add((d, displayName, nameW));
+        }
+
+        float rowHeight = Math.Max(iconSize, textSize) + py * 2;
+        float cursorY = baseY;
+        foreach (var (d, displayName, _) in displayInfos)
+        {
             float drawX = MathF.Min(baseX, MathF.Max(0, screenW - maxCardWidth));
             var rect = new RoundedRectangle(new RectangleF(drawX, cursorY, maxCardWidth, rowHeight), radius, radius);
             rt.FillRoundedRectangle(ref rect, bgBrush);
-            rt.DrawRoundedRectangle(rect, borderBrush, 1.2f * scale);
+            rt.DrawRoundedRectangle(rect, borderBrush, 1f * scale);
 
             float innerY = cursorY + py;
-            // 1. 电池图标
-            string iconGlyph = d.BatteryGlyph;
-            using var iconLayout = _dwFactory.CreateTextLayout(iconGlyph, iconFormat, iconSize * 2, iconSize * 2);
-            using var iconColorBrush = rt.CreateSolidColorBrush(d.BatteryColor);
-            rt.DrawTextLayout(new Vector2(drawX + px, innerY + Math.Max(0, (rowHeight - py * 2 - iconSize) / 2)), iconLayout, iconColorBrush);
+            float contentTopOffset = Math.Max(0f, (rowHeight - py * 2 - iconSize) / 2);
 
-            // 2. 设备名
-            float textX = drawX + px + iconSize + LogiIconTextGap * scale;
+            // 1. 电池图标（字形/颜色统一来自共享 BatteryIconUtility）
+            using var iconLayout = _dwFactory.CreateTextLayout(d.BatteryGlyph, iconFormat, iconSize * 2, iconSize * 2);
+            using var iconBrush = rt.CreateSolidColorBrush(d.BatteryColor);
+            rt.DrawTextLayout(new Vector2(drawX + px, innerY + contentTopOffset), iconLayout, iconBrush);
+
+            // 2. 设备名（已在 TruncateNameToWidth 截断；再次使用显示名 Draw）
+            float textX = drawX + px + iconSize + gap;
             float textY = innerY + Math.Max(0, (rowHeight - py * 2 - textSize) / 2);
-            using var nameLayout = _dwFactory.CreateTextLayout(d.DeviceName, textFormat, 1200, textSize * 2);
+            using var nameLayout = _dwFactory.CreateTextLayout(displayName, textFormat, nameMaxWidth + 10f, textSize * 1.4f);
             rt.DrawTextLayout(new Vector2(textX, textY), nameLayout, textBrush);
-
-            // 3. 电量%（右对齐到卡片内边距右侧）
-            string percentText = d.HasBattery ? $"{d.BatteryPercent}%" : "--";
-            using var pctLayout = _dwFactory.CreateTextLayout(percentText, textFormat, 200, textSize * 2);
-            float pctX = drawX + maxCardWidth - px - percentW;
-            rt.DrawTextLayout(new Vector2(pctX, textY), pctLayout, d.HasBattery ? iconColorBrush : textBrush);
 
             cursorY += rowHeight + LogiCardSpacing * scale;
         }
+    }
+
+    /// <summary>
+    /// 按目标像素宽度截断设备名；必要时追加"…"（既用于 UI 省略号视觉，也避免长名字撑满卡片）。
+    /// 返回（截断后字符串，实际绘制宽度）。
+    /// </summary>
+    private string TruncateNameToWidth(string name, IDWriteTextFormat fmt, float maxWidth, out float actualWidth)
+    {
+        if (string.IsNullOrEmpty(name))
+        {
+            actualWidth = 0;
+            return string.Empty;
+        }
+
+        using var full = _dwFactory.CreateTextLayout(name, fmt, maxWidth * 10f, float.PositiveInfinity);
+        actualWidth = full.Metrics.Width;
+        if (actualWidth <= maxWidth || name.Length <= 2)
+        {
+            return name;
+        }
+
+        // 二分（退化为逐字符）搜索可容纳的最大长度 + 拼接"…"
+        const string ellipsis = "…";
+        using var ell = _dwFactory.CreateTextLayout(ellipsis, fmt, 200, float.PositiveInfinity);
+        float ellWidth = ell.Metrics.Width;
+        float budget = Math.Max(0, maxWidth - ellWidth);
+
+        int left = 0, right = name.Length;
+        int best = 0;
+        while (left <= right)
+        {
+            int mid = (left + right) / 2;
+            if (mid == 0) { best = 0; left = mid + 1; continue; }
+            string sub = name[..mid];
+            using var tmp = _dwFactory.CreateTextLayout(sub, fmt, budget + 20f, float.PositiveInfinity);
+            if (tmp.Metrics.Width <= budget)
+            {
+                best = mid;
+                left = mid + 1;
+            }
+            else
+            {
+                right = mid - 1;
+            }
+        }
+
+        string truncated = best == 0 ? ellipsis : string.Concat(name.AsSpan(0, best), ellipsis);
+        using var final = _dwFactory.CreateTextLayout(truncated, fmt, maxWidth * 10f, float.PositiveInfinity);
+        actualWidth = final.Metrics.Width;
+        return truncated;
     }
 }
