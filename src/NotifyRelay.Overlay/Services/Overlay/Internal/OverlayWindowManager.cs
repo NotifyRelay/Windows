@@ -31,8 +31,8 @@ internal sealed class OverlayWindowManager
 
     public ScreenOverlay? SpanOverlay => _spanOverlay;
 
-    /// <summary>创建单个分层覆盖层窗口及其 D2D 渲染目标。</summary>
-    public ScreenOverlay CreateOverlayWindow(int x, int y, int width, int height)
+    /// <summary>创建单个分层覆盖层窗口及其 D2D 渲染目标。任一原生资源创建失败时释放已创建资源、记录警告并返回 null。</summary>
+    public ScreenOverlay? CreateOverlayWindow(int x, int y, int width, int height)
     {
         var hInstance = Win32.GetModuleHandleW(null);
         uint exStyle = Win32.WS_EX_LAYERED | Win32.WS_EX_TRANSPARENT | Win32.WS_EX_TOPMOST
@@ -42,12 +42,31 @@ internal sealed class OverlayWindowManager
             exStyle, Win32.OverlayWindowClass, "NotifyRelayOverlay", Win32.WS_POPUP,
             x, y, width, height,
             IntPtr.Zero, IntPtr.Zero, hInstance, IntPtr.Zero);
+        if (hwnd == IntPtr.Zero)
+        {
+            _logger.LogWarning("创建覆盖层窗口失败：CreateWindowExW 返回 null（坐标 {X},{Y} 尺寸 {W}x{H}）", x, y, width, height);
+            return null;
+        }
 
         Win32.SetWindowPos(hwnd, Win32.HWND_TOPMOST, 0, 0, 0, 0,
             Win32.SWP_NOMOVE | Win32.SWP_NOSIZE | Win32.SWP_NOACTIVATE);
 
         var screenDC = Win32.GetDC(IntPtr.Zero);
+        if (screenDC == IntPtr.Zero)
+        {
+            _logger.LogWarning("创建覆盖层窗口失败：GetDC 返回 null（坐标 {X},{Y} 尺寸 {W}x{H}）", x, y, width, height);
+            Win32.DestroyWindow(hwnd);
+            return null;
+        }
+
         var memDC = Win32.CreateCompatibleDC(screenDC);
+        if (memDC == IntPtr.Zero)
+        {
+            _logger.LogWarning("创建覆盖层窗口失败：CreateCompatibleDC 返回 null（坐标 {X},{Y} 尺寸 {W}x{H}）", x, y, width, height);
+            Win32.ReleaseDC(IntPtr.Zero, screenDC);
+            Win32.DestroyWindow(hwnd);
+            return null;
+        }
 
         var bmi = new Win32.BITMAPINFO();
         bmi.bmiHeader.biSize = Marshal.SizeOf<Win32.BITMAPINFOHEADER>();
@@ -57,6 +76,15 @@ internal sealed class OverlayWindowManager
         bmi.bmiHeader.biBitCount = 32;
         bmi.bmiHeader.biCompression = Win32.BI_RGB;
         var hBitmap = Win32.CreateDIBSection(screenDC, ref bmi, Win32.DIB_RGB_COLORS, out _, IntPtr.Zero, 0);
+        if (hBitmap == IntPtr.Zero)
+        {
+            _logger.LogWarning("创建覆盖层窗口失败：CreateDIBSection 返回 null（坐标 {X},{Y} 尺寸 {W}x{H}）", x, y, width, height);
+            Win32.ReleaseDC(IntPtr.Zero, screenDC);
+            Win32.DeleteDC(memDC);
+            Win32.DestroyWindow(hwnd);
+            return null;
+        }
+
         var oldBitmap = Win32.SelectObject(memDC, hBitmap);
         Win32.ReleaseDC(IntPtr.Zero, screenDC);
 
@@ -188,6 +216,7 @@ internal sealed class OverlayWindowManager
         foreach (var s in targets)
         {
             var o = CreateOverlayWindow(s.X, s.Y, s.W, s.H);
+            if (o == null) continue;
             o.DeviceName = s.DeviceName;
             o.IsPrimary = s.IsPrimary;
             _overlays.Add(o);
@@ -210,9 +239,12 @@ internal sealed class OverlayWindowManager
                 maxY = Math.Max(maxY, s.Y + s.H);
             }
             var span = CreateOverlayWindow(minX, minY, maxX - minX, maxY - minY);
-            span.IsSpan = true;
-            _spanOverlay = span;
-            _overlays.Add(span);
+            if (span != null)
+            {
+                span.IsSpan = true;
+                _spanOverlay = span;
+                _overlays.Add(span);
+            }
         }
 
         if (_overlays.Count == 0)
