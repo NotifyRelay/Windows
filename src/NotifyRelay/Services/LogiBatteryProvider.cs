@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -26,13 +27,13 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
     private bool _disposed;
 
     /// <summary>用户手动覆盖的设备名：键 = DeviceId，值 = 用户自定义名称（空字符串也允许）。</summary>
-    public Dictionary<string, string> DeviceNameOverrides { get; } = new(StringComparer.Ordinal);
+    public ConcurrentDictionary<string, string> DeviceNameOverrides { get; } = new(StringComparer.Ordinal);
 
     /// <summary>设置/清除单个设备的自定义名（name = null 或空字符串 = 回退到 FFI 原名）。</summary>
     public void SetDeviceNameOverride(string deviceId, string? name)
     {
         if (string.IsNullOrWhiteSpace(name))
-            DeviceNameOverrides.Remove(deviceId);
+            DeviceNameOverrides.TryRemove(deviceId, out _);
         else
             DeviceNameOverrides[deviceId] = name.Trim();
 
@@ -43,7 +44,7 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
         // 持久化覆盖到配置，保证重启后保留
         try
         {
-            _settings.LogiBatteryDeviceNameOverrides = new Dictionary<string, string>(DeviceNameOverrides);
+            _settings.LogiBatteryDeviceNameOverrides = new Dictionary<string, string>(DeviceNameOverrides, StringComparer.Ordinal);
         }
         catch (Exception ex)
         {
@@ -98,7 +99,13 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
 
     public void StopMonitoring()
     {
-        _cts?.Cancel();
+        var cts = _cts;
+        _cts = null;
+        if (cts != null)
+        {
+            try { cts.Cancel(); } catch (ObjectDisposedException) { /* ignore */ }
+            cts.Dispose();
+        }
         _pollTimer?.Dispose();
         _pollTimer = null;
     }
@@ -108,9 +115,14 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
         // 启动时先立即刷新一次
         try { await RefreshOnceAsync(); } catch (Exception ex) { _logger.LogError(ex, "LogiBattery 初始刷新失败"); }
 
+        // 先取本地引用：字段可能被 StopMonitoring 并发置空，避免重复读取导致竞态空引用
+        var timer = _pollTimer;
+        if (timer == null) return;
+
         try
         {
-            while (_pollTimer != null && await _pollTimer.WaitForNextTickAsync(ct))
+            // PeriodicTimer 被 Dispose 后 WaitForNextTickAsync 会返回 false，循环可安全退出
+            while (await timer.WaitForNextTickAsync(ct))
             {
                 // 开关关闭时不占用 CPU 去探测 HID
                 if (!_settings.LogiBatteryEnabled) continue;
@@ -205,7 +217,7 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
     /// <summary>把用户手动覆盖的设备名应用到给定的列表（基于 DeviceId 匹配）。</summary>
     private void ApplyOverrides(List<OverlayLogiDevice> devices)
     {
-        if (DeviceNameOverrides.Count == 0) return;
+        if (DeviceNameOverrides.IsEmpty) return;
         foreach (var d in devices)
         {
             if (DeviceNameOverrides.TryGetValue(d.DeviceId, out var custom)
