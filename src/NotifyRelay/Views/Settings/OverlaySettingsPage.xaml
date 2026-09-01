@@ -66,6 +66,11 @@
                         <FontIcon Glyph="&#xE92E;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="罗技电池" Tag="LogiBatteryPage">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE855;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <Frame x:Name="OverlayContentFrame" Padding="40,20,0,0" />

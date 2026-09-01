@@ -666,10 +666,12 @@ public sealed partial class OverlayRenderService : IDisposable
             (_settings.KeyboardOverlayEnabled
                 && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
             || HasKeyMappingHint());
+        bool hasLogiBatteryContent = IsLogiBatteryTarget(o) && HasLogiBatteryContent();
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget
-            || hasKeyboardContent;
+            || hasKeyboardContent
+            || hasLogiBatteryContent;
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
@@ -706,6 +708,9 @@ public sealed partial class OverlayRenderService : IDisposable
         // 渲染键盘按键状态（左上角）
         if (o.IsPrimary)
             RenderKeyboardState(o, now, freq);
+
+        // 渲染罗技电池设备卡片（LogiBattery）
+        RenderLogiBattery(o, now, freq);
 
         rt.EndDraw();
 

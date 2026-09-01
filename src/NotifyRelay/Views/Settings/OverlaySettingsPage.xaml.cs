@@ -43,6 +43,9 @@ public sealed partial class OverlaySettingsPage : Page
             case "KeyboardPage":
                 OverlayContentFrame.Navigate(typeof(OverlayKeyboardPage));
                 break;
+            case "LogiBatteryPage":
+                OverlayContentFrame.Navigate(typeof(OverlayLogiBatteryPage));
+                break;
         }
     }
 }

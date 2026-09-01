@@ -280,4 +280,12 @@ public interface IGeneralSettingsService
     /// Gets or sets the keyboard shortcut mappings list.
     /// </summary>
     List<KeyboardMappingConfig> KeyboardMappings { get; set; }
+
+    // ======== 罗技电池叠加层（与 IOverlaySettings 契约保持一致） ========
+    bool LogiBatteryEnabled { get; set; }
+    string LogiBatteryTargetScreen { get; set; }
+    int LogiBatteryXPercent { get; set; }
+    int LogiBatteryYPercent { get; set; }
+    float LogiBatteryScale { get; set; }
+    bool LogiBatteryHideWhenDisconnected { get; set; }
 }

@@ -39,4 +39,12 @@ public interface IOverlaySettings
     bool HeartRateHideWhenDisconnected { get; set; }
 
     bool KeyboardOverlayEnabled { get; set; }
+
+    // ======== 罗技电池叠加层（LogiBattery） ========
+    bool LogiBatteryEnabled { get; set; }
+    string LogiBatteryTargetScreen { get; set; }
+    int LogiBatteryXPercent { get; set; }
+    int LogiBatteryYPercent { get; set; }
+    float LogiBatteryScale { get; set; }
+    bool LogiBatteryHideWhenDisconnected { get; set; }
 }

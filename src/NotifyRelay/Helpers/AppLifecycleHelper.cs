@@ -172,6 +172,28 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "初始化键盘钩子服务失败");
         }
 
+        // 初始化罗技电池 Provider + 注入叠加层 + 按开关状态启动监控
+        try
+        {
+            var logiProvider = Ioc.Default.GetRequiredService<ILogiBatteryProvider>();
+            var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+            overlay.SetLogiBatteryProvider(logiProvider);
+
+            if (Ioc.Default.GetRequiredService<IGeneralSettingsService>().LogiBatteryEnabled)
+            {
+                logiProvider.StartMonitoring();
+                logger.LogInformation("罗技电池监控按当前设置已启动");
+            }
+            else
+            {
+                logger.LogInformation("罗技电池叠加层开关未开启，监控保持待机");
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "初始化罗技电池监控失败");
+        }
+
         // 心率设备启动自动连接（需开启开关且存在上次连接地址）
         try
         {
@@ -582,6 +604,11 @@ public static class AppLifecycleHelper
         // Heart Rate BLE Service
         .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
         .AddSingleton<ViewModels.Settings.HeartRateViewModel>()
+
+        // 罗技电池（LogiBattery）Provider 和 ViewModel
+        .AddSingleton<LogiBatteryProvider>()
+        .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
+        .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
 
         // ViewModels
         .AddSingleton<MainPageViewModel>()

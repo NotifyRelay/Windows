@@ -55,6 +55,17 @@
         <Content Include="ffmpeg\**" Condition="Exists('ffmpeg\ffmpeg.exe')">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </Content>
+        <!-- 罗技电池 FFI DLL (logi-battery 子模块 Rust 产物)：开发期优先使用 ffi_test/bin 预构建版本；若 Rust 已构建则使用 target/release -->
+        <Content Condition="Exists('..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll')"
+                 Include="..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>logi_battery.dll</Link>
+        </Content>
+        <Content Condition="!Exists('..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll') And Exists('..\NotifyRelay.Overlay\logi-battery\ffi_test\bin\logi_battery.dll')"
+                 Include="..\NotifyRelay.Overlay\logi-battery\ffi_test\bin\logi_battery.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>logi_battery.dll</Link>
+        </Content>
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\NotifyRelay.NativeCore\NotifyRelay.NativeCore.csproj" />
