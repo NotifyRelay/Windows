@@ -28,6 +28,9 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     // 切换键（锁定键）虚拟键码集合
     private static readonly HashSet<int> ToggleKeys = new() { 0x14, 0x90, 0x91 };
 
+    // 修饰键虚拟键码集合（Shift / Ctrl / Alt），用于实时补偿钩子可能漏掉的按下/抬起边沿
+    private static readonly int[] ModifierKeys = { 0x10, 0x11, 0x12 };
+
     // 映射中的源键组合状态：映射ID → 按下的源键集合
     private readonly ConcurrentDictionary<string, HashSet<int>> _mappingKeyStates = new();
 
@@ -238,7 +241,18 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     /// <summary>获取当前所有按下的键。</summary>
     public IEnumerable<int> GetPressedKeys()
     {
-        return _keyStates.Where(kvp => kvp.Value).Select(kvp => kvp.Key);
+        var pressed = _keyStates.Where(kvp => kvp.Value).Select(kvp => kvp.Key).ToList();
+
+        // 兜底：低级钩子可能漏掉修饰键（Shift/Ctrl/Alt）的按下/抬起边沿
+        // （例如钩子安装前已按住、或快速组合键时边沿丢失），
+        // 这里用 GetAsyncKeyState 实时补偿，确保物理按住时一定被叠加层渲染。
+        foreach (var mod in ModifierKeys)
+        {
+            if ((NativeMethods.GetAsyncKeyState(mod) & 0x8000) != 0 && !pressed.Contains(mod))
+                pressed.Add(mod);
+        }
+
+        return pressed;
     }
 
     private static string GetKeyName(int vkCode)

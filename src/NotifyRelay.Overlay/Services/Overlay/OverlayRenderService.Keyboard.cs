@@ -63,7 +63,12 @@ public partial class OverlayRenderService
     private static readonly Dictionary<int, (string On, string Off)> ToggleKeyNames = new()
     {
         [0x14] = ("大写", "小写"),
+        [0x90] = ("NumLk", "NumLk关"),
+        [0x91] = ("ScrLk", "ScrLk关"),
     };
+
+    // 切换键反转显示集合：通常处于开启状态的键（如 Num Lock），仅在关闭（少见）时显示提示，开启时不显示。
+    private static readonly HashSet<int> ReverseToggleKeys = new() { 0x90 };
 
     /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
     public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
@@ -72,6 +77,20 @@ public partial class OverlayRenderService
         OverlayElementCore.ReplaceProvider(ref _keyboardStateProvider, provider,
             p => p.MappingTriggered += OnMappingTriggered,
             p => p.MappingTriggered -= OnMappingTriggered);
+    }
+
+    /// <summary>键盘叠加层是否处于活跃状态：普通按键按下，或任一切换键处于需提示的状态（常态开启的键如 Num Lock 取关闭态）。</summary>
+    private bool KeyboardActive()
+    {
+        if (!_settings.KeyboardOverlayEnabled || _keyboardStateProvider == null)
+            return false;
+        if (_keyboardStateProvider.GetPressedKeys().Any())
+            return true;
+        return ToggleKeyNames.Any(kv =>
+        {
+            bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+            return ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
+        });
     }
 
     /// <summary>快捷键映射触发回调：记录提示文本与时间戳（钩子线程调用）。</summary>
@@ -102,10 +121,18 @@ public partial class OverlayRenderService
             .Distinct()
             .ToList();
 
-        // 切换键（如大写键）：仅在开启时显示
+        // 切换键：常态开启的键（如 Num Lock）仅在关闭时显示，其余键在开启时显示
         var toggleItems = ToggleKeyNames
-            .Where(kv => _keyboardStateProvider.IsKeyToggled(kv.Key))
-            .Select(kv => kv.Value.On)
+            .Where(kv =>
+            {
+                bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+                return ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
+            })
+            .Select(kv =>
+            {
+                bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+                return ReverseToggleKeys.Contains(kv.Key) ? kv.Value.Off : kv.Value.On;
+            })
             .ToList();
 
         // 映射触发提示（独立于按键状态，无按键按下时仍可能显示）

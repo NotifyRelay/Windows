@@ -228,8 +228,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
                 // 罗技电池独立驱动：只看电量自身条件，不受弹幕/心率/键盘等其他叠加层元素影响
                 if (!hasContent) hasContent = LogiBatteryActive();
                 if (!hasContent) hasContent = ClockActive();
-                if (!hasContent && _settings.KeyboardOverlayEnabled
-                    && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
+                if (!hasContent && KeyboardActive())
                     hasContent = true;
                 if (!hasContent && HasKeyMappingHint())
                     hasContent = true;
@@ -404,8 +403,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
         bool isHeartRateTarget = IsHeartRateTarget(o);
         bool hasKeyboardContent = o.IsPrimary && (
-            (_settings.KeyboardOverlayEnabled
-                && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
+            KeyboardActive()
             || HasKeyMappingHint());
 
         // 罗技电池：目标屏判定统一复用 IsLogiBatteryTarget，
