@@ -62,11 +62,10 @@ public partial class OverlayRenderService
     /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
     public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
     {
-        if (_keyboardStateProvider != null)
-            _keyboardStateProvider.MappingTriggered -= OnMappingTriggered;
-        _keyboardStateProvider = provider;
-        if (provider != null)
-            provider.MappingTriggered += OnMappingTriggered;
+        // 退订旧 Provider、订阅新 Provider 走共用模板（与罗技电池等元素一致）
+        OverlayElementCore.ReplaceProvider(ref _keyboardStateProvider, provider,
+            p => p.MappingTriggered += OnMappingTriggered,
+            p => p.MappingTriggered -= OnMappingTriggered);
     }
 
     /// <summary>快捷键映射触发回调：记录提示文本与时间戳（钩子线程调用）。</summary>

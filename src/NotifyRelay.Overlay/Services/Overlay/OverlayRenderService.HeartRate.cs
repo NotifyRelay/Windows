@@ -154,7 +154,7 @@ public partial class OverlayRenderService
     /// <summary>判断指定覆盖层窗口是否为心率显示目标屏（匹配不到目标屏时回退主屏）。</summary>
     private bool IsHeartRateTarget(ScreenOverlay o)
     {
-        if (o.IsSpan) return false;
+        if (o.IsSpan) return false;   // 心率元素不支持跨屏窗口
         string target;
         if (!Monitor.TryEnter(_lock, 2000))
         {
@@ -169,12 +169,10 @@ public partial class OverlayRenderService
         {
             Monitor.Exit(_lock);
         }
-        if (target != "PRIMARY")
-        {
-            var match = _overlays.Find(x => !x.IsSpan && x.DeviceName == target);
-            if (match != null) return ReferenceEquals(o, match);
-        }
-        return o.IsPrimary;
+        // 目标屏解析复用共用核心（primary / 设备名精确匹配 / 回退主屏），
+        // 与罗技电池等元素共用同一真源，避免多处实现漂移
+        return OverlayElementCore.IsTargetScreen(o, target,
+            _windowManager.Overlays, _windowManager.SpanOverlay, allowSpan: false);
     }
 
     /// <summary>从已保存设置初始化心率覆盖层配置（Start 时调用）。</summary>
@@ -296,8 +294,7 @@ public partial class OverlayRenderService
             }
 
             // 按百分比定位（元素中心），并夹取到屏幕内
-            float cxAnchor = o.Width * xPct / 100f;
-            float cyAnchor = o.Height * yPct / 100f;
+            var (cxAnchor, cyAnchor) = OverlayElementCore.ResolveAnchor(o, xPct, yPct);
             float left = Math.Clamp(cxAnchor - blockW / 2f, 0, Math.Max(0, o.Width - blockW));
             float top = Math.Clamp(cyAnchor - blockH / 2f, 0, Math.Max(0, o.Height - blockH));
 

@@ -38,18 +38,11 @@ public partial class OverlayRenderService
     {
         lock (_lock)
         {
-            if (_logiBatteryProvider != null)
-                _logiBatteryProvider.DevicesUpdated -= OnLogiBatteryDevicesUpdated;
-            _logiBatteryProvider = provider;
-            if (provider != null)
-            {
-                provider.DevicesUpdated += OnLogiBatteryDevicesUpdated;
-                _logiBatteryDevices = provider.GetDevices().ToList();
-            }
-            else
-            {
-                _logiBatteryDevices.Clear();
-            }
+            // 退订旧 Provider、订阅新 Provider 走共用模板（与键盘等元素一致）
+            OverlayElementCore.ReplaceProvider(ref _logiBatteryProvider, provider,
+                p => p.DevicesUpdated += OnLogiBatteryDevicesUpdated,
+                p => p.DevicesUpdated -= OnLogiBatteryDevicesUpdated);
+            _logiBatteryDevices = provider != null ? provider.GetDevices().ToList() : [];
             _displayDirty = true;
         }
     }
@@ -74,16 +67,10 @@ public partial class OverlayRenderService
     private bool IsLogiBatteryTarget(ScreenOverlay o)
     {
         if (!_settings.LogiBatteryEnabled) return false;
-        string target = _settings.LogiBatteryTargetScreen ?? string.Empty;
-        if (string.Equals(target, "primary", StringComparison.OrdinalIgnoreCase))
-            return o.IsPrimary;
-        if (string.Equals(target, "span", StringComparison.OrdinalIgnoreCase))
-            return ReferenceEquals(o, _spanOverlay);
-        // 具体显示器：按 DeviceName 精确匹配
-        var match = _overlays.Find(x => !x.IsSpan
-            && string.Equals(x.DeviceName, target, StringComparison.Ordinal));
-        if (match != null) return ReferenceEquals(o, match);
-        return o.IsPrimary;
+        // 目标屏解析复用共用核心（primary / span / 设备名精确匹配 / 回退主屏），
+        // 与心率等元素共用同一真源，避免多处实现漂移
+        return OverlayElementCore.IsTargetScreen(o, _settings.LogiBatteryTargetScreen,
+            _windowManager.Overlays, _windowManager.SpanOverlay, allowSpan: true);
     }
 
     private bool HasLogiBatteryContent()
@@ -111,8 +98,8 @@ public partial class OverlayRenderService
     private bool LogiBatteryActive()
     {
         if (!HasLogiBatteryContent()) return false;
-        // _overlays / _spanOverlay 仅由渲染线程（SyncOverlays、CleanupOverlays）维护，此处无需加锁
-        foreach (var o in _overlays)
+        // 覆盖层窗口集合仅由渲染线程维护，此处无需加锁
+        foreach (var o in _windowManager.Overlays)
             if (IsLogiBatteryTarget(o)) return true;
         return false;
     }
@@ -143,7 +130,7 @@ public partial class OverlayRenderService
         }
         if (toRender.Count == 0) return;
 
-        float scale = Math.Clamp(_settings.LogiBatteryScale, 0.5f, 4f);
+        float scale = OverlayElementCore.ResolveScale(_settings.LogiBatteryScale, 0.5f, 4f);
         float iconSize = LogiIconSize * scale;
         float textSize = LogiTextSize * scale;
         float px = LogiCardPaddingX * scale;
@@ -153,8 +140,8 @@ public partial class OverlayRenderService
 
         int screenW = overlay.Width;
         int screenH = overlay.Height;
-        float baseX = Math.Clamp(_settings.LogiBatteryXPercent, 0, 100) / 100f * screenW;
-        float baseY = Math.Clamp(_settings.LogiBatteryYPercent, 0, 100) / 100f * screenH;
+        var (baseX, baseY) = OverlayElementCore.ResolveAnchor(overlay,
+            _settings.LogiBatteryXPercent, _settings.LogiBatteryYPercent);
 
         float cardMaxWidth = Math.Clamp(screenW * LogiCardMaxWidthFactor, 120f * scale, 540f * scale);
         // 设备名可用最大宽度 = 卡片max - 图标 - 2*pad - gap
