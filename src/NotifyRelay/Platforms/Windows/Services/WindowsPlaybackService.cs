@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
@@ -15,6 +16,7 @@ using Windows.Media;
 using Windows.Media.Control;
 using Windows.Devices.Enumeration;
 using Windows.Media.Devices;
+using Windows.System;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
@@ -25,7 +27,7 @@ public class WindowsPlaybackService(
     IProtocolSender protocolSender,
     IGeneralSettingsService generalSettings) : IPlaybackService
 {
-    private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
+    private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
     private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
     private GlobalSystemMediaTransportControlsSessionManager? manager;
 
@@ -34,6 +36,7 @@ public class WindowsPlaybackService(
     public List<AudioDevice> AudioDevices { get; private set; } = [];
     private readonly MMDeviceEnumerator enumerator = new();
 
+    private static readonly ConcurrentDictionary<string, string> _appNameCache = new();
     private readonly Dictionary<string, double> lastTimelinePosition = [];
 
     // WinRT device watcher for audio endpoint changes
@@ -593,8 +596,12 @@ public class WindowsPlaybackService(
             bool shouldSendRemote = generalSettings.EnableSendMediaNotifications;
             if (shouldSendRemote)
             {
+                // source 即 SourceAppUserModelId，用作 packageName；appName 取显示名，缺失时 fallback
+                var appName = ResolveMediaAppName(source);
                 string mediaJson = JsonSerializer.Serialize(new
                 {
+                    packageName = source ?? string.Empty,
+                    appName = appName,
                     title = trackTitle ?? string.Empty,
                     text = artist ?? string.Empty,
                     coverUrl = thumbnail ?? string.Empty,
@@ -994,6 +1001,54 @@ public class WindowsPlaybackService(
         {
             logger.LogError(ex, "发送媒体控制响应时出错");
         }
+    }
+
+    /// <summary>
+    /// 根据 SourceAppUserModelId 解析媒体应用显示名，缺失时 fallback 到本应用名。
+    /// </summary>
+    private string ResolveMediaAppName(string? sourceAppUserModelId)
+    {
+        if (string.IsNullOrWhiteSpace(sourceAppUserModelId))
+            return "NotifyRelay";
+
+        // 打包应用 AUMID 格式包含 '!'，尝试通过 AppInfo API 解析显示名
+        if (sourceAppUserModelId.Contains('!'))
+        {
+            if (_appNameCache.TryGetValue(sourceAppUserModelId, out var cached))
+                return cached;
+
+            try
+            {
+                var appInfo = AppInfo.GetFromAppUserModelId(sourceAppUserModelId);
+                var displayName = appInfo?.DisplayInfo?.DisplayName;
+                if (!string.IsNullOrWhiteSpace(displayName))
+                {
+                    _appNameCache[sourceAppUserModelId] = displayName;
+                    return displayName;
+                }
+            }
+            catch
+            {
+                // packageQuery 权限不足或 AUMID 无效，fallback 到分割逻辑
+            }
+
+            // API 失败时 fallback：取 ! 之前的部分
+            var fallbackName = sourceAppUserModelId.Split('!')[0];
+            if (!string.IsNullOrWhiteSpace(fallbackName))
+            {
+                _appNameCache[sourceAppUserModelId] = fallbackName;
+                return fallbackName;
+            }
+        }
+
+        // 非打包输入（如 "Spotify.exe"）：直接使用
+        var name = sourceAppUserModelId;
+
+        // 去掉 .exe 后缀
+        if (name.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+            name = name[..^4];
+
+        return string.IsNullOrWhiteSpace(name) ? "NotifyRelay" : name;
     }
 
     /// <summary>
