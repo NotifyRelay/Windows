@@ -59,14 +59,38 @@ public partial class OverlayRenderService
         [0x28] = "↓",
     };
 
+    // 切换键（锁定键）显示名称：开启 / 关闭
+    private static readonly Dictionary<int, (string On, string Off)> ToggleKeyNames = new()
+    {
+        [0x14] = ("大写", "小写"),
+        [0x90] = ("NumLk", "NumLk关"),
+        [0x91] = ("ScrLk", "ScrLk关"),
+    };
+
+    // 切换键反转显示集合：通常处于开启状态的键（如 Num Lock），仅在关闭（少见）时显示提示，开启时不显示。
+    private static readonly HashSet<int> ReverseToggleKeys = new() { 0x90 };
+
     /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
     public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
     {
-        if (_keyboardStateProvider != null)
-            _keyboardStateProvider.MappingTriggered -= OnMappingTriggered;
-        _keyboardStateProvider = provider;
-        if (provider != null)
-            provider.MappingTriggered += OnMappingTriggered;
+        // 退订旧 Provider、订阅新 Provider 走共用模板（与罗技电池等元素一致）
+        OverlayElementCore.ReplaceProvider(ref _keyboardStateProvider, provider,
+            p => p.MappingTriggered += OnMappingTriggered,
+            p => p.MappingTriggered -= OnMappingTriggered);
+    }
+
+    /// <summary>键盘叠加层是否处于活跃状态：普通按键按下，或任一切换键处于需提示的状态（常态开启的键如 Num Lock 取关闭态）。</summary>
+    private bool KeyboardActive()
+    {
+        if (!_settings.KeyboardOverlayEnabled || _keyboardStateProvider == null)
+            return false;
+        if (_keyboardStateProvider.GetPressedKeys().Any())
+            return true;
+        return ToggleKeyNames.Any(kv =>
+        {
+            bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+            return ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
+        });
     }
 
     /// <summary>快捷键映射触发回调：记录提示文本与时间戳（钩子线程调用）。</summary>
@@ -91,15 +115,29 @@ public partial class OverlayRenderService
 
         var pressedKeys = _keyboardStateProvider.GetPressedKeys().ToList();
 
-        // 过滤出需要显示的按键
+        // 过滤出需要显示的普通按键（切换键单独按开关状态常显）
         var displayKeys = pressedKeys
-            .Where(k => TrackedKeys.Contains(k) || KeyNames.ContainsKey(k))
+            .Where(k => (TrackedKeys.Contains(k) || KeyNames.ContainsKey(k)) && !ToggleKeyNames.ContainsKey(k))
             .Distinct()
+            .ToList();
+
+        // 切换键：常态开启的键（如 Num Lock）仅在关闭时显示，其余键在开启时显示
+        var toggleItems = ToggleKeyNames
+            .Where(kv =>
+            {
+                bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+                return ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
+            })
+            .Select(kv =>
+            {
+                bool toggled = _keyboardStateProvider.IsKeyToggled(kv.Key);
+                return ReverseToggleKeys.Contains(kv.Key) ? kv.Value.Off : kv.Value.On;
+            })
             .ToList();
 
         // 映射触发提示（独立于按键状态，无按键按下时仍可能显示）
         var hint = GetKeyMappingHintForRender(out float hintOpacity);
-        if (displayKeys.Count == 0 && hint == null) return;
+        if (displayKeys.Count == 0 && toggleItems.Count == 0 && hint == null) return;
 
         float x = KeyStartX;
         float y = KeyStartY;
@@ -108,39 +146,21 @@ public partial class OverlayRenderService
         using var bgBrush = rt.CreateSolidColorBrush(new Color4(0, 0, 0, 0.6f * opacity));
         using var textBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, opacity));
         using var activeBgBrush = rt.CreateSolidColorBrush(new Color4(0.3f, 0.7f, 1.0f, 0.8f));
+        using var activeBorderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.5f * opacity));
         using var format = CreateTextFormat("Segoe UI", DWriteFontWeight.Bold, KeyFontSize);
 
+        // 普通按下按键：高亮显示
         foreach (var key in displayKeys)
         {
-            string displayText = GetKeyDisplayName(key);
+            (x, y) = DrawKeyBox(rt, format, x, y, opacity, GetKeyDisplayName(key),
+                activeBgBrush, textBrush, activeBorderBrush);
+        }
 
-            // 测量文本宽度
-            using var layout = _dwFactory.CreateTextLayout(displayText, format, KeyBoxSize * 3, KeyBoxSize);
-            float textWidth = layout.Metrics.Width;
-            float boxWidth = Math.Max(textWidth + KeyBoxPadding * 2, KeyBoxSize);
-            float boxHeight = KeyBoxSize;
-
-            // 绘制背景
-            var rect = new RoundedRectangle(new RectangleF(x, y, boxWidth, boxHeight), KeyBoxRadius, KeyBoxRadius);
-            rt.FillRoundedRectangle(ref rect, activeBgBrush);
-
-            // 绘制边框
-            using var borderBrush = rt.CreateSolidColorBrush(new Color4(1, 1, 1, 0.5f * opacity));
-            rt.DrawRoundedRectangle(rect, borderBrush, 1.5f);
-
-            // 绘制文本（居中）
-            float textX = x + (boxWidth - textWidth) / 2;
-            float textY = y + (boxHeight - KeyFontSize) / 2;
-            rt.DrawTextLayout(new Vector2(textX, textY), layout, textBrush);
-
-            x += boxWidth + KeyBoxMargin;
-
-            // 每行最多 KeyMaxPerRow 个按键
-            if ((x - KeyStartX) / (KeyBoxSize + KeyBoxMargin) >= KeyMaxPerRow)
-            {
-                x = KeyStartX;
-                y += KeyBoxSize + KeyBoxMargin;
-            }
+        // 切换键：仅在开启时高亮显示
+        foreach (var text in toggleItems)
+        {
+            (x, y) = DrawKeyBox(rt, format, x, y, opacity, text,
+                activeBgBrush, textBrush, activeBorderBrush);
         }
 
         // 渲染映射触发提示文本（按键状态下方一行，带超时淡出）
@@ -181,5 +201,34 @@ public partial class OverlayRenderService
             return $"F{vkCode - 0x6F}";
 
         return $"0x{vkCode:X2}";
+    }
+
+    /// <summary>绘制一个按键状态框，返回下一格的坐标（自动换行）。</summary>
+    private (float nextX, float nextY) DrawKeyBox(
+        ID2D1RenderTarget rt, IDWriteTextFormat format,
+        float x, float y, float opacity, string text,
+        ID2D1Brush bgBrush, ID2D1Brush textBrush, ID2D1Brush borderBrush)
+    {
+        using var layout = _dwFactory.CreateTextLayout(text, format, KeyBoxSize * 3, KeyBoxSize);
+        float textWidth = layout.Metrics.Width;
+        float boxWidth = Math.Max(textWidth + KeyBoxPadding * 2, KeyBoxSize);
+        float boxHeight = KeyBoxSize;
+
+        var rect = new RoundedRectangle(new RectangleF(x, y, boxWidth, boxHeight), KeyBoxRadius, KeyBoxRadius);
+        rt.FillRoundedRectangle(ref rect, bgBrush);
+        rt.DrawRoundedRectangle(rect, borderBrush, 1.5f);
+
+        float textX = x + (boxWidth - textWidth) / 2;
+        float textY = y + (boxHeight - KeyFontSize) / 2;
+        rt.DrawTextLayout(new Vector2(textX, textY), layout, textBrush);
+
+        float nextX = x + boxWidth + KeyBoxMargin;
+        float nextY = y;
+        if ((nextX - KeyStartX) / (KeyBoxSize + KeyBoxMargin) >= KeyMaxPerRow)
+        {
+            nextX = KeyStartX;
+            nextY += KeyBoxSize + KeyBoxMargin;
+        }
+        return (nextX, nextY);
     }
 }

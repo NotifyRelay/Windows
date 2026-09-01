@@ -1,7 +1,12 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
+using Microsoft.UI;
 using Microsoft.UI.Xaml.Data;
+using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
+using NotifyRelay.Models.Render;
 
 namespace NotifyRelay.Converters;
 
@@ -251,43 +256,11 @@ internal sealed partial class BatteryStatusToIconConverter : IValueConverter
     {
         if (value is DeviceStatus deviceStatus)
         {
-            if (deviceStatus.ChargingStatus)
-            {
-                return deviceStatus.BatteryStatus switch
-                {
-                    >= 100 => "\uEA93",
-                    >= 90 => "\uE83E",
-                    >= 80 => "\uE862",
-                    >= 70 => "\uE861",
-                    >= 60 => "\uE860",
-                    >= 50 => "\uE85F",
-                    >= 40 => "\uE85E",
-                    >= 30 => "\uE85D",
-                    >= 20 => "\uE85C",
-                    >= 10 => "\uE85B",
-                    _ => "\uE85A"
-                };
-            }
-            else
-            {
-                return deviceStatus.BatteryStatus switch
-                {
-                    >= 100 => "\uE83F",
-                    >= 90 => "\uE859",
-                    >= 80 => "\uE858",
-                    >= 70 => "\uE857",
-                    >= 60 => "\uE856",
-                    >= 50 => "\uE855",
-                    >= 40 => "\uE854",
-                    >= 30 => "\uE853",
-                    >= 20 => "\uE852",
-                    >= 10 => "\uE851",
-                    _ => "\uE850"
-                };
-            }
+            // 调用共享工具（唯一真值）：主页与叠加层、罗技电池设置页共用同一段 Glyph 规则
+            return BatteryIconUtility.GetGlyph(deviceStatus.BatteryStatus, deviceStatus.ChargingStatus);
         }
 
-        return "\uE83F";
+        return BatteryIconUtility.GetGlyph(100, false); // 默认满格非充电
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
@@ -302,20 +275,12 @@ internal sealed partial class BatteryStatusToColorConverter : IValueConverter
     {
         if (value is DeviceStatus deviceStatus)
         {
-            if (deviceStatus.ChargingStatus)
-            {
-                return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
-            }
-
-            return deviceStatus.BatteryStatus switch
-            {
-                < 20 => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Red),
-                < 50 => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Yellow),
-                _ => new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green)
-            };
+            var (r, g, b) = BatteryIconUtility.GetColorBytes(deviceStatus.BatteryStatus, deviceStatus.ChargingStatus);
+            return new SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
         }
 
-        return new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Green);
+        var (dr, dg, db) = BatteryIconUtility.GetColorBytes(100, false);
+        return new SolidColorBrush(Windows.UI.Color.FromArgb(255, dr, dg, db));
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, string language)
@@ -470,3 +435,66 @@ internal sealed partial class ColorToStringConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+// ================== 叠加层 LogiBattery 专用 Converter（统一调用共享 BatteryIconUtility，与主页同款） ==================
+
+/// <summary>
+/// LogiBatteryDeviceInfo → Segoe MDL2 Assets 图标 Glyph（与主页电池完全一致）。
+/// 输入：LogiBatteryDeviceInfo 实例；输出：string Glyph 字串（单个 Unicode 字符）。
+/// </summary>
+internal sealed partial class LogiBatteryStatusToGlyphConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is not LogiBatteryDeviceInfo d)
+            return BatteryIconUtility.GetGlyph(100, false);
+        if (!d.HasBattery)
+            return BatteryIconUtility.GetGlyph(100, false);
+        return BatteryIconUtility.GetGlyph(d.BatteryPercent, d.IsCharging);
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotImplementedException();
+}
+
+/// <summary>
+/// LogiBatteryDeviceInfo → 颜色 SolidColorBrush（与主页电池完全一致）。
+/// 也可用于 bool Online：online=true 绿色，offline=false 灰色。
+/// </summary>
+internal sealed partial class LogiBatteryStatusToBrushConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool online)
+        {
+            // 参数模式：用于在线/离线小圆点
+            var color = online ? Windows.UI.Color.FromArgb(255, 16, 185, 129) : Windows.UI.Color.FromArgb(255, 150, 150, 150);
+            return new SolidColorBrush(color);
+        }
+        if (value is not LogiBatteryDeviceInfo d)
+            return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128));
+        if (!d.HasBattery || d.BatteryPercent < 0)
+            return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128));
+        var (r, g, b) = BatteryIconUtility.GetColorBytes(d.BatteryPercent, d.IsCharging);
+        return new SolidColorBrush(Windows.UI.Color.FromArgb(255, r, g, b));
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotImplementedException();
+}
+
+/// <summary>
+/// LogiBatteryDeviceInfo.IsCharging → 人类可读文本。
+/// 百分比后缀：输入 int 百分比→ "xx%" ，无电量为 "--" 。
+/// </summary>
+internal sealed partial class LogiBatteryTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, string language)
+    {
+        if (value is bool charging) return charging ? "充电中" : "使用电池";
+        if (value is int percent) return percent >= 0 ? $"{percent}%" : "--";
+        if (value is LogiBatteryDeviceInfo d) return d.IsCharging ? "充电中" : "使用电池";
+        return string.Empty;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, string language) => throw new NotImplementedException();
+}
+

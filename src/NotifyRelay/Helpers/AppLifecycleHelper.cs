@@ -8,6 +8,7 @@ using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
 using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Overlay;
+using NotifyRelay.Services.OverlayFeatures;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.ViewModels;
 using NotifyRelay.ViewModels.Settings;
@@ -156,31 +157,6 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "启动Overlay渲染引擎失败");
         }
 
-        // 初始化键盘钩子服务
-        try
-        {
-            var keyboardHook = Ioc.Default.GetRequiredService<Platforms.Windows.Services.KeyboardHookService>();
-            var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
-            overlay.SetKeyboardStateProvider(keyboardHook);
-
-            // 按当前开关状态自动安装/卸载钩子
-            keyboardHook.SyncState();
-            logger.LogInformation("键盘钩子服务状态已同步");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "初始化键盘钩子服务失败");
-        }
-
-        // 心率设备启动自动连接（需开启开关且存在上次连接地址）
-        try
-        {
-            Ioc.Default.GetRequiredService<NotifyRelay.Services.HeartRate.HeartRateBleService>().TryAutoConnectOnStartup();
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "心率设备启动自动连接失败");
-        }
 
         // ===== 并行阶段C：核心服务启动 =====
         logger.LogInformation("步骤17：启动核心服务...");
@@ -579,9 +555,23 @@ public static class AppLifecycleHelper
         // Overlay Render Service
         .AddSingleton<OverlayRenderService>()
 
+        // 叠加层功能：登记后由 OverlayRenderService 主初始化按各自开关自动引导，
+        // 新增功能只需在此追加一行登记，无需改动启动流程
+        .AddSingleton<IOverlayFeature, KeyboardOverlayFeature>()
+        .AddSingleton<IOverlayFeature, LogiBatteryOverlayFeature>()
+        .AddSingleton<IOverlayFeature, HeartRateOverlayFeature>()
+
         // Heart Rate BLE Service
         .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
         .AddSingleton<ViewModels.Settings.HeartRateViewModel>()
+
+        // 罗技电池（LogiBattery）Provider 和 ViewModel
+        .AddSingleton<LogiBatteryProvider>()
+        .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
+        .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
+
+        // 时间浮窗（Clock）ViewModel
+        .AddSingleton<ViewModels.Settings.ClockViewModel>()
 
         // ViewModels
         .AddSingleton<MainPageViewModel>()

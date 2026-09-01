@@ -505,4 +505,102 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
         get => _configuration.Get(SettingsKey(nameof(KeyboardMappings)), new List<KeyboardMappingConfig>())!;
         set => _configuration.Set(SettingsKey(nameof(KeyboardMappings)), value);
     }
+
+    // ======== 罗技电池叠加层（实现 IGeneralSettingsService 与 IOverlaySettings 共有契约） ========
+    public bool LogiBatteryEnabled
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryEnabled)), value);
+    }
+
+    public string LogiBatteryTargetScreen
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryTargetScreen)), "PRIMARY")!;
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryTargetScreen)), value);
+    }
+
+    public int LogiBatteryXPercent
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryXPercent)), 20);
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryXPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public int LogiBatteryYPercent
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryYPercent)), 70);
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryYPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public float LogiBatteryScale
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryScale)), 1f);
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryScale)), Math.Clamp(value, 0.5f, 4f));
+    }
+
+    public bool LogiBatteryHideWhenDisconnected
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryHideWhenDisconnected)), true);
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryHideWhenDisconnected)), value);
+    }
+
+    public Dictionary<string, string> LogiBatteryDeviceNameOverrides
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryDeviceNameOverrides)), new Dictionary<string, string>())!;
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryDeviceNameOverrides)), value);
+    }
+
+    // ======== 时间浮窗叠加层（实现 IGeneralSettingsService 与 IOverlaySettings 共有契约） ========
+    public bool ClockOverlayEnabled
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockOverlayEnabled)), false);
+        set => _configuration.Set(SettingsKey(nameof(ClockOverlayEnabled)), value);
+    }
+
+    public string ClockTargetScreen
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockTargetScreen)), "PRIMARY")!;
+        set => _configuration.Set(SettingsKey(nameof(ClockTargetScreen)), value);
+    }
+
+    public int ClockXPercent
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockXPercent)), 50);
+        set => _configuration.Set(SettingsKey(nameof(ClockXPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public int ClockYPercent
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockYPercent)), 10);
+        set => _configuration.Set(SettingsKey(nameof(ClockYPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public string ClockColor
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockColor)), "#FFFFFF")!;
+        set => _configuration.Set(SettingsKey(nameof(ClockColor)), value);
+    }
+
+    public float ClockTextOutlineWidth
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockTextOutlineWidth)), 2f);
+        set => _configuration.Set(SettingsKey(nameof(ClockTextOutlineWidth)), Math.Clamp(value, 0.1f, 3f));
+    }
+
+    public float ClockScale
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockScale)), 1f);
+        set => _configuration.Set(SettingsKey(nameof(ClockScale)), Math.Clamp(value, 0.5f, 2f));
+    }
+
+    public bool ClockShowSeconds
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockShowSeconds)), true);
+        set => _configuration.Set(SettingsKey(nameof(ClockShowSeconds)), value);
+    }
+
+    public bool ClockUse24Hour
+    {
+        get => _configuration.Get(SettingsKey(nameof(ClockUse24Hour)), true);
+        set => _configuration.Set(SettingsKey(nameof(ClockUse24Hour)), value);
+    }
 }

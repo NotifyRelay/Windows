@@ -90,4 +90,12 @@ internal static partial class NativeMethods
 
     [LibraryImport("user32.dll", SetLastError = true)]
     public static partial uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
+
+    /// <summary>获取指定虚拟键的状态；切换键（Caps/Num/Scroll Lock）的低序位表示是否处于开启（锁定）状态。</summary>
+    [LibraryImport("user32.dll")]
+    public static partial short GetKeyState(int nVirtKey);
+
+    /// <summary>获取指定虚拟键的异步（实时）状态；返回值高位置位表示当前正被按下。</summary>
+    [LibraryImport("user32.dll")]
+    public static partial short GetAsyncKeyState(int nVirtKey);
 }
