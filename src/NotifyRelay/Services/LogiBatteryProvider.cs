@@ -39,6 +39,16 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
         // 立即重新应用覆盖（不重新 FFI 轮询），保证 UI 即时反馈
         ApplyOverridesToCurrent();
         DevicesUpdated?.Invoke(this, EventArgs.Empty);
+
+        // 持久化覆盖到配置，保证重启后保留
+        try
+        {
+            _settings.LogiBatteryDeviceNameOverrides = new Dictionary<string, string>(DeviceNameOverrides);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存罗技设备名覆盖失败");
+        }
     }
 
     /// <summary>提供给设置页直接绑定（Observable）的副本。</summary>
@@ -48,6 +58,19 @@ public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
     {
         _logger = logger;
         _settings = settings;
+
+        // 启动时从配置恢复用户自定义设备名覆盖（保证重启后保留）
+        try
+        {
+            var saved = _settings.LogiBatteryDeviceNameOverrides;
+            if (saved != null)
+                foreach (var kv in saved)
+                    DeviceNameOverrides[kv.Key] = kv.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "恢复罗技设备名覆盖失败");
+        }
 
         // 首次 Loader 初始化（由 App 启动流程或 DI 时触发，非严格要求提前）
         _ = LogiBatteryLoader.Initialize(logger);

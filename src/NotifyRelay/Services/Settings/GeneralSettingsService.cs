@@ -543,6 +543,12 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
         set => _configuration.Set(SettingsKey(nameof(LogiBatteryHideWhenDisconnected)), value);
     }
 
+    public Dictionary<string, string> LogiBatteryDeviceNameOverrides
+    {
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryDeviceNameOverrides)), new Dictionary<string, string>())!;
+        set => _configuration.Set(SettingsKey(nameof(LogiBatteryDeviceNameOverrides)), value);
+    }
+
     // ======== 时间浮窗叠加层（实现 IGeneralSettingsService 与 IOverlaySettings 共有契约） ========
     public bool ClockOverlayEnabled
     {

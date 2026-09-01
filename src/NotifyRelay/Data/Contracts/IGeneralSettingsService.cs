@@ -288,6 +288,8 @@ public interface IGeneralSettingsService
     int LogiBatteryYPercent { get; set; }
     float LogiBatteryScale { get; set; }
     bool LogiBatteryHideWhenDisconnected { get; set; }
+    /// <summary>用户自定义设备名覆盖：键 = DeviceId（VID:PID:Sslot），值 = 自定义名。空值表示回落到 FFI 原始名。</summary>
+    Dictionary<string, string> LogiBatteryDeviceNameOverrides { get; set; }
 
     // ======== 时间浮窗叠加层（与 IOverlaySettings 契约保持一致） ========
     bool ClockOverlayEnabled { get; set; }
