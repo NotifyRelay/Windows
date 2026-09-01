@@ -31,7 +31,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private readonly OverlayFeatureStartup _featureStartup;
 
     private Thread? _renderThread;
-    private volatile bool _running;
+    private volatile int _runningFlag;   // 0=未启动/已停止, 1=运行中（原子争用启动所有权，供看门狗/并发调用安全）
     // 恢复清理挂起标志：看门狗检测到卡死并确认旧线程退出后置位，
     // 由新启动的渲染线程在创建窗口前执行残留资源清理（保证窗口操作线程亲和）。
     private volatile bool _recoveryCleanupPending;
@@ -91,8 +91,10 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     /// </summary>
     public void Start()
     {
-        if (_running) return;
-        _running = true;
+        // 原子争用启动所有权：仅当仍处未启动态(0)时置为运行态(1)，
+        // 其他线程已拥有启动则直接返回，避免并发 Start 启动多个渲染线程。
+        if (Interlocked.CompareExchange(ref _runningFlag, 1, 0) != 0)
+            return;
         // 启动时从已保存设置初始化样式，避免首条弹幕使用默认值（需手动调节才生效）
         LoadInitialStyle();
         LoadInitialHeartRateConfig();
@@ -159,7 +161,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
     public void Stop()
     {
-        _running = false;
+        Interlocked.Exchange(ref _runningFlag, 0);
         _renderThread?.Join(2000);
         _featureStartup.Shutdown();
         CleanupOverlays();
@@ -188,7 +190,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             int frameCount = 0;
             bool anyVisible = false;
 
-            while (_running)
+            while (_runningFlag != 0)
             {
                 while (PeekMessageW(out var msg, IntPtr.Zero, 0, 0, 1))
                 {
@@ -553,8 +555,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
     bool IOverlayWatchdogHost.Running
     {
-        get => _running;
-        set => _running = value;
+        get => _runningFlag != 0;
+        set => Interlocked.Exchange(ref _runningFlag, value ? 1 : 0);
     }
 
     IntPtr IOverlayWatchdogHost.ControlHandle => _controlWindow.Handle;

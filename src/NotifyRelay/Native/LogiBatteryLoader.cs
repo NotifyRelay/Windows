@@ -10,7 +10,7 @@ namespace NotifyRelay.Native;
 /// </summary>
 public static class LogiBatteryLoader
 {
-    private static int _initialized = 0; // 0=未初始化, 1=初始化成功, -1=初始化失败
+    private static int _initialized = 0; // 0=未初始化, 1=初始化成功, 2=初始化中, -1=初始化失败
     private static string? _loadError;
 
     public static bool IsAvailable => _initialized == 1;
@@ -21,9 +21,13 @@ public static class LogiBatteryLoader
     /// </summary>
     public static bool Initialize(ILogger? logger = null)
     {
-        if (Interlocked.CompareExchange(ref _initialized, -1, 0) != 0)
+        if (Interlocked.CompareExchange(ref _initialized, 2, 0) != 0)
         {
-            // 已初始化过：返回结果
+            // 另一线程正在初始化或已完成：自旋等待其结束，再返回最终结果，
+            // 用专用哨兵 2 区分"初始化中"与"失败(-1)"，避免并发调用误判为失败。
+            SpinWait spin = default;
+            while (Volatile.Read(ref _initialized) == 2)
+                spin.SpinOnce();
             return _initialized == 1;
         }
 
