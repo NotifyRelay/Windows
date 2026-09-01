@@ -231,6 +231,8 @@ public sealed partial class OverlayRenderService : IDisposable
                 }
                 if (!hasContent && !_requests.IsEmpty) hasContent = true;
                 if (!hasContent) hasContent = HeartRateActive();
+                // 罗技电池独立驱动：只看电量自身条件，不受弹幕/心率/键盘等其他叠加层元素影响
+                if (!hasContent) hasContent = LogiBatteryActive();
                 if (!hasContent && _settings.KeyboardOverlayEnabled
                     && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
                     hasContent = true;
@@ -666,12 +668,19 @@ public sealed partial class OverlayRenderService : IDisposable
             (_settings.KeyboardOverlayEnabled
                 && _keyboardStateProvider != null && _keyboardStateProvider.GetPressedKeys().Any())
             || HasKeyMappingHint());
-        bool hasLogiBatteryContent = IsLogiBatteryTarget(o) && HasLogiBatteryContent();
+
+        // 罗技电池：目标屏判定统一复用 IsLogiBatteryTarget，
+        // 与 RenderLoop 的 LogiBatteryActive 共用同一真源，避免两处实现漂移。
+        // 此处只决定"该窗口是否保留"，不要求当前已有可绘制设备：
+        // 同一窗口上可能还挂着心率/弹幕等内容，不能因为电量暂空就整窗隐藏；
+        // 是否真的画出卡片由 RenderLogiBattery 内部按设备过滤决定。
+        bool isLogiTargetScreen = IsLogiBatteryTarget(o);
+
         bool hasContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget
             || hasKeyboardContent
-            || hasLogiBatteryContent;
+            || isLogiTargetScreen;  // ← 独立：不受其他叠加层元素控制
         if (!hasContent)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }

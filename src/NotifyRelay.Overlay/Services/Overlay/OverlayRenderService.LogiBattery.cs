@@ -64,6 +64,13 @@ public partial class OverlayRenderService
         }
     }
 
+    /// <summary>
+    /// 判断指定覆盖层窗口是否为罗技电池的目标屏。
+    /// 目标取值：primary（主屏） / span（跨屏窗口） / 具体显示器 DeviceName（如 \\.\DISPLAY2）。
+    /// 具体显示器按 DeviceName 精确匹配，匹配不到时回退主屏，
+    /// 与心率覆盖层 IsHeartRateTarget 的行为保持一致。
+    /// 跨屏窗口不参与 DeviceName 匹配；span 目标时只有跨屏窗口命中。
+    /// </summary>
     private bool IsLogiBatteryTarget(ScreenOverlay o)
     {
         if (!_settings.LogiBatteryEnabled) return false;
@@ -72,6 +79,10 @@ public partial class OverlayRenderService
             return o.IsPrimary;
         if (string.Equals(target, "span", StringComparison.OrdinalIgnoreCase))
             return ReferenceEquals(o, _spanOverlay);
+        // 具体显示器：按 DeviceName 精确匹配
+        var match = _overlays.Find(x => !x.IsSpan
+            && string.Equals(x.DeviceName, target, StringComparison.Ordinal));
+        if (match != null) return ReferenceEquals(o, match);
         return o.IsPrimary;
     }
 
@@ -87,6 +98,22 @@ public partial class OverlayRenderService
                 return true;
             }
         }
+        return false;
+    }
+
+    /// <summary>
+    /// 罗技电池叠加层是否需要保持渲染循环活跃。
+    /// 判定条件全部来自电量自身：开关启用 + Provider 已注入 + 存在可绘制设备 + 存在匹配的目标屏窗口。
+    /// 与顶部卡片 / 弹幕 / 心率 / 键盘等其他叠加层元素完全无关，保证电量可独立显示与隐藏。
+    /// 无设备时返回 false 只让主循环进入 30ms 轮询休眠；设备一旦上线，
+    /// Provider 的 DevicesUpdated 会置 _displayDirty，下一次轮询（≤30ms）即重新点亮窗口。
+    /// </summary>
+    private bool LogiBatteryActive()
+    {
+        if (!HasLogiBatteryContent()) return false;
+        // _overlays / _spanOverlay 仅由渲染线程（SyncOverlays、CleanupOverlays）维护，此处无需加锁
+        foreach (var o in _overlays)
+            if (IsLogiBatteryTarget(o)) return true;
         return false;
     }
 
