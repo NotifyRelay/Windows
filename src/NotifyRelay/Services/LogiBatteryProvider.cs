@@ -1,0 +1,268 @@
+using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
+using System.Text;
+using Microsoft.Extensions.Logging;
+using NotifyRelay.Data.Contracts;
+using NotifyRelay.Models.Render;
+using NotifyRelay.Native;
+using NotifyRelay.Services.Overlay;
+using OverlayLogiDevice = NotifyRelay.Models.Render.LogiBatteryDeviceInfo;
+
+namespace NotifyRelay.Services;
+
+/// <summary>
+/// 主项目实现的 ILogiBatteryProvider。
+/// 负责：调用 Loader 加载 DLL → 轮询/调用 lb_enumerate_devices → 转换为 Overlay 消费模型 LogiBatteryDeviceInfo → 派发 DevicesUpdated 事件。
+/// lb_enumerate_devices 每次调用会阻塞（内部启动 tokio runtime），因此放在后台线程轮询。
+/// </summary>
+public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
+{
+    private readonly ILogger<LogiBatteryProvider> _logger;
+    private readonly IGeneralSettingsService _settings;
+
+    private IReadOnlyList<OverlayLogiDevice> _devices = Array.Empty<OverlayLogiDevice>();
+    private PeriodicTimer? _pollTimer;
+    private CancellationTokenSource? _cts;
+    private bool _disposed;
+
+    /// <summary>用户手动覆盖的设备名：键 = DeviceId，值 = 用户自定义名称（空字符串也允许）。</summary>
+    public ConcurrentDictionary<string, string> DeviceNameOverrides { get; } = new(StringComparer.Ordinal);
+
+    /// <summary>设置/清除单个设备的自定义名（name = null 或空字符串 = 回退到 FFI 原名）。</summary>
+    public void SetDeviceNameOverride(string deviceId, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            DeviceNameOverrides.TryRemove(deviceId, out _);
+        else
+            DeviceNameOverrides[deviceId] = name.Trim();
+
+        // 立即重新应用覆盖（不重新 FFI 轮询），保证 UI 即时反馈
+        ApplyOverridesToCurrent();
+        DevicesUpdated?.Invoke(this, EventArgs.Empty);
+
+        // 持久化覆盖到配置，保证重启后保留
+        try
+        {
+            _settings.LogiBatteryDeviceNameOverrides = new Dictionary<string, string>(DeviceNameOverrides, StringComparer.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存罗技设备名覆盖失败");
+        }
+    }
+
+    /// <summary>提供给设置页直接绑定（Observable）的副本。</summary>
+    public ObservableCollection<OverlayLogiDevice> ObservableDevices { get; } = new();
+
+    public LogiBatteryProvider(ILogger<LogiBatteryProvider> logger, IGeneralSettingsService settings)
+    {
+        _logger = logger;
+        _settings = settings;
+
+        // 启动时从配置恢复用户自定义设备名覆盖（保证重启后保留）
+        try
+        {
+            var saved = _settings.LogiBatteryDeviceNameOverrides;
+            if (saved != null)
+                foreach (var kv in saved)
+                    DeviceNameOverrides[kv.Key] = kv.Value;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "恢复罗技设备名覆盖失败");
+        }
+
+        // 首次 Loader 初始化（由 App 启动流程或 DI 时触发，非严格要求提前）
+        _ = LogiBatteryLoader.Initialize(logger);
+    }
+
+    public IReadOnlyList<OverlayLogiDevice> GetDevices() => Volatile.Read(ref _devices);
+
+    public event EventHandler? DevicesUpdated;
+
+    public void StartMonitoring()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_pollTimer != null) return; // 已启动
+
+        if (!LogiBatteryLoader.IsAvailable)
+        {
+            _logger.LogWarning("LogiBatteryLoader 未就绪，监控未启动。LastError：{Err}", LogiBatteryLoader.LastError);
+            return;
+        }
+
+        _cts = new CancellationTokenSource();
+        _pollTimer = new PeriodicTimer(TimeSpan.FromSeconds(30)); // 30s 刷新一次（电量变化不频繁）
+        _ = RunPollingLoopAsync(_cts.Token);
+    }
+
+    public void StopMonitoring()
+    {
+        var cts = _cts;
+        _cts = null;
+        if (cts != null)
+        {
+            try { cts.Cancel(); } catch (ObjectDisposedException) { /* ignore */ }
+            cts.Dispose();
+        }
+        _pollTimer?.Dispose();
+        _pollTimer = null;
+    }
+
+    private async Task RunPollingLoopAsync(CancellationToken ct)
+    {
+        // 启动时先立即刷新一次
+        try { await RefreshOnceAsync(); } catch (Exception ex) { _logger.LogError(ex, "LogiBattery 初始刷新失败"); }
+
+        // 先取本地引用：字段可能被 StopMonitoring 并发置空，避免重复读取导致竞态空引用
+        var timer = _pollTimer;
+        if (timer == null) return;
+
+        try
+        {
+            // PeriodicTimer 被 Dispose 后 WaitForNextTickAsync 会返回 false，循环可安全退出
+            while (await timer.WaitForNextTickAsync(ct))
+            {
+                // 开关关闭时不占用 CPU 去探测 HID
+                if (!_settings.LogiBatteryEnabled) continue;
+                try
+                {
+                    await RefreshOnceAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "LogiBattery 轮询异常");
+                }
+            }
+        }
+        catch (OperationCanceledException) { /* ignore */ }
+    }
+
+    private Task RefreshOnceAsync()
+    {
+        // lb_enumerate_devices 内部阻塞，放到线程池执行
+        return Task.Run(() =>
+        {
+            if (!LogiBatteryLoader.IsAvailable) return;
+            int ret = LogiBatteryNative.lb_enumerate_devices(out var list);
+            if (ret != 0)
+            {
+                string? errMsg = null;
+                try
+                {
+                    var errPtr = LogiBatteryNative.lb_last_error();
+                    if (errPtr != IntPtr.Zero) errMsg = PtrToStringUtf8(errPtr);
+                }
+                catch { /* ignore */ }
+                _logger.LogWarning("lb_enumerate_devices 返回 {Ret}，错误信息：{Err}", ret, errMsg);
+                return;
+            }
+
+            var devices = new List<OverlayLogiDevice>(list.count < 0 ? 0 : list.count);
+            try
+            {
+                for (int i = 0; i < list.count; i++)
+                {
+                    IntPtr itemPtr = IntPtr.Add(list.devices, i * Marshal.SizeOf<LbDeviceInfo>());
+                    LbDeviceInfo info = Marshal.PtrToStructure<LbDeviceInfo>(itemPtr);
+                    var name = ReadFixedUtf8String(info.name);
+                    string deviceId = $"{info.vendor_id:X4}:{info.product_id:X4}:S{info.slot}";
+                    int percent = info.has_battery != 0 ? info.percentage : -1;
+                    var model = new OverlayLogiDevice
+                    {
+                        VendorId = info.vendor_id,
+                        ProductId = info.product_id,
+                        DeviceId = deviceId,
+                        DeviceName = string.IsNullOrEmpty(name) ? $"Logitech (slot {info.slot})" : name,
+                        Slot = info.slot,
+                        Online = info.online != 0,
+                        HasBattery = info.has_battery != 0,
+                        BatteryPercent = percent,
+                        StatusRaw = info.status
+                    };
+                    devices.Add(model);
+                }
+            }
+            finally
+            {
+                LogiBatteryNative.lb_free_devices(list);
+            }
+
+            // 应用用户自定义名（覆盖 FFI 原始名；不影响下次刷新）
+            ApplyOverrides(devices);
+
+            Volatile.Write(ref _devices, devices);
+
+            // 更新 Observable（在 UI 线程，但此处在 TP，设置页直接在 ViewModel 订阅 DevicesUpdated 后再 DispatcherQueue）
+            DevicesUpdated?.Invoke(this, EventArgs.Empty);
+
+            // 同步更新 ObservableDevices（用于设置页直接 x:Bind）
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                ObservableDevices.Clear();
+                foreach (var d in devices) ObservableDevices.Add(d);
+            });
+        });
+    }
+
+    private static string ReadFixedUtf8String(byte[] buffer)
+    {
+        if (buffer == null || buffer.Length == 0) return string.Empty;
+        int len = Array.IndexOf(buffer, (byte)0);
+        if (len < 0) len = buffer.Length;
+        return Encoding.UTF8.GetString(buffer, 0, len);
+    }
+
+    /// <summary>把用户手动覆盖的设备名应用到给定的列表（基于 DeviceId 匹配）。</summary>
+    private void ApplyOverrides(List<OverlayLogiDevice> devices)
+    {
+        if (DeviceNameOverrides.IsEmpty) return;
+        foreach (var d in devices)
+        {
+            if (DeviceNameOverrides.TryGetValue(d.DeviceId, out var custom)
+                && !string.IsNullOrEmpty(custom))
+            {
+                d.DeviceName = custom;
+            }
+        }
+    }
+
+    /// <summary>在不重新 FFI 轮询的情况下，立即应用覆盖到当前 _devices 快照与 ObservableDevices（设置页编辑即时生效）。</summary>
+    private void ApplyOverridesToCurrent()
+    {
+        var snapshot = Volatile.Read(ref _devices) as List<OverlayLogiDevice>;
+        if (snapshot != null)
+        {
+            ApplyOverrides(snapshot);
+        }
+        App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+        {
+            foreach (var d in ObservableDevices)
+            {
+                if (DeviceNameOverrides.TryGetValue(d.DeviceId, out var custom)
+                    && !string.IsNullOrEmpty(custom))
+                {
+                    d.DeviceName = custom;
+                }
+            }
+        });
+    }
+
+    private static unsafe string PtrToStringUtf8(IntPtr ptr)
+    {
+        if (ptr == IntPtr.Zero) return string.Empty;
+        byte* p = (byte*)ptr;
+        int len = 0;
+        while (p[len] != 0) len++;
+        return Encoding.UTF8.GetString(p, len);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        StopMonitoring();
+        _cts?.Dispose();
+    }
+}

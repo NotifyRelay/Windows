@@ -1,0 +1,193 @@
+<Page
+    x:Class="NotifyRelay.Views.Settings.OverlayHeartRatePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:services="using:NotifyRelay.Services.HeartRate"
+    xmlns:viewmodels="using:NotifyRelay.ViewModels.Settings"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
+    mc:Ignorable="d">
+
+    <ScrollViewer Padding="0,0,40,0">
+        <StackPanel Spacing="4">
+
+            <TextBlock Text="设备连接" FontSize="20" FontWeight="SemiBold" />
+
+            <wuc:SettingsExpander Header="心率设备" Description="扫描并连接支持标准心率服务的蓝牙设备" IsExpanded="True">
+                <wuc:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xE702;" />
+                </wuc:SettingsExpander.HeaderIcon>
+                <TextBlock x:Name="StatusTextBlock" Text="{x:Bind ViewModel.StatusText, Mode=OneWay}"
+                           VerticalAlignment="Center"
+                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                <wuc:SettingsExpander.Items>
+                    <wuc:SettingsCard ContentAlignment="Left">
+                        <StackPanel Spacing="8" HorizontalAlignment="Stretch">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <Button x:Name="ScanButton" Click="ScanButton_Click">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <FontIcon FontSize="14" Glyph="&#xE72C;" />
+                                        <TextBlock Text="扫描设备" />
+                                    </StackPanel>
+                                </Button>
+                                <Button x:Name="ConnectButton" Style="{ThemeResource AccentButtonStyle}"
+                                        Content="连接"
+                                        IsEnabled="{x:Bind ViewModel.CanConnect, Mode=OneWay}"
+                                        Click="ConnectButton_Click" />
+                                <Button x:Name="DisconnectButton" Content="断开"
+                                        IsEnabled="{x:Bind ViewModel.CanDisconnect, Mode=OneWay}"
+                                        Click="DisconnectButton_Click" />
+                                <ProgressRing IsActive="{x:Bind ViewModel.IsScanning, Mode=OneWay}" Width="20" Height="20" />
+                            </StackPanel>
+                            <ListView x:Name="DeviceListView"
+                                      ItemsSource="{x:Bind ViewModel.Devices}"
+                                      SelectionChanged="DeviceListView_SelectionChanged"
+                                      MaxHeight="200"
+                                      BorderThickness="1"
+                                      BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}"
+                                      CornerRadius="4">
+                                <ListView.ItemTemplate>
+                                    <DataTemplate x:DataType="services:HeartRateDeviceInfo">
+                                        <StackPanel Orientation="Horizontal" Spacing="8" Padding="0,4">
+                                            <FontIcon FontSize="14" Glyph="&#xEB51;" Foreground="#E7483B" />
+                                            <TextBlock Text="{x:Bind Name}" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+                            <TextBlock Text="仅列出广播标准心率服务 (0x180D) 的设备。部分手环需在设备端开启心率广播。"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                       FontSize="12" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                </wuc:SettingsExpander.Items>
+            </wuc:SettingsExpander>
+
+            <wuc:SettingsCard Header="启动时自动连接" Description="应用启动后自动连接上次连接的心率设备（默认关闭）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE702;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateAutoConnectEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+            </wuc:SettingsCard>
+
+            <TextBlock Text="覆盖层显示" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
+
+            <wuc:SettingsCard Header="显示心率" Description="在覆盖层显示自由浮动的心率元素（未连接时显示占位）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xEB51;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateOverlayEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="未连接时隐藏" Description="设备未连接时不显示心率元素；关闭则显示占位（默认开启）">
+                <ToggleSwitch IsOn="{x:Bind ViewModel.HeartRateHideWhenDisconnected, Mode=TwoWay}" OnContent="" OffContent="" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="显示样式" Description="可组合选择多种样式，叠加时背景在下、文本在上">
+                <StackPanel Orientation="Horizontal" Spacing="16">
+                    <CheckBox Content="简洁文本" IsChecked="{x:Bind ViewModel.StyleTextEnabled, Mode=TwoWay}" />
+                    <CheckBox Content="胶囊卡片" IsChecked="{x:Bind ViewModel.StyleCardEnabled, Mode=TwoWay}" />
+                    <CheckBox Content="心形+曲线" IsChecked="{x:Bind ViewModel.StyleHeartEnabled, Mode=TwoWay}" />
+                </StackPanel>
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="文本颜色">
+                <Button x:Name="ColorPickerButton" Width="40" Height="40" CornerRadius="8"
+                        Background="{x:Bind ViewModel.HeartRateColor, Mode=OneWay}" Click="ColorPickerButton_Click" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="文本描边" Description="简洁文本描边粗细（像素），描边为文本颜色的反色；0 为不描边">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE934;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider Minimum="0.1" Maximum="3" StepFrequency="0.1" Width="240"
+                            Value="{x:Bind ViewModel.HeartRateTextOutlineWidth, Mode=TwoWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.HeartRateTextOutlineWidth, Mode=OneWay}"
+                               VerticalAlignment="Center" Width="36"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="显示大小" Description="整体显示缩放（心形、文本、卡片、描边均按比例缩放）">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE1A1;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Slider Minimum="0.5" Maximum="2" StepFrequency="0.1" Width="240"
+                            Value="{x:Bind ViewModel.HeartRateScale, Mode=TwoWay}" />
+                    <TextBlock Text="{x:Bind ViewModel.HeartRateScale, Mode=OneWay}"
+                               VerticalAlignment="Center" Width="36"
+                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </wuc:SettingsCard>
+
+            <wuc:SettingsExpander Header="心跳异常" Description="心率异常时加快跳动（需启用开关；阈值可配）" IsExpanded="False">
+                <wuc:SettingsExpander.HeaderIcon>
+                    <FontIcon Glyph="&#xEB51;" />
+                </wuc:SettingsExpander.HeaderIcon>
+                <wuc:SettingsExpander.Items>
+                    <wuc:SettingsCard Header="启用异常加速">
+                        <ToggleSwitch IsOn="{x:Bind ViewModel.AlertEnabled, Mode=TwoWay}" OnContent="" OffContent="" />
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="心率过低阈值 (BPM)" Description="低于此值即视为异常，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="30" Maximum="100" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.LowAlert, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.LowAlert, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="心率过高阈值 (BPM)" Description="高于此值即视为异常，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="100" Maximum="200" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.HighAlert, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.HighAlert, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                    <wuc:SettingsCard Header="骤升阈值 (BPM)" Description="比近期均值高出此值即视为心率骤升，心跳加快">
+                        <StackPanel Orientation="Horizontal" Spacing="12">
+                            <Slider Minimum="10" Maximum="60" StepFrequency="1" Width="200"
+                                    Value="{x:Bind ViewModel.SpikeDelta, Mode=TwoWay}" />
+                            <TextBlock Text="{x:Bind ViewModel.SpikeDelta, Mode=OneWay}" VerticalAlignment="Center" Width="36"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
+                    </wuc:SettingsCard>
+                </wuc:SettingsExpander.Items>
+            </wuc:SettingsExpander>
+
+            <TextBlock Text="位置" FontSize="20" FontWeight="SemiBold" Margin="0,16,0,0" />
+
+            <wuc:SettingsCard Header="显示屏幕" Description="心率元素显示在所选屏幕；找不到时回退到主屏">
+                <wuc:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE7F4;" />
+                </wuc:SettingsCard.HeaderIcon>
+                <ComboBox x:Name="ScreenCombo"
+                          ItemsSource="{x:Bind ViewModel.Screens}"
+                          SelectionChanged="ScreenCombo_SelectionChanged"
+                          MinWidth="220" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="水平位置 (X)" Description="0-100%，相对所选屏幕宽度">
+                <Slider Minimum="0" Maximum="100" Value="{x:Bind ViewModel.XPercent, Mode=TwoWay}" Width="240" />
+            </wuc:SettingsCard>
+
+            <wuc:SettingsCard Header="垂直位置 (Y)" Description="0-100%，相对所选屏幕高度">
+                <Slider Minimum="0" Maximum="100" Value="{x:Bind ViewModel.YPercent, Mode=TwoWay}" Width="240" />
+            </wuc:SettingsCard>
+
+            <TextBlock Text="心率元素以所设位置为中心自由浮动，不遮挡鼠标操作。"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                       Margin="0,12,0,0" TextWrapping="Wrap" />
+
+            <ContentDialog x:Name="ColorPickerDialog" Title="选择颜色" PrimaryButtonText="确定" SecondaryButtonText="取消" PrimaryButtonClick="ColorPickerDialog_PrimaryButtonClick">
+                <StackPanel>
+                    <ColorPicker x:Name="ColorPicker" IsAlphaEnabled="False" />
+                </StackPanel>
+            </ContentDialog>
+
+        </StackPanel>
+    </ScrollViewer>
+</Page>

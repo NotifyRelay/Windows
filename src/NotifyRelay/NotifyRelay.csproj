@@ -1,0 +1,131 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net10.0-windows10.0.26100</TargetFramework>
+
+        <OutputType>WinExe</OutputType>
+
+        <!-- Display name -->
+        <ApplicationTitle>NotifyRelay</ApplicationTitle>
+        <!-- App Identifier -->
+        <ApplicationId>xzy-nien.NotifyRelay</ApplicationId>
+        <!-- Versions -->
+        <ApplicationDisplayVersion>2.1.0</ApplicationDisplayVersion>
+        <ApplicationVersion>3</ApplicationVersion>
+        <!-- Package Publisher -->
+        <ApplicationPublisher>xzy-nien</ApplicationPublisher>
+        <!-- Package Description -->
+        <Description>NotifyRelay</Description>
+        <Platforms>x64;ARM64;x86</Platforms>
+        <LangVersion>Preview</LangVersion>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <DefaultLanguage>zh-cn</DefaultLanguage>
+        <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
+        <UseWinUI>true</UseWinUI>
+
+        <WindowsPackageType>MSIX</WindowsPackageType>
+        <EnableMsixTooling>true</EnableMsixTooling>
+        <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
+        <PublishTrimmed>false</PublishTrimmed>
+        <TrimMode>partial</TrimMode>
+        <!-- Disable ILLink  -->
+        <RunILLink>false</RunILLink>
+        <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+        <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    </PropertyGroup>
+
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows10.0.26100'">
+        <RuntimeHostConfigurationOption Include="System.Runtime.InteropServices.BuiltInComInterop.IsSupported" Value="true" />
+        <RuntimeHostConfigurationOption Include="System.Runtime.Serialization.EnableUnsafeBinaryFormatterSerialization" Value="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="Assets\Icons\IconResource.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="Assets\NotifyRelayAppIcon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <!-- 嵌入资源：测试弹幕图标以字节流形式读取，避免打包态下文件系统路径不可用 -->
+        <EmbeddedResource Include="Assets\NotifyRelayAppIcon.png" />
+        <Content Include="ffmpeg\**" Condition="Exists('ffmpeg\ffmpeg.exe')">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <!-- 罗技电池 FFI DLL (logi-battery 子模块 Rust 产物)：开发期优先使用 ffi_test/bin 预构建版本；若 Rust 已构建则使用 target/release -->
+        <Content Condition="Exists('..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll')"
+                 Include="..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>logi_battery.dll</Link>
+        </Content>
+        <Content Condition="!Exists('..\NotifyRelay.Overlay\logi-battery\target\release\logi_battery.dll') And Exists('..\NotifyRelay.Overlay\logi-battery\ffi_test\bin\logi_battery.dll')"
+                 Include="..\NotifyRelay.Overlay\logi-battery\ffi_test\bin\logi_battery.dll">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <Link>logi_battery.dll</Link>
+        </Content>
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\NotifyRelay.NativeCore\NotifyRelay.NativeCore.csproj" />
+        <ProjectReference Include="..\NotifyRelay.Overlay\NotifyRelay.Overlay.csproj" />
+        <ProjectReference Include="..\NotifyRelay.Worker\NotifyRelay.Worker.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="AdvancedSharpAdbClient" />
+        <PackageReference Include="BouncyCastle.Cryptography" />
+        <PackageReference Include="CommunityToolkit.Mvvm" />
+        <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
+        <PackageReference Include="FFMpegCore" />
+        <PackageReference Include="Markdig" />
+        <PackageReference Include="CommunityToolkit.WinUI.Converters" />
+        <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
+        <PackageReference Include="H.NotifyIcon.WinUI" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+        <PackageReference Include="Microsoft.WindowsAppSDK" />
+        <PackageReference Include="Microsoft.Windows.SDK.BuildTools" />
+        <PackageReference Include="Microsoft.Extensions.Hosting" />
+        <PackageReference Include="Microsoft.Extensions.Localization" />
+        <PackageReference Include="Serilog.Extensions.Hosting" />
+        <PackageReference Include="Serilog.Sinks.Debug" />
+        <PackageReference Include="Serilog.Sinks.File" />
+        <PackageReference Include="WinUIEx" />
+        <PackageReference Include="NAudio" />
+        <PackageReference Include="NetCoreServer" />
+        <PackageReference Include="sqlite-net-pcl" />
+        <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" />
+        <PackageReference Include="SQLitePCLRaw.provider.sqlite3" />
+        <PackageReference Include="SSH.NET" />
+        <PackageReference Include="System.Management" />
+        <PackageReference Include="Vanara.PInvoke.CldApi" />
+        <PackageReference Include="Vanara.PInvoke.Ole" />
+        <PackageReference Include="Vanara.PInvoke.Shell32" />
+        <PackageReference Include="Vortice.Direct2D1" />
+        <PackageReference Include="Vortice.Mathematics" />
+    </ItemGroup>
+    <ItemGroup>
+        <Content Include="Assets\Splash\splash_screen.svg">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="appsettings.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+        <Content Include="appsettings.development.json">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </Content>
+    </ItemGroup>
+    <!--
+        Rust core 原生 DLL 强制同步（Move 模式）：
+        子项目 BuildRust 已把最新 DLL Move 到其 OutDir；此处再从子项目 OutDir Move 到主项目输出目录。
+        Move 会移走源：子项目 OutDir 与 release 均被清空，下次构建子项目时 cargo 必重新生成，保证每次构建都产出最新 DLL。
+        AppX 打包目录为第二目标（Move 无法多目标），从主项目 OutDir 分发。
+    -->
+    <Target Name="SyncRustCoreDll" AfterTargets="Build">
+        <PropertyGroup>
+            <RustCoreOutDll>$([MSBuild]::NormalizePath('$(MSBuildThisFileDirectory)..\NotifyRelay.NativeCore\bin\$(Platform)\$(Configuration)\$(TargetFramework)\notify_relay_core.dll'))</RustCoreOutDll>
+        </PropertyGroup>
+        <Move Condition="Exists('$(RustCoreOutDll)')" SourceFiles="$(RustCoreOutDll)" DestinationFolder="$(OutDir)" />
+        <Copy Condition="Exists('$(OutDir)AppX')" SourceFiles="$(OutDir)notify_relay_core.dll" DestinationFolder="$(OutDir)AppX" SkipUnchangedFiles="false" />
+    </Target>
+</Project>
