@@ -1,6 +1,7 @@
 using Microsoft.UI.Windowing;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
+using NotifyRelay.Platforms.Windows.Services;
 
 namespace NotifyRelay.Data.Contracts;
 
@@ -218,6 +219,24 @@ public interface IGeneralSettingsService
     float HeartRateScale { get; set; }
 
     /// <summary>
+    /// Gets or sets a value indicating whether to hide the heart rate overlay
+    /// while the device is disconnected (default true).
+    /// </summary>
+    bool HeartRateHideWhenDisconnected { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether to automatically connect to the
+    /// last connected heart rate device on app startup (default false).
+    /// </summary>
+    bool HeartRateAutoConnectEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the last manually connected heart rate device address
+    /// (decimal string; internal use for auto connect).
+    /// </summary>
+    string HeartRateLastDeviceAddress { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether dynamic lighting is enabled.
     /// </summary>
     bool EnableDynamicLighting { get; set; }
@@ -251,4 +270,35 @@ public interface IGeneralSettingsService
     /// Gets or sets a value indicating whether to send media notifications to connected devices.
     /// </summary>
     bool EnableSendMediaNotifications { get; set; }
+
+    /// <summary>
+    /// Gets or sets a value indicating whether keyboard overlay is enabled.
+    /// </summary>
+    bool KeyboardOverlayEnabled { get; set; }
+
+    /// <summary>
+    /// Gets or sets the keyboard shortcut mappings list.
+    /// </summary>
+    List<KeyboardMappingConfig> KeyboardMappings { get; set; }
+
+    // ======== 罗技电池叠加层（与 IOverlaySettings 契约保持一致） ========
+    bool LogiBatteryEnabled { get; set; }
+    string LogiBatteryTargetScreen { get; set; }
+    int LogiBatteryXPercent { get; set; }
+    int LogiBatteryYPercent { get; set; }
+    float LogiBatteryScale { get; set; }
+    bool LogiBatteryHideWhenDisconnected { get; set; }
+    /// <summary>用户自定义设备名覆盖：键 = DeviceId（VID:PID:Sslot），值 = 自定义名。空值表示回落到 FFI 原始名。</summary>
+    Dictionary<string, string> LogiBatteryDeviceNameOverrides { get; set; }
+
+    // ======== 时间浮窗叠加层（与 IOverlaySettings 契约保持一致） ========
+    bool ClockOverlayEnabled { get; set; }
+    string ClockTargetScreen { get; set; }
+    int ClockXPercent { get; set; }
+    int ClockYPercent { get; set; }
+    string ClockColor { get; set; }
+    float ClockTextOutlineWidth { get; set; }
+    float ClockScale { get; set; }
+    bool ClockShowSeconds { get; set; }
+    bool ClockUse24Hour { get; set; }
 }

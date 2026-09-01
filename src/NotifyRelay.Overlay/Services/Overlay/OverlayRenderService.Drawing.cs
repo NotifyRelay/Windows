@@ -103,6 +103,38 @@ public partial class OverlayRenderService
     }
 
     /// <summary>
+    /// 绘制收起态胶囊文本（对齐 Android AutoScrollText）：短文本完整显示；
+    /// 文本超出可用宽度时在裁剪框内横向滚动循环（复用跑马灯偏移算法）。
+    /// 文本变化时调用方重置 CollapsedScrollTime，使其从停留状态重新开始。
+    /// </summary>
+    private void DrawScrollableText(SuperIslandItem item, string text, string fontFamily, DWriteFontWeight weight, float size,
+        Color4 color, ID2D1DCRenderTarget rt, float x, float y, float availableWidth, float lineHeight, double now, double freq)
+    {
+        if (string.IsNullOrEmpty(text) || availableWidth <= 0) return;
+
+        using var fmt = CreateTextFormat(fontFamily, weight, size);
+        using var fullLyt = _dwFactory.CreateTextLayout(text, fmt, MarqueeMeasureWidth, lineHeight);
+        fullLyt.WordWrapping = WordWrapping.NoWrap;
+        float fullWidth = fullLyt.Metrics.WidthIncludingTrailingWhitespace;
+
+        var clip = new RawRectF(x, y - 2, x + availableWidth, y + lineHeight + 2);
+        using var brush = CreateSolidColorBrush(rt, color);
+
+        if (fullWidth > availableWidth + 2)
+        {
+            float overflow = fullWidth - availableWidth;
+            float offset = ComputeMarqueeOffset((now - item.CollapsedScrollTime) / freq, overflow);
+            rt.PushAxisAlignedClip(clip, AntialiasMode.Aliased);
+            rt.DrawTextLayout(new Vector2(x + offset, y), fullLyt, brush);
+            rt.PopAxisAlignedClip();
+        }
+        else
+        {
+            rt.DrawTextLayout(new Vector2(x, y), fullLyt, brush);
+        }
+    }
+
+    /// <summary>
     /// 以 transform 缩放方式在 (cx, cy) 定位绘制封面位图（保持原 DrawBitmap 调用等价）。
     /// </summary>
     private static void DrawCoverBitmap(ID2D1DCRenderTarget rt, ID2D1Bitmap? bitmap, float cx, float cy, float size, float opacity)

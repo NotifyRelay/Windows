@@ -103,6 +103,16 @@ public static class NativeCore
         return NotifyRelayCore.Safe.ExportDeviceKey(_ctx, deviceUuid);
     }
 
+    public static string? GetLocalUuid()
+    {
+        return NotifyRelayCore.Safe.GetLocalUuid(_ctx);
+    }
+
+    public static int RenameDevice(string deviceUuid, string name)
+    {
+        return NotifyRelayCore.Safe.RenameDevice(_ctx, deviceUuid, name);
+    }
+
     public static int PeriodicBroadcast(int action, string? uuid = null, string? name = null, int battery = -1, string? deviceType = null)
     {
         return NotifyRelayCore.Safe.PeriodicBroadcast(_ctx, action, uuid, name, battery, deviceType);

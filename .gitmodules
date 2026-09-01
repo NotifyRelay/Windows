@@ -1,3 +1,6 @@
 [submodule "notify-relay-core"]
-	path = notify-relay-core
+	path = src/NotifyRelay.NativeCore/notify-relay-core
 	url = git@github.com:NotifyRelay/core.git
+[submodule "src/NotifyRelay.Overlay/logi-battery"]
+	path = src/NotifyRelay.Overlay/logi-battery
+	url = git@github.com:xzy-nine/logi-battery.git

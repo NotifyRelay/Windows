@@ -16,6 +16,7 @@ public partial class RemoteDeviceEntity
     // Notify 协议远端公钥（用于 HKDF 派生对称密钥）
     public string? PublicKey { get; set; }
 
+    // 共享密钥（仅历史迁移读取源；迁移后清空。密钥真正的持有方为 Rust 私有库）
     public byte[]? SharedSecret { get; set; }
 
     public byte[]? WallpaperBytes { get; set; }
@@ -43,7 +44,7 @@ public partial class RemoteDeviceEntity
             Model = Model,
             IpAddresses = IpAddresses,
             Wallpaper = await ImageHelper.ToBitmapAsync(WallpaperBytes),
-            SharedSecret = SharedSecret,
+            // SharedSecret 由 Rust 私有库持有，此处不外泄
             RemotePublicKey = PublicKey,
             HasSentftpRequest = HasSentftpRequest,
         };

@@ -40,6 +40,15 @@ public sealed partial class OverlaySettingsPage : Page
             case "HeartRatePage":
                 OverlayContentFrame.Navigate(typeof(OverlayHeartRatePage));
                 break;
+            case "KeyboardPage":
+                OverlayContentFrame.Navigate(typeof(OverlayKeyboardPage));
+                break;
+            case "LogiBatteryPage":
+                OverlayContentFrame.Navigate(typeof(OverlayLogiBatteryPage));
+                break;
+            case "ClockPage":
+                OverlayContentFrame.Navigate(typeof(OverlayClockPage));
+                break;
         }
     }
 }

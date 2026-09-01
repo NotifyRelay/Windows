@@ -53,7 +53,7 @@ public class NetworkService(
             var senderQueue = NativeCore.StartCore(
                 localDeviceId ?? "", localDevice.DeviceName, signedBattery, "pc",
                 (ushort)ServerPort, NativeCore.GetPublicKey() ?? string.Empty);
-            if (senderQueue >= 0)
+            if (senderQueue > 0)
             {
                 isRunning = true;
                 logger.LogInformation($"服务器已在端口 {ServerPort} 启动（Rust 统一启动完成）");

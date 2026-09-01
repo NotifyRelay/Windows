@@ -1,4 +1,5 @@
 using NotifyRelay.Data.AppDatabase;
+using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Native;
@@ -7,6 +8,7 @@ using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
 using NotifyRelay.Services.Filters;
 using NotifyRelay.Services.Overlay;
+using NotifyRelay.Services.OverlayFeatures;
 using NotifyRelay.Services.Settings;
 using NotifyRelay.ViewModels;
 using NotifyRelay.ViewModels.Settings;
@@ -67,6 +69,9 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤14：生成并初始化UUID...");
         localDevice = await deviceManager.GetLocalDeviceAsync();
         logger.LogInformation("步骤14：UUID初始化完成，DeviceId: {deviceId}", localDevice.DeviceId);
+        // 注意：此处不读取 Rust UUID——升级用户以平台表 DeviceId 为迁移种子，
+        // 由 StartCore（步骤17）传入 Rust 库；全新安装用户在 GetLocalDeviceAsync 首启已生成
+        // 一致性对齐在步骤17b（FinalizeRustPersistenceAsync）进行
 
         logger.LogInformation("步骤15：初始化设备管理器...");
         await deviceManager.Initialize();
@@ -89,17 +94,33 @@ public static class AppLifecycleHelper
 
         // 密钥迁移（轻量同步操作，必须在服务启动前完成）
         logger.LogInformation("步骤15a：迁移已有设备密钥到 Rust...");
-        int migratedCount = 0;
-        foreach (var device in deviceManager.PairedDevices)
+        bool allMigrationsSucceeded = true;
+        try
         {
-            if (device.Id == localDevice.DeviceId) continue;
-            if (device.SharedSecret != null && device.SharedSecret.Length == 32)
+            var deviceRepo = Ioc.Default.GetRequiredService<DeviceRepository>();
+            int migratedCount = 0;
+            foreach (var device in deviceRepo.GetRemoteDevices())
             {
-                NativeCore.MigrateSharedSecret(device.Id, device.SharedSecret);
-                migratedCount++;
+                if (device.DeviceId == localDevice.DeviceId) continue;
+                if (device.SharedSecret is { Length: 32 })
+                {
+                    if (NativeCore.MigrateSharedSecret(device.DeviceId, device.SharedSecret) != 0)
+                    {
+                        logger.LogWarning("步骤15a：设备 {deviceId} 密钥迁移持久化失败，保留旧密钥", device.DeviceId);
+                        allMigrationsSucceeded = false;
+                        continue;
+                    }
+                    NativeCore.RenameDevice(device.DeviceId, string.IsNullOrEmpty(device.Name) ? device.DeviceId : device.Name);
+                    migratedCount++;
+                }
             }
+            logger.LogInformation("步骤15a：已迁移 {count} 个设备密钥", migratedCount);
         }
-        logger.LogInformation("步骤15a：已迁移 {count} 个设备密钥", migratedCount);
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15a：迁移旧设备密钥失败");
+            allMigrationsSucceeded = false;
+        }
 
         logger.LogInformation("步骤15：初始化通知服务...");
         notificationService.Initialize();
@@ -136,6 +157,7 @@ public static class AppLifecycleHelper
             logger.LogError(ex, "启动Overlay渲染引擎失败");
         }
 
+
         // ===== 并行阶段C：核心服务启动 =====
         logger.LogInformation("步骤17：启动核心服务...");
         var tcpServerTask = networkService.StartServerAsync();
@@ -153,6 +175,16 @@ public static class AppLifecycleHelper
         await Task.WhenAll(tcpServerTask, discoveryTask, playbackTask, adbTask);
         logger.LogInformation("步骤17：核心服务启动完成");
 
+        // 步骤17b：Rust 持久化收尾（uuid 已进入核心，触发落盘后清理平台旧存储）
+        try
+        {
+            await FinalizeRustPersistenceAsync(logger, localDevice, allMigrationsSucceeded);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤17b：Rust 持久化收尾失败");
+        }
+
         // 非关键服务后台启动（不阻塞主流程）
         _ = actionService.InitializeAsync();
         _ = updateService.CheckForUpdatesAsync();
@@ -160,6 +192,60 @@ public static class AppLifecycleHelper
         logger.LogInformation("步骤21：初始化完成，关闭启动画面");
         App.SplashScreenLoadingTCS?.TrySetResult();
         logger.LogInformation("应用组件初始化全部完成");
+    }
+
+    /// <summary>
+    /// 步骤17b：Rust 持久化收尾（start_core 已传入本机 uuid）
+    /// - GetLocalUuid 触发自动落盘并校验
+    /// - 平台表 DeviceId 与库对齐
+    /// - 清理旧平台存储：LocalDeviceEntity.StateJson 值、RemoteDeviceEntity.SharedSecret 列值
+    /// </summary>
+    private static async Task FinalizeRustPersistenceAsync(ILogger logger, LocalDeviceEntity localDevice, bool allMigrationsSucceeded)
+    {
+        var rustUuid = NativeCore.GetLocalUuid();
+        if (string.IsNullOrEmpty(rustUuid))
+        {
+            logger.LogWarning("步骤17b：Rust 持久化未就绪，暂缓清理旧平台存储");
+            return;
+        }
+        var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
+
+        if (rustUuid != localDevice.DeviceId)
+        {
+            logger.LogInformation("步骤17b：UUID 以 Rust 持久化为准: {rustUuid} (原: {oldId})", rustUuid, localDevice.DeviceId);
+            var oldId = localDevice.DeviceId;
+            localDevice.DeviceId = rustUuid;
+            if (!repo.RenameLocalDeviceKey(oldId, rustUuid))
+            {
+                logger.LogWarning("步骤17b：平台主键更新失败，保持旧 DeviceId 以维护内存与数据库一致性");
+                localDevice.DeviceId = oldId;
+                return;
+            }
+        }
+
+        if (!string.IsNullOrEmpty(localDevice.StateJson))
+        {
+            localDevice.StateJson = string.Empty;
+            repo.AddOrUpdateLocalDevice(localDevice);
+            logger.LogInformation("步骤17b：已清理旧加密状态 blob（密钥由 Rust 私有库持有）");
+        }
+
+        // 远程设备旧密钥列值已全部迁移至 Rust，清空平台存储
+        // 仅当所有设备迁移均成功且持久化已确认后才清理，否则保留旧密钥允许下次启动重试
+        if (allMigrationsSucceeded)
+        {
+            int cleared = repo.ClearRemoteSecrets();
+            if (cleared > 0)
+            {
+                logger.LogInformation("步骤17b：已清空 {count} 条旧设备密钥记录", cleared);
+            }
+        }
+        else
+        {
+            logger.LogWarning("步骤17b：存在迁移失败的设备，跳过清空旧密钥列，下次启动将重试");
+        }
+
+        await Task.CompletedTask;
     }
 
     private static void LogSubtaskDone(ILogger logger, string name, Task task)
@@ -403,6 +489,7 @@ public static class AppLifecycleHelper
         .AddSingleton<UserSettingsService>()
         .AddSingleton<IUserSettingsService>(sp => sp.GetRequiredService<UserSettingsService>())
         .AddSingleton<IGeneralSettingsService>(sp => sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
+        .AddSingleton<IOverlaySettings>(sp => (IOverlaySettings)sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
         .AddSingleton<NotifyRelay.Worker.Configuration.IDeepSeekBalanceSettings, DeepSeekBalanceSettingsAccessor>()
 
         // Database and Repositories
@@ -468,9 +555,23 @@ public static class AppLifecycleHelper
         // Overlay Render Service
         .AddSingleton<OverlayRenderService>()
 
+        // 叠加层功能：登记后由 OverlayRenderService 主初始化按各自开关自动引导，
+        // 新增功能只需在此追加一行登记，无需改动启动流程
+        .AddSingleton<IOverlayFeature, KeyboardOverlayFeature>()
+        .AddSingleton<IOverlayFeature, LogiBatteryOverlayFeature>()
+        .AddSingleton<IOverlayFeature, HeartRateOverlayFeature>()
+
         // Heart Rate BLE Service
         .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
         .AddSingleton<ViewModels.Settings.HeartRateViewModel>()
+
+        // 罗技电池（LogiBattery）Provider 和 ViewModel
+        .AddSingleton<LogiBatteryProvider>()
+        .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
+        .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
+
+        // 时间浮窗（Clock）ViewModel
+        .AddSingleton<ViewModels.Settings.ClockViewModel>()
 
         // ViewModels
         .AddSingleton<MainPageViewModel>()

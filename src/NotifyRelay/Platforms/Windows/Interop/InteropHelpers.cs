@@ -90,11 +90,31 @@ public static class InteropHelpers
     [DllImport("user32.dll")]
     public static extern void SetForegroundWindow(nint hWnd);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern nint GetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex);
+    // 32 位 user32.dll 不导出 *WindowLongPtrW（该名称在 Win32 头文件中仅为 64 位的宏别名），
+    // 因此按 nint.Size 分派：64 位走 *WindowLongPtrW，32 位走 *WindowLongW。
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern nint GetWindowLongPtrW(nint hWnd, int nIndex);
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern nint SetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex, nint dwNewLong);
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern nint SetWindowLongPtrW(nint hWnd, int nIndex, nint dwNewLong);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW", SetLastError = true)]
+    private static extern int GetWindowLongW(nint hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongW", SetLastError = true)]
+    private static extern int SetWindowLongW(nint hWnd, int nIndex, int dwNewLong);
+
+    /// <summary>读取窗口 long 值（32/64 位兼容包装）。</summary>
+    public static nint GetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex)
+        => nint.Size == 8
+            ? GetWindowLongPtrW(hWnd, (int)nIndex)
+            : new nint(GetWindowLongW(hWnd, (int)nIndex));
+
+    /// <summary>写入窗口 long 值（32/64 位兼容包装）。</summary>
+    public static nint SetWindowLongPtr(nint hWnd, GetWindowLongFlags nIndex, nint dwNewLong)
+        => nint.Size == 8
+            ? SetWindowLongPtrW(hWnd, (int)nIndex, dwNewLong)
+            : new nint(SetWindowLongW(hWnd, (int)nIndex, dwNewLong.ToInt32()));
 
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

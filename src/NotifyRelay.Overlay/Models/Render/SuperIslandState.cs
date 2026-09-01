@@ -17,7 +17,32 @@ public class SuperIslandState
     public long TimerValue { get; set; }
     public long TimerStartTime { get; set; }
 
+    /// <summary>
+    /// 暂停态计时器固定显示秒数（&gt;0 表示计时器处于暂停，直接显示该值，不随时间流逝）。
+    /// </summary>
+    public long PausedSeconds { get; set; }
+
     public long LastUpdateTime { get; set; }
+
+    /// <summary>
+    /// 完整解析后的 param_v2 结构化模型（Android superislandui model 层移植）。
+    /// </summary>
+    public ParamV2? ParamV2 { get; set; }
+
+    /// <summary>
+    /// 业务标识（如 miui_flashlight 强制仅摘要、media 按媒体生命周期处理）。
+    /// </summary>
+    public string? Business => ParamV2?.Business;
+
+    /// <summary>
+    /// 仅摘要显示，禁止展开为大岛（对应 Android summaryOnly 业务）。
+    /// </summary>
+    public bool SummaryOnly => string.Equals(Business, "miui_flashlight", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// 是否媒体类条目（对应 Android MediaCapsulePresenter 注入的 business=media，生命周期 20s）。
+    /// </summary>
+    public bool IsMedia => string.Equals(Business, "media", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// 原始 param_v2_raw JSON，用于后续增量合并解析
@@ -61,6 +86,9 @@ public class SuperIslandState
 
     public string GetDisplayTime()
     {
+        // 暂停态：显示固定值，不随时间流逝（对应 Android timerType -2/2）
+        if (PausedSeconds > 0) return FormatTime(PausedSeconds);
+
         if (TimerValue <= 0 && TimerType == TimerType.None) return string.Empty;
 
         var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

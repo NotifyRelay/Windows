@@ -143,6 +143,7 @@ public partial class OverlayRenderService
             if (existing != null)
             {
                 // 处理增量变更合并
+                int oldProgress = existing.State.Progress;
                 if (!string.IsNullOrEmpty(state.ChangesJson))
                 {
                     existing.State.MergeChanges(state.ChangesJson);
@@ -153,7 +154,11 @@ public partial class OverlayRenderService
                 if (!string.IsNullOrEmpty(state.Subtitle)) existing.State.Subtitle = state.Subtitle;
                 if (!string.IsNullOrEmpty(state.Extra)) existing.State.Extra = state.Extra;
                 if (state.IconPng != null) existing.State.IconPng = state.IconPng;
-                if (state.Pics != null) existing.State.Pics = state.Pics;
+                if (state.Pics != null)
+                {
+                    existing.State.Pics = state.Pics;
+                    InvalidateSuperIslandPics(existing);
+                }
                 if (state.Progress > 0) existing.State.Progress = state.Progress;
                 if (state.TimerType != TimerType.None) existing.State.TimerType = state.TimerType;
                 if (state.TimerValue > 0) existing.State.TimerValue = state.TimerValue;
@@ -166,6 +171,13 @@ public partial class OverlayRenderService
 
                 existing.LastUpdateTime = Stopwatch.GetTimestamp();
 
+                // 进度变化 → 重新展开（对齐 Android：进度更新时浮窗弹回展开态）
+                if (existing.State.Progress != oldProgress)
+                {
+                    existing.IsExpanded = true;
+                    existing.ExpandedSince = Stopwatch.GetTimestamp();
+                }
+
                 // 触发 UI 刷新：使缓存的 Layout 失效（延迟释放，由渲染线程统一执行）
                 DeferDispose(existing.TitleLayout);
                 existing.TitleLayout = null;
@@ -175,13 +187,6 @@ public partial class OverlayRenderService
                 existing.AdditionalTextLayout = null;
                 DeferDispose(existing.ExtraLayout);
                 existing.ExtraLayout = null;
-
-                // Extra 变更时重新展开
-                if (!string.IsNullOrEmpty(state.Extra))
-                {
-                    existing.IsExpanded = true;
-                    existing.ExpandedSince = Stopwatch.GetTimestamp();
-                }
                 return;
             }
 
@@ -282,6 +287,7 @@ public partial class OverlayRenderService
                     s.SubtitleLayout?.Dispose(); s.SubtitleLayout = null;
                     s.AdditionalTextLayout?.Dispose(); s.AdditionalTextLayout = null;
                     s.ExtraLayout?.Dispose(); s.ExtraLayout = null;
+                    InvalidateSuperIslandPics(s);
                 }
             }
         }
@@ -289,5 +295,19 @@ public partial class OverlayRenderService
         {
             Monitor.Exit(_lock);
         }
+    }
+
+    /// <summary>使 SuperIsland 多图位图槽失效并延迟释放（Pics 更新或覆盖层重建时调用）。</summary>
+    private void InvalidateSuperIslandPics(SuperIslandItem s)
+    {
+        DeferDispose(s.AvatarBitmap); s.AvatarBitmap = null;
+        DeferDispose(s.BigImageLeftBitmap); s.BigImageLeftBitmap = null;
+        DeferDispose(s.BigImageRightBitmap); s.BigImageRightBitmap = null;
+        DeferDispose(s.PicInfoBitmap); s.PicInfoBitmap = null;
+        DeferDispose(s.LeftIconBitmap); s.LeftIconBitmap = null;
+        DeferDispose(s.RightIconBitmap); s.RightIconBitmap = null;
+        lock (s.FailedPicKeys) s.FailedPicKeys.Clear();
+        lock (s.UrlPngCache) s.UrlPngCache.Clear();
+        s.UrlFetching.Clear();
     }
 }
