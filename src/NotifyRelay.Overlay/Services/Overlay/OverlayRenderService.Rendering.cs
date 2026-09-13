@@ -678,18 +678,28 @@ public partial class OverlayRenderService
         var bgRR = new RoundedRectangle(new RectangleF(cardX, y, cardWidth, cardHeight), 16, 16);
         rt.FillRoundedRectangle(ref bgRR, bgBrush);
 
+        // 模板背景 bgInfo（覆盖于默认深色底之上：type=1 全屏 / type=2 仅右侧）
+        if (pv?.BgInfo != null)
+        {
+            LogProbe("draw -> bgInfo");
+            DrawBgInfoTemplate(item, rt, cardX, y, cardWidth, cardHeight, opacity);
+        }
+
         // 再按模板分支绘制内容
         float cx = cardX + pad;
         float cy = y + pad;
 
-        LogProbe($"EXPAND entry: SourceId={item.SourceId} K={(pv == null ? "pvNULL" : pv.ParamIsland != null ? "paramIsland" : pv.BaseInfo != null ? "baseInfo" : pv.ChatInfo != null ? "chatInfo" : pv.AnimTextInfo != null ? "animTextInfo" : pv.HighlightInfo != null ? "highlightInfo" : pv.PicInfo != null ? "picInfo" : pv.MultiProgressInfo != null ? "multiProgressInfo" : (pv.TextButton != null || pv.Actions != null || pv.HintInfo != null) ? "actions/hint" : "default")}");
+        LogProbe($"EXPAND entry: SourceId={item.SourceId} K={(pv == null ? "pvNULL" : pv.ParamIsland != null ? "paramIsland" : pv.BaseInfo != null ? "baseInfo" : pv.ChatInfo != null ? "chatInfo" : pv.AnimTextInfo != null ? "animTextInfo" : pv.HighlightInfo != null ? "highlightInfo" : pv.HighlightInfoV3 != null ? "highlightInfoV3" : pv.PicInfo != null ? "picInfo" : pv.IconTextInfo != null ? "iconTextInfo" : pv.CoverInfo != null ? "coverInfo" : pv.MultiProgressInfo != null ? "multiProgressInfo" : (pv.TextButton != null || pv.Actions != null || pv.HintInfo != null) ? "actions/hint" : "default")}");
 
         string kind = pv?.ParamIsland != null ? "paramIsland"
             : pv?.BaseInfo != null ? "baseInfo"
             : pv?.ChatInfo != null ? "chatInfo"
             : pv?.AnimTextInfo != null ? "animTextInfo"
             : pv?.HighlightInfo != null ? "highlightInfo"
+            : pv?.HighlightInfoV3 != null ? "highlightInfoV3"
             : pv?.PicInfo != null ? "picInfo"
+            : pv?.IconTextInfo != null ? "iconTextInfo"
+            : pv?.CoverInfo != null ? "coverInfo"
             : pv?.MultiProgressInfo != null ? "multiProgressInfo"
             : pv?.TextButton != null ? "textButton"
             : "default";
@@ -722,10 +732,25 @@ public partial class OverlayRenderService
                 LogProbe("dispatch -> highlightInfo");
                 mainH = DrawHighlightTemplate(item, rt, cx, cy, contentWidth, opacity);
             }
+            else if (pv?.HighlightInfoV3 != null)
+            {
+                LogProbe("dispatch -> highlightInfoV3");
+                mainH = DrawHighlightInfoV3Template(item, rt, cx, cy, contentWidth, opacity);
+            }
             else if (pv?.PicInfo != null)
             {
                 LogProbe("dispatch -> picInfo");
                 mainH = DrawPicInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.IconTextInfo != null)
+            {
+                LogProbe("dispatch -> iconTextInfo");
+                mainH = DrawIconTextInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
+            }
+            else if (pv?.CoverInfo != null)
+            {
+                LogProbe("dispatch -> coverInfo");
+                mainH = DrawCoverInfoTemplate(item, rt, cx, cy, contentWidth, opacity);
             }
             else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null)
             {
@@ -805,7 +830,10 @@ public partial class OverlayRenderService
         else if (pv?.ChatInfo != null) h = MeasureChatInfoHeight(item);
         else if (pv?.AnimTextInfo != null) h = MeasureAnimTextHeight(item);
         else if (pv?.HighlightInfo != null) h = MeasureHighlightHeight(item);
+        else if (pv?.HighlightInfoV3 != null) h = MeasureHighlightV3Height(item);
         else if (pv?.PicInfo != null) h = 48 + 4;
+        else if (pv?.IconTextInfo != null) h = MeasureIconTextInfoHeight(item);
+        else if (pv?.CoverInfo != null) h = MeasureCoverInfoHeight(item);
         else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null) h = MeasureActionsHeight(item, contentWidth);
         else h = MeasureDefaultHeight(item);
 
@@ -873,6 +901,37 @@ public partial class OverlayRenderService
         if (anim.TimerInfo != null) h += 22;
         if (!string.IsNullOrEmpty(anim.Content)) h += 18;
         return Math.Max(iconSize, h) + 4;
+    }
+
+    private float MeasureIconTextInfoHeight(SuperIslandItem item)
+    {
+        var info = item.State.ParamV2!.IconTextInfo!;
+        float h = 0;
+        if (!string.IsNullOrEmpty(info.Title)) h += 22;
+        if (!string.IsNullOrEmpty(info.Content)) h += 18;
+        if (!string.IsNullOrEmpty(info.SubContent)) h += 18;
+        return Math.Max(56, h) + 4;
+    }
+
+    private float MeasureCoverInfoHeight(SuperIslandItem item)
+    {
+        var cover = item.State.ParamV2!.CoverInfo!;
+        float h = 0;
+        if (!string.IsNullOrEmpty(cover.Title)) h += 22;
+        if (!string.IsNullOrEmpty(cover.Content)) h += 18;
+        if (!string.IsNullOrEmpty(cover.SubContent)) h += 18;
+        return Math.Max(48, h) + 4;
+    }
+
+    private float MeasureHighlightV3Height(SuperIslandItem item)
+    {
+        var v3 = item.State.ParamV2!.HighlightInfoV3!;
+        float h = 0;
+        if (!string.IsNullOrEmpty(v3.PrimaryText)) h += 26;
+        if (!string.IsNullOrEmpty(v3.SecondaryText)) h += 18;
+        if (!string.IsNullOrEmpty(v3.HighLightText)) h += 24;
+        if (v3.ActionInfo != null) h += 34;
+        return h + 2;
     }
 
     private float MeasureActionsHeight(SuperIslandItem item, float contentWidth)
@@ -949,16 +1008,18 @@ public partial class OverlayRenderService
         }
 
         float tx = cx + avatarSize + 12;
+        var chatTitleColor = ResolveThemeColor(chat.ColorTitle, chat.ColorTitleDark, new Color4(1, 1, 1, 1));
+        var chatContentColor = ResolveThemeColor(chat.ColorContent, chat.ColorContentDark, new Color4(0.75f, 0.75f, 0.75f, 1));
         if (!string.IsNullOrEmpty(chat.Title))
         {
             using var lyt = CreateTruncatedLayout(chat.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, textW, 20);
-            using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(chatTitleColor.R, chatTitleColor.G, chatTitleColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, cy), lyt, brush);
         }
         if (!string.IsNullOrEmpty(chat.Content))
         {
             using var lyt = CreateTruncatedLayout(chat.Content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.75f, 0.75f, 0.75f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(chatContentColor.R, chatContentColor.G, chatContentColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, cy + 22), lyt, brush);
         }
         // 计时器（右侧小字）
@@ -999,11 +1060,14 @@ public partial class OverlayRenderService
 
         float tx = cx + effIconSize + 12;
         float ty = cy;
+        var hiTitleColor = ResolveThemeColor(hi.ColorTitle, hi.ColorTitleDark, new Color4(0.25f, 0.77f, 1.0f, 1));
+        var hiContentColor = ResolveThemeColor(hi.ColorContent, hi.ColorContentDark, new Color4(0.8f, 0.8f, 0.8f, 1));
+        var hiSubColor = ResolveThemeColor(hi.ColorSubContent, hi.ColorSubContentDark, new Color4(0.6f, 0.6f, 0.6f, 1));
         // 主文本 15sp（高亮色）
         if (!string.IsNullOrEmpty(hi.Title))
         {
             using var lyt = CreateTruncatedLayout(hi.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 15, textW, 22);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.25f, 0.77f, 1.0f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(hiTitleColor.R, hiTitleColor.G, hiTitleColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 22;
         }
@@ -1013,7 +1077,7 @@ public partial class OverlayRenderService
             var t = FormatDigitTimer(hi.TimerInfo);
             using var fmt = CreateTextFormat("Consolas", DWriteFontWeight.Normal, 16);
             using var lyt = _dwFactory.CreateTextLayout(t, fmt, textW, 22);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.25f, 0.77f, 1.0f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(hiTitleColor.R, hiTitleColor.G, hiTitleColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 22;
         }
@@ -1021,7 +1085,7 @@ public partial class OverlayRenderService
         if (!string.IsNullOrEmpty(hi.Content) && hi.Type != 1)
         {
             using var lyt = CreateTruncatedLayout(hi.Content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.8f, 0.8f, 0.8f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(hiContentColor.R, hiContentColor.G, hiContentColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 18;
         }
@@ -1029,7 +1093,7 @@ public partial class OverlayRenderService
         if (!string.IsNullOrEmpty(hi.SubContent))
         {
             using var lyt = CreateTruncatedLayout(hi.SubContent, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.6f, 0.6f, 0.6f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(hiSubColor.R, hiSubColor.G, hiSubColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 18;
         }
@@ -1142,18 +1206,18 @@ public partial class OverlayRenderService
         // type=1：次要文本在上；type=2：主要文本在上
         if (bi.Type == 1)
         {
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, bi.ColorContent);
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, bi.ColorTitle);
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 12, false, bi.ColorExtraTitle);
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, PreferDarkHex(bi.ColorContent, bi.ColorContentDark));
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, PreferDarkHex(bi.ColorTitle, bi.ColorTitleDark));
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 12, false, PreferDarkHex(bi.ColorExtraTitle, bi.ColorExtraTitleDark));
         }
         else
         {
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, bi.ColorTitle);
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, PreferDarkHex(bi.ColorTitle, bi.ColorTitleDark));
             if (!string.IsNullOrEmpty(bi.ExtraTitle))
             {
-                ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 14, true, bi.ColorExtraTitle);
+                ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 14, true, PreferDarkHex(bi.ColorExtraTitle, bi.ColorExtraTitleDark));
             }
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, bi.ColorContent);
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, PreferDarkHex(bi.ColorContent, bi.ColorContentDark));
         }
 
         // 特殊标签（specialTitle：圆角背景块）
@@ -1163,10 +1227,12 @@ public partial class OverlayRenderService
             float tagW = MeasureTextWidth(tag, "Microsoft YaHei", DWriteFontWeight.Normal, 11) + 12;
             using var tagFmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 11);
             using var tagLyt = _dwFactory.CreateTextLayout(tag, tagFmt, tagW, 18);
-            using var bgBrush = CreateSolidColorBrush(rt, new Color4(0.3f, 0.3f, 0.3f, 0.8f));
+            var tagBgColor = ResolveThemeColor(bi.ColorSpecialBg, bi.ColorSpecialBgDark, new Color4(0.3f, 0.3f, 0.3f, 1));
+            var tagTextColor = ResolveThemeColor(bi.ColorSpecialTitle, bi.ColorSpecialTitleDark, new Color4(0.8f, 0.8f, 0.8f, 1));
+            using var bgBrush = CreateSolidColorBrush(rt, new Color4(tagBgColor.R, tagBgColor.G, tagBgColor.B, 0.8f));
             var tagRR = new RoundedRectangle(new RectangleF(cx, ty, tagW, 18), 4, 4);
             rt.FillRoundedRectangle(ref tagRR, bgBrush);
-            using var textBrush = CreateSolidColorBrush(rt, new Color4(0.8f, 0.8f, 0.8f, opacity));
+            using var textBrush = CreateSolidColorBrush(rt, new Color4(tagTextColor.R, tagTextColor.G, tagTextColor.B, opacity));
             rt.DrawTextLayout(new Vector2(cx + 6, ty + 1), tagLyt, textBrush);
             ty += 22;
         }
@@ -1333,8 +1399,9 @@ public partial class OverlayRenderService
         float tx = cx + picSize + 12;
         if (!string.IsNullOrEmpty(pic.Title))
         {
+            var picTitleColor = ResolveThemeColor(pic.ColorTitle, pic.ColorTitleDark, new Color4(1, 1, 1, 1));
             using var lyt = CreateTruncatedLayout(pic.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, contentWidth - picSize - 12, 20);
-            using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(picTitleColor.R, picTitleColor.G, picTitleColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, cy + 14), lyt, brush);
         }
 
@@ -1358,10 +1425,13 @@ public partial class OverlayRenderService
         }
 
         float tx = cx + iconSize + 12;
+        var animTitleColor = ResolveThemeColor(anim.ColorTitle, anim.ColorTitleDark, new Color4(1, 1, 1, 1));
+        var animContentColor = ResolveThemeColor(anim.ColorContent, anim.ColorContentDark, new Color4(0.75f, 0.75f, 0.75f, 1));
+        var animTimerColor = ResolveThemeColor(anim.ColorTitle, anim.ColorTitleDark, new Color4(0.25f, 0.77f, 1.0f, 1));
         if (!string.IsNullOrEmpty(anim.Title))
         {
             using var lyt = CreateTruncatedLayout(anim.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 15, textW, 22);
-            using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(animTitleColor.R, animTitleColor.G, animTitleColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 22;
         }
@@ -1370,19 +1440,216 @@ public partial class OverlayRenderService
             var t = FormatDigitTimer(anim.TimerInfo);
             using var fmt = CreateTextFormat("Consolas", DWriteFontWeight.Normal, 15);
             using var lyt = _dwFactory.CreateTextLayout(t, fmt, textW, 22);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.25f, 0.77f, 1.0f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(animTimerColor.R, animTimerColor.G, animTimerColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 22;
         }
         if (!string.IsNullOrEmpty(anim.Content))
         {
             using var lyt = CreateTruncatedLayout(anim.Content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
-            using var brush = CreateSolidColorBrush(rt, new Color4(0.75f, 0.75f, 0.75f, opacity));
+            using var brush = CreateSolidColorBrush(rt, new Color4(animContentColor.R, animContentColor.G, animContentColor.B, opacity));
             rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
             ty += 18;
         }
 
         return Math.Max(iconSize, ty - cy) + 4;
+    }
+
+    /// <summary>
+    /// 展开态新图文组件 iconTextInfo（对齐 Android IconTextCompose）：
+    /// 左侧图标（56x56 显示区，48dp 图）+ 右侧 主/次文本。
+    /// </summary>
+    private float DrawIconTextInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
+    {
+        var info = item.State.ParamV2!.IconTextInfo!;
+        const float iconSize = 48;
+        const float iconBox = 56;
+        float textW = contentWidth - iconBox - 12;
+        float ty = cy;
+
+        if (item.IconTextInfoBitmap != null)
+        {
+            float iconY = cy + (iconBox - iconSize) / 2f;
+            DrawCoverBitmap(rt, item.IconTextInfoBitmap, cx, iconY, iconSize, opacity);
+        }
+        else if (info.IconKey != null)
+        {
+            DrawCirclePlaceholder(rt, cx, cy, iconSize, opacity);
+        }
+
+        float tx = cx + iconBox + 12;
+        var titleColor = ResolveThemeColor(info.ColorTitle, info.ColorTitleDark, new Color4(1, 1, 1, 1));
+        var contentColor = ResolveThemeColor(info.ColorContent, info.ColorContentDark, new Color4(0.8f, 0.8f, 0.8f, 1));
+
+        if (!string.IsNullOrEmpty(info.Title))
+        {
+            using var lyt = CreateTruncatedLayout(info.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 15, textW, 22);
+            using var brush = CreateSolidColorBrush(rt, new Color4(titleColor.R, titleColor.G, titleColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 22;
+        }
+        if (!string.IsNullOrEmpty(info.Content))
+        {
+            using var lyt = CreateTruncatedLayout(info.Content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
+            using var brush = CreateSolidColorBrush(rt, new Color4(contentColor.R, contentColor.G, contentColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 18;
+        }
+        if (!string.IsNullOrEmpty(info.SubContent))
+        {
+            using var lyt = CreateTruncatedLayout(info.SubContent, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
+            using var brush = CreateSolidColorBrush(rt, new Color4(contentColor.R, contentColor.G, contentColor.B, 0.7f * opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 18;
+        }
+
+        return Math.Max(iconBox, ty - cy) + 4;
+    }
+
+    /// <summary>
+    /// 展开态封面组件 coverInfo（对齐 Android CoverCompose）：
+    /// 左侧封面图（48dp，与文本整体纵向居中）+ 右侧 主/次/次2 文本。
+    /// </summary>
+    private float DrawCoverInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
+    {
+        var cover = item.State.ParamV2!.CoverInfo!;
+        const float coverSize = 48;
+        float textW = contentWidth - coverSize - 12;
+        float ty = cy;
+
+        if (item.CoverInfoBitmap != null)
+        {
+            DrawCoverBitmap(rt, item.CoverInfoBitmap, cx, cy, coverSize, opacity);
+        }
+        else if (cover.PicCover != null)
+        {
+            DrawCirclePlaceholder(rt, cx, cy, coverSize, opacity);
+        }
+
+        float tx = cx + coverSize + 12;
+        var titleColor = ResolveThemeColor(cover.ColorTitle, cover.ColorTitleDark, new Color4(1, 1, 1, 1));
+        var contentColor = ResolveThemeColor(cover.ColorContent, cover.ColorContentDark, new Color4(0.8f, 0.8f, 0.8f, 1));
+        var subColor = ResolveThemeColor(cover.ColorSubContent, cover.ColorSubContentDark, new Color4(0.6f, 0.6f, 0.6f, 1));
+
+        if (!string.IsNullOrEmpty(cover.Title))
+        {
+            using var lyt = CreateTruncatedLayout(cover.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 15, textW, 22);
+            using var brush = CreateSolidColorBrush(rt, new Color4(titleColor.R, titleColor.G, titleColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 22;
+        }
+        if (!string.IsNullOrEmpty(cover.Content))
+        {
+            using var lyt = CreateTruncatedLayout(cover.Content, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
+            using var brush = CreateSolidColorBrush(rt, new Color4(contentColor.R, contentColor.G, contentColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 18;
+        }
+        if (!string.IsNullOrEmpty(cover.SubContent))
+        {
+            using var lyt = CreateTruncatedLayout(cover.SubContent, "Microsoft YaHei", DWriteFontWeight.Normal, 12, textW, 18);
+            using var brush = CreateSolidColorBrush(rt, new Color4(subColor.R, subColor.G, subColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(tx, ty), lyt, brush);
+            ty += 18;
+        }
+
+        return Math.Max(coverSize, ty - cy) + 4;
+    }
+
+    /// <summary>
+    /// 展开态按钮组件5 highlightInfoV3（对齐 Android HighlightInfoV3Compose）：
+    /// 高亮主文本（primaryColor）+ 可选补充文本（划线）+ 文字标签（highLightbgColor）+ 圆头按钮。
+    /// </summary>
+    private float DrawHighlightInfoV3Template(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
+    {
+        var v3 = item.State.ParamV2!.HighlightInfoV3!;
+        float ty = cy;
+
+        var primaryColor = ResolveThemeColor(v3.PrimaryColor, v3.PrimaryColorDark, new Color4(0.25f, 0.77f, 1.0f, 1));
+        var secondaryColor = ResolveThemeColor(v3.SecondaryColor, v3.SecondaryColorDark, new Color4(0.6f, 0.6f, 0.6f, 1));
+        var tagTextColor = ResolveThemeColor(v3.HighLightTextColor, v3.HighLightTextColorDark, new Color4(1, 1, 1, 1));
+        var tagBgColor = ResolveThemeColor(v3.HighLightBgColor, v3.HighLightBgColorDark, new Color4(0.25f, 0.77f, 1.0f, 1));
+
+        // 主文本（高亮）
+        if (!string.IsNullOrEmpty(v3.PrimaryText))
+        {
+            using var lyt = CreateTruncatedLayout(v3.PrimaryText, "Microsoft YaHei", DWriteFontWeight.Bold, 20, contentWidth, 26);
+            using var brush = CreateSolidColorBrush(rt, new Color4(primaryColor.R, primaryColor.G, primaryColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(cx, ty), lyt, brush);
+            ty += 26;
+        }
+        // 补充文本（可选划线）
+        if (!string.IsNullOrEmpty(v3.SecondaryText))
+        {
+            float secW = MeasureTextWidth(v3.SecondaryText, "Microsoft YaHei", DWriteFontWeight.Normal, 12);
+            using var lyt = CreateTruncatedLayout(v3.SecondaryText, "Microsoft YaHei", DWriteFontWeight.Normal, 12, contentWidth, 18);
+            using var brush = CreateSolidColorBrush(rt, new Color4(secondaryColor.R, secondaryColor.G, secondaryColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(cx, ty), lyt, brush);
+            if (v3.ShowSecondaryLine)
+            {
+                float lineY = ty + 9;
+                rt.DrawLine(new Vector2(cx, lineY), new Vector2(cx + Math.Min(secW, contentWidth), lineY), brush, 1f);
+            }
+            ty += 18;
+        }
+        // 文字标签（圆角背景块）
+        if (!string.IsNullOrEmpty(v3.HighLightText))
+        {
+            var tag = v3.HighLightText;
+            float tagW = MeasureTextWidth(tag, "Microsoft YaHei", DWriteFontWeight.Normal, 12) + 16;
+            using var tagFmt = CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 12);
+            using var tagLyt = _dwFactory.CreateTextLayout(tag, tagFmt, tagW, 20);
+            using var bgBrush = CreateSolidColorBrush(rt, new Color4(tagBgColor.R, tagBgColor.G, tagBgColor.B, 0.9f * opacity));
+            var tagRR = new RoundedRectangle(new RectangleF(cx, ty, tagW, 20), 10, 10);
+            rt.FillRoundedRectangle(ref tagRR, bgBrush);
+            using var textBrush = CreateSolidColorBrush(rt, new Color4(tagTextColor.R, tagTextColor.G, tagTextColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(cx + 8, ty + 2), tagLyt, textBrush);
+            ty += 24;
+        }
+        // 圆头图文按钮
+        var action = v3.ActionInfo;
+        if (action != null)
+        {
+            var title = action.ActionTitle ?? action.Action ?? "按钮";
+            float btnW = contentWidth;
+            var bgColor = ResolveThemeColor(action.ActionBgColor, action.ActionBgColorDark, new Color4(0.22f, 0.22f, 0.22f, 1));
+            var textColor = ResolveThemeColor(action.ActionTitleColor, action.ActionTitleColorDark, new Color4(0.29f, 0.56f, 0.94f, 1));
+            var btnRR = new RoundedRectangle(new RectangleF(cx, ty, btnW, 30), 15, 15);
+            using var bgBrush = CreateSolidColorBrush(rt, new Color4(bgColor.R, bgColor.G, bgColor.B, 0.8f));
+            rt.FillRoundedRectangle(ref btnRR, bgBrush);
+            using var lyt = CreateTruncatedLayout(title, "Microsoft YaHei", DWriteFontWeight.Normal, 14, btnW - 12, 18);
+            using var textBrush = CreateSolidColorBrush(rt, new Color4(textColor.R, textColor.G, textColor.B, opacity));
+            rt.DrawTextLayout(new Vector2(cx + 6, ty + 6), lyt, textBrush);
+            ty += 34;
+        }
+
+        return ty - cy + 2;
+    }
+
+    /// <summary>
+    /// 模板背景 bgInfo（对齐 Android BgInfo）：type=1 全屏铺满卡片，type=2 仅右侧；
+    /// 有 picBg 位图时拉伸绘制图片，否则填充 colorBg 背景色（绘制在默认深色底之上）。
+    /// </summary>
+    private void DrawBgInfoTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float x, float y, float width, float height, float opacity)
+    {
+        var bg = item.State.ParamV2!.BgInfo!;
+        bool rightOnly = bg.Type == 2;
+        float bx = rightOnly ? x + width / 2f : x;
+        float bw = rightOnly ? width / 2f : width;
+
+        if (item.BgInfoBitmap != null)
+        {
+            var dest = new Vortice.Mathematics.Rect((int)bx, (int)y, (int)bw, (int)height);
+            var src = new Vortice.Mathematics.Rect(0, 0, (int)item.BgInfoBitmap.Size.Width, (int)item.BgInfoBitmap.Size.Height);
+            rt.DrawBitmap(item.BgInfoBitmap, dest, opacity, BitmapInterpolationMode.Linear, src);
+        }
+        var color = ParseHexColor(bg.ColorBg);
+        if (color != null)
+        {
+            using var brush = CreateSolidColorBrush(rt, new Color4(color.Value.R, color.Value.G, color.Value.B, 0.92f * opacity));
+            var rr = new RoundedRectangle(new RectangleF(bx, y, bw, height), 16, 16);
+            rt.FillRoundedRectangle(ref rr, brush);
+        }
     }
 
     private float DrawActionsTemplate(SuperIslandItem item, ID2D1DCRenderTarget rt, float cx, float cy, float contentWidth, float opacity)
@@ -1397,15 +1664,17 @@ public partial class OverlayRenderService
         {
             if (!string.IsNullOrEmpty(hint.Title))
             {
+                var hintTitleColor = ResolveThemeColor(hint.ColorTitle, hint.ColorTitleDark, new Color4(1, 1, 1, 1));
                 using var lyt = CreateTruncatedLayout(hint.Title, "Microsoft YaHei", DWriteFontWeight.Bold, 14, contentWidth, 20);
-                using var brush = CreateSolidColorBrush(rt, new Color4(1, 1, 1, opacity));
+                using var brush = CreateSolidColorBrush(rt, new Color4(hintTitleColor.R, hintTitleColor.G, hintTitleColor.B, opacity));
                 rt.DrawTextLayout(new Vector2(cx, ty), lyt, brush);
                 ty += 22;
             }
             if (!string.IsNullOrEmpty(hint.SubTitle))
             {
+                var hintSubColor = ResolveThemeColor(hint.ColorSubTitle, hint.ColorSubTitleDark, new Color4(0.8f, 0.8f, 0.8f, 1));
                 using var lyt = CreateTruncatedLayout(hint.SubTitle, "Microsoft YaHei", DWriteFontWeight.Normal, 12, contentWidth, 18);
-                using var brush = CreateSolidColorBrush(rt, new Color4(0.8f, 0.8f, 0.8f, opacity));
+                using var brush = CreateSolidColorBrush(rt, new Color4(hintSubColor.R, hintSubColor.G, hintSubColor.B, opacity));
                 rt.DrawTextLayout(new Vector2(cx, ty), lyt, brush);
                 ty += 20;
             }
@@ -1423,13 +1692,13 @@ public partial class OverlayRenderService
             foreach (var action in actions.Take(count))
             {
                 var title = action.ActionTitle ?? action.Action ?? "按钮";
-                var bgColor = ParseHexColor(action.ActionBgColor) ?? new Color4(0.22f, 0.22f, 0.22f, 0.8f);
-                var textColor = ParseHexColor(action.ActionTitleColor) ?? new Color4(0.29f, 0.56f, 0.94f, opacity);
+                var bgColor = ResolveThemeColor(action.ActionBgColor, action.ActionBgColorDark, new Color4(0.22f, 0.22f, 0.22f, 1));
+                var textColor = ResolveThemeColor(action.ActionTitleColor, action.ActionTitleColorDark, new Color4(0.29f, 0.56f, 0.94f, 1));
                 var btnRR = new RoundedRectangle(new RectangleF(bx, ty, btnW, 30), 8, 8);
-                using var bgBrush = CreateSolidColorBrush(rt, bgColor);
+                using var bgBrush = CreateSolidColorBrush(rt, new Color4(bgColor.R, bgColor.G, bgColor.B, 0.8f));
                 rt.FillRoundedRectangle(ref btnRR, bgBrush);
                 using var lyt = CreateTruncatedLayout(title, "Microsoft YaHei", DWriteFontWeight.Normal, 14, btnW - 12, 18);
-                using var textBrush = CreateSolidColorBrush(rt, textColor);
+                using var textBrush = CreateSolidColorBrush(rt, new Color4(textColor.R, textColor.G, textColor.B, opacity));
                 rt.DrawTextLayout(new Vector2(bx + 6, ty + 6), lyt, textBrush);
                 bx += btnW + buttonGap;
             }
@@ -1665,6 +1934,16 @@ public partial class OverlayRenderService
     {
         if (string.IsNullOrEmpty(text)) return 0;
         return size + 6;
+    }
+
+    /// <summary>浅色/深色双色字段取色：PC 深色背景优先取 Dark，缺失回退浅色。</summary>
+    private static string? PreferDarkHex(string? light, string? dark) => dark ?? light;
+
+    /// <summary>解析双色字段（优先深色）为 Color4；均缺失时返回 fallback。</summary>
+    private static Color4 ResolveThemeColor(string? light, string? dark, Color4 fallback)
+    {
+        var color = ParseHexColor(dark) ?? ParseHexColor(light);
+        return color ?? fallback;
     }
 
     /// <summary>解析 #RRGGBB 颜色，失败返回 null。</summary>

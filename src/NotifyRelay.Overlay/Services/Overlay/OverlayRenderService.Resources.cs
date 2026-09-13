@@ -114,6 +114,14 @@ public partial class OverlayRenderService
         item.RightIconBitmap = EnsurePicBitmap(item, item.RightIconBitmap, pics,
             island?.RightImage ?? GetBComponentPicKey(pv), rt);
 
+        // 新增 OS3 组件位图（iconTextInfo 图标 / coverInfo 封面 / bgInfo 背景图）
+        item.IconTextInfoBitmap = EnsurePicBitmap(item, item.IconTextInfoBitmap, pics,
+            pv?.IconTextInfo?.IconKey, rt);
+        item.CoverInfoBitmap = EnsurePicBitmap(item, item.CoverInfoBitmap, pics,
+            pv?.CoverInfo?.PicCover, rt);
+        item.BgInfoBitmap = EnsurePicBitmap(item, item.BgInfoBitmap, pics,
+            pv?.BgInfo?.PicBg, rt);
+
         // multiProgressInfo 节点与指针图（对齐 Android MultiProgressCompose）
         var mp = pv?.MultiProgressInfo;
         item.MultiForwardBitmap = EnsurePicBitmap(item, item.MultiForwardBitmap, pics, mp?.PicForward, rt);
