@@ -123,8 +123,8 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
         try
         {
             var iconPath = sender.GetColorValue(UIColorType.Background) == Colors.Black
-                ? "ms-appx:///Assets/Icons/SefirahDark.ico"
-                : "ms-appx:///Assets/Icons/SefirahLight.ico";
+                ? "ms-appx:///Assets/Icons/NotifyRelayDark.ico"
+                : "ms-appx:///Assets/Icons/NotifyRelayLight.ico";
 
             _ = DispatcherQueue.EnqueueAsync(() => TrayIcon.IconSource = new BitmapImage(new(iconPath)));
         }

@@ -45,7 +45,7 @@ public partial class App : Microsoft.UI.Xaml.Application
             };
             MainWindow.AppWindow.Title = "NotifyRelay";
             MainWindow.ExtendsContentIntoTitleBar = true;
-            MainWindow.SetIcon(@"Assets\Icons\SefirahLight.ico");
+            MainWindow.SetIcon(@"Assets\Icons\NotifyRelayLight.ico");
             WindowHandle = WindowNative.GetWindowHandle(MainWindow);
             var host = AppLifecycleHelper.BuildHost();
             Host = host;
