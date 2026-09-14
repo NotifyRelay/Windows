@@ -74,12 +74,6 @@ public partial class AboutViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task OpenPrivacyPolicy()
-    {
-        return Launcher.LaunchUriAsync(new Uri(Constants.ExternalUrl.PrivacyPolicyUrl)).AsTask();
-    }
-
-    [RelayCommand]
     private Task OpenLicense()
     {
         return Launcher.LaunchUriAsync(new Uri(Constants.ExternalUrl.LicenseUrl)).AsTask();

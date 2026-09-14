@@ -201,16 +201,6 @@
                 </wuc:SettingsCard.HeaderIcon>
                 <FontIcon Glyph="&#xE8A7;" />
             </wuc:SettingsCard>
-
-            <!--  Privacy Policy  -->
-            <wuc:SettingsCard
-                Command="{x:Bind ViewModel.OpenPrivacyPolicyCommand}"
-                Header="{helpers:ResourceString Name=PrivacyPolicy}"
-                IsClickEnabled="True">
-                <wuc:SettingsCard.HeaderIcon>
-                    <FontIcon Glyph="&#xE72E;" />
-                </wuc:SettingsCard.HeaderIcon>
-            </wuc:SettingsCard>
         </StackPanel>
     </ScrollViewer>
 </Page>

@@ -241,7 +241,7 @@
     <value>Cancel</value>
   </data>
   <data name="OnboardingWelcome.Title" xml:space="preserve">
-    <value>Welcome to Sefirah</value>
+    <value>Welcome to NotifyRelay</value>
   </data>
   <data name="OnboardingWelcome.Subtitle" xml:space="preserve">
     <value>To get started, download and install the companion app through the corresponding GitHub
