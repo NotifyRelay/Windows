@@ -34,11 +34,14 @@ public static partial class SuperIslandParamV2Parser
                 Actions = TryParse(() => ParseActions(root)),
                 HintInfo = TryParse(() => ParseHintInfo(root)),
                 TextButton = TryParse(() => ParseTextButton(root)),
+                IconTextInfo = TryParse(() => ParseIconTextInfo(root)),
+                CoverInfo = TryParse(() => ParseCoverInfo(root)),
+                HighlightInfoV3 = TryParse(() => ParseHighlightInfoV3(root)),
+                BgInfo = TryParse(() => ParseBgInfo(root)),
             };
 
-            // highlightInfo 缺失时尝试从 iconTextInfo 回退构造
-            result.HighlightInfo = TryParse(() => ParseHighlightInfo(root))
-                ?? TryParse(() => ParseHighlightFromIconText(root));
+            // highlightInfo 独立解析（iconTextInfo 已作为独立组件 ParseIconTextInfo 处理）
+            result.HighlightInfo = TryParse(() => ParseHighlightInfo(root));
 
             // 提取 aodPic 与 picFunction，供 A/B 区图标键解析
             var highlightPicFunction = result.HighlightInfo?.PicFunction;
@@ -164,12 +167,19 @@ public static partial class SuperIslandParamV2Parser
             PicFunction = GetString(bi, "picFunction")?.TrimOrNull(),
             PicFunctionDark = GetString(bi, "picFunctionDark")?.TrimOrNull(),
             ColorTitle = GetString(bi, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(bi, "colorTitleDark")?.TrimOrNull(),
             ColorSubTitle = GetString(bi, "colorSubTitle")?.TrimOrNull(),
+            ColorSubTitleDark = GetString(bi, "colorSubTitleDark")?.TrimOrNull(),
             ColorExtraTitle = GetString(bi, "colorExtraTitle")?.TrimOrNull(),
+            ColorExtraTitleDark = GetString(bi, "colorExtraTitleDark")?.TrimOrNull(),
             ColorSpecialTitle = GetString(bi, "colorSpecialTitle")?.TrimOrNull(),
+            ColorSpecialTitleDark = GetString(bi, "colorSpecialTitleDark")?.TrimOrNull(),
             ColorSpecialBg = GetString(bi, "colorSpecialBg")?.TrimOrNull(),
+            ColorSpecialBgDark = GetString(bi, "colorSpecialBgDark")?.TrimOrNull(),
             ColorContent = GetString(bi, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(bi, "colorContentDark")?.TrimOrNull(),
             ColorSubContent = GetString(bi, "colorSubContent")?.TrimOrNull(),
+            ColorSubContentDark = GetString(bi, "colorSubContentDark")?.TrimOrNull(),
             ShowDivider = GetBool(bi, "showDivider"),
             ShowContentDivider = GetBool(bi, "showContentDivider"),
         };
@@ -194,7 +204,9 @@ public static partial class SuperIslandParamV2Parser
             Content = GetString(ci, "content")?.TrimOrNull(),
             TimerInfo = ParseTimerInfo(ci),
             ColorTitle = GetString(ci, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(ci, "colorTitleDark")?.TrimOrNull(),
             ColorContent = GetString(ci, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(ci, "colorContentDark")?.TrimOrNull(),
         };
         if (result.Title == null && result.Content == null && result.PicProfile == null
             && result.AppIconPkg == null && result.TimerInfo == null)
@@ -218,8 +230,11 @@ public static partial class SuperIslandParamV2Parser
             SubContent = GetString(hi, "subContent")?.TrimOrNull(),
             Type = GetInt32(hi, "type"),
             ColorTitle = GetString(hi, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(hi, "colorTitleDark")?.TrimOrNull(),
             ColorContent = GetString(hi, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(hi, "colorContentDark")?.TrimOrNull(),
             ColorSubContent = GetString(hi, "colorSubContent")?.TrimOrNull(),
+            ColorSubContentDark = GetString(hi, "colorSubContentDark")?.TrimOrNull(),
             BigImageLeft = GetString(hi, "bigImageLeft")?.TrimOrNull(),
             BigImageRight = GetString(hi, "bigImageRight")?.TrimOrNull(),
             IconOnly = GetBool(hi, "iconOnly"),
@@ -231,42 +246,6 @@ public static partial class SuperIslandParamV2Parser
             return null;
         }
         return result;
-    }
-
-    /// <summary>highlightInfo 缺失时从 iconTextInfo 回退构造。</summary>
-    private static HighlightInfoData? ParseHighlightFromIconText(JsonElement root)
-    {
-        if (!root.TryGetProperty("iconTextInfo", out var iconText) || iconText.ValueKind != JsonValueKind.Object)
-            return null;
-
-        var title = GetString(iconText, "title")?.TrimOrNull();
-        var content = GetString(iconText, "content")?.TrimOrNull();
-        var sub = new[] { "subTitle", "tip", "desc", "description" }
-            .Select(k => GetString(iconText, k)?.TrimOrNull())
-            .FirstOrDefault(v => !string.IsNullOrEmpty(v));
-        if (title == null && content == null && sub == null) return null;
-
-        var animIcon = iconText.GetPropertyOrNull("animIconInfo");
-        var iconKey = GetString(animIcon, "src")?.TrimOrNull();
-        var iconKeyDark = GetString(animIcon, "srcDark")?.TrimOrNull();
-
-        var paramIsland = root.GetPropertyOrNull("param_island") ?? root.GetPropertyOrNull("paramIsland") ?? root.GetPropertyOrNull("islandParam");
-        var big = ParseBigIslandArea(paramIsland, null, null);
-
-        return new HighlightInfoData
-        {
-            Title = title,
-            Content = content,
-            SubContent = sub,
-            PicFunction = iconKey,
-            PicFunctionDark = iconKeyDark,
-            ColorTitle = GetString(iconText, "titleColor")?.TrimOrNull(),
-            ColorContent = GetString(iconText, "contentColor")?.TrimOrNull(),
-            ColorSubContent = GetString(iconText, "subtitleColor")?.TrimOrNull(),
-            BigImageLeft = big?.LeftImage,
-            BigImageRight = big?.RightImage,
-            IconOnly = true,
-        };
     }
 
     private static HintInfoData ParseHintInfo(JsonElement root)
@@ -282,10 +261,15 @@ public static partial class SuperIslandParamV2Parser
             SubContent = GetString(hi, "subContent")?.TrimOrNull(),
             PicContent = GetString(hi, "picContent")?.TrimOrNull(),
             ColorTitle = GetString(hi, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(hi, "colorTitleDark")?.TrimOrNull(),
             ColorSubTitle = GetString(hi, "colorSubTitle")?.TrimOrNull(),
+            ColorSubTitleDark = GetString(hi, "colorSubTitleDark")?.TrimOrNull(),
             ColorContent = GetString(hi, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(hi, "colorContentDark")?.TrimOrNull(),
             ColorSubContent = GetString(hi, "colorSubContent")?.TrimOrNull(),
+            ColorSubContentDark = GetString(hi, "colorSubContentDark")?.TrimOrNull(),
             ColorContentBg = GetString(hi, "colorContentBg")?.TrimOrNull(),
+            ColorContentBgDark = GetString(hi, "colorContentBgDark")?.TrimOrNull(),
             ActionInfo = ParseActionInfo(hi),
         };
     }
@@ -301,6 +285,7 @@ public static partial class SuperIslandParamV2Parser
             ActionInfo = ParseActionInfo(pi),
             Title = GetString(pi, "title")?.TrimOrNull(),
             ColorTitle = GetString(pi, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(pi, "colorTitleDark")?.TrimOrNull(),
         };
     }
 
@@ -376,7 +361,9 @@ public static partial class SuperIslandParamV2Parser
             ActionIconDark = GetString(ai, "actionIconDark")?.TrimOrNull(),
             ActionTitle = GetString(ai, "actionTitle")?.TrimOrNull(),
             ActionTitleColor = GetString(ai, "actionTitleColor")?.TrimOrNull(),
+            ActionTitleColorDark = GetString(ai, "actionTitleColorDark")?.TrimOrNull(),
             ActionBgColor = GetString(ai, "actionBgColor")?.TrimOrNull(),
+            ActionBgColorDark = GetString(ai, "actionBgColorDark")?.TrimOrNull(),
             ActionIntentType = intentType >= 0 ? intentType : null,
             ActionIntent = GetString(ai, "actionIntent")?.TrimOrNull(),
             ClickWithCollapse = ai.TryGetProperty("clickWithCollapse", out var cwc) && cwc.ValueKind == JsonValueKind.True,
@@ -403,19 +390,38 @@ public static partial class SuperIslandParamV2Parser
 
     private static TextButtonData? ParseTextButton(JsonElement root)
     {
-        if (!root.TryGetProperty("textButton", out var tb) || tb.ValueKind != JsonValueKind.Object)
-            return null;
-        var actions = new List<ActionData>();
-        if (tb.TryGetProperty("actions", out var arr) && arr.ValueKind == JsonValueKind.Array)
+        if (!root.TryGetProperty("textButton", out var tb)) return null;
+
+        // 模板约定：textButton 为 actionInfo 对象数组（1-2 项）
+        if (tb.ValueKind == JsonValueKind.Array)
         {
-            foreach (var item in arr.EnumerateArray())
+            var actions = new List<ActionData>();
+            foreach (var item in tb.EnumerateArray())
             {
                 if (item.ValueKind != JsonValueKind.Object) continue;
                 var action = ParseActionInfo(item);
                 if (action != null) actions.Add(action);
             }
+            return actions.Count > 0 ? new TextButtonData { Actions = actions } : null;
         }
-        return actions.Count > 0 ? new TextButtonData { Actions = actions } : null;
+
+        // 兼容旧结构：textButton 为对象且内含 actions 数组
+        if (tb.ValueKind == JsonValueKind.Object)
+        {
+            var actions = new List<ActionData>();
+            if (tb.TryGetProperty("actions", out var arr) && arr.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var item in arr.EnumerateArray())
+                {
+                    if (item.ValueKind != JsonValueKind.Object) continue;
+                    var action = ParseActionInfo(item);
+                    if (action != null) actions.Add(action);
+                }
+            }
+            return actions.Count > 0 ? new TextButtonData { Actions = actions } : null;
+        }
+
+        return null;
     }
 
     private static AnimTextInfoData? ParseAnimTextInfo(JsonElement root)
@@ -438,7 +444,100 @@ public static partial class SuperIslandParamV2Parser
             Content = GetString(ati, "content")?.TrimOrNull(),
             TimerInfo = timer,
             ColorTitle = GetString(ati, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(ati, "colorTitleDark")?.TrimOrNull(),
             ColorContent = GetString(ati, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(ati, "colorContentDark")?.TrimOrNull(),
+        };
+    }
+
+    // ---------- 新增 OS3 组件解析 ----------
+
+    /// <summary>解析新图文组件 iconTextInfo（图标 + 主/次文本）。</summary>
+    private static IconTextInfoData? ParseIconTextInfo(JsonElement root)
+    {
+        var iti = root.GetPropertyOrNull("iconTextInfo");
+        if (iti == null) return null;
+        var icon = iti.Value.GetPropertyOrNull("animIconInfo");
+        var title = GetString(iti, "title")?.TrimOrNull();
+        var content = GetString(iti, "content")?.TrimOrNull();
+        if (title == null && content == null) return null;
+        return new IconTextInfoData
+        {
+            IconKey = GetString(icon, "src")?.TrimOrNull(),
+            IconKeyDark = GetString(icon, "srcDark")?.TrimOrNull(),
+            Title = title,
+            Content = content,
+            SubContent = GetString(iti, "subContent")?.TrimOrNull(),
+            ColorTitle = GetString(iti, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(iti, "colorTitleDark")?.TrimOrNull(),
+            ColorContent = GetString(iti, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(iti, "colorContentDark")?.TrimOrNull(),
+        };
+    }
+
+    /// <summary>解析封面组件 coverInfo（封面图 + 主/次文本）。</summary>
+    private static CoverInfoData? ParseCoverInfo(JsonElement root)
+    {
+        var ci = root.GetPropertyOrNull("coverInfo");
+        if (ci == null) return null;
+        var title = GetString(ci, "title")?.TrimOrNull();
+        var content = GetString(ci, "content")?.TrimOrNull();
+        var subContent = GetString(ci, "subContent")?.TrimOrNull();
+        if (title == null && content == null && subContent == null) return null;
+        return new CoverInfoData
+        {
+            PicCover = GetString(ci, "picCover")?.TrimOrNull(),
+            Title = title,
+            Content = content,
+            SubContent = subContent,
+            ColorTitle = GetString(ci, "colorTitle")?.TrimOrNull(),
+            ColorTitleDark = GetString(ci, "colorTitleDark")?.TrimOrNull(),
+            ColorContent = GetString(ci, "colorContent")?.TrimOrNull(),
+            ColorContentDark = GetString(ci, "colorContentDark")?.TrimOrNull(),
+            ColorSubContent = GetString(ci, "colorSubContent")?.TrimOrNull(),
+            ColorSubContentDark = GetString(ci, "colorSubContentDark")?.TrimOrNull(),
+        };
+    }
+
+    /// <summary>解析按钮组件5 highlightInfoV3（高亮文本 + 标签 + 圆头按钮）。</summary>
+    private static HighlightInfoV3Data? ParseHighlightInfoV3(JsonElement root)
+    {
+        var v3 = root.GetPropertyOrNull("highlightInfoV3");
+        if (v3 == null) return null;
+        var action = v3.Value.GetPropertyOrNull("actionInfo");
+        var primary = GetString(v3, "primaryText")?.TrimOrNull();
+        if (primary == null && action == null) return null;
+        return new HighlightInfoV3Data
+        {
+            PrimaryText = primary,
+            SecondaryText = GetString(v3, "secondaryText")?.TrimOrNull(),
+            ShowSecondaryLine = GetBool(v3, "showSecondaryLine"),
+            HighLightText = GetString(v3, "highLightText")?.TrimOrNull(),
+            PrimaryColor = GetString(v3, "primaryColor")?.TrimOrNull(),
+            SecondaryColor = GetString(v3, "secondaryColor")?.TrimOrNull(),
+            HighLightTextColor = GetString(v3, "highLightTextColor")?.TrimOrNull(),
+            HighLightBgColor = GetString(v3, "highLightbgColor")?.TrimOrNull(),
+            PrimaryColorDark = GetString(v3, "primaryColorDark")?.TrimOrNull(),
+            SecondaryColorDark = GetString(v3, "secondaryColorDark")?.TrimOrNull(),
+            HighLightTextColorDark = GetString(v3, "highLightTextColorDark")?.TrimOrNull(),
+            HighLightBgColorDark = GetString(v3, "highLightbgColorDark")?.TrimOrNull(),
+            ActionInfo = ParseActionInfo(v3),
+        };
+    }
+
+    /// <summary>解析模板背景 bgInfo（type 1 全屏 / 2 右侧；picBg / colorBg）。</summary>
+    private static BgInfoData? ParseBgInfo(JsonElement root)
+    {
+        var bg = root.GetPropertyOrNull("bgInfo");
+        if (bg == null) return null;
+        var pic = GetString(bg, "picBg")?.TrimOrNull();
+        var color = GetString(bg, "colorBg")?.TrimOrNull();
+        if (pic == null && color == null) return null;
+        return new BgInfoData
+        {
+            Type = bg.Value.GetInt32OrDefault("type", 1),
+            PicBg = pic,
+            ColorBg = color,
         };
     }
 

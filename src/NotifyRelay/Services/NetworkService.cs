@@ -46,7 +46,7 @@ public class NetworkService(
             localDeviceId = localDevice.DeviceId;
             localDeviceName = localDevice.DeviceName;
 
-            // 使用 Rust 统一启动接口（TCP/UDP、心跳调度、离线检测、发送队列、已知设备扫描、重连、mDNS）
+            // 使用 Rust 统一启动接口（TCP、心跳调度、离线检测、发送队列、已知设备扫描、重连）
             var battery = systemInfoService.GetSystemBatteryLevel();
             var isCharging = systemInfoService.GetSystemChargingStatus();
             var signedBattery = isCharging ? Math.Abs(battery) : -Math.Abs(battery);
@@ -154,7 +154,10 @@ public class NetworkService(
             {
                 if (localDeviceId is not null && localPublicKey is not null)
                 {
-                    var localBattery = systemInfoService.GetSystemBatteryLevel();
+                    // 与启动/PAIRING_RESP/心跳路径一致：上报本机真实带符号电量（正=充电，负=放电）
+                    var localBatteryLevel = systemInfoService.GetSystemBatteryLevel();
+                    var localIsCharging = systemInfoService.GetSystemChargingStatus();
+                    var localBattery = localIsCharging ? Math.Abs(localBatteryLevel) : -Math.Abs(localBatteryLevel);
                     var localIp = NativeCore.GetLocalIp() ?? string.Empty;
                     NativeCore.SendAccept(remoteDeviceId, localPublicKey, localIp, localBattery, "pc");
                 }
@@ -250,7 +253,11 @@ public class NetworkService(
                     var localDevice = await deviceManager.GetLocalDeviceAsync();
                     ltPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? Array.Empty<byte>());
                 }
-                NativeCore.SendPairingResp(localDeviceId ?? string.Empty, ltPubKey, pairingCode, remoteIp, systemInfoService.GetSystemBatteryLevel(), "pc");
+                // 与启动/心跳/扫描路径一致：上报本机真实带符号电量（正=充电，负=放电）
+                var localBattery = systemInfoService.GetSystemBatteryLevel();
+                var localIsCharging = systemInfoService.GetSystemChargingStatus();
+                var signedLocalBattery = localIsCharging ? Math.Abs(localBattery) : -Math.Abs(localBattery);
+                NativeCore.SendPairingResp(localDeviceId ?? string.Empty, ltPubKey, pairingCode, remoteIp, signedLocalBattery, "pc");
                 logger.LogInformation($"已发送 PAIRING_RESP: {remoteUuid}");
             }
             catch (Exception ex)
@@ -294,10 +301,13 @@ public class NetworkService(
             logger.LogInformation($"收到 ACCEPT，配对码验证通过: {remoteUuid}");
 
             // 与安卓端及 core HANDSHAKE 重连逻辑对齐：用对端长期公钥做 ECDH 派生，覆盖 SPAKE2 协商密钥，
-            // 否则安卓端（ECDH 密钥）与 PC 端（SPAKE2 密钥）不一致，DATA 消息无法互相解密
+            // 否则安卓端（ECDH 密钥）与 PC 端（SPAKE2 密钥）不一致，DATA 消息无法互相解密。
+            // 派生失败为致命错误：不得静默视为配对成功（否则会以空/错误密钥登记设备，
+            // 后续 DATA 无法解密且两端密钥不一致难以排查）。失败时直接返回，不登记、不标记已配对。
             if (string.IsNullOrEmpty(remoteLtPubKey) || NativeCore.DeriveSharedSecret(remoteUuid, remoteLtPubKey) != 0)
             {
-                logger.LogWarning("配对完成后 ECDH 会话密钥派生失败: {uuid}", remoteUuid);
+                logger.LogError("配对完成后 ECDH 会话密钥派生失败（致命），取消配对: {uuid}", remoteUuid);
+                return;
             }
 
             var existing = PairedDevices.FirstOrDefault(d => d.Id == remoteUuid);
@@ -427,7 +437,7 @@ public class NetworkService(
     }
 
     /// <summary>
-    /// 本机电量/充电状态变化：更新调度器广播参数（内部联动 mDNS 广告 TXT）
+    /// 本机电量/充电状态变化：更新调度器广播参数（名称/电量/设备类型）
     /// </summary>
     private void OnBatteryChanged(object? sender, EventArgs e)
     {

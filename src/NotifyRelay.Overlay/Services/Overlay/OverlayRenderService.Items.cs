@@ -306,6 +306,8 @@ public partial class OverlayRenderService
         DeferDispose(s.PicInfoBitmap); s.PicInfoBitmap = null;
         DeferDispose(s.LeftIconBitmap); s.LeftIconBitmap = null;
         DeferDispose(s.RightIconBitmap); s.RightIconBitmap = null;
+        DeferDispose(s.IconTextInfoBitmap); s.IconTextInfoBitmap = null;
+        s.IconTextInfoPicKey = null;
         lock (s.FailedPicKeys) s.FailedPicKeys.Clear();
         lock (s.UrlPngCache) s.UrlPngCache.Clear();
         s.UrlFetching.Clear();

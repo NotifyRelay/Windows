@@ -20,12 +20,14 @@ public static partial class NotifyRelayCore
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnLogCb(int level, IntPtr message);
 
+    /// <summary>
+    /// TCP 扫描发现回调（Rust core 已完成自身过滤、名称解码与状态登记，
+    /// 此处仅作为「设备状态有变化，请重新拉取快照」的信号）
+    /// </summary>
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnHeartbeatUdpCb(IntPtr uuid, IntPtr nameB64, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
+    public delegate void OnDeviceDiscoveredCb(IntPtr uuid, IntPtr name, ushort port, int battery, IntPtr deviceType, IntPtr ip, IntPtr userData);
 
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    public delegate void OnMdnsDiscoveredCb(IntPtr uuid, IntPtr name, IntPtr ip, ushort port, int battery, IntPtr deviceType, IntPtr userData);
-
+    // ======== Network callbacks ========
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     public delegate void OnDeviceTimeoutCb(IntPtr uuid, IntPtr userData);
 
@@ -47,9 +49,7 @@ public static partial class NotifyRelayCore
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_state_query_cb(IntPtr ctx, OnStateQueryCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_heartbeat_udp_cb(IntPtr ctx, OnHeartbeatUdpCb cb);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void nrc_set_on_mdns_discovered_cb(IntPtr ctx, OnMdnsDiscoveredCb cb);
+    public static extern void nrc_set_on_device_discovered_cb(IntPtr ctx, OnDeviceDiscoveredCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_set_on_device_timeout_cb(IntPtr ctx, OnDeviceTimeoutCb cb);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]

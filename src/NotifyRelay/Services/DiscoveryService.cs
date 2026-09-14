@@ -1,3 +1,5 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.AppDatabase.Models;
@@ -14,9 +16,17 @@ public class DiscoveryService(
     HeartbeatProcessor heartbeatProcessor
     ) : IDiscoveryService
 {
+    /// <summary>
+    /// 设备快照兜底刷新间隔（与 Android 端保持一致）：
+    /// 保证设备离线后即使没有回调也能从列表中移除
+    /// </summary>
+    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(5);
+
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private LocalDeviceEntity? localDevice;
     private bool isInitialized = false;
+    private int refreshBusy;
+    private DispatcherQueueTimer? refreshTimer;
 
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
 
@@ -40,17 +50,18 @@ public class DiscoveryService(
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
             var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
             var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-            logger.LogInformation("Rust mDNS 服务由统一启动接口（nrc_start_core）管理");
 
-            // 通过 Rust 内核启动周期性设备广播
+            // 通过 Rust 内核启动周期性 TCP 扫描发现
             NativeCore.PeriodicBroadcast(1, localDevice.DeviceId, localDevice.DeviceName, signedBattery, "pc");
 
-            // 订阅心跳处理器发现事件和 mDNS 发现事件
-            heartbeatProcessor.DeviceDiscovered += OnDeviceDiscovered;
-            heartbeatProcessor.MdnsDeviceDiscovered += OnMdnsDeviceDiscovered;
+            // 设备状态变化（扫描发现 / 设备超时）→ 重新拉取 core 快照刷新列表
+            heartbeatProcessor.DeviceListChanged += OnDeviceListChanged;
 
             isInitialized = true;
             logger.LogInformation("发现服务已完全初始化");
+
+            await RefreshFromCoreAsync();
+            StartPeriodicRefresh();
         }
         catch (Exception ex)
         {
@@ -76,7 +87,6 @@ public class DiscoveryService(
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
             var isCharging = systemInfoService?.GetSystemChargingStatus() ?? true;
             var signedBattery = isCharging ? Math.Abs(batteryLevel) : -Math.Abs(batteryLevel);
-            // 更新心跳调度器广播信息与 mDNS 广告（Rust 端重建广告使新名称生效）
             NativeCore.UpdateHeartbeatSchedulerParams(newName, signedBattery, "pc");
         }
         catch (Exception ex)
@@ -85,67 +95,112 @@ public class DiscoveryService(
         }
     }
 
-    private async void OnDeviceDiscovered(string uuid, string? name, ushort port, int battery, string deviceType, string? ip)
+    private void OnDeviceListChanged()
     {
-        if (uuid == localDevice?.DeviceId) return;
-
-        await dispatcher.EnqueueAsync(() =>
-        {
-            if (!isInitialized) return;
-
-            var discovered = new DiscoveredDevice(
-                uuid, ip, name ?? "unknown",
-                DateTimeOffset.UtcNow, DeviceOrigin.UdpBroadcast, port);
-
-            var existing = DiscoveredDevices.FirstOrDefault(d => d.DeviceId == uuid);
-            if (existing is not null)
-            {
-                var index = DiscoveredDevices.IndexOf(existing);
-                DiscoveredDevices[index] = discovered;
-            }
-            else
-            {
-                DiscoveredDevices.Add(discovered);
-            }
-        });
+        // 回调来自 Rust 线程：刷新内部自行切回 UI 线程
+        _ = RefreshFromCoreAsync();
     }
 
-    private async void OnMdnsDeviceDiscovered(string uuid, string? name, string ip, ushort port, string deviceType)
+    private void StartPeriodicRefresh()
     {
-        if (uuid == localDevice?.DeviceId) return;
+        refreshTimer ??= dispatcher.CreateTimer();
+        refreshTimer.Interval = RefreshInterval;
+        refreshTimer.Tick += OnRefreshTimerTick;
+        refreshTimer.Start();
+    }
 
-        logger.LogInformation("mDNS 发现设备：{deviceId}，{deviceName}，{ip}", uuid, name, ip);
+    private void OnRefreshTimerTick(object? sender, object e)
+    {
+        _ = RefreshFromCoreAsync();
+    }
 
-        await dispatcher.EnqueueAsync(() =>
+    /// <summary>
+    /// 从 Rust core 拉取设备状态快照并重建列表。
+    /// 在线/离线、可见性、名称/IP/电量全部由 core 判定，平台端只负责展示。
+    /// </summary>
+    private async Task RefreshFromCoreAsync()
+    {
+        // 原子闸门：多路调用（心跳回调 / 定时器）可能并发进入，仅一个刷新可执行
+        if (!isInitialized || Interlocked.CompareExchange(ref refreshBusy, 1, 0) != 0) return;
+        try
         {
-            if (!isInitialized) return;
+            var json = NativeCore.GetDeviceList();
+            if (string.IsNullOrEmpty(json)) return;
 
-            var discovered = new DiscoveredDevice(
-                uuid, ip, name ?? "unknown",
-                DateTimeOffset.UtcNow, DeviceOrigin.MdnsService, port);
+            var snapshot = JsonSerializer.Deserialize<List<DeviceSnapshot>>(json);
+            if (snapshot is null) return;
 
-            var existing = DiscoveredDevices.FirstOrDefault(d => d.DeviceId == uuid);
-            if (existing is not null)
+            await dispatcher.EnqueueAsync(() =>
             {
-                var index = DiscoveredDevices.IndexOf(existing);
-                DiscoveredDevices[index] = discovered;
-            }
-            else
-            {
-                DiscoveredDevices.Add(discovered);
-            }
-        });
+                if (!isInitialized) return;
+
+                var visible = new HashSet<string>();
+                foreach (var d in snapshot)
+                {
+                    if (string.IsNullOrEmpty(d.Uuid) || d.Uuid == localDevice?.DeviceId) continue;
+                    visible.Add(d.Uuid);
+
+                    var lastSeen = d.LastSeen > 0
+                        ? DateTimeOffset.FromUnixTimeSeconds(d.LastSeen)
+                        : DateTimeOffset.UtcNow;
+                    var discovered = new DiscoveredDevice(
+                        d.Uuid,
+                        null,
+                        string.IsNullOrEmpty(d.Name) ? d.Uuid : d.Name,
+                        lastSeen,
+                        DeviceOrigin.TcpScan,
+                        d.Port,
+                        d.Ip ?? string.Empty,
+                        d.Battery,
+                        d.DeviceType ?? string.Empty,
+                        d.Online,
+                        d.Paired);
+
+                    var existing = DiscoveredDevices.FirstOrDefault(x => x.DeviceId == d.Uuid);
+                    if (existing is not null)
+                    {
+                        var index = DiscoveredDevices.IndexOf(existing);
+                        DiscoveredDevices[index] = discovered;
+                    }
+                    else
+                    {
+                        DiscoveredDevices.Add(discovered);
+                    }
+                }
+
+                // core 判定不再可见的设备（离线且未配对）从列表移除
+                for (var i = DiscoveredDevices.Count - 1; i >= 0; i--)
+                {
+                    if (!visible.Contains(DiscoveredDevices[i].DeviceId))
+                    {
+                        DiscoveredDevices.RemoveAt(i);
+                    }
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "刷新 core 设备快照时出错");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref refreshBusy, 0);
+        }
     }
 
     public void StopDiscovery()
     {
         NativeCore.PeriodicBroadcast(0);
-        heartbeatProcessor.DeviceDiscovered -= OnDeviceDiscovered;
-        heartbeatProcessor.MdnsDeviceDiscovered -= OnMdnsDeviceDiscovered;
+        heartbeatProcessor.DeviceListChanged -= OnDeviceListChanged;
+
+        if (refreshTimer is not null)
+        {
+            refreshTimer.Tick -= OnRefreshTimerTick;
+            refreshTimer.Stop();
+        }
 
         try
         {
-            // mDNS 广告/发现的停止统一交由核心关闭流程（nrc_start_core 统一管理），此处不再主动调用
             deviceManager.LocalDeviceNameChanged -= OnLocalDeviceNameChanged;
             dispatcher.TryEnqueue(() =>
             {
@@ -157,5 +212,21 @@ public class DiscoveryService(
         {
             logger.LogError("停止发现服务时出错：{message}", ex.Message);
         }
+    }
+
+    /// <summary>
+    /// Rust core 设备状态快照条目（字段与 nrc_get_device_list 输出一致）
+    /// </summary>
+    private sealed class DeviceSnapshot
+    {
+        [JsonPropertyName("uuid")] public string? Uuid { get; set; }
+        [JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonPropertyName("ip")] public string? Ip { get; set; }
+        [JsonPropertyName("port")] public int Port { get; set; }
+        [JsonPropertyName("battery")] public int Battery { get; set; }
+        [JsonPropertyName("deviceType")] public string? DeviceType { get; set; }
+        [JsonPropertyName("lastSeen")] public long LastSeen { get; set; }
+        [JsonPropertyName("online")] public bool Online { get; set; }
+        [JsonPropertyName("paired")] public bool Paired { get; set; }
     }
 }
