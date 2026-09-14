@@ -20,7 +20,7 @@
             <LogiBatteryDllPath>$([MSBuild]::NormalizePath('$(LogiBatteryProjectDir)target\release\logi_battery.dll'))</LogiBatteryDllPath>
         </PropertyGroup>
         <Message Text="构建 Rust 原生库 logi-battery: $(LogiBatteryProjectDir)" Importance="high" />
-        <Exec Command="&quot;$(UserProfile)\.cargo\bin\cargo.exe&quot; build --release --manifest-path $(LogiBatteryProjectDir)Cargo.toml"
+        <Exec Command="&quot;$(UserProfile)\.cargo\bin\cargo.exe&quot; build --release --manifest-path &quot;$(LogiBatteryProjectDir)Cargo.toml&quot;"
               WorkingDirectory="$(LogiBatteryProjectDir)" StandardOutputImportance="high" />
         <!-- 用 Move 而非 Copy：移走 release 产物后，下次构建 cargo 必重新生成，保证每次构建都产出最新 DLL -->
         <Move SourceFiles="$(LogiBatteryDllPath)" DestinationFolder="$(OutDir)" />

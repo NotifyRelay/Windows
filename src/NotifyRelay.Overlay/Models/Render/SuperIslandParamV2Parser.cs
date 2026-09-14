@@ -521,7 +521,7 @@ public static partial class SuperIslandParamV2Parser
             SecondaryColorDark = GetString(v3, "secondaryColorDark")?.TrimOrNull(),
             HighLightTextColorDark = GetString(v3, "highLightTextColorDark")?.TrimOrNull(),
             HighLightBgColorDark = GetString(v3, "highLightbgColorDark")?.TrimOrNull(),
-            ActionInfo = action == null ? null : ParseActionInfo(action),
+            ActionInfo = ParseActionInfo(v3),
         };
     }
 

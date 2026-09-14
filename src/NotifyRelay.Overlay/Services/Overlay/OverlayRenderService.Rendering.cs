@@ -1203,21 +1203,31 @@ public partial class OverlayRenderService
         var bi = item.State.ParamV2!.BaseInfo!;
         float ty = cy;
 
+        // 文本回退取色：Title/Content 为空而回退到 SubTitle/SubContent 时，改用对应的副文本颜色
+        var titleText = bi.Title ?? bi.SubTitle;
+        var titleColor = bi.Title != null
+            ? PreferDarkHex(bi.ColorTitle, bi.ColorTitleDark)
+            : PreferDarkHex(bi.ColorSubTitle, bi.ColorSubTitleDark);
+        var contentText = bi.Content ?? bi.SubContent;
+        var contentColor = bi.Content != null
+            ? PreferDarkHex(bi.ColorContent, bi.ColorContentDark)
+            : PreferDarkHex(bi.ColorSubContent, bi.ColorSubContentDark);
+
         // type=1：次要文本在上；type=2：主要文本在上
         if (bi.Type == 1)
         {
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, PreferDarkHex(bi.ColorContent, bi.ColorContentDark));
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, PreferDarkHex(bi.ColorTitle, bi.ColorTitleDark));
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, contentText, 12, false, contentColor);
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, titleText, 14, true, titleColor);
             ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 12, false, PreferDarkHex(bi.ColorExtraTitle, bi.ColorExtraTitleDark));
         }
         else
         {
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Title ?? bi.SubTitle, 14, true, PreferDarkHex(bi.ColorTitle, bi.ColorTitleDark));
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, titleText, 14, true, titleColor);
             if (!string.IsNullOrEmpty(bi.ExtraTitle))
             {
                 ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.ExtraTitle, 14, true, PreferDarkHex(bi.ColorExtraTitle, bi.ColorExtraTitleDark));
             }
-            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, bi.Content ?? bi.SubContent, 12, false, PreferDarkHex(bi.ColorContent, bi.ColorContentDark));
+            ty = DrawBaseTextLine(rt, cx, ty, contentWidth, opacity, contentText, 12, false, contentColor);
         }
 
         // 特殊标签（specialTitle：圆角背景块）
@@ -1643,12 +1653,16 @@ public partial class OverlayRenderService
             var src = new Vortice.Mathematics.Rect(0, 0, (int)item.BgInfoBitmap.Size.Width, (int)item.BgInfoBitmap.Size.Height);
             rt.DrawBitmap(item.BgInfoBitmap, dest, opacity, BitmapInterpolationMode.Linear, src);
         }
-        var color = ParseHexColor(bg.ColorBg);
-        if (color != null)
+        else
         {
-            using var brush = CreateSolidColorBrush(rt, new Color4(color.Value.R, color.Value.G, color.Value.B, 0.92f * opacity));
-            var rr = new RoundedRectangle(new RectangleF(bx, y, bw, height), 16, 16);
-            rt.FillRoundedRectangle(ref rr, brush);
+            // 已有背景图时不再用 colorBg 覆盖位图；仅在无图（或图片加载失败）时填充背景色
+            var color = ParseHexColor(bg.ColorBg);
+            if (color != null)
+            {
+                using var brush = CreateSolidColorBrush(rt, new Color4(color.Value.R, color.Value.G, color.Value.B, 0.92f * opacity));
+                var rr = new RoundedRectangle(new RectangleF(bx, y, bw, height), 16, 16);
+                rt.FillRoundedRectangle(ref rr, brush);
+            }
         }
     }
 

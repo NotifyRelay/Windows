@@ -154,7 +154,10 @@ public class NetworkService(
             {
                 if (localDeviceId is not null && localPublicKey is not null)
                 {
-                    var localBattery = systemInfoService.GetSystemBatteryLevel();
+                    // 与启动/PAIRING_RESP/心跳路径一致：上报本机真实带符号电量（正=充电，负=放电）
+                    var localBatteryLevel = systemInfoService.GetSystemBatteryLevel();
+                    var localIsCharging = systemInfoService.GetSystemChargingStatus();
+                    var localBattery = localIsCharging ? Math.Abs(localBatteryLevel) : -Math.Abs(localBatteryLevel);
                     var localIp = NativeCore.GetLocalIp() ?? string.Empty;
                     NativeCore.SendAccept(remoteDeviceId, localPublicKey, localIp, localBattery, "pc");
                 }

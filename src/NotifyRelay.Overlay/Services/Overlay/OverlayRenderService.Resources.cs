@@ -115,8 +115,15 @@ public partial class OverlayRenderService
             island?.RightImage ?? GetBComponentPicKey(pv), rt);
 
         // 新增 OS3 组件位图（iconTextInfo 图标 / coverInfo 封面 / bgInfo 背景图）
-        item.IconTextInfoBitmap = EnsurePicBitmap(item, item.IconTextInfoBitmap, pics,
-            pv?.IconTextInfo?.IconKey, rt);
+        // iconTextInfo 图标：深色键存在时优先；选中键变化时作废旧位图，避免 EnsurePicBitmap 复用陈旧图
+        var iconTextKey = ResolveIconTextInfoKey(pics, pv?.IconTextInfo);
+        if (!string.Equals(item.IconTextInfoPicKey, iconTextKey, StringComparison.Ordinal))
+        {
+            DeferDispose(item.IconTextInfoBitmap);
+            item.IconTextInfoBitmap = null;
+            item.IconTextInfoPicKey = iconTextKey;
+        }
+        item.IconTextInfoBitmap = EnsurePicBitmap(item, item.IconTextInfoBitmap, pics, iconTextKey, rt);
         item.CoverInfoBitmap = EnsurePicBitmap(item, item.CoverInfoBitmap, pics,
             pv?.CoverInfo?.PicCover, rt);
         item.BgInfoBitmap = EnsurePicBitmap(item, item.BgInfoBitmap, pics,
@@ -225,6 +232,17 @@ public partial class OverlayRenderService
             lock (item.FailedPicKeys) item.FailedPicKeys.Add(key);
             return null;
         }
+    }
+
+    /// <summary>
+    /// iconTextInfo 图标键解析：深色键在 Pics 中存在时优先取深色，否则回退浅色键。
+    /// 与 Android IconTextInfoCompose 的 preferDark 取键逻辑保持一致。
+    /// </summary>
+    private static string? ResolveIconTextInfoKey(Dictionary<string, string> pics, IconTextInfoData? info)
+    {
+        if (info == null) return null;
+        if (!string.IsNullOrEmpty(info.IconKeyDark) && pics.ContainsKey(info.IconKeyDark)) return info.IconKeyDark;
+        return info.IconKey;
     }
 
     /// <summary>解析 B 区组件的图片键（仅显示位图的组件）。</summary>

@@ -25,7 +25,7 @@ public class DiscoveryService(
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private LocalDeviceEntity? localDevice;
     private bool isInitialized = false;
-    private bool refreshBusy = false;
+    private int refreshBusy;
     private DispatcherQueueTimer? refreshTimer;
 
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
@@ -120,8 +120,8 @@ public class DiscoveryService(
     /// </summary>
     private async Task RefreshFromCoreAsync()
     {
-        if (!isInitialized || refreshBusy) return;
-        refreshBusy = true;
+        // 原子闸门：多路调用（心跳回调 / 定时器）可能并发进入，仅一个刷新可执行
+        if (!isInitialized || Interlocked.CompareExchange(ref refreshBusy, 1, 0) != 0) return;
         try
         {
             var json = NativeCore.GetDeviceList();
@@ -184,7 +184,7 @@ public class DiscoveryService(
         }
         finally
         {
-            refreshBusy = false;
+            Interlocked.Exchange(ref refreshBusy, 0);
         }
     }
 
