@@ -11,12 +11,12 @@ using NotifyRelay.Services.Adb;
 
 namespace NotifyRelay.Services;
 
-public class AdbService(
-    ILogger<AdbService> logger,
-    IDeviceManager deviceManager,
-    IUserSettingsService userSettingsService
-) : IAdbService
+public class AdbService : IAdbService
 {
+    private readonly ILogger<AdbService> logger;
+    private readonly IDeviceManager deviceManager;
+    private readonly IUserSettingsService userSettingsService;
+
     private CancellationTokenSource? cts;
     private DeviceMonitor? deviceMonitor;
 
@@ -24,7 +24,20 @@ public class AdbService(
     private readonly AdbProcessLauncher processLauncher = new();
 
     // ADB 命令执行器（唯一持有 AdbClient 实例的地方）
-    private readonly IAdbCommandExecutor commandExecutor = new AdbCommandExecutor(logger);
+    private readonly IAdbCommandExecutor commandExecutor;
+
+    public AdbService(
+        ILoggerFactory loggerFactory,
+        IDeviceManager deviceManager,
+        IUserSettingsService userSettingsService)
+    {
+        this.deviceManager = deviceManager;
+        this.userSettingsService = userSettingsService;
+        // 日志类别名保持 NotifyRelay.Services.AdbService 不变（由 CreateLogger<AdbService>() 保证）
+        logger = loggerFactory.CreateLogger<AdbService>();
+        // 执行器复用主体日志类别，保证拆分后 Serilog 类别名与日志文本不变
+        commandExecutor = new AdbCommandExecutor(logger);
+    }
 
     // 防重入/防循环：记录正在处理无线 ADB 建立的 hostIp，避免 adb tcpip 重启 adbd 诱发的重复触发
     private readonly ConcurrentDictionary<string, object?> _pendingWireless = new();
