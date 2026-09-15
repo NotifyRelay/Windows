@@ -156,9 +156,6 @@
   <data name="SaveLocation" xml:space="preserve">
     <value>Save location</value>
   </data>
-  <data name="RemoteStorageLocation" xml:space="preserve">
-    <value>Remote Storage Location</value>
-  </data>
   <data name="ShowClipboardToast" xml:space="preserve">
     <value>Show clipboard toast</value>
   </data>

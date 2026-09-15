@@ -66,12 +66,6 @@ internal sealed class DeviceSettingsService : IDeviceSettingsService
         set => _configuration.Set(SettingsKey(nameof(NotificationLaunchPreference)), (long)value);
     }
 
-    public string RemoteStoragePath
-    {
-        get => _configuration.Get(SettingsKey(nameof(RemoteStoragePath)), Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
-        set => _configuration.Set(SettingsKey(nameof(RemoteStoragePath)), value);
-    }
-
     public string ReceivedFilesPath
     {
         get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;

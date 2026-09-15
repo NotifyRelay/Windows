@@ -117,12 +117,6 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
         }
     }
 
-    public string RemoteStoragePath
-    {
-        get => _configuration.Get(SettingsKey(nameof(RemoteStoragePath)), Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
-        set => _configuration.Set(SettingsKey(nameof(RemoteStoragePath)), value);
-    }
-
     public string ReceivedFilesPath
     {
         get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;

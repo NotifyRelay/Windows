@@ -26,8 +26,6 @@
     <PackageVersion Include="Serilog.Extensions.Hosting" Version="10.0.0" />
     <PackageVersion Include="Serilog.Sinks.Debug" Version="3.0.0" />
     <PackageVersion Include="Serilog.Sinks.File" Version="8.0.0-nblumhardt-02322" />
-    <PackageVersion Include="Vanara.PInvoke.CldApi" Version="5.0.5" />
-    <PackageVersion Include="Vanara.PInvoke.Ole" Version="5.0.5" />
     <PackageVersion Include="Vanara.PInvoke.Shell32" Version="5.0.5" />
     <PackageVersion Include="Vortice.Direct2D1" Version="3.8.3" />
     <PackageVersion Include="Vortice.Mathematics" Version="2.1.1" />
