@@ -49,20 +49,12 @@ public sealed partial class OverlayHeartRatePage : Page
 
     private void ColorPickerButton_Click(object sender, RoutedEventArgs e)
     {
-        var hex = ViewModel.HeartRateColor;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7)
-        {
-            byte r = byte.Parse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber);
-            byte g = byte.Parse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber);
-            byte b = byte.Parse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber);
-            ColorPicker.Color = Windows.UI.Color.FromArgb(255, r, g, b);
-        }
+        ColorPicker.Color = ColorHex.ToWindowsColor(ViewModel.HeartRateColor);
         _ = ColorPickerDialog.ShowAsync();
     }
 
     private void ColorPickerDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        var color = ColorPicker.Color;
-        ViewModel.HeartRateColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        ViewModel.HeartRateColor = ColorHex.Format(ColorPicker.Color);
     }
 }

@@ -22,6 +22,9 @@ internal sealed class ScreenOverlay
     public float TopOffset;   // 主屏顶部卡片占用高度，用于弹幕轨道起点
     public readonly List<DanmakuItem> Items = [];
     public readonly Queue<DanmakuItem> Pending = new();
+
+    /// <summary>本屏的声明式 UI 运行时（每屏一棵，因渲染目标不同；懒创建，渲染线程访问）。</summary>
+    public UI.OverlayUiRoot? UiRoot;
 }
 
 /// <summary>显示器几何信息（枚举结果）。</summary>
