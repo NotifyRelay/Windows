@@ -1,6 +1,5 @@
 using AdvancedSharpAdbClient.Models;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 
 namespace NotifyRelay.Services.Adb;
@@ -34,14 +33,9 @@ public sealed class AdbDeviceInfoResolver(
             var fullDeviceData = devices.FirstOrDefault(d => d.Serial == deviceData.Serial);
             if (fullDeviceData == null)
             {
-                return new AdbDevice
-                {
-                    Serial = deviceData.Serial,
-                    Model = deviceData.Model ?? "Unknown",
-                    State = deviceData.State,
-                    Type = deviceData.Serial.Contains(':') || deviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                    AndroidId = ""
-                };
+                // 该数据已从 adb devices 列表中消失，不挂 DeviceData：
+                // 下游以 DeviceData == null 作为「快照不可用于发起 adb 调用」的守卫
+                return AdbDeviceFactory.CreateBasic(deviceData, attachDeviceData: false);
             }
             string androidId = string.Empty;
             try
@@ -100,15 +94,7 @@ public sealed class AdbDeviceInfoResolver(
                 }
             }
 
-            var device = new AdbDevice
-            {
-                Serial = fullDeviceData.Serial,
-                Model = fullDeviceData.Model ?? "Unknown",
-                AndroidId = androidId,
-                State = fullDeviceData.State,
-                Type = fullDeviceData.Serial.Contains(':') || fullDeviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                DeviceData = fullDeviceData
-            };
+            var device = AdbDeviceFactory.CreateResolved(fullDeviceData, fullDeviceData.Model ?? "Unknown", androidId);
 
             // 添加日志，便于调试
             logger.LogTrace($"生成 ADB 设备对象：序列号='{device.Serial}'，型号='{device.Model}'，Android ID='{device.AndroidId}'，在线状态='{device.IsOnline}'");
@@ -126,15 +112,7 @@ public sealed class AdbDeviceInfoResolver(
         {
             logger.LogError(ex, $"获取完整设备信息时出错：{deviceData.Serial}");
             // Return basic information if we can't get full details
-            var device = new AdbDevice
-            {
-                Serial = deviceData.Serial,
-                Model = "Unknown",
-                AndroidId = "Unknown",
-                State = deviceData.State,
-                Type = deviceData.Serial.Contains(':') || deviceData.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                DeviceData = deviceData
-            };
+            var device = AdbDeviceFactory.CreateResolved(deviceData, "Unknown", "Unknown");
 
             return device;
         }

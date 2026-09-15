@@ -154,15 +154,8 @@ public class AdbService : IAdbService
             {
                 logger.LogTrace($"设备 {e.Device.Serial} 已连接，但尚未在线，当前状态：{e.Device.State}");
 
-                var adbDevice = new AdbDevice
-                {
-                    Serial = e.Device.Serial,
-                    Model = e.Device.Model ?? "Unknown",
-                    State = e.Device.State,
-                    Type = e.Device.Serial.Contains(':') || e.Device.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                    DeviceData = e.Device,
-                    AndroidId = "" // Will be populated when device comes online
-                };
+                // Will be populated when device comes online
+                var adbDevice = AdbDeviceFactory.CreateBasic(e.Device);
 
                 await catalog.AddAsync(adbDevice);
                 return;
@@ -272,15 +265,7 @@ public class AdbService : IAdbService
             else
             {
                 // Create basic device info for non-online devices
-                adbDevice = new AdbDevice
-                {
-                    Serial = device.Serial,
-                    Model = device.Model ?? "Unknown",
-                    State = device.State,
-                    Type = device.Serial.Contains(':') || device.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                    DeviceData = device,
-                    AndroidId = ""
-                };
+                adbDevice = AdbDeviceFactory.CreateBasic(device);
             }
             await catalog.AddAsync(adbDevice);
         }
