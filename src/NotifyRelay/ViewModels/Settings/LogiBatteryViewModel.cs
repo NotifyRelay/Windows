@@ -124,30 +124,7 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
 
     private void BuildScreenOptions()
     {
-        Screens.Clear();
-        Screens.Add(new ScreenOption { Id = "PRIMARY", DisplayName = "主显示器" });
-        try
-        {
-            var list = _renderService?.GetScreenList();
-            if (list != null)
-            {
-                int i = 1;
-                foreach (var (deviceName, isPrimary) in list)
-                {
-                    Screens.Add(new ScreenOption
-                    {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {i}{(isPrimary ? " (主)" : "")} · {deviceName}"
-                    });
-                    i++;
-                }
-            }
-        }
-        catch { /* 忽略枚举异常 */ }
-
-        var saved = _settings.LogiBatteryTargetScreen;
-        _selectedScreen = Screens.FirstOrDefault(s =>
-            string.Equals(s.Id, saved, StringComparison.OrdinalIgnoreCase)) ?? Screens[0];
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.LogiBatteryTargetScreen);
     }
 
     private void OnDevicesUpdated(object? sender, EventArgs e)

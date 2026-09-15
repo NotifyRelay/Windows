@@ -52,11 +52,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private volatile bool _displayDirty;
     private readonly Random _rand = new();
 
-    // 快捷键映射触发时的提示文本（由钩子线程推送，渲染线程消费，受 _lock 保护）
-    private string? _keyMappingHintText;
-    private long _keyMappingHintTick;     // Stopwatch 时间戳
-    private const int KeyMappingHintTimeoutMs = 1500;
-
     public OverlayRenderService(ILogger<OverlayRenderService> logger, IOverlaySettings settings,
         IEnumerable<IOverlayFeature>? features = null)
     {
@@ -75,6 +70,9 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         _topmostMonitor = new OverlayTopmostMonitor(logger);
         _watchdog = new OverlayWatchdog(logger, this);
         _disposer = new DeferredDisposer(logger);
+
+        // 声明式 UI 元素集合（在主体构造函数内固定创建，见 OverlayRenderService.Elements.cs）
+        InitializeElements();
     }
 
     /// <summary>弹幕请求（业务线程入队，渲染线程分发）。</summary>
@@ -97,9 +95,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             return;
         // 启动时从已保存设置初始化样式，避免首条弹幕使用默认值（需手动调节才生效）
         LoadInitialStyle();
-        LoadInitialHeartRateConfig();
-        LoadInitialClockConfig();
-        LoadInitialDeepSeekBalanceConfig();
+        // 4 个 LoadInitialXxxConfig 收敛为元素统一的 LoadSettings
+        LoadInitialElementSettings();
         // 自动引导：按各自开关绑定并启动所有已登记的叠加层功能
         _featureStartup.Initialize(this);
         _watchdog.UpdateHeartbeat();
@@ -225,16 +222,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
                         if (o.Items.Count > 0 || o.Pending.Count > 0) { hasContent = true; break; }
                 }
                 if (!hasContent && !_requests.IsEmpty) hasContent = true;
-                if (!hasContent) hasContent = HeartRateActive();
-                // 罗技电池独立驱动：只看电量自身条件，不受弹幕/心率/键盘等其他叠加层元素影响
-                if (!hasContent) hasContent = LogiBatteryActive();
-                if (!hasContent) hasContent = ClockActive();
-                // DeepSeek 余额独立驱动：只看余额自身开关，不受其他叠加层元素影响
-                if (!hasContent) hasContent = DeepSeekBalanceActive();
-                if (!hasContent && KeyboardActive())
-                    hasContent = true;
-                if (!hasContent && HasKeyMappingHint())
-                    hasContent = true;
+                // 5 个叠加层元素（心率/时钟/键盘/罗技/余额）各自独立驱动，收敛为一次遍历
+                if (!hasContent) hasContent = AnyElementActive();
 
                 if (!hasContent)
                 {
@@ -331,7 +320,11 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         int mode;
         lock (_lock) mode = _currentStyle.DisplayScreenMode;
         _screenMode = mode;
-        _windowManager.SyncOverlays(mode, InvalidateTopItemDeviceResources);
+        _windowManager.SyncOverlays(mode, () =>
+        {
+            InvalidateTopItemDeviceResources();
+            ClearPerOverlayRenderState();
+        });
     }
 
     /// <summary>枚举所有显示器（使用完整屏幕区域，弹幕可跨越整屏宽度）。</summary>
@@ -341,9 +334,12 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     /// <summary>销毁并清空所有覆盖层窗口与顶部卡片资源（渲染线程调用）。</summary>
     private void CleanupOverlays()
     {
-        DisposeClockResources();
-        DisposeDeepSeekBalanceResources();
+        // 统一释放范围：声明式 UI 树与元素缓存（心率几何、各节点槽位中的 DWrite 资源、画刷）
+        ResetUiAndElements();
         _windowManager.Cleanup();
+        // 时钟门控状态按窗口实例记录，窗口销毁后一并清理，避免残留引用
+        _lastClockTextByOverlay.Clear();
+        _lastClockRootByOverlay.Clear();
         lock (_lock)
         {
             foreach (var item in _topItems) item.Dispose();
@@ -357,38 +353,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     /// </summary>
     private void DeferDispose(IDisposable? d)
         => _disposer.Enqueue(d);
-
-    /// <summary>是否存在活跃的快捷键映射提示（未超时），用于 hasContent 判定。</summary>
-    private bool HasKeyMappingHint()
-    {
-        if (_keyMappingHintText == null) return false;
-        lock (_lock)
-        {
-            return _keyMappingHintText != null
-                && (Stopwatch.GetTimestamp() - _keyMappingHintTick) * 1000 / Stopwatch.Frequency < KeyMappingHintTimeoutMs;
-        }
-    }
-
-    /// <summary>渲染线程读取映射提示文本，并返回淡出不透明度；超时则清空。</summary>
-    private string? GetKeyMappingHintForRender(out float opacity)
-    {
-        opacity = 0;
-        if (_keyMappingHintText == null) return null;
-        lock (_lock)
-        {
-            if (_keyMappingHintText == null) return null;
-            long elapsedMs = (Stopwatch.GetTimestamp() - _keyMappingHintTick) * 1000 / Stopwatch.Frequency;
-            if (elapsedMs >= KeyMappingHintTimeoutMs)
-            {
-                _keyMappingHintText = null;
-                return null;
-            }
-            // 最后 30% 时长淡出
-            float remaining = 1f - (float)elapsedMs / KeyMappingHintTimeoutMs;
-            opacity = remaining < 0.3f ? remaining / 0.3f : 1f;
-            return _keyMappingHintText;
-        }
-    }
 
     private bool TopItemsActive()
     {
@@ -405,57 +369,46 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         var rt = o.RenderTarget;
         if (rt == null) return;
 
-        bool isHeartRateTarget = IsHeartRateTarget(o);
-        bool hasKeyboardContent = o.IsPrimary && (
-            KeyboardActive()
-            || HasKeyMappingHint());
-
-        // 罗技电池：目标屏判定统一复用 IsLogiBatteryTarget，
-        // 与 RenderLoop 的 LogiBatteryActive 共用同一真源，避免两处实现漂移。
-        // 此处只决定"该窗口是否保留"，不要求当前已有可绘制设备：
-        // 同一窗口上可能还挂着心率/弹幕等内容，不能因为电量暂空就整窗隐藏；
-        // 是否真的画出卡片由 RenderLogiBattery 内部按设备过滤决定。
-        bool isLogiTargetScreen = IsLogiBatteryTarget(o);
-        bool isClockTarget = IsClockTarget(o);
-        // DeepSeek 余额：与罗技电池同为「本窗口是否保留」的独立判定，不要求当前已有余额数据
-        bool isDeepSeekTarget = IsDeepSeekBalanceTarget(o);
-
-        // 时钟时间文本（仅时钟目标屏计算一次，用于变化检测）
-        string? clockText = isClockTarget ? GetClockTimeText() : null;
-
-        // 除时钟外的其他内容：决定本窗口是否仍需清除并重绘
+        // 除时钟外的其他内容：决定本窗口是否仍需清除并重绘。
+        // 时钟自身不参与 otherContent 判定 —— 它走下方「仅秒变化时重绘」的门控，
+        // 否则每帧都会被判为 dirty，秒级优化会失效。
         bool otherContent = o.Items.Count > 0 || o.Pending.Count > 0
             || (o.IsPrimary && TopItemsActive())
-            || isHeartRateTarget
-            || hasKeyboardContent
-            || isDeepSeekTarget        // ← 独立：不受其他叠加层元素控制
-            || isLogiTargetScreen;  // ← 独立：不受其他叠加层元素控制
-        bool hasContent = otherContent || isClockTarget;
-        if (!hasContent)
+            || AnyNonClockElementTargets(o);
+
+        bool clockTarget = _clockElement!.IsTargetScreen(o);
+        if (!otherContent && !clockTarget)
         {
             if (o.Visible) { ShowWindow(o.Hwnd, SW_HIDE); o.Visible = false; }
             return;
         }
 
-        // 时钟是否需要刷新：时间文本变化 / 渲染目标变化（缓存画刷失效） / 窗口尚未可见。
-        // 仅时钟且无其他内容、本帧无需刷新时，保留窗口上一帧画面可见、跳过清除与重绘，避免每帧重绘。
-        bool clockDirty = isClockTarget
-            && (clockText != _clockCacheText || _clockCacheBrushRt != o.RenderTarget || !o.Visible);
-        if (isClockTarget && !clockDirty && !otherContent)
-        {
+        // 时钟是否需要刷新：时间文本变化 / 窗口尚未可见 / 渲染目标变化（本窗口 UI 树刚被重建）。
+        // 仅时钟且本帧无需刷新时，保留窗口上一帧画面可见、跳过清除与重绘，避免每帧重绘。
+        string clockText = _clockElement.GetTimeText();
+        var ui = GetUiRoot(o);
+        _lastClockTextByOverlay.TryGetValue(o, out string? lastText);
+        bool clockDirty = clockTarget
+            && (clockText != lastText || !o.Visible || !ReferenceEquals(_lastClockRootByOverlay.GetValueOrDefault(o), ui));
+        _lastClockTextByOverlay[o] = clockText;
+        _lastClockRootByOverlay[o] = ui;
+        if (clockTarget && !clockDirty && !otherContent)
             return;   // 时钟窗口保持可见，不重绘
-        }
 
         rt.BeginDraw();
         rt.Clear(new Color4(0, 0, 0, 0));
 
+        // 阶段一：顶部卡片（媒体 + 超级岛）——声明式
         if (o.IsPrimary)
             RenderTopCards(o, now, freq);
         else
             o.TopOffset = 0;
 
-        SpawnPending(o, rt);
+        var paint = ui.CreatePaintScope(rt, now, freq);
+        ui.PaintTopCards(paint);
 
+        // 阶段二：弹幕——保留命令式（轨道分配与跨屏分发依赖窗口集合与时间推进）
+        SpawnPending(o, rt);
         for (int i = o.Items.Count - 1; i >= 0; i--)
         {
             var item = o.Items[i];
@@ -470,22 +423,9 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             DrawDanmaku(item, (float)x, rt);
         }
 
-        if (isHeartRateTarget)
-            DrawHeartRate(o);
-
-        // 渲染时间浮窗（无背景、仅描边，自由浮动）
-        if (isClockTarget)
-            DrawClock(o);
-
-        // 渲染键盘按键状态（左上角）
-        if (o.IsPrimary)
-            RenderKeyboardState(o);
-
-        // 渲染罗技电池设备卡片（LogiBattery）
-        RenderLogiBattery(o);
-
-        // 渲染 DeepSeek 余额卡片
-        RenderDeepSeekBalance(o);
+        // 阶段三：元素层（5 个叠加层元素）——声明式
+        ComposeElements(ui, o);
+        ui.PaintElements(paint);
 
         rt.EndDraw();
 
@@ -503,6 +443,13 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             o.Visible = true;
         }
     }
+
+    /// <summary>
+    /// 时钟「仅秒变化时重绘」门控状态（仅渲染线程访问）。
+    /// 按键为窗口实例：UI 树被重建（覆盖层重建 / rt 变化）时引用不同，据此强制重绘一次。
+    /// </summary>
+    private readonly Dictionary<ScreenOverlay, string?> _lastClockTextByOverlay = [];
+    private readonly Dictionary<ScreenOverlay, UI.OverlayUiRoot?> _lastClockRootByOverlay = [];
 
     private void DispatchRequests()
     {
@@ -599,9 +546,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     public void Dispose()
     {
         Stop();
-        DisposeLogiBatteryCache();
-        DisposeHeartGeometry();
-        DisposeDeepSeekBalanceResources();
+        ResetUiAndElements();
         _wicFactory.Dispose();
         _dwFactory.Dispose();
         _d2dFactory.Dispose();

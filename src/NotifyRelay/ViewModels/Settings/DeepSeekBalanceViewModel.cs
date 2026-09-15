@@ -168,33 +168,8 @@ public class DeepSeekBalanceViewModel : INotifyPropertyChanged
 
     private void BuildScreenOptions()
     {
-        Screens.Clear();
-        Screens.Add(new ScreenOption { Id = "PRIMARY", DisplayName = "主显示器" });
-        try
-        {
-            var list = _renderService?.GetScreenList();
-            if (list != null)
-            {
-                int index = 1;
-                foreach (var (deviceName, isPrimary) in list)
-                {
-                    Screens.Add(new ScreenOption
-                    {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {index}{(isPrimary ? "  (主)" : "")} · {deviceName}"
-                    });
-                    index++;
-                }
-            }
-        }
-        catch
-        {
-            // 枚举失败时仅保留主显示器选项
-        }
-
-        var saved = _generalSettingsService.DeepSeekBalanceTargetScreen;
-        _selectedScreen = Screens.FirstOrDefault(s =>
-            string.Equals(s.Id, saved, StringComparison.OrdinalIgnoreCase)) ?? Screens[0];
+        _selectedScreen = OverlayScreenOptions.BuildInto(
+            Screens, _renderService, _generalSettingsService.DeepSeekBalanceTargetScreen);
     }
 
     // ===== 操作 =====
