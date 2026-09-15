@@ -99,6 +99,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         LoadInitialStyle();
         LoadInitialHeartRateConfig();
         LoadInitialClockConfig();
+        LoadInitialDeepSeekBalanceConfig();
         // 自动引导：按各自开关绑定并启动所有已登记的叠加层功能
         _featureStartup.Initialize(this);
         _watchdog.UpdateHeartbeat();
@@ -228,6 +229,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
                 // 罗技电池独立驱动：只看电量自身条件，不受弹幕/心率/键盘等其他叠加层元素影响
                 if (!hasContent) hasContent = LogiBatteryActive();
                 if (!hasContent) hasContent = ClockActive();
+                // DeepSeek 余额独立驱动：只看余额自身开关，不受其他叠加层元素影响
+                if (!hasContent) hasContent = DeepSeekBalanceActive();
                 if (!hasContent && KeyboardActive())
                     hasContent = true;
                 if (!hasContent && HasKeyMappingHint())
@@ -339,6 +342,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private void CleanupOverlays()
     {
         DisposeClockResources();
+        DisposeDeepSeekBalanceResources();
         _windowManager.Cleanup();
         lock (_lock)
         {
@@ -413,6 +417,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         // 是否真的画出卡片由 RenderLogiBattery 内部按设备过滤决定。
         bool isLogiTargetScreen = IsLogiBatteryTarget(o);
         bool isClockTarget = IsClockTarget(o);
+        // DeepSeek 余额：与罗技电池同为「本窗口是否保留」的独立判定，不要求当前已有余额数据
+        bool isDeepSeekTarget = IsDeepSeekBalanceTarget(o);
 
         // 时钟时间文本（仅时钟目标屏计算一次，用于变化检测）
         string? clockText = isClockTarget ? GetClockTimeText() : null;
@@ -422,6 +428,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             || (o.IsPrimary && TopItemsActive())
             || isHeartRateTarget
             || hasKeyboardContent
+            || isDeepSeekTarget        // ← 独立：不受其他叠加层元素控制
             || isLogiTargetScreen;  // ← 独立：不受其他叠加层元素控制
         bool hasContent = otherContent || isClockTarget;
         if (!hasContent)
@@ -476,6 +483,9 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
         // 渲染罗技电池设备卡片（LogiBattery）
         RenderLogiBattery(o);
+
+        // 渲染 DeepSeek 余额卡片
+        RenderDeepSeekBalance(o);
 
         rt.EndDraw();
 
@@ -591,6 +601,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         Stop();
         DisposeLogiBatteryCache();
         DisposeHeartGeometry();
+        DisposeDeepSeekBalanceResources();
         _wicFactory.Dispose();
         _dwFactory.Dispose();
         _d2dFactory.Dispose();

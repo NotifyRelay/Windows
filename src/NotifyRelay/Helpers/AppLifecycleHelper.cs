@@ -368,19 +368,8 @@ public static class AppLifecycleHelper
             }
         }
 
-        if (settings.EnableDeepSeekBalanceMonitor)
-        {
-            try
-            {
-                var deepSeekService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.DeepSeekBalanceService>();
-                deepSeekService.StartPolling();
-                logger.LogInformation("DeepSeek 余额监控服务已按设置自动启动");
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "自动启动 DeepSeek 余额监控服务失败");
-            }
-        }
+        // DeepSeek 余额监控的自动启动已由 DeepSeekBalanceOverlayFeature 承担
+        // （随叠加层模块主初始化按同一开关启停），此处不再重复拉起。
     }
 
     /// <summary>
@@ -556,6 +545,7 @@ public static class AppLifecycleHelper
         .AddSingleton<IOverlayFeature, KeyboardOverlayFeature>()
         .AddSingleton<IOverlayFeature, LogiBatteryOverlayFeature>()
         .AddSingleton<IOverlayFeature, HeartRateOverlayFeature>()
+        .AddSingleton<IOverlayFeature, DeepSeekBalanceOverlayFeature>()
 
         // Heart Rate BLE Service
         .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
@@ -568,6 +558,9 @@ public static class AppLifecycleHelper
 
         // 时间浮窗（Clock）ViewModel
         .AddSingleton<ViewModels.Settings.ClockViewModel>()
+
+        // DeepSeek 余额（覆盖层子页）ViewModel
+        .AddSingleton<ViewModels.Settings.DeepSeekBalanceViewModel>()
 
         // ViewModels
         .AddSingleton<MainPageViewModel>()

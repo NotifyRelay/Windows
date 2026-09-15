@@ -3,7 +3,6 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Worker.Services;
 using NotifyRelay.DeviceCtrl.AudioRelay;
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
@@ -15,11 +14,8 @@ namespace NotifyRelay.UserControls;
 public sealed partial class TrayIconControl : UserControl, INotifyPropertyChanged
 {
     private readonly UISettings uiSettings = new();
-    private double _currentDeepSeekBalance;
-    private bool _isDeepSeekPolling;
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private DeepSeekBalanceService DeepSeekService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
     private AudioRelayService AudioRelayService { get; } = Ioc.Default.GetRequiredService<AudioRelayService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
 
@@ -53,42 +49,6 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
 
         UpdateTrayIcon(uiSettings);
         uiSettings.ColorValuesChanged += UpdateTrayIcon;
-
-        DeepSeekService.BalanceUpdated += OnBalanceUpdated;
-        DeepSeekService.StatusChanged += OnDeepSeekStatusChanged;
-        UpdateTrayTooltip();
-    }
-
-    private void OnBalanceUpdated(double balance)
-    {
-        _currentDeepSeekBalance = balance;
-        _isDeepSeekPolling = true;
-        UpdateTrayTooltip();
-    }
-
-    private void OnDeepSeekStatusChanged()
-    {
-        _isDeepSeekPolling = true;
-        UpdateTrayTooltip();
-    }
-
-    private void UpdateTrayTooltip()
-    {
-        try
-        {
-            var tooltip = "NotifyRelay";
-
-            if (_isDeepSeekPolling && _currentDeepSeekBalance > 0)
-            {
-                tooltip = $"NotifyRelay\nDeepSeek 余额: ¥{_currentDeepSeekBalance:F2}";
-            }
-
-            _ = DispatcherQueue.EnqueueAsync(() => TrayIcon.ToolTipText = tooltip);
-        }
-        catch (Exception ex)
-        {
-            Debug.WriteLine($"更新托盘提示失败：{ex.Message}");
-        }
     }
 
     [RelayCommand]

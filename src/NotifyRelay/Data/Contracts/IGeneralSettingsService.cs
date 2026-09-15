@@ -105,6 +105,19 @@ public interface IGeneralSettingsService
     /// </summary>
     bool DeepSeekBalanceHistoryCollapsed { get; set; }
 
+    // ======== DeepSeek 余额叠加层（与 IOverlaySettings 契约保持一致） ========
+    /// <summary>余额卡片显示的目标屏幕（"PRIMARY" 为主屏）。</summary>
+    string DeepSeekBalanceTargetScreen { get; set; }
+
+    /// <summary>余额卡片 X 位置百分比（0-100，卡片左上角基准）。</summary>
+    int DeepSeekBalanceXPercent { get; set; }
+
+    /// <summary>余额卡片 Y 位置百分比（0-100，卡片左上角基准）。</summary>
+    int DeepSeekBalanceYPercent { get; set; }
+
+    /// <summary>余额卡片整体缩放（0.5-4）。</summary>
+    float DeepSeekBalanceScale { get; set; }
+
     /// <summary>
     /// Gets or sets a value indicating whether danmaku notification overlay is enabled.
     /// </summary>
