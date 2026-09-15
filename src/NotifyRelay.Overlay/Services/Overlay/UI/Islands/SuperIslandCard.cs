@@ -146,15 +146,15 @@ internal static class SuperIslandCard
 
     private static void ComposeAIcon(OverlayComposer c, SuperIslandItem item, AComponentData aComp, float iconSize)
     {
-        var bmpProvider = MakeProvider(() => item.LeftIconBitmap ?? item.IconBitmap);
+        bool hasBitmap = item.LeftIconBitmap != null || item.IconBitmap != null;
         bool hasKey = aComp.PicKey != null;
-        if (bmpProvider == null && !hasKey) return;
+        if (!hasBitmap && !hasKey) return;
 
         c.Node<Box>("aIcon", b => { b.Width = iconSize; b.Height = iconSize; }, () =>
         {
             c.Leaf<Bitmap>(null, b =>
             {
-                b.Source = bmpProvider;
+                b.Source = () => item.LeftIconBitmap ?? item.IconBitmap;
                 b.DrawSize = iconSize;
                 b.Opacity = 0.9f;
                 b.PlaceholderWhenEmpty = hasKey;

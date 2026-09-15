@@ -272,7 +272,7 @@ internal sealed class HeartRateElement : IOverlayElement
             * Matrix3x2.CreateTranslation(x + offset, y + offset));
         try
         {
-            using var heartBrush = s.Rt.CreateSolidColorBrush(new Color4(0.906f, 0.282f, 0.231f, Opacity)); // #E7483B
+            var heartBrush = s.Brush(new Color4(0.906f, 0.282f, 0.231f, Opacity)); // #E7483B
             s.Rt.FillGeometry(_heartGeometry, heartBrush);
         }
         finally
@@ -285,7 +285,7 @@ internal sealed class HeartRateElement : IOverlayElement
         using (var numLayout = s.DwFactory.CreateTextLayout(bpmText, numFmt, drawSize, drawSize * 0.4f))
         {
             numLayout.TextAlignment = DWriteTextAlignment.Center;
-            using var numBrush = s.Rt.CreateSolidColorBrush(new Color4(1, 1, 1, Opacity));
+            var numBrush = s.Brush(new Color4(1, 1, 1, Opacity));
             s.Rt.DrawTextLayout(new Vector2(x + offset, y + offset + drawSize * 0.24f), numLayout, numBrush);
         }
 
@@ -305,7 +305,7 @@ internal sealed class HeartRateElement : IOverlayElement
         float bandTop = y + offset + drawSize * 0.55f;
         float bandHeight = drawSize * 0.17f;
 
-        using var lineBrush = s.Rt.CreateSolidColorBrush(new Color4(1, 1, 1, Opacity * 0.85f));
+        var lineBrush = s.Brush(new Color4(1, 1, 1, Opacity * 0.85f));
         float stepX = bandWidth / (history.Length - 1);
         for (int i = 1; i < history.Length; i++)
         {

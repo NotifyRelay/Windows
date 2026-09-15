@@ -112,8 +112,8 @@ internal sealed class KeyboardElement : IOverlayElement
         }
     }
 
-    /// <summary>键盘元素只绘制在主屏（与旧实现 o.IsPrimary 判定一致）。</summary>
-    public bool IsTargetScreen(ScreenOverlay o) => o.IsPrimary;
+    /// <summary>键盘元素只绘制在主屏且有内容要显示（按键或活动提示）。</summary>
+    public bool IsTargetScreen(ScreenOverlay o) => o.IsPrimary && IsActive();
 
     /// <summary>读取提示文本与淡出不透明度；超时则清空。渲染线程调用。</summary>
     private (string? Text, float Opacity) ReadHint()

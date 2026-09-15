@@ -64,7 +64,9 @@ internal sealed class TextLayoutCache : IDisposable
         if (!NeedsRebuild(text, fontFamily, weight, size, maxWidth, maxHeight, truncate)) return;
 
         _layout?.Dispose();
+        _layout = null;
         _measureLayout?.Dispose();
+        _measureLayout = null;
 
         if (MathF.Abs(_size - size) > 1e-4f || _format == null || _weight != weight
             || !string.Equals(_fontFamily, fontFamily, StringComparison.Ordinal))
@@ -206,6 +208,9 @@ internal sealed class RichText : OverlayNode
     private string? _lastHtml;
     private float _lastMaxWidth = -1f;
     private float _lastLineHeight = -1f;
+    private string? _lastFontFamily;
+    private DWriteFontWeight _lastWeight;
+    private float _lastFontSize = -1f;
     private IDWriteTextFormat? _format;
     private string? _formatFontFamily;
     private DWriteFontWeight _formatWeight;
@@ -265,7 +270,10 @@ internal sealed class RichText : OverlayNode
     {
         if (string.Equals(_lastHtml, Html, StringComparison.Ordinal)
             && MathF.Abs(_lastMaxWidth - maxW) < 0.5f
-            && MathF.Abs(_lastLineHeight - lineH) < 0.5f)
+            && MathF.Abs(_lastLineHeight - lineH) < 0.5f
+            && string.Equals(_lastFontFamily, FontFamily, StringComparison.Ordinal)
+            && _lastWeight == Weight
+            && MathF.Abs(_lastFontSize - FontSize) < 1e-4f)
         {
             return;
         }
@@ -273,6 +281,9 @@ internal sealed class RichText : OverlayNode
         _lastHtml = Html;
         _lastMaxWidth = maxW;
         _lastLineHeight = lineH;
+        _lastFontFamily = FontFamily;
+        _lastWeight = Weight;
+        _lastFontSize = FontSize;
 
         DisposeSegments();
         _segmented = false;

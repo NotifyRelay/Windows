@@ -367,12 +367,12 @@ internal static class Templates
 
     public static void HighlightV3(OverlayComposer c, SuperIslandItem item, HighlightInfoV3Data v3, float contentWidth)
     {
-        // 划线开关通过静态字段传给 Canvas 绘制回调（回调签名只接收绘制上下文与矩形）
-        v3ShowLine = v3.ShowSecondaryLine;
+        // 划线开关通过参数传给 Canvas 绘制回调（每个卡片独立的 ShowSecondaryLine）
         var primaryColor = ColorHexParser.ResolveTheme(v3.PrimaryColor, v3.PrimaryColorDark, new Color4(0.25f, 0.77f, 1f, 1f));
         var secondaryColor = ColorHexParser.ResolveTheme(v3.SecondaryColor, v3.SecondaryColorDark, new Color4(0.6f, 0.6f, 0.6f, 1f));
         var tagTextColor = ColorHexParser.ResolveTheme(v3.HighLightTextColor, v3.HighLightTextColorDark, new Color4(1f, 1f, 1f, 1f));
         var tagBgColor = ColorHexParser.ResolveTheme(v3.HighLightBgColor, v3.HighLightBgColorDark, new Color4(0.25f, 0.77f, 1f, 1f));
+        bool showSecondaryLine = v3.ShowSecondaryLine;
 
         c.Node<Column>("v3", col => { col.Spacing = 0f; col.MaxChildWidth = contentWidth; }, () =>
         {
@@ -385,7 +385,7 @@ internal static class Templates
                 c.Leaf<Canvas>("secondary", cv =>
                 {
                     cv.FixedSize = new Size(contentWidth, 18f);
-                    cv.OnPaint = (s, r) => PaintSecondary(s, r, v3.SecondaryText!, secondaryColor);
+                    cv.OnPaint = (s, r) => PaintSecondary(s, r, v3.SecondaryText!, secondaryColor, showSecondaryLine);
                 });
             }
 
@@ -440,20 +440,19 @@ internal static class Templates
         });
     }
 
-    private static void PaintSecondary(PaintScope s, Rect r, string text, Color4 color)
+    private static void PaintSecondary(PaintScope s, Rect r, string text, Color4 color, bool showLine)
     {
         using var format = s.CreateTextFormat("Microsoft YaHei", DWriteFontWeight.Normal, 12f);
         using var layout = s.CreateTruncatedLayout(text, format, MathF.Max(1f, r.Width), 18f);
         var brush = s.BrushWithOpacity(new Color4(color.R, color.G, color.B, Opacity));
         s.Rt.DrawTextLayout(new Vector2(r.X, r.Y), layout, brush);
-        if (!v3ShowLine) return;
+        if (!showLine) return;
         float lineY = r.Y + 9f;
         float lineW = MathF.Min(layout.Metrics.WidthIncludingTrailingWhitespace, r.Width);
         s.Rt.DrawLine(new Vector2(r.X, lineY), new Vector2(r.X + lineW, lineY), brush, 1f);
     }
 
-    /// <summary>划线开关由 Compose 前写入（避免把 bool 传入 Canvas 回调签名）。</summary>
-    internal static bool v3ShowLine;
+
 
     // ---------- 中：ParamIsland ----------
 
