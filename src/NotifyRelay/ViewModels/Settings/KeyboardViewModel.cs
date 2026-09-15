@@ -76,5 +76,3 @@ public class KeyboardViewModel : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
-
-public record KeyOption(int VkCode, string DisplayName);

@@ -148,7 +148,6 @@ public class DiscoveryService(
                         null,
                         string.IsNullOrEmpty(d.Name) ? d.Uuid : d.Name,
                         lastSeen,
-                        DeviceOrigin.TcpScan,
                         d.Port,
                         d.Ip ?? string.Empty,
                         d.Battery,

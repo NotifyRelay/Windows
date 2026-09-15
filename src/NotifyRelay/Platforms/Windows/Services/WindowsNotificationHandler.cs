@@ -505,7 +505,7 @@ public class WindowsNotificationHandler(ILogger logger, IDeviceManager deviceMan
 
     private void HandleMessageNotification(AppNotificationActivatedEventArgs args)
     {
-        if (!args.Arguments.TryGetValue("action", out var actionType))
+        if (!args.Arguments.ContainsKey("action"))
             return;
 
         if (!args.Arguments.TryGetValue("deviceId", out var deviceId))

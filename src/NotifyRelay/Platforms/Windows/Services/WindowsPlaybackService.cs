@@ -44,18 +44,6 @@ public class WindowsPlaybackService(
 
     // 媒体播放状态跟踪已移至 Rust 合并引擎（由 PushMediaState 推送全量，Rust 负责 diff）。
 
-    // 内部播放数据类，替代已删除的 PlaybackSession
-    private class PlaybackData
-    {
-        public SessionType SessionType { get; set; }
-        public string? Source { get; set; }
-        public string? TrackTitle { get; set; }
-        public string? Artist { get; set; }
-        public string? Thumbnail { get; set; }
-        public bool IsPlaying { get; set; }
-        public double? Position { get; set; }
-    }
-
     /// <inheritdoc/>
     public async Task InitializeAsync()
     {
@@ -193,7 +181,7 @@ public class WindowsPlaybackService(
         bool success = await ExecuteSessionActionAsync(session, source, actionType, value);
 
         // 发送媒体操作响应
-        SendMediaControlResponse(source, actionType ?? string.Empty, success);
+        SendMediaControlResponse(actionType ?? string.Empty, success);
     }
 
     private static (string? Source, string? ActionType, double? Value) ParseMediaActionData(string json)
@@ -823,45 +811,6 @@ public class WindowsPlaybackService(
         }
     }
 
-    public void OnDeviceStateChanged(string deviceId, DeviceState newState)
-    {
-        logger.LogInformation("设备状态改变：{DeviceId} - {NewState}", deviceId, newState);
-    }
-
-    public void OnDeviceAdded(string pwstrDeviceId)
-    {
-        // 保留旧方法以供兼容，但实际由 DeviceWatcher 触发时会整体刷新设备列表
-        GetAllAudioDevices();
-        logger.LogInformation("设备已添加：{DeviceId}", pwstrDeviceId);
-    }
-
-    public void OnDeviceRemoved(string deviceId)
-    {
-        // 由 DeviceWatcher 触发时整体刷新设备列表以保持一致性
-        GetAllAudioDevices();
-    }
-
-    public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
-    {
-        // 旧回调兼容实现：尝试设置选中项
-        var index = AudioDevices.FindIndex(d => d.DeviceId == defaultDeviceId);
-
-        if (index != -1)
-        {
-            var selectedIndex = AudioDevices.FindIndex(d => d.IsSelected == true);
-            if (selectedIndex != -1)
-                AudioDevices[selectedIndex].IsSelected = false;
-            AudioDevices[index].IsSelected = true;
-            logger.LogInformation("默认设备已更改：{DefaultDeviceId}", defaultDeviceId);
-        }
-    }
-
-    public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
-    {
-        AudioDevice? device = AudioDevices.FirstOrDefault(d => d.DeviceId == pwstrDeviceId);
-        device?.Volume = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.MasterVolumeLevelScalar;
-    }
-
     // WinRT DeviceWatcher / MediaDevice 事件处理，替代 IMMNotificationClient 回调
     private void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation args)
     {
@@ -972,7 +921,7 @@ public class WindowsPlaybackService(
     /// <param name="source">源</param>
     /// <param name="action">操作类型</param>
     /// <param name="success">是否成功</param>
-    private void SendMediaControlResponse(string source, string action, bool success)
+    private void SendMediaControlResponse(string action, bool success)
     {
         try
         {
@@ -1049,23 +998,5 @@ public class WindowsPlaybackService(
             name = name[..^4];
 
         return string.IsNullOrWhiteSpace(name) ? "NotifyRelay" : name;
-    }
-
-    /// <summary>
-    /// 媒体控制响应类
-    /// </summary>
-    private class MediaControlResponse
-    {
-        [JsonPropertyName("originalHeader")]
-        public string OriginalHeader { get; set; } = string.Empty;
-
-        [JsonPropertyName("action")]
-        public string Action { get; set; } = string.Empty;
-
-        [JsonPropertyName("result")]
-        public string Result { get; set; } = string.Empty;
-
-        [JsonPropertyName("errorMessage")]
-        public string ErrorMessage { get; set; } = string.Empty;
     }
 }

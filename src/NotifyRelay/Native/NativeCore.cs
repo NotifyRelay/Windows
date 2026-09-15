@@ -207,8 +207,6 @@ public static class NativeCore
         return uuid != null ? DeviceManager?.FindDeviceById(uuid) : null;
     }
 
-    private static string? PtrToString(IntPtr ptr) => Marshal.PtrToStringUTF8(ptr);
-
     public static void SetLogCallback(ILogger logger)
     {
         if (_gitHash != null)

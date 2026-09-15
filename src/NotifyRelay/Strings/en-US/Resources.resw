@@ -156,9 +156,6 @@
   <data name="SaveLocation" xml:space="preserve">
     <value>Save location</value>
   </data>
-  <data name="RemoteStorageLocation" xml:space="preserve">
-    <value>Remote Storage Location</value>
-  </data>
   <data name="ShowClipboardToast" xml:space="preserve">
     <value>Show clipboard toast</value>
   </data>
@@ -241,7 +238,7 @@
     <value>Cancel</value>
   </data>
   <data name="OnboardingWelcome.Title" xml:space="preserve">
-    <value>Welcome to Sefirah</value>
+    <value>Welcome to NotifyRelay</value>
   </data>
   <data name="OnboardingWelcome.Subtitle" xml:space="preserve">
     <value>To get started, download and install the companion app through the corresponding GitHub

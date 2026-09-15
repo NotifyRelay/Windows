@@ -53,27 +53,6 @@ public sealed partial class GeneralPage : Page
         }
     }
 
-    public async void SelectRemoteLocation_Click(object sender, RoutedEventArgs e)
-    {
-        var dialog = new ContentDialog
-        {
-            Title = "Warning: Remote Storage Location",
-            Content = "DO NOT set the remote storage location to a pre-existing folder as it will delete the contents of that folder. Are you sure you want to continue?",
-            PrimaryButtonText = "Continue",
-            CloseButtonText = "Cancel",
-            DefaultButton = ContentDialogButton.Close,
-            XamlRoot = App.MainWindow.Content!.XamlRoot
-        };
-
-        if (await dialog.ShowAsync() == ContentDialogResult.Primary)
-        {
-            if (await PickerHelper.PickFolderAsync() is StorageFolder folder)
-            {
-                ViewModel.RemoteStoragePath = folder.Path;
-            }
-        }
-    }
-
     private void OpenActionsSettings(object sender, RoutedEventArgs e)
     {
         Frame.Navigate(typeof(ActionsPage), null, new SuppressNavigationTransitionInfo());

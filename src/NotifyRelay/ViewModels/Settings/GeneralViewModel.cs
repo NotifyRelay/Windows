@@ -188,21 +188,6 @@ public sealed partial class GeneralViewModel : BaseViewModel
         }
     }
 
-    public string RemoteStoragePath
-    {
-        get => UserSettingsService.GeneralSettingsService.RemoteStoragePath;
-        set
-        {
-            // TODO : Delete the previous remote storage folder or move all the placeholders to the new location
-            if (value != UserSettingsService.GeneralSettingsService.RemoteStoragePath)
-            {
-                UserSettingsService.GeneralSettingsService.RemoteStoragePath = value;
-                var ftpService = Ioc.Default.GetRequiredService<IftpService>();
-                //ftpService.RemoveAllSyncRoots();
-                OnPropertyChanged();
-            }
-        }
-    }
     #endregion
 
     public GeneralViewModel()

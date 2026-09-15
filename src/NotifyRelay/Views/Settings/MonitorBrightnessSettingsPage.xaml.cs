@@ -201,14 +201,6 @@ public class MonitorBrightnessViewModel
         catch { }
     }
 
-    public void ToggleSync()
-    {
-        if (_isSyncEnabled)
-            StopSync();
-        else
-            StartSync();
-    }
-
     private void StartSync()
     {
         _brightnessService.StartSync();

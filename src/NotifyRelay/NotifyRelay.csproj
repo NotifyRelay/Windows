@@ -66,8 +66,6 @@
         <PackageReference Include="BouncyCastle.Cryptography" />
         <PackageReference Include="CommunityToolkit.Mvvm" />
         <PackageReference Include="CommunityToolkit.WinUI.Controls.SettingsControls" />
-        <PackageReference Include="FFMpegCore" />
-        <PackageReference Include="Markdig" />
         <PackageReference Include="CommunityToolkit.WinUI.Converters" />
         <PackageReference Include="CommunityToolkit.WinUI.Extensions" />
         <PackageReference Include="H.NotifyIcon.WinUI" />
@@ -87,8 +85,6 @@
         <PackageReference Include="SQLitePCLRaw.provider.sqlite3" />
         <PackageReference Include="SSH.NET" />
         <PackageReference Include="System.Management" />
-        <PackageReference Include="Vanara.PInvoke.CldApi" />
-        <PackageReference Include="Vanara.PInvoke.Ole" />
         <PackageReference Include="Vanara.PInvoke.Shell32" />
         <PackageReference Include="Vortice.Direct2D1" />
         <PackageReference Include="Vortice.Mathematics" />

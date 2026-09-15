@@ -49,6 +49,9 @@ public sealed partial class OverlaySettingsPage : Page
             case "ClockPage":
                 OverlayContentFrame.Navigate(typeof(OverlayClockPage));
                 break;
+            case "DeepSeekBalancePage":
+                OverlayContentFrame.Navigate(typeof(OverlayDeepSeekBalancePage));
+                break;
         }
     }
 }

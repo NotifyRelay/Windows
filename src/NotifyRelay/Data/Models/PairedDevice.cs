@@ -173,7 +173,6 @@ public partial class PairedDevice : ObservableObject
     public DateTime? LastHeartbeat { get; set; }
     public string? RemoteIpAddress { get; set; }
     public string? RemoteDeviceType { get; set; }
-    public string? RemoteBattery { get; set; }
 
     private System.Timers.Timer? disconnectDebounceTimer;
     private System.Timers.Timer? autoftpTimer;

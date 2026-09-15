@@ -20,9 +20,7 @@ namespace NotifyRelay.Services;
 /// </summary>
 public class ProtocolRouter
 {
-    private const string DeviceTypeAndroid = "android";
     private readonly ILogger<ProtocolRouter> logger;
-    private readonly IDeviceManager deviceManager;
     private readonly IScreenMirrorService screenMirrorService;
     private readonly IGeneralSettingsService generalSettingsService;
     private readonly Lazy<INotificationService> notificationService;
@@ -36,7 +34,6 @@ public class ProtocolRouter
 
     public ProtocolRouter(
         ILogger<ProtocolRouter> logger,
-        IDeviceManager deviceManager,
         IScreenMirrorService screenMirrorService,
         IGeneralSettingsService generalSettingsService,
         Func<INotificationService> notificationServiceFactory,
@@ -50,7 +47,6 @@ public class ProtocolRouter
         )
     {
         this.logger = logger;
-        this.deviceManager = deviceManager;
         this.screenMirrorService = screenMirrorService;
         this.generalSettingsService = generalSettingsService;
         this.notificationService = new Lazy<INotificationService>(notificationServiceFactory);
@@ -65,12 +61,6 @@ public class ProtocolRouter
         }
         this.networkDriveMapper = new Lazy<NetworkDriveMapper>(networkDriveMapperFactory);
 #endif
-    }
-
-    private static bool IsRemoteDeviceAndroid(PairedDevice? device)
-    {
-        // 允许RemoteDeviceType为null的情况，因为有些Android设备可能没有在握手时正确设置此属性
-        return device != null && (device.RemoteDeviceType?.Equals(DeviceTypeAndroid, StringComparison.OrdinalIgnoreCase) ?? true);
     }
 
     // ========= 已由 Rust 回调驱动的 DATA_* 独立处理方法 =========
@@ -99,9 +89,6 @@ public class ProtocolRouter
 
     public Task OnDataIconResponseAsync(PairedDevice device, string plaintext)
         => notificationService.Value.ProcessIconResponseAsync(device, plaintext);
-
-    public Task OnDataAudioRequestAsync(PairedDevice device, string plaintext)
-        => notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
 
     public async Task OnDataMediaControlAsync(PairedDevice device, string plaintext)
     {
@@ -159,7 +146,7 @@ public class ProtocolRouter
         => clipboardService.Value.ProcessClipboardMessageAsync(device, plaintext);
 
     public Task OnDataStatusAsync(PairedDevice device, string plaintext)
-        => HandleStatusMessageAsync(device, plaintext);
+        => HandleStatusMessageAsync(plaintext);
 
     public Task OnDataAppListRequestAsync(PairedDevice device, string plaintext)
     {
@@ -190,7 +177,7 @@ public class ProtocolRouter
     /// <summary>
     /// 处理状态响应消息
     /// </summary>
-    private async Task HandleStatusMessageAsync(PairedDevice device, string decryptedPayload)
+    private async Task HandleStatusMessageAsync(string decryptedPayload)
     {
         try
         {

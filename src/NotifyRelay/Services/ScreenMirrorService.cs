@@ -344,7 +344,7 @@ public class ScreenMirrorService(
             deviceIdToSerialMap[device.Id] = deviceSerial;
             // 存储设备ID到仅音频模式的映射
             deviceIdToAudioOnlyMap[device.Id] = isAudioOnly;
-            await StartProcessMonitoring(process, processCts, deviceSerial, device.Name, isAudioOnly);
+            await StartProcessMonitoring(process, processCts, deviceSerial);
             return true;
         }
         catch (Exception ex)
@@ -359,7 +359,7 @@ public class ScreenMirrorService(
 
     // 不再为 scrcpy 创建独立窗口；仅保存 scrcpy 进程映射（见 scrcpyProcesses）
 
-    private async Task StartProcessMonitoring(Process process, CancellationTokenSource processCts, string deviceSerial, string deviceName, bool isAudioOnly)
+    private async Task StartProcessMonitoring(Process process, CancellationTokenSource processCts, string deviceSerial)
     {
         var errorOutput = new StringBuilder();
 

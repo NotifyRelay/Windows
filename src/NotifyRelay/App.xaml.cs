@@ -45,16 +45,15 @@ public partial class App : Microsoft.UI.Xaml.Application
             };
             MainWindow.AppWindow.Title = "NotifyRelay";
             MainWindow.ExtendsContentIntoTitleBar = true;
-            MainWindow.SetIcon(@"Assets\Icons\SefirahLight.ico");
+            MainWindow.SetIcon(@"Assets\Icons\NotifyRelayLight.ico");
             WindowHandle = WindowNative.GetWindowHandle(MainWindow);
             var host = AppLifecycleHelper.BuildHost();
             Host = host;
             Ioc.Default.ConfigureServices(Host.Services);
             await Host.StartAsync();
 
-            bool isStartupTask = false;
             var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
-            isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
+            bool isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
 
             HookEventsForWindow();
             bool isStartupRegistered = ApplicationData.Current.LocalSettings.Values["isStartupRegistered"] == null;

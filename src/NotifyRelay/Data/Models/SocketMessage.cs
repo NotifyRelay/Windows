@@ -39,23 +39,6 @@ public class ActionMessage : SocketMessage
 }
 
 /// <summary>
-/// 自定义动作消息类
-/// 路径: NotifyRelay.Data.Models.CustomActionMessage
-/// 功能: 用于执行自定义路径的程序，支持传递参数
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
-/// </summary>
-public class CustomActionMessage : SocketMessage
-{
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-
-    [JsonPropertyName("arguments")]
-    public string? Arguments { get; set; } = null;
-}
-
-
-
-/// <summary>
 /// 设备信息类
 /// 路径: NotifyRelay.Data.Models.DeviceInfo
 /// 功能: 包含设备的基本信息，如设备ID、名称、型号、公钥等
@@ -74,12 +57,6 @@ public class DeviceInfo : SocketMessage
 
     [JsonPropertyName("avatar")]
     public string? Avatar { get; set; }
-
-    [JsonPropertyName("nonce")]
-    public string? Nonce { get; set; }
-
-    [JsonPropertyName("proof")]
-    public string? Proof { get; set; }
 
     [JsonPropertyName("publicKey")]
     public string PublicKey { get; set; } = string.Empty;
@@ -197,16 +174,4 @@ public class FileMetadata
 
     [JsonPropertyName("fileSize")]
     public required long FileSize { get; set; }
-}
-
-/// <summary>
-/// 设备铃声模式类
-/// 路径: NotifyRelay.Data.Models.DeviceRingerMode
-/// 功能: 包含设备的铃声模式信息
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
-/// </summary>
-public class DeviceRingerMode : SocketMessage
-{
-    [JsonPropertyName("ringerMode")]
-    public int RingerMode { get; set; }
 }

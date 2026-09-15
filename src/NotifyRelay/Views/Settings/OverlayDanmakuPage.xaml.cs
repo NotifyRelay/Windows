@@ -34,20 +34,13 @@ public sealed partial class OverlayDanmakuPage : Page
 
     private void ShowColorPicker(string hex)
     {
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7)
-        {
-            byte r = byte.Parse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber);
-            byte g = byte.Parse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber);
-            byte b = byte.Parse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber);
-            ColorPicker.Color = Windows.UI.Color.FromArgb(255, r, g, b);
-        }
+        ColorPicker.Color = ColorHex.ToWindowsColor(hex);
         _ = ColorPickerDialog.ShowAsync();
     }
 
     private void ColorPickerDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        var color = ColorPicker.Color;
-        var hex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        var hex = ColorHex.Format(ColorPicker.Color);
         switch (_currentTarget)
         {
             case "danmakuColor":

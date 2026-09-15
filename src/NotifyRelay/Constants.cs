@@ -26,19 +26,16 @@ public static class Constants
     public static class ExternalUrl
     {
         public const string ReleasesUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/releases/latest";
-        public const string AndroidGitHubRepoUrl = @"https://github.com/xzy-nine/Notification-Relay";
+        public const string AndroidGitHubRepoUrl = @"https://github.com/NotifyRelay/Android";
         public const string GitHubRepoUrl = @"https://github.com/xzy-nine/NotifyRelay-pc";
         public const string FeatureRequestUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/issues/new?template=request_feature.yml";
         public const string BugReportUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/issues/new?template=report_issue.yml";
-        public const string PrivacyPolicyUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/blob/master/.github/Privacy.md";
-        public const string LicenseUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/blob/master/LICENSE";
     }
 
     public static class UserEnvironmentPaths
     {
         public static readonly string DownloadsPath = GetDownloadsPath();
         public static readonly string UserProfilePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        public static readonly string DefaultRemoteDevicePath = Path.Combine(UserProfilePath, "RemoteDevices");
         private static string GetDownloadsPath()
         {
             string homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

@@ -60,4 +60,12 @@ public interface IOverlaySettings
     float ClockScale { get; set; }
     bool ClockShowSeconds { get; set; }
     bool ClockUse24Hour { get; set; }
+
+    // ======== DeepSeek 余额叠加层（DeepSeekBalance） ========
+    /// <summary>余额监控开关：开启即轮询余额并在叠加层显示（与主程序设置为同一项）。</summary>
+    bool EnableDeepSeekBalanceMonitor { get; set; }
+    string DeepSeekBalanceTargetScreen { get; set; }
+    int DeepSeekBalanceXPercent { get; set; }
+    int DeepSeekBalanceYPercent { get; set; }
+    float DeepSeekBalanceScale { get; set; }
 }

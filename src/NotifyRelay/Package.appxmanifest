@@ -21,10 +21,8 @@
     xmlns:desktop7="http://schemas.microsoft.com/appx/manifest/desktop/windows10/7"
 
     xmlns:com="http://schemas.microsoft.com/appx/manifest/com/windows10"
-    xmlns:cloudfiles="http://schemas.microsoft.com/appx/manifest/cloudfiles/windows10"
-    xmlns:cloudfiles2="http://schemas.microsoft.com/appx/manifest/cloudfiles/windows10/2"
     xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest"
-    IgnorableNamespaces="uap rescap rescap5 uap3 desktop2 desktop3 desktop4 desktop6 desktop7 cloudfiles cloudfiles2 mp">
+    IgnorableNamespaces="uap rescap rescap5 uap3 desktop2 desktop3 desktop4 desktop6 desktop7 mp">
     
     <Identity  Version="1.0.38.0" Name="xzy-nien.NotifyRelay" Publisher="CN=BEC0F2AA-07EB-4762-A2FE-13550AF289A5"/>
     
@@ -74,21 +72,6 @@
                     Enabled="false"
                     DisplayName="NotifyRelay" />
                 </uap5:Extension>
-                <cloudfiles:Extension Category="windows.cloudFiles">
-                    <cloudfiles:CloudFiles>
-                        <cloudfiles:CustomStateHandler Clsid="20000000-0000-0000-0000-000000000001"/>
-                        <!--<cloudfiles:ThumbnailProviderHandler Clsid="703e61b4-f4a4-4803-b824-9d23dad651bc"/>-->
-                        <cloudfiles:ThumbnailProviderHandler Clsid="20000000-0000-0000-0000-000000000001"/>
-                        <cloudfiles:ExtendedPropertyHandler Clsid="20000000-0000-0000-0000-000000000001"/>
-                        <cloudfiles:BannersHandler Clsid="20000000-0000-0000-0000-000000000001"/>
-                        <cloudfiles:CloudFilesContextMenus>
-                            <cloudfiles:Verb Id="Sync" Clsid="942952b6-3bdc-4e50-8fe2-8d2d869ca70f"/>
-                            <cloudfiles:Verb Id="Upload" Clsid="4a3c9b56-f075-4499-b4ee-ba4b88d1fe05"/>
-                        </cloudfiles:CloudFilesContextMenus>
-                        <cloudfiles:ContentUriSource Clsid="20000000-0000-0000-0000-000000000001"/>
-                        <!--<cloudfiles2:StorageProviderStatusUISourceFactory Clsid="d3252227-1396-40a5-bfe9-1fcc49333ab3"/>-->
-                    </cloudfiles:CloudFiles>
-                </cloudfiles:Extension>
                 <desktop:Extension Category="windows.toastNotificationActivation">
                     <desktop:ToastNotificationActivation ToastActivatorCLSID="2b6c1f58-0e8d-4c66-9bff-d6d2c58e52b6" />
                 </desktop:Extension>
@@ -96,12 +79,6 @@
                     <com:ComServer>
                         <com:ExeServer Executable="NotifyRelay.exe" DisplayName="NotifyRelay" Arguments="----AppNotificationActivated:">
                             <com:Class Id="2b6c1f58-0e8d-4c66-9bff-d6d2c58e52b6" />
-                        </com:ExeServer>
-                        <com:ExeServer DisplayName="Sync Command Handler" Executable="$targetnametoken$.exe">
-                            <com:Class Id="942952b6-3bdc-4e50-8fe2-8d2d869ca70f"/>
-                        </com:ExeServer>
-                        <com:ExeServer DisplayName="Upload Command Handler" Executable="$targetnametoken$.exe">
-                            <com:Class Id="4a3c9b56-f075-4499-b4ee-ba4b88d1fe05"/>
                         </com:ExeServer>
                     </com:ComServer>
                 </com:Extension>

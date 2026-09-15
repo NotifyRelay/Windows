@@ -8,12 +8,6 @@ namespace NotifyRelay.Services.Filters;
 /// </summary>
 public class FilterConfig
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
-
     // ====== 本地过滤配置 ======
 
     public bool FilterSelf { get; set; } = true;
@@ -21,7 +15,7 @@ public class FilterConfig
     public List<FilterEntry> LocalFilterEntries { get; set; } = [];
     public HashSet<string> EnabledLocalFilterEntryIds { get; set; } = [];
 
-    // ====== 远程过滤配置 ======
+    // ====== 远程过滤配置（Rust Core 接管，持久化由 FilterConfigRepository 负责） ======
 
     public bool EnablePackageGroupMapping { get; set; } = true;
     public List<List<string>> PackageGroups { get; set; } = DefaultPackageGroups();
@@ -39,20 +33,6 @@ public class FilterConfig
             ["com.sina.weibo", "com.sina.weibog3", "com.weico.international"],
             ["com.tencent.mobileqq", "com.tencent.tim"]
         ];
-    }
-
-    /// <summary>
-    /// 将配置应用到运行时过滤器
-    /// </summary>
-    public void ApplyTo(BackendRemoteFilter remoteFilter)
-    {
-        remoteFilter.EnablePackageGroupMapping = EnablePackageGroupMapping;
-        remoteFilter.PackageGroups = PackageGroups;
-        remoteFilter.PackageGroupEnabled = PackageGroupEnabled;
-        remoteFilter.EnableDeduplication = EnableDeduplication;
-        remoteFilter.FilterMode = FilterMode;
-        remoteFilter.EnablePeerMode = EnablePeerMode;
-        remoteFilter.FilterList = FilterList;
     }
 
     /// <summary>

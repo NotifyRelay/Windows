@@ -472,24 +472,4 @@ public class NetworkService(
 
         dispatcher.TryEnqueue(() => update(device));
     }
-
-    /// <summary>
-    /// 显示非阻塞系统通知，提示设备需要升级
-    /// </summary>
-    private static void ShowUpgradeToast(string deviceName)
-    {
-        try
-        {
-            var template = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);
-            var elements = template.GetElementsByTagName("text");
-            elements[0].AppendChild(template.CreateTextNode("设备协议不兼容"));
-            elements[1].AppendChild(template.CreateTextNode($"设备「{deviceName}」使用旧版加密协议，已被拒绝连接。请升级该设备上的 NotifyRelay。"));
-            var toast = new ToastNotification(template);
-            ToastNotificationManager.CreateToastNotifier().Show(toast);
-        }
-        catch
-        {
-            // Toast 通知可能因系统权限或上下文不可用而失败，静默忽略
-        }
-    }
 }

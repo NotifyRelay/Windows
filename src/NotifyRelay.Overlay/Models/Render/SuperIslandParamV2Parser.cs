@@ -963,11 +963,6 @@ public static partial class SuperIslandParamV2Parser
         return null;
     }
 
-    private static long GetInt64OrDefault(this JsonElement? element, string propertyName, long defaultValue = 0)
-    {
-        return GetInt64(element, propertyName) ?? defaultValue;
-    }
-
     private static long GetInt64OrDefault(this JsonElement element, string propertyName, long defaultValue = 0)
     {
         return GetInt64(element, propertyName) ?? defaultValue;

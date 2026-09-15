@@ -117,12 +117,6 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
         }
     }
 
-    public string RemoteStoragePath
-    {
-        get => _configuration.Get(SettingsKey(nameof(RemoteStoragePath)), Constants.UserEnvironmentPaths.DefaultRemoteDevicePath)!;
-        set => _configuration.Set(SettingsKey(nameof(RemoteStoragePath)), value);
-    }
-
     public string ReceivedFilesPath
     {
         get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;
@@ -230,6 +224,32 @@ internal sealed class GeneralSettingsService : IGeneralSettingsService, IOverlay
     {
         get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceHistoryCollapsed)), false);
         set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceHistoryCollapsed)), value);
+    }
+
+    // ======== DeepSeek 余额叠加层（实现 IGeneralSettingsService 与 IOverlaySettings 共有契约） ========
+    public string DeepSeekBalanceTargetScreen
+    {
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceTargetScreen)), "PRIMARY")!;
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceTargetScreen)), value);
+    }
+
+    public int DeepSeekBalanceXPercent
+    {
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceXPercent)), 20);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceXPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public int DeepSeekBalanceYPercent
+    {
+        // 默认与罗技电池(20,70)、时间浮窗(50,10)错开，避免同类卡片默认重叠
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceYPercent)), 50);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceYPercent)), Math.Clamp(value, 0, 100));
+    }
+
+    public float DeepSeekBalanceScale
+    {
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceScale)), 1f);
+        set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceScale)), Math.Clamp(value, 0.5f, 4f));
     }
 
     // 弹幕叠加层设置

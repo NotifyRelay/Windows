@@ -1,5 +1,3 @@
-using NotifyRelay.Data.Enums;
-
 namespace NotifyRelay.Data.Models;
 
 public class DiscoveredDevice(
@@ -7,7 +5,6 @@ public class DiscoveredDevice(
     string? publicKey,
     string deviceName,
     DateTimeOffset lastSeen,
-    DeviceOrigin origin,
     int port,
     string ip = "",
     int battery = -101,
@@ -19,7 +16,6 @@ public class DiscoveredDevice(
     public string? PublicKey { get; } = publicKey;
     public string DeviceName { get; } = deviceName;
     public DateTimeOffset LastSeen { get; } = lastSeen;
-    public DeviceOrigin Origin { get; } = origin;
     public int Port { get; } = port;
     public string Ip { get; } = ip;
     /// <summary>电量：正=充电中，负=放电中，-101=未知</summary>

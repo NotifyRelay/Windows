@@ -25,20 +25,12 @@ public sealed partial class OverlayClockPage : Page
 
     private void ColorPickerButton_Click(object sender, RoutedEventArgs e)
     {
-        var hex = ViewModel.ClockColor;
-        if (!string.IsNullOrEmpty(hex) && hex.StartsWith("#") && hex.Length == 7)
-        {
-            byte r = byte.Parse(hex.Substring(1, 2), System.Globalization.NumberStyles.HexNumber);
-            byte g = byte.Parse(hex.Substring(3, 2), System.Globalization.NumberStyles.HexNumber);
-            byte b = byte.Parse(hex.Substring(5, 2), System.Globalization.NumberStyles.HexNumber);
-            ColorPicker.Color = Windows.UI.Color.FromArgb(255, r, g, b);
-        }
+        ColorPicker.Color = ColorHex.ToWindowsColor(ViewModel.ClockColor);
         _ = ColorPickerDialog.ShowAsync();
     }
 
     private void ColorPickerDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
     {
-        var color = ColorPicker.Color;
-        ViewModel.ClockColor = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        ViewModel.ClockColor = ColorHex.Format(ColorPicker.Color);
     }
 }

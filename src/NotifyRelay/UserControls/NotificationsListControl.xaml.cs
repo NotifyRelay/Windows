@@ -303,48 +303,6 @@ public sealed partial class NotificationsListControl : UserControl
         }
     }
 
-    private async void DeviceButtonClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button button)
-        {
-            // 优先使用 CommandParameter（如果设置的话）
-            if (button.CommandParameter is Notification paramNotification)
-            {
-                if (button.Tag is SourceDevice sourceDeviceParam)
-                {
-                    await ViewModel.OpenApp(paramNotification, sourceDeviceParam.DeviceId);
-                }
-                else
-                {
-                    await ViewModel.OpenApp(paramNotification);
-                }
-
-                return;
-            }
-
-            // 向上遍历视觉树以查找第一个其 DataContext 为 Notification 的父元素（比仅查找 Border 更稳健）
-            DependencyObject parent = button;
-            Notification? notification = null;
-            while (parent != null)
-            {
-                parent = VisualTreeHelper.GetParent(parent);
-                if (parent is FrameworkElement fe && fe.DataContext is Notification n)
-                {
-                    notification = n;
-                    break;
-                }
-            }
-
-            if (notification is null) return;
-
-            // 获取按钮的 Tag，它包含设备ID和设备名称
-            if (button.Tag is SourceDevice sourceDevice)
-            {
-                await ViewModel.OpenApp(notification, sourceDevice.DeviceId);
-            }
-        }
-    }
-
     private void DeviceButtonsRepeater_ElementPrepared(ItemsRepeater sender, ItemsRepeaterElementPreparedEventArgs args)
     {
         if (args.Element is Button button)

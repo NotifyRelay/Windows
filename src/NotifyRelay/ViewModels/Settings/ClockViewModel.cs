@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
 
@@ -14,7 +13,6 @@ public class ClockViewModel : INotifyPropertyChanged
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-    private readonly DispatcherQueue? _dispatcher;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -38,38 +36,12 @@ public class ClockViewModel : INotifyPropertyChanged
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
         BuildScreenOptions();
     }
 
     private void BuildScreenOptions()
     {
-        Screens.Clear();
-        Screens.Add(new ScreenOption { Id = "PRIMARY", DisplayName = "主显示器" });
-        try
-        {
-            var list = _renderService?.GetScreenList();
-            if (list != null)
-            {
-                int index = 1;
-                foreach (var (deviceName, isPrimary) in list)
-                {
-                    Screens.Add(new ScreenOption
-                    {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {index}{(isPrimary ? " (主)" : "")} · {deviceName}"
-                    });
-                    index++;
-                }
-            }
-        }
-        catch
-        {
-            // 枚举失败时仅保留主显示器选项
-        }
-
-        var saved = _settings.ClockTargetScreen;
-        _selectedScreen = Screens.FirstOrDefault(s => s.Id == saved) ?? Screens[0];
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.ClockTargetScreen);
     }
 
     // ===== 显示设置（持久化 + 推送渲染层） =====

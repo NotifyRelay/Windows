@@ -122,6 +122,11 @@ internal sealed class OverlayWindowManager
         foreach (var item in o.Pending) item.Dispose();
         o.Pending.Clear();
 
+        // 本屏的声明式 UI 树：释放节点槽位中的 DWrite 资源、心形等几何与画刷缓存。
+        // 必须在 RenderTarget 释放之前完成（画刷与渲染目标绑定）。
+        o.UiRoot?.Dispose();
+        o.UiRoot = null;
+
         o.RenderTarget?.Dispose();
         o.RenderTarget = null;
 

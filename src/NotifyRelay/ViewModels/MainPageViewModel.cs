@@ -598,11 +598,6 @@ public sealed partial class MainPageViewModel : BaseViewModel
         }
     }
 
-    public void UpdateNotificationFilter(string appPackage)
-    {
-        RemoteAppsRepository.UpdateAppNotificationFilter(Device!.Id, appPackage, NotificationFilter.Disabled);
-    }
-
     public void ToggleNotificationPin(Notification notification)
     {
         if (Device != null)
