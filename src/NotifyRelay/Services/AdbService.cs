@@ -37,6 +37,9 @@ public class AdbService : IAdbService
     // TCP 重连器（握手触发延迟重连 / 配对设备掉线自动重连）
     private readonly AdbTcpReconnector tcpReconnector;
 
+    // 单设备原子操作（解锁 / 锁屏判定 / 卸载）
+    private readonly AdbDeviceOperator deviceOperator;
+
     public AdbService(
         ILoggerFactory loggerFactory,
         IDeviceManager deviceManager,
@@ -49,6 +52,7 @@ public class AdbService : IAdbService
         // 执行器复用主体日志类别，保证拆分后 Serilog 类别名与日志文本不变
         commandExecutor = new AdbCommandExecutor(logger);
         infoResolver = new AdbDeviceInfoResolver(commandExecutor, deviceManager, logger);
+        deviceOperator = new AdbDeviceOperator(commandExecutor, catalog, logger);
         // RestartAdbClientAsync 以回调形式注入，解开 A ↔ D 双向依赖
         wirelessConnector = new WirelessAdbConnector(
             commandExecutor, catalog, infoResolver, processLauncher, deviceManager, userSettingsService,
@@ -300,44 +304,11 @@ public class AdbService : IAdbService
     public Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null, string? deviceId = null)
         => wirelessConnector.TryEnableAsync(hostIp, usbSerial, deviceId);
 
-    public async void UnlockDevice(DeviceData deviceData, List<string> commands)
-    {
-        try
-        {
-            logger.LogTrace("正在解锁设备");
-            if (await IsLocked(deviceData))
-            {
-                foreach (var command in commands)
-                {
-                    logger.LogTrace("执行命令：{command}", command);
-                    await commandExecutor.ExecuteShellCommandAsync(deviceData, command);
-                    await Task.Delay(250);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "解锁设备时出错：{ex}", ex);
-        }
-    }
+    public void UnlockDevice(DeviceData deviceData, List<string> commands) => deviceOperator.UnlockDevice(deviceData, commands);
 
-    public async Task<bool> IsLocked(DeviceData deviceData)
-    {
-        var output = await commandExecutor.ExecuteShellCommandAsync(deviceData, "dumpsys window policy | grep 'showing=' | cut -d '=' -f2");
-        return output.Trim() == "true";
-    }
+    public Task<bool> IsLocked(DeviceData deviceData) => deviceOperator.IsLocked(deviceData);
 
-    public async Task UninstallApp(string deviceId, string appPackage)
-    {
-        logger.LogInformation("正在从设备 {deviceId} 卸载应用 {appPackage}", appPackage, deviceId);
-
-        // 在UI线程上查询以避免并发修改
-        var adbDevice = await catalog.ReadAsync(d => d.FirstOrDefault(x => x.AndroidId == deviceId));
-        if (adbDevice?.DeviceData == null) return;
-
-        var deviceData = adbDevice.DeviceData;
-        await commandExecutor.UninstallPackageAsync(deviceData, appPackage);
-    }
+    public Task UninstallApp(string deviceId, string appPackage) => deviceOperator.UninstallApp(deviceId, appPackage);
 
     /// <summary>
     /// Restarts the ADB client to pick up TCP/IP mode changes
