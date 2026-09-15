@@ -132,8 +132,6 @@ public static class AppLifecycleHelper
         {
             var filterConfigRepository = Ioc.Default.GetRequiredService<FilterConfigRepository>();
             var filterConfig = filterConfigRepository.LoadOrCreateDefault();
-            var remoteFilter = Ioc.Default.GetRequiredService<BackendRemoteFilter>();
-            filterConfig.ApplyTo(remoteFilter);
             filterConfig.ApplyLocalFilter();
             logger.LogInformation("步骤15a：通知过滤配置初始化完成");
         }
@@ -532,9 +530,6 @@ public static class AppLifecycleHelper
         .AddSingleton<INotificationService, NotificationService>()
         .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
         .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
-
-        // 注册通知过滤服务
-        .AddSingleton<BackendRemoteFilter>()
 
         // 注册其他需要的工厂
         .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())

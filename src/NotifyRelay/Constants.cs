@@ -30,7 +30,6 @@ public static class Constants
         public const string GitHubRepoUrl = @"https://github.com/xzy-nine/NotifyRelay-pc";
         public const string FeatureRequestUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/issues/new?template=request_feature.yml";
         public const string BugReportUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/issues/new?template=report_issue.yml";
-        public const string LicenseUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/blob/master/LICENSE";
     }
 
     public static class UserEnvironmentPaths

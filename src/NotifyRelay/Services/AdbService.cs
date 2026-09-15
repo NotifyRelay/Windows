@@ -68,21 +68,6 @@ public class AdbService(
     ];
 
 
-    // TODO: To add new options dynamically
-    public void AddVideoCodecOption(string command, string display)
-    {
-        int newId = VideoCodecOptions.Count > 0 ? VideoCodecOptions.Max(x => x.Id) + 1 : 0;
-        VideoCodecOptions.Add(new ScrcpyPreferenceItem(newId, command, display));
-    }
-
-    public void AddAudioCodecOption(string command, string display)
-    {
-        int newId = AudioCodecOptions.Count > 0 ? AudioCodecOptions.Max(x => x.Id) + 1 : 0;
-        AudioCodecOptions.Add(new ScrcpyPreferenceItem(newId, command, display));
-    }
-
-
-
     public async Task StartAsync()
     {
         try
@@ -533,25 +518,6 @@ public class AdbService(
         catch (Exception ex)
         {
             logger.LogError(ex, "连接默认无线设备时出错");
-            return false;
-        }
-    }
-
-    public async Task<bool> Pair(AdbDevice device, string pairingCode, string host, int port = 5555)
-    {
-        if (string.IsNullOrEmpty(host)) return false;
-        try
-        {
-            var result = await adbClient.PairAsync(host, port, pairingCode);
-            if (result.Contains("failed") || result.Contains("refused"))
-            {
-                return false;
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "连接无线设备 {device} 时出错：{ex}", device.Serial, ex);
             return false;
         }
     }

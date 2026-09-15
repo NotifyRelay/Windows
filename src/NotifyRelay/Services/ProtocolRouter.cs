@@ -90,9 +90,6 @@ public class ProtocolRouter
     public Task OnDataIconResponseAsync(PairedDevice device, string plaintext)
         => notificationService.Value.ProcessIconResponseAsync(device, plaintext);
 
-    public Task OnDataAudioRequestAsync(PairedDevice device, string plaintext)
-        => notificationService.Value.ProcessNotificationMessageAsync(device, plaintext);
-
     public async Task OnDataMediaControlAsync(PairedDevice device, string plaintext)
     {
         logger.LogDebug("处理DATA_MEDIA_CONTROL消息，内容: {plaintext}", plaintext);

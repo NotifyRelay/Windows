@@ -126,8 +126,6 @@ public partial class GroupedNotification : ObservableObject
 
     public string NotificationCountText => $"{Notifications.Count} 条通知";
 
-    public string FormattedEarliestTime => EarliestTime.ToString("MM-dd HH:mm");
-
     public void ToggleCollapse()
     {
         IsCollapsed = !IsCollapsed;

@@ -196,36 +196,6 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         }
     }
 
-    public void RemoveAllAppsForDeviceAsync(string deviceId)
-    {
-        var allApps = context.Database.Table<ApplicationInfoEntity>();
-        List<ApplicationInfoEntity> appsToDelete = [];
-        foreach (var app in allApps)
-        {
-            if (HasDevice(app, deviceId))
-            {
-                var deviceInfoList = app.AppDeviceInfoList;
-                deviceInfoList.RemoveAll(d => d.DeviceId == deviceId);
-                app.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
-
-                if (deviceInfoList.Count == 0)
-                {
-                    appsToDelete.Add(app);
-                }
-                else
-                {
-                    context.Database.Update(app);
-                }
-            }
-        }
-
-        // Delete apps that no longer have any devices
-        foreach (var app in appsToDelete)
-        {
-            context.Database.Delete(app);
-        }
-    }
-
     public void PinApp(ApplicationInfo appInfo, string deviceId)
     {
         var app = context.Database.Find<ApplicationInfoEntity>(appInfo.PackageName);

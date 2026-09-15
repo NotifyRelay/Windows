@@ -811,45 +811,6 @@ public class WindowsPlaybackService(
         }
     }
 
-    public void OnDeviceStateChanged(string deviceId, DeviceState newState)
-    {
-        logger.LogInformation("设备状态改变：{DeviceId} - {NewState}", deviceId, newState);
-    }
-
-    public void OnDeviceAdded(string pwstrDeviceId)
-    {
-        // 保留旧方法以供兼容，但实际由 DeviceWatcher 触发时会整体刷新设备列表
-        GetAllAudioDevices();
-        logger.LogInformation("设备已添加：{DeviceId}", pwstrDeviceId);
-    }
-
-    public void OnDeviceRemoved(string deviceId)
-    {
-        // 由 DeviceWatcher 触发时整体刷新设备列表以保持一致性
-        GetAllAudioDevices();
-    }
-
-    public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId)
-    {
-        // 旧回调兼容实现：尝试设置选中项
-        var index = AudioDevices.FindIndex(d => d.DeviceId == defaultDeviceId);
-
-        if (index != -1)
-        {
-            var selectedIndex = AudioDevices.FindIndex(d => d.IsSelected == true);
-            if (selectedIndex != -1)
-                AudioDevices[selectedIndex].IsSelected = false;
-            AudioDevices[index].IsSelected = true;
-            logger.LogInformation("默认设备已更改：{DefaultDeviceId}", defaultDeviceId);
-        }
-    }
-
-    public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
-    {
-        AudioDevice? device = AudioDevices.FirstOrDefault(d => d.DeviceId == pwstrDeviceId);
-        device?.Volume = enumerator.GetDevice(pwstrDeviceId).AudioEndpointVolume.MasterVolumeLevelScalar;
-    }
-
     // WinRT DeviceWatcher / MediaDevice 事件处理，替代 IMMNotificationClient 回调
     private void DeviceWatcher_Added(DeviceWatcher sender, DeviceInformation args)
     {

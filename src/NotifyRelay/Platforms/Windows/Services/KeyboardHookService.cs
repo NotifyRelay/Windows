@@ -43,9 +43,6 @@ public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
     // 快捷键映射触发事件：推送 DisplayText 供叠加层显示
     public event EventHandler<KeyMappingDisplayEventArgs>? MappingTriggered;
 
-    /// <summary>当前所有按键状态的快照。</summary>
-    public IReadOnlyDictionary<int, bool> KeyStates => _keyStates;
-
     public KeyboardHookService(ILogger<KeyboardHookService> logger, IGeneralSettingsService settings)
     {
         _logger = logger;

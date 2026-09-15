@@ -59,24 +59,12 @@ public partial class AboutViewModel : ObservableObject
     }
 
     [RelayCommand]
-    private Task OpenLibraryLink(string url)
-    {
-        return Launcher.LaunchUriAsync(new Uri(url)).AsTask();
-    }
-
-    [RelayCommand]
     private async Task<bool> OpenLogs()
     {
         var path = ApplicationData.Current.LocalFolder.Path;
         Debug.WriteLine(path);
         var result = await Launcher.LaunchUriAsync(new Uri(path)).AsTask();
         return result;
-    }
-
-    [RelayCommand]
-    private Task OpenLicense()
-    {
-        return Launcher.LaunchUriAsync(new Uri(Constants.ExternalUrl.LicenseUrl)).AsTask();
     }
 
     public ObservableCollection<OpenSourceLibraryItem> ThirdPartyLibraries { get; } =

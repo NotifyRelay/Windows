@@ -23,7 +23,6 @@ public class NotificationService(
     NotificationRepository notificationRepository,
     Func<IRemoteAppService> remoteAppServiceFactory,
     IPlaybackService playbackService,
-    BackendRemoteFilter remoteFilter,
     IGeneralSettingsService generalSettings,
     OverlayRenderService overlayRender) : INotificationService, INotifyPropertyChanged
 {
@@ -172,13 +171,6 @@ public class NotificationService(
             // 过滤超级岛通知，识别段是'superisland:'
             if (appPackage?.StartsWith("superisland:") == true)
             {
-                return;
-            }
-
-            // 应用远程过滤（黑/白名单、包名等价组映射、文本去重）
-            if (remoteFilter.ShouldBlock(notificationType, title, appPackage, appName, text))
-            {
-                logger.LogDebug("远程过滤阻止了通知: {Title}", title);
                 return;
             }
 
