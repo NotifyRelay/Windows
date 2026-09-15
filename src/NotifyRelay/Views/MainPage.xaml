@@ -15,10 +15,6 @@
     x:Name="PageRoot">
 
     <Page.Resources>
-        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionButtonTextConverter"
-            FalseValue="{helpers:ResourceString Name=Disconnected/Text}"
-            TrueValue="{helpers:ResourceString Name=Connected/Text}" />
-        
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinTextConverter"
             FalseValue="{helpers:ResourceString Name=Pin}"
             TrueValue="{helpers:ResourceString Name=Unpin}" />
@@ -237,12 +233,6 @@
 
                         <!--  Connection Status Card with ADB Info  -->
                         <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                            <Button
-                                HorizontalAlignment="Left"
-                                Command="{x:Bind ViewModel.ToggleConnectionCommand}"
-                                Content="{x:Bind ViewModel.Device.ConnectionStatus, Converter={StaticResource BoolToConnectionButtonTextConverter}, Mode=OneWay}"
-                                Visibility="{x:Bind ViewModel.Device.Name, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}" />
-                            
                             <!--  ADB Connection Status Labels  -->
                             <ItemsRepeater ItemsSource="{x:Bind ViewModel.AdbConnectionTypes, Mode=OneWay}" Visibility="{x:Bind ViewModel.AdbConnectionTypes.Count, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
                                 <ItemsRepeater.Layout>

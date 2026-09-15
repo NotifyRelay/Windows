@@ -7,10 +7,12 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Native;
 using NotifyRelay.Utils;
-
 namespace NotifyRelay.Services;
 
-public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceRepository repository) : ObservableObject, IDeviceManager
+public partial class DeviceManager(
+    ILogger<DeviceManager> logger,
+    DeviceRepository repository,
+    IDeviceSnapshotStore snapshotStore) : ObservableObject, IDeviceManager
 {
     public ObservableCollection<PairedDevice> PairedDevices { get; set; } = [];
 
@@ -27,11 +29,150 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
     public event EventHandler<string>? LocalDeviceNameChanged;
 
     /// <summary>
+    /// 本机 uuid：core 快照中同样会被排除，此处双保险避免自我配对记录进入列表。
+    /// </summary>
+    private string? localDeviceId;
+
+    /// <summary>
     /// Finds a device session by device ID
     /// </summary>
     public PairedDevice? FindDeviceById(string deviceId)
     {
         return PairedDevices.FirstOrDefault(device => device.Id == deviceId);
+    }
+
+    /// <summary>
+    /// 订阅 core 快照：列表成员（core 判定 paired）与运行时状态（在线/电量/名称/IP）
+    /// 全部以快照为准，平台端不再自行维护。
+    ///
+    /// 时序：
+    /// ```mermaid
+    /// sequenceDiagram
+    ///     participant Core as Rust Core
+    ///     participant Store as DeviceSnapshotStore
+    ///     participant DM as DeviceManager
+    ///     participant UI as PairedDevices/UI
+    ///
+    ///     Core-->>Store: on_device_discovered / timeout（仅通知）
+    ///     Store->>Core: nrc_get_device_list(ctx, 0, 0)
+    ///     Core-->>Store: 快照 [{uuid, paired, online, battery, name, ip, ...}]
+    ///     Store->>DM: Refreshed(快照)（UI 线程）
+    ///     DM->>DM: 增补 paired 设备（配置从平台库装载）
+    ///     DM->>DM: 移除 paired=false 设备（仅内存，不删库）
+    ///     DM->>UI: ApplySnapshot 回填在线/电量/名称/IP
+    /// ```
+    /// </summary>
+    private void OnSnapshotsRefreshed(IReadOnlyDictionary<string, DeviceSnapshot> snapshots)
+    {
+        try
+        {
+            // core 尚未产出可用快照前不做增删：避免启动早期把「还没扫到」误判为「已解绑」
+            if (!snapshotStore.IsReady) return;
+
+            var paired = snapshots.Values.Where(s => s.Paired).ToList();
+            var pairedIds = paired.Select(s => s.Uuid).ToHashSet(StringComparer.Ordinal);
+
+            // 1. 补齐 core 判定为已配对、平台列表尚未持有的设备（配置从库装载）
+            foreach (var snap in paired)
+            {
+                if (snap.Uuid == localDeviceId) continue;
+                if (FindDeviceById(snap.Uuid) is not null) continue;
+                AddFromRepository(snap.Uuid);
+            }
+
+            // 2. 移除 core **明确判定为未配对**的设备（快照中存在且 paired=false）：
+            //    这类设备的密钥不在 core（旧版不兼容密钥未迁移成功，或已被解绑）。
+            //    注意：只处理「core 明确报告未配对」的设备，绝不因设备在快照中「缺席」而移除 ——
+            //    持久化加载瞬时失败时 core 会返回空列表，据缺席移除会误清空整个设备列表。
+            //    （显式删除设备由 RemoveDevice 路径处理，不依赖此处。）
+            for (var i = PairedDevices.Count - 1; i >= 0; i--)
+            {
+                var id = PairedDevices[i].Id;
+                if (id == localDeviceId || pairedIds.Contains(id)) continue;
+                if (!snapshots.TryGetValue(id, out var snap) || snap.Paired) continue;
+
+                logger.LogWarning("设备 {deviceId} 未被 core 判定为已配对，移出设备列表", id);
+                PairedDevices.RemoveAt(i);
+            }
+
+            // 3. 回填运行时状态（在线/电量/名称/IP/最后可见）
+            foreach (var snap in paired)
+            {
+                FindDeviceById(snap.Uuid)?.ApplySnapshot(snap);
+            }
+
+            // 4. 活跃设备失效兜底
+            if (ActiveDevice is not null && FindDeviceById(ActiveDevice.Id) is null)
+            {
+                ActiveDevice = PairedDevices.FirstOrDefault();
+            }
+            else if (ActiveDevice is null && PairedDevices.Count > 0)
+            {
+                ActiveDevice = PairedDevices.FirstOrDefault();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "应用 core 设备快照到设备列表时出错");
+        }
+    }
+
+    /// <summary>
+    /// 从平台库装载单台设备的配置（名称/型号/IP/壁纸/ftp 标记），不存在则新建空记录。
+    /// 壁纸解码为异步，先加入列表再后台回填，避免阻塞快照刷新（本方法在 UI 线程执行）。
+    /// </summary>
+    private void AddFromRepository(string deviceId)
+    {
+        PairedDevice device;
+        byte[]? wallpaperBytes = null;
+
+        try
+        {
+            if (repository.HasDevice(deviceId, out var entity))
+            {
+                device = new PairedDevice(deviceId)
+                {
+                    Name = entity.Name,
+                    Model = entity.Model,
+                    IpAddresses = entity.IpAddresses,
+                    RemotePublicKey = entity.PublicKey,
+                    HasSentftpRequest = entity.HasSentftpRequest,
+                    // SharedSecret 由 Rust 私有库持有，此处不外泄
+                };
+                wallpaperBytes = entity.WallpaperBytes;
+            }
+            else
+            {
+                device = new PairedDevice(deviceId);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "从平台库装载设备 {deviceId} 失败，使用空记录", deviceId);
+            device = new PairedDevice(deviceId);
+        }
+
+        PairedDevices.Add(device);
+
+        // 壁纸异步解码后回填（失败静默，不影响设备可用性）
+        if (wallpaperBytes is not null)
+        {
+            _ = LoadWallpaperAsync(device, wallpaperBytes);
+        }
+    }
+
+    /// <summary>异步解码壁纸并回填（在 UI 线程发起，await 后自动回到 UI 线程赋值）。</summary>
+    private static async Task LoadWallpaperAsync(PairedDevice device, byte[] bytes)
+    {
+        try
+        {
+            var bitmap = await ImageHelper.ToBitmapAsync(bytes);
+            if (bitmap is not null) device.Wallpaper = bitmap;
+        }
+        catch
+        {
+            // 壁纸失败不影响设备可用性
+        }
     }
 
     /// <summary>
@@ -89,6 +230,7 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         }
         NativeCore.RemoveKnownDevice(device.Id);
         NativeCore.RemoveDeviceSession(device.Id);
+        snapshotStore.Forget(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
@@ -130,15 +272,6 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
             HasSentftpRequest = device.HasSentftpRequest,
         };
         repository.AddOrUpdateRemoteDevice(entity);
-    }
-
-    public void UpdateDeviceStatus(PairedDevice device, DeviceStatus deviceStatus)
-    {
-        var pairedDevice = PairedDevices.First(d => d.Id == device.Id);
-        App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-        {
-            pairedDevice.Status = deviceStatus;
-        });
     }
 
     public async Task<PairedDevice?> VerifyHandshakeAsync(string deviceId, string remotePublicKey, string? deviceName, string? ipAddress)
@@ -292,18 +425,22 @@ public partial class DeviceManager(ILogger<DeviceManager> logger, DeviceReposito
         }
     }
 
-    public async Task Initialize()
+    /// <summary>
+    /// 初始化设备列表。
+    ///
+    /// <paramref name="localDeviceId"/> 为平台侧本机 uuid（仅用于排除自我记录）。
+    /// 设备列表的<b>成员与运行时状态由 core 快照驱动</b>：此处只订阅快照并做一次同步刷新，
+    /// 不再从平台库全量装载后自行维护在线状态。
+    /// </summary>
+    public async Task Initialize(string? localDeviceId = null)
     {
-        var pairedDevicesList = await repository.GetPairedDevices();
+        this.localDeviceId = localDeviceId;
 
-        // 清空现有集合，然后逐个添加设备，确保CollectionChanged事件被触发
-        PairedDevices.Clear();
-        foreach (var device in pairedDevicesList)
-        {
-            PairedDevices.Add(device);
-        }
+        snapshotStore.Refreshed -= OnSnapshotsRefreshed;
+        snapshotStore.Refreshed += OnSnapshotsRefreshed;
+        snapshotStore.Start();
 
-        ActiveDevice = PairedDevices.FirstOrDefault();
+        await Task.CompletedTask;
     }
 
     public string GeneratePairingCode()

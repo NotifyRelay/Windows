@@ -33,123 +33,113 @@ public partial class PairedDevice : ObservableObject
     }
 
     private bool connectionStatus;
+
+    /// <summary>
+    /// 是否在线。**在线判定归 Rust core**（快照 online：已配对 12s / 未配对 20s 内收到心跳即在线），
+    /// 平台端不再自行判决离线时机（原 5 秒防抖已移除），唯一写入方为
+    /// <see cref="NotifyRelay.Services.DeviceManager"/> 应用 core 快照时。
+    /// </summary>
     public bool ConnectionStatus
     {
         get => connectionStatus;
         set
         {
-            // 只有当连接状态真正改变时才执行操作
-            if (connectionStatus == value)
-            {
-                // 移除连接状态未变化的调试日志
-                return;
-            }
+            if (connectionStatus == value) return;
 
             var wasConnected = connectionStatus;
-            logger.LogInformation("设备 {0} ({1}) 在线状态变更：之前={2}, 现在={3}", Name, Id, wasConnected, value);
+            SetProperty(ref connectionStatus, value);
 
             if (value)
             {
-                // 如果设置为true，取消任何挂起的断开连接操作
-                disconnectDebounceTimer?.Stop();
-                disconnectDebounceTimer?.Dispose();
-                disconnectDebounceTimer = null;
-                pendingDisconnect = false;
-
-                SetProperty(ref connectionStatus, true);
                 logger.LogInformation("设备 {0} ({1}) 已上线", Name, Id);
+                if (!wasConnected) TryStartAutoFtp();
+            }
+            else
+            {
+                logger.LogInformation("设备 {0} ({1}) 已离线", Name, Id);
+            }
+        }
+    }
 
-                // 如果设备之前未连接，并且已经发送过ftp请求，启动自动ftp请求计时器
-                if (!wasConnected)
+    /// <summary>
+    /// 设备由离线转为在线后，若此前手动发起过 ftp 请求，则延迟重连映射盘。
+    /// （平台端特有的映射盘能力，触发时机由 core 快照的在线状态驱动）
+    /// </summary>
+    private void TryStartAutoFtp()
+    {
+        if (!HasSentftpRequest) return;
+
+        // 确保之前的计时器已被释放
+        autoftpTimer?.Stop();
+        autoftpTimer?.Dispose();
+
+        autoftpTimer = new System.Timers.Timer(5000) { AutoReset = false };
+        autoftpTimer.Elapsed += (s, e) =>
+        {
+            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
+            {
+                try
                 {
-                    logger.LogDebug("设备 {0} ({1}) 已连接，检查HasSentftpRequest属性", Name, Id);
-
-                    // 只有当HasSentftpRequest为true时才启动计时器
-                    if (HasSentftpRequest)
-                    {
-                        logger.LogDebug("HasSentftpRequest为true，启动自动ftp计时器");
-
-                        // 确保之前的计时器已被释放
-                        autoftpTimer?.Stop();
-                        autoftpTimer?.Dispose();
-
-                        // 启动5秒自动ftp请求计时器
-                        autoftpTimer = new System.Timers.Timer(5000);
-                        autoftpTimer.AutoReset = false; // 只触发一次
-                        autoftpTimer.Elapsed += (s, e) =>
-                        {
-                            logger.LogDebug("设备 {0} ({1}) 的自动ftp计时器已触发", Name, Id);
-                            App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-                            {
-                                try
-                                {
-                                    // 再次检查连接状态和HasSentftpRequest属性
-                                    if (ConnectionStatus && HasSentftpRequest)
-                                    {
-                                        logger.LogDebug("设备仍然连接且HasSentftpRequest为true，发送ftp命令");
-
 #if WINDOWS
-                                        // 从DI获取networkDriveMapper并发送ftp命令
-                                        var networkDriveMapper = Ioc.Default.GetRequiredService<NetworkDriveMapper>();
-                                        networkDriveMapper.SendftpCommand(this, "start");
+                    if (ConnectionStatus && HasSentftpRequest)
+                    {
+                        Ioc.Default.GetRequiredService<NetworkDriveMapper>().SendftpCommand(this, "start");
+                    }
 #endif
-                                        logger.LogDebug("ftp命令发送成功");
-                                    }
-                                    else
-                                    {
-                                        logger.LogDebug("设备已断开连接或HasSentftpRequest为false，跳过发送ftp命令");
-                                    }
-                                }
-                                catch (Exception ex)
-                                {
-                                    logger.LogError(ex, "设备 {0} ({1}) 的自动ftp请求失败", Name, Id);
-                                }
-                                finally
-                                {
-                                    // 确保计时器被释放
-                                    autoftpTimer?.Dispose();
-                                    autoftpTimer = null;
-                                }
-                            });
-                        };
-                        autoftpTimer.Start();
-                        logger.LogDebug("设备 {0} ({1}) 的自动ftp计时器已启动", Name, Id);
-                    }
-                    else
-                    {
-                        logger.LogDebug("HasSentftpRequest为false，跳过启动自动ftp计时器");
-                    }
                 }
-            }
-            else if (connectionStatus && !pendingDisconnect)
-            {
-                // If setting to false and currently true, debounce
-                pendingDisconnect = true;
-                disconnectDebounceTimer?.Stop();
-                disconnectDebounceTimer?.Dispose();
-                disconnectDebounceTimer = new System.Timers.Timer(5000); // 5 second debounce
-                var deviceName = Name;
-                var deviceId = Id;
-                disconnectDebounceTimer.Elapsed += (s, e) =>
+                catch (Exception ex)
                 {
-                    App.MainWindow?.DispatcherQueue.TryEnqueue(() =>
-                    {
-                        if (pendingDisconnect)
-                        {
-                            SetProperty(ref connectionStatus, false);
-                            pendingDisconnect = false;
-                            logger.LogInformation("设备 {0} ({1}) 已离线", deviceName, deviceId);
-                        }
-                        disconnectDebounceTimer?.Dispose();
-                        disconnectDebounceTimer = null;
-                    });
-                };
-                disconnectDebounceTimer.Start();
-            }
-            else if (!connectionStatus)
+                    logger.LogError(ex, "设备 {0} ({1}) 的自动ftp请求失败", Name, Id);
+                }
+                finally
+                {
+                    autoftpTimer?.Dispose();
+                    autoftpTimer = null;
+                }
+            });
+        };
+        autoftpTimer.Start();
+    }
+
+    /// <summary>
+    /// 用 Rust core 快照回填运行时状态（在线/电量/名称/IP/最后可见时间）。
+    ///
+    /// 这些字段的唯一真源是 core：平台端只做投影，不再各自维护第二份。
+    /// 快照中的空值（core 重启首帧的 name/deviceType）不覆盖平台侧已有值。
+    /// </summary>
+    public void ApplySnapshot(DeviceSnapshot snapshot)
+    {
+        ConnectionStatus = snapshot.Online;
+
+        var battery = snapshot.BatteryPercent;
+        if (battery >= 0)
+        {
+            Status = new DeviceStatus
             {
-                // Already false, do nothing
-            }
+                BatteryStatus = battery,
+                ChargingStatus = snapshot.IsCharging,
+            };
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Name))
+        {
+            Name = snapshot.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.Ip))
+        {
+            RemoteIpAddress = snapshot.Ip;
+        }
+
+        if (!string.IsNullOrWhiteSpace(snapshot.DeviceType)
+            && snapshot.DeviceType != DeviceSnapshot.UnknownDeviceType)
+        {
+            RemoteDeviceType = snapshot.DeviceType;
+        }
+
+        if (snapshot.LastSeen > 0)
+        {
+            LastHeartbeat = snapshot.LastSeenTime.UtcDateTime;
         }
     }
 
@@ -174,9 +164,7 @@ public partial class PairedDevice : ObservableObject
     public string? RemoteIpAddress { get; set; }
     public string? RemoteDeviceType { get; set; }
 
-    private System.Timers.Timer? disconnectDebounceTimer;
     private System.Timers.Timer? autoftpTimer;
-    private bool pendingDisconnect;
 
     private readonly IAdbService adbService;
     private readonly IUserSettingsService userSettingsService;

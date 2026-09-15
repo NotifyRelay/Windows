@@ -75,7 +75,8 @@ public static class AppLifecycleHelper
         // 一致性对齐在步骤17b（FinalizeRustPersistenceAsync）进行
 
         logger.LogInformation("步骤15：初始化设备管理器...");
-        await deviceManager.Initialize();
+        // 设备列表成员与在线状态由 core 快照驱动：传入本机 uuid 以排除自我配对记录
+        await deviceManager.Initialize(localDevice.DeviceId);
         logger.LogInformation("步骤15：设备管理器初始化完成");
 
         // 清理历史残留的本机配对记录（自我握手循环等异常写入），避免登记到 known_devices 引发自我连接
@@ -121,6 +122,18 @@ public static class AppLifecycleHelper
         {
             logger.LogError(ex, "步骤15a：迁移旧设备密钥失败");
             allMigrationsSucceeded = false;
+        }
+
+        // 迁移后立即重取 core 快照：设备列表成员以 core 的 paired 集合为准（见 DeviceManager），
+        // 若不在迁移后刷新，首次订阅时的旧快照可能尚未包含刚迁移的密钥，
+        // 且步骤17登记 known_devices 也会读到过期数据。
+        try
+        {
+            Ioc.Default.GetRequiredService<IDeviceSnapshotStore>().Refresh();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "步骤15a：迁移后刷新设备快照失败");
         }
 
         logger.LogInformation("步骤15：初始化通知服务...");
@@ -505,6 +518,10 @@ public static class AppLifecycleHelper
 #endif
         .AddSingleton<ProtocolRouter>()
         .AddSingleton<HeartbeatProcessor>()
+
+        // 设备状态唯一真源消费端与同步查询入口
+        .AddSingleton<IDeviceSnapshotStore, DeviceSnapshotStore>()
+        .AddSingleton<IDeviceDirectory, DeviceDirectory>()
 
         // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
         .AddSingleton<INetworkService, NetworkService>()

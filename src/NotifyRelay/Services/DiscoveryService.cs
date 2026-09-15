@@ -1,32 +1,43 @@
-using System.Text.Json;
-using System.Text.Json.Serialization;
 using CommunityToolkit.WinUI;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
 
 namespace NotifyRelay.Services;
 
+/// <summary>
+/// 设备发现服务：把 Rust core 的设备快照投影为「可配对设备列表」。
+///
+/// 在线/离线、可见性、名称/IP/电量/配对状态<b>全部由 core 判定</b>，平台端只负责展示：
+/// 数据来自 <see cref="IDeviceSnapshotStore"/>（设备状态的唯一真源消费端），
+/// 本类不再自行调用 <c>nrc_get_device_list</c>，也不再维护独立刷新链路。
+///
+/// 时序：
+/// ```mermaid
+/// sequenceDiagram
+///     participant Core as Rust Core
+///     participant Store as DeviceSnapshotStore
+///     participant DS as DiscoveryService
+///     participant UI as DiscoveredDevices
+///
+///     Core-->>Store: on_device_discovered / on_device_timeout（仅通知）
+///     Store->>Core: nrc_get_device_list(ctx, 0, 0)
+///     Core-->>Store: 已过滤快照（不可见设备 core 不返回）
+///     Store->>DS: Refreshed(快照)（UI 线程）
+///     DS->>UI: 重建可配对设备列表
+/// ```
+/// </summary>
 public class DiscoveryService(
     ILogger logger,
     IDeviceManager deviceManager,
-    HeartbeatProcessor heartbeatProcessor
+    IDeviceSnapshotStore snapshotStore
     ) : IDiscoveryService
 {
-    /// <summary>
-    /// 设备快照兜底刷新间隔（与 Android 端保持一致）：
-    /// 保证设备离线后即使没有回调也能从列表中移除
-    /// </summary>
-    private static readonly TimeSpan RefreshInterval = TimeSpan.FromSeconds(5);
-
     private readonly DispatcherQueue dispatcher = DispatcherQueue.GetForCurrentThread();
     private LocalDeviceEntity? localDevice;
-    private bool isInitialized = false;
-    private int refreshBusy;
-    private DispatcherQueueTimer? refreshTimer;
+    private bool isInitialized;
 
     public ObservableCollection<DiscoveredDevice> DiscoveredDevices { get; } = [];
 
@@ -34,17 +45,12 @@ public class DiscoveryService(
     {
         try
         {
-            await dispatcher.EnqueueAsync(() =>
-            {
-                DiscoveredDevices.Clear();
-                logger.LogInformation("设备列表已清理");
-            });
+            await dispatcher.EnqueueAsync(() => DiscoveredDevices.Clear());
 
             localDevice = await deviceManager.GetLocalDeviceAsync();
             logger.LogInformation("本地设备初始化完成：{deviceId}, {deviceName}", localDevice.DeviceId, localDevice.DeviceName);
 
             deviceManager.LocalDeviceNameChanged += OnLocalDeviceNameChanged;
-            logger.LogInformation("事件处理程序已设置");
 
             var systemInfoService = Ioc.Default.GetService<ISystemInfoService>();
             var batteryLevel = systemInfoService?.GetSystemBatteryLevel() ?? 100;
@@ -54,23 +60,22 @@ public class DiscoveryService(
             // 通过 Rust 内核启动周期性 TCP 扫描发现
             NativeCore.PeriodicBroadcast(1, localDevice.DeviceId, localDevice.DeviceName, signedBattery, "pc");
 
-            // 设备状态变化（扫描发现 / 设备超时）→ 重新拉取 core 快照刷新列表
-            heartbeatProcessor.DeviceListChanged += OnDeviceListChanged;
-
+            // 先置位再订阅：否则首次快照回调会因 isInitialized=false 被丢弃，列表保持为空
             isInitialized = true;
-            logger.LogInformation("发现服务已完全初始化");
 
-            await RefreshFromCoreAsync();
-            StartPeriodicRefresh();
+            // 设备状态变化 → 由 DeviceSnapshotStore 统一拉取快照并回调本类重建列表
+            snapshotStore.Refreshed -= OnSnapshotsRefreshed;
+            snapshotStore.Refreshed += OnSnapshotsRefreshed;
+            snapshotStore.Start();
+            snapshotStore.RequestRefresh();
+
+            logger.LogInformation("发现服务已完全初始化");
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "启动发现服务时出错");
             isInitialized = false;
-            await dispatcher.EnqueueAsync(() =>
-            {
-                DiscoveredDevices.Clear();
-            });
+            await dispatcher.EnqueueAsync(() => DiscoveredDevices.Clear());
         }
     }
 
@@ -95,108 +100,58 @@ public class DiscoveryService(
         }
     }
 
-    private void OnDeviceListChanged()
-    {
-        // 回调来自 Rust 线程：刷新内部自行切回 UI 线程
-        _ = RefreshFromCoreAsync();
-    }
-
-    private void StartPeriodicRefresh()
-    {
-        refreshTimer ??= dispatcher.CreateTimer();
-        refreshTimer.Interval = RefreshInterval;
-        refreshTimer.Tick += OnRefreshTimerTick;
-        refreshTimer.Start();
-    }
-
-    private void OnRefreshTimerTick(object? sender, object e)
-    {
-        _ = RefreshFromCoreAsync();
-    }
-
     /// <summary>
-    /// 从 Rust core 拉取设备状态快照并重建列表。
-    /// 在线/离线、可见性、名称/IP/电量全部由 core 判定，平台端只负责展示。
+    /// 用 core 快照重建可配对设备列表。在线/离线、可见性、名称/IP/电量全部由 core 判定，
+    /// 平台端只负责展示（快照中不可见的设备已由 core 过滤，此处无需再实现过滤策略）。
     /// </summary>
-    private async Task RefreshFromCoreAsync()
+    private void OnSnapshotsRefreshed(IReadOnlyDictionary<string, DeviceSnapshot> snapshots)
     {
-        // 原子闸门：多路调用（心跳回调 / 定时器）可能并发进入，仅一个刷新可执行
-        if (!isInitialized || Interlocked.CompareExchange(ref refreshBusy, 1, 0) != 0) return;
-        try
+        if (!isInitialized) return;
+
+        var visible = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var snap in snapshots.Values)
         {
-            var json = NativeCore.GetDeviceList();
-            if (string.IsNullOrEmpty(json)) return;
+            if (snap.Uuid == localDevice?.DeviceId) continue;
+            visible.Add(snap.Uuid);
 
-            var snapshot = JsonSerializer.Deserialize<List<DeviceSnapshot>>(json);
-            if (snapshot is null) return;
+            var discovered = new DiscoveredDevice(
+                snap.Uuid,
+                null,
+                snap.DisplayName(null),
+                snap.LastSeenTime,
+                snap.Port,
+                snap.Ip ?? string.Empty,
+                snap.Battery,
+                snap.DeviceType ?? string.Empty,
+                snap.Online,
+                snap.Paired);
 
-            await dispatcher.EnqueueAsync(() =>
+            var existing = DiscoveredDevices.FirstOrDefault(x => x.DeviceId == snap.Uuid);
+            if (existing is not null)
             {
-                if (!isInitialized) return;
-
-                var visible = new HashSet<string>();
-                foreach (var d in snapshot)
-                {
-                    if (string.IsNullOrEmpty(d.Uuid) || d.Uuid == localDevice?.DeviceId) continue;
-                    visible.Add(d.Uuid);
-
-                    var lastSeen = d.LastSeen > 0
-                        ? DateTimeOffset.FromUnixTimeSeconds(d.LastSeen)
-                        : DateTimeOffset.UtcNow;
-                    var discovered = new DiscoveredDevice(
-                        d.Uuid,
-                        null,
-                        string.IsNullOrEmpty(d.Name) ? d.Uuid : d.Name,
-                        lastSeen,
-                        d.Port,
-                        d.Ip ?? string.Empty,
-                        d.Battery,
-                        d.DeviceType ?? string.Empty,
-                        d.Online,
-                        d.Paired);
-
-                    var existing = DiscoveredDevices.FirstOrDefault(x => x.DeviceId == d.Uuid);
-                    if (existing is not null)
-                    {
-                        var index = DiscoveredDevices.IndexOf(existing);
-                        DiscoveredDevices[index] = discovered;
-                    }
-                    else
-                    {
-                        DiscoveredDevices.Add(discovered);
-                    }
-                }
-
-                // core 判定不再可见的设备（离线且未配对）从列表移除
-                for (var i = DiscoveredDevices.Count - 1; i >= 0; i--)
-                {
-                    if (!visible.Contains(DiscoveredDevices[i].DeviceId))
-                    {
-                        DiscoveredDevices.RemoveAt(i);
-                    }
-                }
-            });
+                DiscoveredDevices[DiscoveredDevices.IndexOf(existing)] = discovered;
+            }
+            else
+            {
+                DiscoveredDevices.Add(discovered);
+            }
         }
-        catch (Exception ex)
+
+        // core 判定不再可见的设备（离线且未配对/未登记）从列表移除
+        for (var i = DiscoveredDevices.Count - 1; i >= 0; i--)
         {
-            logger.LogError(ex, "刷新 core 设备快照时出错");
-        }
-        finally
-        {
-            Interlocked.Exchange(ref refreshBusy, 0);
+            if (!visible.Contains(DiscoveredDevices[i].DeviceId))
+            {
+                DiscoveredDevices.RemoveAt(i);
+            }
         }
     }
 
     public void StopDiscovery()
     {
         NativeCore.PeriodicBroadcast(0);
-        heartbeatProcessor.DeviceListChanged -= OnDeviceListChanged;
-
-        if (refreshTimer is not null)
-        {
-            refreshTimer.Tick -= OnRefreshTimerTick;
-            refreshTimer.Stop();
-        }
+        snapshotStore.Refreshed -= OnSnapshotsRefreshed;
 
         try
         {
@@ -211,21 +166,5 @@ public class DiscoveryService(
         {
             logger.LogError("停止发现服务时出错：{message}", ex.Message);
         }
-    }
-
-    /// <summary>
-    /// Rust core 设备状态快照条目（字段与 nrc_get_device_list 输出一致）
-    /// </summary>
-    private sealed class DeviceSnapshot
-    {
-        [JsonPropertyName("uuid")] public string? Uuid { get; set; }
-        [JsonPropertyName("name")] public string? Name { get; set; }
-        [JsonPropertyName("ip")] public string? Ip { get; set; }
-        [JsonPropertyName("port")] public int Port { get; set; }
-        [JsonPropertyName("battery")] public int Battery { get; set; }
-        [JsonPropertyName("deviceType")] public string? DeviceType { get; set; }
-        [JsonPropertyName("lastSeen")] public long LastSeen { get; set; }
-        [JsonPropertyName("online")] public bool Online { get; set; }
-        [JsonPropertyName("paired")] public bool Paired { get; set; }
     }
 }

@@ -341,33 +341,9 @@ public static class NativeCore
                     }
                     break;
                 case "HEARTBEAT_TCP":
-                    {
-                        var device = DeviceManager?.FindDeviceById(uuid);
-                        if (device != null)
-                        {
-                            device.LastHeartbeat = DateTime.UtcNow;
-                            if (!string.IsNullOrEmpty(extra))
-                            {
-                                // 回调运行在 Rust 线程，绑定到 Name 的 UI 元素需在 UI 线程更新
-                                App.MainWindow?.DispatcherQueue?.TryEnqueue(() =>
-                                {
-                                    device.Name = extra;
-                                });
-                                DeviceManager?.SaveDevice(device);
-                            }
-
-                            // 电量接线：intValue 为带符号电量（正=充电 / 负=放电）。
-                            // |值|>100 为未知哨兵（如 -101），跳过以保留上次有效状态。
-                            if (Math.Abs(intValue) <= 100)
-                            {
-                                DeviceManager?.UpdateDeviceStatus(device, new DeviceStatus
-                                {
-                                    BatteryStatus = Math.Abs(intValue),
-                                    ChargingStatus = intValue >= 0,
-                                });
-                            }
-                        }
-                    }
+                    // 运行时状态（名称/电量/在线/IP/类型）全部由 Rust core 的 DeviceRegistry 维护，
+                    // 平台端不再镜像：此处仅触发一次快照刷新（HeartbeatProcessor 内部按最小间隔节流）。
+                    HeartbeatProcessor?.NotifyDeviceListChanged();
                     break;
             }
         };
@@ -658,7 +634,7 @@ public static class NativeCore
     {
         var device = DeviceManager?.FindDeviceById(uuid);
         if (device == null) return;
-        device.ConnectionStatus = false;
+        // 在线状态由 core 快照（online）判定，这里只清理平台侧的 TCP 会话引用与 core 会话
         device.Session = null;
         NetworkService?.DisconnectDevice(uuid);
     }
