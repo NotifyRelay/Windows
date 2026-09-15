@@ -1,9 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using AdvancedSharpAdbClient;
-using AdvancedSharpAdbClient.DeviceCommands;
 using AdvancedSharpAdbClient.Models;
-using AdvancedSharpAdbClient.Receivers;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
@@ -21,10 +19,12 @@ public class AdbService(
 {
     private CancellationTokenSource? cts;
     private DeviceMonitor? deviceMonitor;
-    private readonly AdbClient adbClient = new();
 
     // 外部 adb.exe 进程启动器（唯一允许 Process.Start 的地方）
     private readonly AdbProcessLauncher processLauncher = new();
+
+    // ADB 命令执行器（唯一持有 AdbClient 实例的地方）
+    private readonly IAdbCommandExecutor commandExecutor = new AdbCommandExecutor(logger);
 
     // 防重入/防循环：记录正在处理无线 ADB 建立的 hostIp，避免 adb tcpip 重启 adbd 诱发的重复触发
     private readonly ConcurrentDictionary<string, object?> _pendingWireless = new();
@@ -36,7 +36,7 @@ public class AdbService(
     public ObservableCollection<AdbDevice> AdbDevices { get; } = [];
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
 
-    public AdbClient AdbClient => adbClient;
+    public AdbClient AdbClient => commandExecutor.AdbClient;
 
     // Initialize the codec option collections
     public ObservableCollection<ScrcpyPreferenceItem> DisplayOrientationOptions => ScrcpyPreferences.DisplayOrientation;
@@ -267,7 +267,7 @@ public class AdbService(
 
     private async Task RefreshDevicesAsync()
     {
-        var devices = await adbClient.GetDevicesAsync();
+        var devices = await commandExecutor.GetDevicesAsync();
         if (devices.Any())
         {
             logger.LogWarning("未找到设备");
@@ -323,7 +323,7 @@ public class AdbService(
         try
         {
             // Get full device information including model
-            var devices = await adbClient.GetDevicesAsync();
+            var devices = await commandExecutor.GetDevicesAsync();
             var fullDeviceData = devices.FirstOrDefault(d => d.Serial == deviceData.Serial);
             if (fullDeviceData == null)
             {
@@ -340,14 +340,12 @@ public class AdbService(
             try
             {
                 logger.LogTrace($"开始获取设备 {deviceData.Serial} 的 UUID");
-                var uuidReceiver = new ConsoleOutputReceiver();
 
                 // adb shell cat /storage/emulated/0/Android/data/com.xzyht.notifyrelay/files/device_info.txt
                 // Get the UUID from the device_info.txt file since we can't directly access the UUID of the App 
-                string adbCommand = "cat /storage/emulated/0/Android/data/com.xzyht.notifyrelay/files/device_info.txt";
+                string adbCommand = AdbCommandExecutor.DeviceInfoPath;
                 logger.LogTrace($"执行 ADB 命令：{adbCommand}");
-                await adbClient.ExecuteShellCommandAsync(deviceData, adbCommand, uuidReceiver);
-                var rawOutput = uuidReceiver.ToString();
+                var rawOutput = await commandExecutor.ExecuteShellCommandAsync(deviceData, adbCommand);
                 var id = rawOutput.Trim();
                 logger.LogTrace($"ADB 命令输出：'{rawOutput}'，处理后：'{id}'");
                 if (!string.IsNullOrEmpty(id))
@@ -439,18 +437,15 @@ public class AdbService(
     {
         try
         {
-            string packageName = "com.xzyht.notifyrelay";
+            string packageName = AdbCommandExecutor.PackageName;
             string permission = "android.permission.READ_LOGS";
 
             logger.LogTrace($"正在检查并授予设备 {deviceData.Serial} 的 {permission} 权限");
 
             // 直接尝试授予权限，pm grant 是幂等的
             string grantCommand = $"pm grant {packageName} {permission}";
-            var receiver = new ConsoleOutputReceiver();
 
-            await adbClient.ExecuteShellCommandAsync(deviceData, grantCommand, receiver);
-
-            string result = receiver.ToString().Trim();
+            string result = (await commandExecutor.ExecuteShellCommandAsync(deviceData, grantCommand)).Trim();
             if (string.IsNullOrEmpty(result))
             {
                 logger.LogInformation($"成功授予 {permission} 权限给 {packageName}");
@@ -466,8 +461,7 @@ public class AdbService(
             {
                 string appOpsCommand = $"cmd appops set {packageName} READ_CLIPBOARD allow";
                 logger.LogTrace($"正在尝试授予 AppOps READ_CLIPBOARD 权限: {appOpsCommand}");
-                await adbClient.ExecuteShellCommandAsync(deviceData, appOpsCommand, receiver);
-
+                await commandExecutor.ExecuteShellCommandAsync(deviceData, appOpsCommand);
             }
             catch (Exception ex)
             {
@@ -480,25 +474,8 @@ public class AdbService(
         }
     }
 
-    public async Task<bool> ConnectWireless(string? host, int port = 5555)
-    {
-        if (string.IsNullOrEmpty(host)) return false;
-
-        try
-        {
-            var result = await adbClient.ConnectAsync(host, port);
-            if (result.Contains("failed") || result.Contains("refused"))
-            {
-                return false;
-            }
-            return true;
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "连接默认无线设备时出错");
-            return false;
-        }
-    }
+    public Task<bool> ConnectWireless(string? host, int port = 5555)
+        => commandExecutor.ConnectAsync(host, port);
 
     public async void UnlockDevice(DeviceData deviceData, List<string> commands)
     {
@@ -510,7 +487,7 @@ public class AdbService(
                 foreach (var command in commands)
                 {
                     logger.LogTrace("执行命令：{command}", command);
-                    await adbClient.ExecuteShellCommandAsync(deviceData, command);
+                    await commandExecutor.ExecuteShellCommandAsync(deviceData, command);
                     await Task.Delay(250);
                 }
             }
@@ -523,9 +500,8 @@ public class AdbService(
 
     public async Task<bool> IsLocked(DeviceData deviceData)
     {
-        ConsoleOutputReceiver consoleReceiver = new();
-        await adbClient.ExecuteShellCommandAsync(deviceData, "dumpsys window policy | grep 'showing=' | cut -d '=' -f2", consoleReceiver);
-        return consoleReceiver.ToString().Trim() == "true";
+        var output = await commandExecutor.ExecuteShellCommandAsync(deviceData, "dumpsys window policy | grep 'showing=' | cut -d '=' -f2");
+        return output.Trim() == "true";
     }
 
     public async Task UninstallApp(string deviceId, string appPackage)
@@ -541,7 +517,7 @@ public class AdbService(
         if (adbDevice?.DeviceData == null) return;
 
         var deviceData = adbDevice.DeviceData;
-        await adbClient.UninstallPackageAsync(deviceData, appPackage);
+        await commandExecutor.UninstallPackageAsync(deviceData, appPackage);
     }
 
     /// <summary>
@@ -755,7 +731,7 @@ public class AdbService(
     {
         try
         {
-            var devices = await adbClient.GetDevicesAsync();
+            var devices = await commandExecutor.GetDevicesAsync();
             var device = devices.FirstOrDefault(d => d.Serial == $"{hostIp}:5555");
             if (device == null)
             {
@@ -763,12 +739,7 @@ public class AdbService(
                 return false;
             }
 
-            var receiver = new ConsoleOutputReceiver();
-            await adbClient.ExecuteShellCommandAsync(
-                device,
-                "cat /storage/emulated/0/Android/data/com.xzyht.notifyrelay/files/device_info.txt",
-                receiver);
-            var text = receiver.ToString().Trim();
+            var text = (await commandExecutor.ReadDeviceInfoFileAsync(device)).Trim();
             if (string.IsNullOrEmpty(text))
             {
                 logger.LogWarning("无线设备 {Host}:5555 目标文件文本为空", hostIp);
@@ -805,7 +776,7 @@ public class AdbService(
             for (int i = 0; i < 5 && deviceData == null; i++)
             {
                 if (i > 0) await Task.Delay(400);
-                var devices = await adbClient.GetDevicesAsync();
+                var devices = await commandExecutor.GetDevicesAsync();
                 deviceData = devices.FirstOrDefault(d => d.Serial == serial);
             }
 
@@ -903,9 +874,7 @@ public class AdbService(
         {
             try
             {
-                var receiver = new ConsoleOutputReceiver();
-                await adbClient.ExecuteShellCommandAsync(deviceData, "ip route get 0.0.0.0", receiver);
-                var output = receiver.ToString();
+                var output = await commandExecutor.ExecuteShellCommandAsync(deviceData, "ip route get 0.0.0.0");
                 var idx = output.IndexOf("src ", StringComparison.OrdinalIgnoreCase);
                 if (idx >= 0)
                 {
