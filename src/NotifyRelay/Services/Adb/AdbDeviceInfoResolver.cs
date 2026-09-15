@@ -57,12 +57,22 @@ public sealed class AdbDeviceInfoResolver(
                 }
                 else
                 {
-                    logger.LogWarning($"设备 {deviceData.Serial} 的 UUID 为空");
+                    // 对端已安装 App 但尚未写入 UUID（如刚安装未启动），属可自愈状态
+                    logger.LogDebug("设备 {Serial} 已安装 NotifyRelay 但未取到 UUID", deviceData.Serial);
                 }
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, $"获取 UUID 时出错：{deviceData.Serial}");
+                // device_info.txt 读取失败有两种成因：对端未安装 NotifyRelay（正常情况，直接忽略），
+                // 或已安装但尚未生成该文件（可自愈，记为调试日志）。两者都不应作为错误上报。
+                if (await IsPackageInstalledAsync(deviceData, ct))
+                {
+                    logger.LogDebug("设备 {Serial} 已安装 NotifyRelay 但未取到 UUID：{Message}", deviceData.Serial, ex.Message);
+                }
+                else
+                {
+                    logger.LogTrace("设备 {Serial} 未安装 NotifyRelay，跳过 UUID 读取", deviceData.Serial);
+                }
             }
 
             // Look for paired devices with matching model
@@ -118,11 +128,40 @@ public sealed class AdbDeviceInfoResolver(
         }
     }
 
+    /// <summary>
+    /// 判断设备上是否已安装 NotifyRelay。
+    /// 未安装时读 UUID / 授权必然失败，属正常情况（对端可能只是没装本应用），不应作为错误上报。
+    /// 检查本身失败时保守按「已安装」处理，避免掩盖真实异常。
+    /// </summary>
+    private async Task<bool> IsPackageInstalledAsync(DeviceData deviceData, CancellationToken ct)
+    {
+        try
+        {
+            // 未安装时 adb 返回空输出（不抛异常），已安装时返回 "package:<name>"
+            var output = await commandExecutor.ExecuteShellCommandAsync(
+                deviceData, $"pm list packages {AdbCommandExecutor.PackageName}", ct);
+            return output.Contains(AdbCommandExecutor.PackageName, StringComparison.Ordinal);
+        }
+        catch (Exception ex)
+        {
+            logger.LogTrace(ex, "检查设备 {Serial} 是否安装 NotifyRelay 失败", deviceData.Serial);
+            return true;
+        }
+    }
+
     public async Task GrantPermissionsAsync(DeviceData deviceData, CancellationToken ct = default)
     {
         try
         {
             string packageName = AdbCommandExecutor.PackageName;
+
+            // 对端未安装 NotifyRelay 时授权命令必然失败，属正常情况直接忽略
+            if (!await IsPackageInstalledAsync(deviceData, ct))
+            {
+                logger.LogTrace("设备 {Serial} 未安装 NotifyRelay，跳过权限授予", deviceData.Serial);
+                return;
+            }
+
             string permission = "android.permission.READ_LOGS";
 
             logger.LogTrace($"正在检查并授予设备 {deviceData.Serial} 的 {permission} 权限");
