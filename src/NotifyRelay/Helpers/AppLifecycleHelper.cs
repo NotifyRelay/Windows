@@ -7,6 +7,7 @@ using NotifyRelay.Platforms.Windows;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services;
 using NotifyRelay.Services.Filters;
+using NotifyRelay.Services.Notifications;
 using NotifyRelay.Services.Overlay;
 using NotifyRelay.Services.OverlayFeatures;
 using NotifyRelay.Services.Settings;
@@ -367,9 +368,6 @@ public static class AppLifecycleHelper
                 logger.LogError(ex, "自动启动显示器亮度同步服务失败");
             }
         }
-
-        // DeepSeek 余额监控的自动启动已由 DeepSeekBalanceOverlayFeature 承担
-        // （随叠加层模块主初始化按同一开关启停），此处不再重复拉起。
     }
 
     /// <summary>
@@ -515,9 +513,8 @@ public static class AppLifecycleHelper
         // 5. 注册ISessionManager，由INetworkService实现
         .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
 
-        // 6. 注册INotificationService，它依赖ISessionManager
-        .AddSingleton<INotificationService, NotificationService>()
-        .AddSingleton<Func<INotificationService>>(sp => () => sp.GetRequiredService<INotificationService>())
+        // 6. 注册通知相关服务
+        .AddNotificationServices()
         .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
 
         // 注册其他需要的工厂
