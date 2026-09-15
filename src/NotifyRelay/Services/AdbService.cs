@@ -23,6 +23,9 @@ public class AdbService(
     private DeviceMonitor? deviceMonitor;
     private readonly AdbClient adbClient = new();
 
+    // 外部 adb.exe 进程启动器（唯一允许 Process.Start 的地方）
+    private readonly AdbProcessLauncher processLauncher = new();
+
     // 防重入/防循环：记录正在处理无线 ADB 建立的 hostIp，避免 adb tcpip 重启 adbd 诱发的重复触发
     private readonly ConcurrentDictionary<string, object?> _pendingWireless = new();
 
@@ -560,23 +563,11 @@ public class AdbService(
             // 先列出当前 adb devices，帮助诊断多设备情况
             try
             {
-                var listInfo = new ProcessStartInfo
+                var listResult = await processLauncher.RunAsync(adbPath, "devices -l");
+                if (listResult != null)
                 {
-                    FileName = adbPath,
-                    Arguments = "devices -l",
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                };
-                using var listProc = Process.Start(listInfo);
-                if (listProc != null)
-                {
-                    var listOut = await listProc.StandardOutput.ReadToEndAsync();
-                    var listErr = await listProc.StandardError.ReadToEndAsync();
-                    await listProc.WaitForExitAsync();
-                    logger.LogTrace("adb devices 输出:\n{Out}", listOut);
-                    if (!string.IsNullOrEmpty(listErr)) logger.LogWarning("adb devices 错误输出: {Err}", listErr);
+                    logger.LogTrace("adb devices 输出:\n{Out}", listResult.StandardOutput);
+                    if (!string.IsNullOrEmpty(listResult.StandardError)) logger.LogWarning("adb devices 错误输出: {Err}", listResult.StandardError);
                 }
             }
             catch (Exception ex)
@@ -588,26 +579,15 @@ public class AdbService(
             var tcpipArgs = string.IsNullOrEmpty(targetSerial) ? "tcpip 5555" : $"-s {targetSerial} tcpip 5555";
             logger.LogTrace("将执行 adb 命令: {Args}", tcpipArgs);
 
-            var processInfo = new ProcessStartInfo
-            {
-                FileName = adbPath,
-                Arguments = tcpipArgs,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
-            };
-
-            using var process = Process.Start(processInfo);
-            if (process == null)
+            var processResult = await processLauncher.RunAsync(adbPath, tcpipArgs);
+            if (processResult == null)
             {
                 logger.LogError("启动 ADB 进程失败");
                 return false;
             }
 
-            await process.WaitForExitAsync();
-            var output = await process.StandardOutput.ReadToEndAsync();
-            var error = await process.StandardError.ReadToEndAsync();
+            var output = processResult.StandardOutput;
+            var error = processResult.StandardError;
 
             if (!string.IsNullOrEmpty(output)) logger.LogInformation("adb tcpip 输出: {Out}", output);
             if (!string.IsNullOrEmpty(error)) logger.LogWarning("adb tcpip 错误输出: {Err}", error);
@@ -620,7 +600,7 @@ public class AdbService(
             // Restart our ADB client to pick up the changes
             await RestartAdbClient();
 
-            return process.ExitCode == 0;
+            return processResult.ExitCode == 0;
         }
         catch (Exception ex)
         {
