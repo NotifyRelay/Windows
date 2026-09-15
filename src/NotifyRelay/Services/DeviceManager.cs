@@ -98,7 +98,18 @@ public partial class DeviceManager(
             // 3. 回填运行时状态（在线/电量/名称/IP/最后可见）
             foreach (var snap in paired)
             {
-                FindDeviceById(snap.Uuid)?.ApplySnapshot(snap);
+                var device = FindDeviceById(snap.Uuid);
+                if (device is null) continue;
+
+                var previousName = device.Name;
+                device.ApplySnapshot(snap);
+
+                // 名称持久化：core 快照带回了新名称时落库 + 写 uuid→名缓存，
+                // 保证设备离线（快照 name 为空）后仍能显示正确名称而非 uuid。
+                if (!string.IsNullOrWhiteSpace(snap.Name) && snap.Name != previousName)
+                {
+                    PersistDeviceName(device);
+                }
             }
 
             // 4. 活跃设备失效兜底
@@ -114,6 +125,39 @@ public partial class DeviceManager(
         catch (Exception ex)
         {
             logger.LogError(ex, "应用 core 设备快照到设备列表时出错");
+        }
+    }
+
+    /// <summary>
+    /// 持久化设备名：core 私有库行（display_name）+ 平台库单列 + uuid→名缓存。
+    ///
+    /// 名称随心跳变化且离线后 core 快照可能为空，因此必须落库：
+    /// - core 库行（<c>nrc_rename_device</c>）：使 core 快照对离线设备也返回名称（与 Android 一致）；
+    /// - 平台库：配置载体，保证平台侧不依赖 core 也能显示名称；
+    /// - 缓存：覆盖设备尚未进入平台列表（无库行）的早期阶段。
+    /// </summary>
+    private void PersistDeviceName(PairedDevice device)
+    {
+        if (string.IsNullOrWhiteSpace(device.Name)) return;
+
+        DeviceNameCache.Update(device.Id, device.Name);
+
+        try
+        {
+            NativeCore.RenameDevice(device.Id, device.Name);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "core 侧持久化设备名失败 {deviceId}", device.Id);
+        }
+
+        try
+        {
+            repository.UpdateDeviceName(device.Id, device.Name);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "持久化设备名失败 {deviceId}", device.Id);
         }
     }
 
@@ -153,6 +197,9 @@ public partial class DeviceManager(
         }
 
         PairedDevices.Add(device);
+
+        // 平台库中的名称进入 uuid→名缓存：core 快照名称为空（设备离线）时作为兜底显示
+        DeviceNameCache.Update(deviceId, device.Name);
 
         // 壁纸异步解码后回填（失败静默，不影响设备可用性）
         if (wallpaperBytes is not null)
@@ -231,6 +278,7 @@ public partial class DeviceManager(
         NativeCore.RemoveKnownDevice(device.Id);
         NativeCore.RemoveDeviceSession(device.Id);
         snapshotStore.Forget(device.Id);
+        DeviceNameCache.Forget(device.Id);
 
         App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {

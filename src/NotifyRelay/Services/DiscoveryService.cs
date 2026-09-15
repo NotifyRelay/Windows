@@ -118,7 +118,9 @@ public class DiscoveryService(
             var discovered = new DiscoveredDevice(
                 snap.Uuid,
                 null,
-                snap.DisplayName(null),
+                // 名称回退链：core 快照 → uuid→名缓存 → uuid
+                // （缓存覆盖设备离线、core 快照名为空的场景，避免显示为 uuid）
+                snap.DisplayName(DeviceNameCache.TryGetDisplayName(snap.Uuid)),
                 snap.LastSeenTime,
                 snap.Port,
                 snap.Ip ?? string.Empty,

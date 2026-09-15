@@ -159,7 +159,12 @@ public sealed class DeviceSnapshotStore(
             foreach (var raw in parsed)
             {
                 if (string.IsNullOrEmpty(raw.Uuid) || raw.Uuid == localUuid) continue;
-                next[raw.Uuid] = ApplyDisplayFallback(raw);
+                var snap = ApplyDisplayFallback(raw);
+                next[raw.Uuid] = snap;
+
+                // 快照带回的名称写入 uuid→名全局缓存：设备离线后 core 快照名称可能为空，
+                // 届时由该缓存兜底显示（与 Android DeviceNameCache 语义一致，仅展示用途）
+                DeviceNameCache.Update(snap.Uuid, snap.Name);
             }
 
             projection = next;

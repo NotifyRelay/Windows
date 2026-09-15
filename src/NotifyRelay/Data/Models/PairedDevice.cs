@@ -105,7 +105,8 @@ public partial class PairedDevice : ObservableObject
     /// 用 Rust core 快照回填运行时状态（在线/电量/名称/IP/最后可见时间）。
     ///
     /// 这些字段的唯一真源是 core：平台端只做投影，不再各自维护第二份。
-    /// 快照中的空值（core 重启首帧的 name/deviceType）不覆盖平台侧已有值。
+    /// 快照中的空值（core 重启首帧的 name/deviceType）不覆盖平台侧已有值；
+    /// 名称额外走 <see cref="DeviceNameCache"/> 兜底，保证离线设备不显示为 uuid。
     /// </summary>
     public void ApplySnapshot(DeviceSnapshot snapshot)
     {
@@ -121,9 +122,14 @@ public partial class PairedDevice : ObservableObject
             };
         }
 
-        if (!string.IsNullOrWhiteSpace(snapshot.Name))
+        // 名称：core 快照优先，其次平台侧已有名，最后 uuid→名称缓存兜底
+        var resolvedName = !string.IsNullOrWhiteSpace(snapshot.Name)
+            ? snapshot.Name
+            : (!string.IsNullOrWhiteSpace(Name) ? Name : DeviceNameCache.TryGetDisplayName(Id));
+        if (!string.IsNullOrWhiteSpace(resolvedName))
         {
-            Name = snapshot.Name;
+            Name = resolvedName;
+            DeviceNameCache.Update(Id, resolvedName);
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.Ip))
