@@ -15,7 +15,6 @@ public class PlaceholdersService(
 {
     private string rootDirectory => contextAccessor.Context.RootDirectory;
     private readonly FileEqualityComparer _fileComparer = new();
-    private readonly DirectoryEqualityComparer _directoryComparer = new();
 
     public void CreateBulk(string subpath)
     {
@@ -230,7 +229,7 @@ public class PlaceholdersService(
             return Task.CompletedTask;
         }
 
-        var remoteDirectoryInfo = remoteService.GetDirectoryInfo(relativeDirectory);
+        _ = remoteService.GetDirectoryInfo(relativeDirectory);
 
         // Check if the directory is hydrated 
         bool isHydrated = !File.GetAttributes(clientDirectory).HasAnySyncFlag(SyncAttributes.OFFLINE);

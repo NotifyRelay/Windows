@@ -472,10 +472,10 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
 
         // 渲染键盘按键状态（左上角）
         if (o.IsPrimary)
-            RenderKeyboardState(o, now, freq);
+            RenderKeyboardState(o);
 
         // 渲染罗技电池设备卡片（LogiBattery）
-        RenderLogiBattery(o, now, freq);
+        RenderLogiBattery(o);
 
         rt.EndDraw();
 

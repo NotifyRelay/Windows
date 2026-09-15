@@ -79,7 +79,6 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
 public class VirtualSpeakerViewModel : INotifyPropertyChanged
 {
-    private readonly IGeneralSettingsService _generalSettingsService;
     private readonly AudioRelayService _audioRelayService;
     private readonly IDeviceManager _deviceManager;
     private readonly DispatcherQueue? _dispatcher;
@@ -113,7 +112,6 @@ public class VirtualSpeakerViewModel : INotifyPropertyChanged
 
     public VirtualSpeakerViewModel()
     {
-        _generalSettingsService = Ioc.Default.GetService<IGeneralSettingsService>()!;
         _audioRelayService = Ioc.Default.GetService<AudioRelayService>()!;
         _deviceManager = Ioc.Default.GetService<IDeviceManager>()!;
 

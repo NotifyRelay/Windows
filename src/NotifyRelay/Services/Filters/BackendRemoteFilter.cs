@@ -14,13 +14,6 @@ namespace NotifyRelay.Services.Filters;
 /// </summary>
 public class BackendRemoteFilter
 {
-    private readonly ILogger<BackendRemoteFilter> _logger;
-
-    public BackendRemoteFilter(ILogger<BackendRemoteFilter> logger)
-    {
-        _logger = logger;
-    }
-
     /// <summary>
     /// 过滤结果
     /// </summary>
@@ -94,14 +87,5 @@ public class BackendRemoteFilter
     {
         var result = NotifyRelayCore.Safe.MapLocalPackage(NativeCore.Context, pkg);
         return result ?? pkg;
-    }
-
-    /// <summary>
-    /// 检查过滤模式 — 委托给 Rust Core
-    /// </summary>
-    private bool CheckFilterMode(string mappedPkg, string originalPkg, string title, string text)
-    {
-        var result = NotifyRelayCore.Safe.CheckFilterMode(NativeCore.Context, mappedPkg, originalPkg, title, text);
-        return result != 0;
     }
 }

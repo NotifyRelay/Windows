@@ -31,7 +31,6 @@ public class NotificationService(
 
     private readonly ObservableCollection<Notification> activeNotifications = [];
     private readonly ObservableCollection<GroupedNotification> groupedNotifications = [];
-    private readonly object activeNotificationsLock = new(); // 添加锁用于保护 activeNotifications
 
     // 音乐媒体块相关（支持多个设备同时显示）
     private readonly ObservableCollection<MusicMediaBlock> _currentMusicMediaBlocks = new();

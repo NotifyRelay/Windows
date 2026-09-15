@@ -197,7 +197,6 @@ public sealed partial class GeneralViewModel : BaseViewModel
             if (value != UserSettingsService.GeneralSettingsService.RemoteStoragePath)
             {
                 UserSettingsService.GeneralSettingsService.RemoteStoragePath = value;
-                var ftpService = Ioc.Default.GetRequiredService<IftpService>();
                 //ftpService.RemoveAllSyncRoots();
                 OnPropertyChanged();
             }

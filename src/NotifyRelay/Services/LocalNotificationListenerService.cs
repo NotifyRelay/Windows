@@ -435,26 +435,6 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         return null;
     }
 
-    private static async Task<IRandomAccessStream?> ResolveImageUrlAsync(string url)
-    {
-        try
-        {
-            var uri = new Uri(url);
-            if (uri.Scheme == "file")
-            {
-                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(uri.LocalPath);
-                return await file.OpenReadAsync();
-            }
-            if (uri.Scheme is "ms-appx" or "ms-appdata")
-            {
-                var file = await Windows.Storage.StorageFile.GetFileFromApplicationUriAsync(uri);
-                return await file.OpenReadAsync();
-            }
-        }
-        catch { }
-        return null;
-    }
-
     private static async Task<string> StreamToBase64Async(IRandomAccessStream stream)
     {
         using var reader = new DataReader(stream.GetInputStreamAt(0));

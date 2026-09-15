@@ -4,7 +4,6 @@ namespace NotifyRelay.Helpers;
 
 public static class PairingCodeHelper
 {
-    private const int CodeLength = 6;
     private static readonly TimeSpan Expiry = TimeSpan.FromMinutes(5);
 
     private static string? _currentCode;

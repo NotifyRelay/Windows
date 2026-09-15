@@ -52,9 +52,8 @@ public partial class App : Microsoft.UI.Xaml.Application
             Ioc.Default.ConfigureServices(Host.Services);
             await Host.StartAsync();
 
-            bool isStartupTask = false;
             var appActivationArguments = Microsoft.Windows.AppLifecycle.AppInstance.GetCurrent().GetActivatedEventArgs();
-            isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
+            bool isStartupTask = appActivationArguments.Data is IStartupTaskActivatedEventArgs;
 
             HookEventsForWindow();
             bool isStartupRegistered = ApplicationData.Current.LocalSettings.Values["isStartupRegistered"] == null;

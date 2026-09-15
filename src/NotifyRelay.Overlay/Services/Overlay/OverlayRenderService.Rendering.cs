@@ -359,8 +359,8 @@ public partial class OverlayRenderService
         float pillHeight = aTwoLine ? 46 : 40;
 
         // 计算内容宽度（A区 + 间距 + B区），wrapContentWidth 自适应
-        float aWidth = MeasureAComponent(item, aComp);
-        float bWidth = MeasureBComponent(item, state, bComp);
+        float aWidth = MeasureAComponent(aComp);
+        float bWidth = MeasureBComponent(bComp);
         bool hasA = aWidth > 0;
         bool hasB = bWidth > 0;
         if (!hasA && !hasB)
@@ -372,7 +372,7 @@ public partial class OverlayRenderService
 
         // 收起态滚动锚点：显示文本变化时重置（对齐 Android AutoScrollText lastText 检查）
         var fallbackText = state.Title ?? state.Subtitle ?? "";
-        var bText = (bComp == null || bComp is BEmptyData) ? fallbackText : ResolveBText(bComp, state);
+        var bText = (bComp == null || bComp is BEmptyData) ? fallbackText : ResolveBText(bComp);
         var scrollKey = string.Join('\u0001', aComp?.Title, aComp?.Content, bText);
         if (item.CollapsedScrollKey != scrollKey)
         {
@@ -418,7 +418,7 @@ public partial class OverlayRenderService
             }
             else
             {
-                DrawBComponent(item, state, bComp, rt, cx, centerY, bWidth, now, freq);
+                DrawBComponent(item, bComp, rt, cx, centerY, bWidth, now, freq);
             }
         }
 
@@ -426,7 +426,7 @@ public partial class OverlayRenderService
     }
 
     /// <summary>测量 A 区宽度（图标 + 文本）。</summary>
-    private float MeasureAComponent(SuperIslandItem item, AComponentData? aComp)
+    private float MeasureAComponent(AComponentData? aComp)
     {
         if (aComp == null) return 0;
         float iconSize = aComp.Title == null && aComp.Content == null ? 24 : 18;
@@ -504,11 +504,11 @@ public partial class OverlayRenderService
     }
 
     /// <summary>测量 B 区宽度。</summary>
-    private float MeasureBComponent(SuperIslandItem item, SuperIslandState state, BComponentData? bComp)
+    private float MeasureBComponent(BComponentData? bComp)
     {
         if (bComp == null || bComp is BEmptyData) return 0;
 
-        var text = ResolveBText(bComp, state);
+        var text = ResolveBText(bComp);
         // 等宽数字（BDigitInfoData）绘制用 Consolas，测量必须用同一字体，否则宽度差导致换行
         string fontFamily = bComp is BDigitInfoData ? "Consolas" : "Microsoft YaHei";
         // 与 DrawBComponent 保持一致：imageText2 / textInfo 用 Bold 绘制；测量若用 Normal 会偏窄，
@@ -529,12 +529,12 @@ public partial class OverlayRenderService
     }
 
     /// <summary>绘制 B 区（文本 / 等宽数字 / 进度圆环 / 图片），返回占用宽度。</summary>
-    private float DrawBComponent(SuperIslandItem item, SuperIslandState state, BComponentData? bComp,
+    private float DrawBComponent(SuperIslandItem item, BComponentData? bComp,
         ID2D1DCRenderTarget rt, float x, float centerY, float maxWidth, double now, double freq)
     {
         if (bComp == null || bComp is BEmptyData) return 0;
 
-        var text = ResolveBText(bComp, state);
+        var text = ResolveBText(bComp);
         float drawX = x;
 
         switch (bComp)
@@ -584,7 +584,7 @@ public partial class OverlayRenderService
                 }
                 break;
 
-            case BPicInfoData pic:
+            case BPicInfoData:
                 var picBmp = item.RightIconBitmap ?? item.IconBitmap;
                 if (picBmp != null)
                 {
@@ -598,7 +598,7 @@ public partial class OverlayRenderService
     }
 
     /// <summary>解析 B 区显示文本（含等宽数字计时）。</summary>
-    private static string? ResolveBText(BComponentData bComp, SuperIslandState state)
+    private static string? ResolveBText(BComponentData bComp)
     {
         switch (bComp)
         {
@@ -822,7 +822,6 @@ public partial class OverlayRenderService
     /// <summary>测量展开态模板内容高度（对齐各 Draw*Template 的返回值公式）。</summary>
     private float MeasureExpandedTemplate(SuperIslandItem item)
     {
-        const float contentWidth = 380 - 16;
         var pv = item.State.ParamV2;
         float h;
         if (pv?.ParamIsland != null && (pv.ParamIsland.SmallIslandArea != null || pv.ParamIsland.BigIslandArea != null)) h = MeasureParamIslandHeight(item);
@@ -834,7 +833,7 @@ public partial class OverlayRenderService
         else if (pv?.PicInfo != null) h = 48 + 4;
         else if (pv?.IconTextInfo != null) h = MeasureIconTextInfoHeight(item);
         else if (pv?.CoverInfo != null) h = MeasureCoverInfoHeight(item);
-        else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null) h = MeasureActionsHeight(item, contentWidth);
+        else if (pv?.TextButton != null || pv?.Actions != null || pv?.HintInfo != null) h = MeasureActionsHeight(item);
         else h = MeasureDefaultHeight(item);
 
         // 追加进度组件测量（对齐 Android：主链后 multiProgressInfo ?: progressInfo）
@@ -934,7 +933,7 @@ public partial class OverlayRenderService
         return h + 2;
     }
 
-    private float MeasureActionsHeight(SuperIslandItem item, float contentWidth)
+    private float MeasureActionsHeight(SuperIslandItem item)
     {
         var pv = item.State.ParamV2!;
         var hint = pv.HintInfo;
@@ -1043,7 +1042,7 @@ public partial class OverlayRenderService
         const float iconSize = 40;
         const float bigImageSize = 44;
         float bigImages = (item.BigImageLeftBitmap != null ? bigImageSize + 6 : 0) + (item.BigImageRightBitmap != null ? bigImageSize : 0);
-        float textW = contentWidth - iconSize - 12 - bigImages - (hi.IconOnly ? 0 : 0);
+        float textW;
 
         // 图标（iconOnly 放大到 48）
         float effIconSize = hi.IconOnly ? 48 : iconSize;
@@ -1395,7 +1394,6 @@ public partial class OverlayRenderService
     {
         var pic = item.State.ParamV2!.PicInfo!;
         const float picSize = 48;
-        float ty = cy;
 
         if (item.PicInfoBitmap != null)
         {

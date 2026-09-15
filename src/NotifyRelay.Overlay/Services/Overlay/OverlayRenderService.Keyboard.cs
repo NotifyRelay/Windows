@@ -105,7 +105,7 @@ public partial class OverlayRenderService
     }
 
     /// <summary>在左上角渲染键盘按键状态指示器。</summary>
-    private void RenderKeyboardState(ScreenOverlay overlay, double now, double freq)
+    private void RenderKeyboardState(ScreenOverlay overlay)
     {
         if (_keyboardStateProvider == null || !_settings.KeyboardOverlayEnabled)
             return;
@@ -152,14 +152,14 @@ public partial class OverlayRenderService
         // 普通按下按键：高亮显示
         foreach (var key in displayKeys)
         {
-            (x, y) = DrawKeyBox(rt, format, x, y, opacity, GetKeyDisplayName(key),
+            (x, y) = DrawKeyBox(rt, format, x, y, GetKeyDisplayName(key),
                 activeBgBrush, textBrush, activeBorderBrush);
         }
 
         // 切换键：仅在开启时高亮显示
         foreach (var text in toggleItems)
         {
-            (x, y) = DrawKeyBox(rt, format, x, y, opacity, text,
+            (x, y) = DrawKeyBox(rt, format, x, y, text,
                 activeBgBrush, textBrush, activeBorderBrush);
         }
 
@@ -206,7 +206,7 @@ public partial class OverlayRenderService
     /// <summary>绘制一个按键状态框，返回下一格的坐标（自动换行）。</summary>
     private (float nextX, float nextY) DrawKeyBox(
         ID2D1RenderTarget rt, IDWriteTextFormat format,
-        float x, float y, float opacity, string text,
+        float x, float y, string text,
         ID2D1Brush bgBrush, ID2D1Brush textBrush, ID2D1Brush borderBrush)
     {
         using var layout = _dwFactory.CreateTextLayout(text, format, KeyBoxSize * 3, KeyBoxSize);

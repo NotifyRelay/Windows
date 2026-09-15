@@ -8,13 +8,4 @@ public sealed partial class PasswordInputDialog : ContentDialog
     {
         InitializeComponent();
     }
-
-    private void ContentDialog_PrimaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
-    {
-    }
-
-    private void ContentDialog_SecondaryButtonClick(ContentDialog sender, ContentDialogButtonClickEventArgs args)
-    {
-        base.Hide();
-    }
 }

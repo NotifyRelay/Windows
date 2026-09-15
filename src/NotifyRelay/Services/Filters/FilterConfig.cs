@@ -8,12 +8,6 @@ namespace NotifyRelay.Services.Filters;
 /// </summary>
 public class FilterConfig
 {
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true,
-        Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
-    };
-
     // ====== 本地过滤配置 ======
 
     public bool FilterSelf { get; set; } = true;

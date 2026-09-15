@@ -20,7 +20,6 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
     private DeepSeekBalanceService DeepSeekService { get; } = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
-    private IGeneralSettingsService GeneralSettingsService { get; } = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
     private AudioRelayService AudioRelayService { get; } = Ioc.Default.GetRequiredService<AudioRelayService>();
     public PairedDevice? Device => DeviceManager.ActiveDevice;
 

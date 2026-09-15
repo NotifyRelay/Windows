@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Runtime.CompilerServices;
-using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
 
@@ -14,7 +13,6 @@ public class ClockViewModel : INotifyPropertyChanged
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-    private readonly DispatcherQueue? _dispatcher;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -38,7 +36,6 @@ public class ClockViewModel : INotifyPropertyChanged
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
         BuildScreenOptions();
     }
 

@@ -61,7 +61,6 @@ public partial class OverlayRenderService
     private const float LogiIconSize = 20f;        // Segoe MDL2 Assets 图标字号
     private const float LogiTextSize = 13f;         // 设备名字号
     private const float LogiIconTextGap = 8f;       // 图标与设备名间距
-    private const float LogiMaxDeviceNameChars = 24;// 单卡片设备名最大字符估计（实际用像素宽度限制+省略号）
     private const float LogiCardMaxWidthFactor = 0.35f; // 单卡片最大宽度 = 屏幕宽度 × 此系数（防止长设备名撑满屏幕）
 
     /// <summary>注入罗技电池数据提供者（DI 启动后调用）。</summary>
@@ -142,7 +141,7 @@ public partial class OverlayRenderService
     /// 单列纵向排列；整张卡片的最大宽度为屏幕宽 × LogiCardMaxWidthFactor，
     /// 超过后设备名 TextLayout 会被强制 WordEllipsis，确保不会把卡片撑满屏幕。
     /// </summary>
-    private void RenderLogiBattery(ScreenOverlay overlay, double now, double freq)
+    private void RenderLogiBattery(ScreenOverlay overlay)
     {
         if (!IsLogiBatteryTarget(overlay)) return;
         var rt = overlay.RenderTarget;
@@ -174,7 +173,6 @@ public partial class OverlayRenderService
         float gap = LogiIconTextGap * scale;
 
         int screenW = overlay.Width;
-        int screenH = overlay.Height;
         var (baseX, baseY) = OverlayElementCore.ResolveAnchor(overlay,
             _settings.LogiBatteryXPercent, _settings.LogiBatteryYPercent);
 
