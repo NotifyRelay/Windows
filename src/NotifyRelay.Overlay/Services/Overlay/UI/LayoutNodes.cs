@@ -243,8 +243,12 @@ internal sealed class WrapRow : ContainerNode
     public float RowGap;
     /// <summary>单行最大宽度（&lt;=0 时取约束宽度）。</summary>
     public float MaxWidth;
-    /// <summary>单行最大元素个数（0 = 不限制）。键盘按键框按现状「每行最多 10 个」换行。</summary>
-    public int MaxItemsPerRow;
+    /// <summary>
+    /// 换行判据按「下一个元素的左边缘是否达到 <see cref="MaxWidth"/>」而非「元素是否装得下」。
+    /// 用于复刻键盘按键框的现状算式 <c>(nextX - KeyStartX) / (KeyBoxSize + KeyBoxMargin) &gt;= N</c>：
+    /// 该算式比较的是格位序号，因此宽键（Shift / Space）可以越过 MaxWidth 而不提前换行。
+    /// </summary>
+    public bool WrapOnNextLeftOffset;
 
     protected override Size Measure(MeasureScope s, Constraints c)
     {
@@ -259,9 +263,14 @@ internal sealed class WrapRow : ContainerNode
             var size = Children[i].MeasureNode(s,
                 new Constraints(maxWidth > 0f ? maxWidth : c.MaxWidth, c.MaxHeight));
 
+            // 该元素在当前行的左边缘偏移（不含自身宽度）
+            float leftOffset = lineW + (inLine > 0 ? Gap : 0f);
+
             bool wrap = inLine > 0
-                && ((MaxItemsPerRow > 0 && inLine >= MaxItemsPerRow)
-                    || (maxWidth > 0f && lineW + Gap + size.Width > maxWidth));
+                && maxWidth > 0f
+                && (WrapOnNextLeftOffset
+                    ? leftOffset >= maxWidth
+                    : leftOffset + size.Width > maxWidth);
 
             if (wrap)
             {
@@ -295,9 +304,14 @@ internal sealed class WrapRow : ContainerNode
             float w = child.MeasuredSize.Width;
             float h = child.MeasuredSize.Height;
 
+            // 与 Measure 使用同一判据，保证换行位置一致
+            float leftOffset = x - lineStartX;
+
             if (inLine > 0
-                && ((MaxItemsPerRow > 0 && inLine >= MaxItemsPerRow)
-                    || (maxWidth > 0f && x - lineStartX + w > maxWidth)))
+                && maxWidth > 0f
+                && (WrapOnNextLeftOffset
+                    ? leftOffset >= maxWidth
+                    : leftOffset + w > maxWidth))
             {
                 x = rect.X;
                 lineStartX = rect.X;

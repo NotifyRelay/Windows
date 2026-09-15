@@ -1,7 +1,6 @@
 using NotifyRelay.Models.Render;
 using Vortice.Mathematics;
 using DWriteFontWeight = Vortice.DirectWrite.FontWeight;
-using DWriteTextAlignment = Vortice.DirectWrite.TextAlignment;
 
 namespace NotifyRelay.Services.Overlay.UI.Elements;
 
@@ -170,8 +169,6 @@ internal sealed class KeyboardElement : IOverlayElement
         var (hint, _) = ReadHint();
         if (keys.Count == 0 && hint == null) return;
 
-        int rows = keys.Count == 0 ? 0 : (keys.Count + KeyMaxPerRow - 1) / KeyMaxPerRow;
-
         composer.Node<Align>(null, a =>
         {
             // 左上角锚点：XPct/YPct 必须归零，否则默认 50 会把按键放到屏幕中心
@@ -184,7 +181,8 @@ internal sealed class KeyboardElement : IOverlayElement
             a.ClampToBounds = false;
         }, () =>
         {
-            composer.Node<Column>(null, col => { col.Spacing = 0f; }, () =>
+            // 提示行与按键行的纵向间距 = KeyBoxMargin（对齐现状 hintY = y + KeyBoxSize + KeyBoxMargin）
+            composer.Node<Column>(null, col => { col.Spacing = KeyBoxMargin; }, () =>
             {
                 if (keys.Count > 0)
                 {
@@ -192,7 +190,10 @@ internal sealed class KeyboardElement : IOverlayElement
                     {
                         w.Gap = KeyBoxMargin;
                         w.RowGap = KeyBoxMargin;
-                        w.MaxItemsPerRow = KeyMaxPerRow;
+                        // 复刻现状判据 (nextX - KeyStartX) / (KeyBoxSize + KeyBoxMargin) >= KeyMaxPerRow：
+                        // 按「下一个格的左边缘」比较格位序号，宽键不提前换行
+                        w.MaxWidth = KeyMaxPerRow * (KeyBoxSize + KeyBoxMargin);
+                        w.WrapOnNextLeftOffset = true;
                     }, () =>
                     {
                         for (int i = 0; i < keys.Count; i++)
@@ -208,7 +209,11 @@ internal sealed class KeyboardElement : IOverlayElement
                                 key.Border = new Color4(1f, 1f, 1f, 0.5f * Opacity);
                                 key.BorderWidth = 1.5f;
                                 key.Insets = new Insets(KeyBoxPadding, 0f);
+                                // 现状 boxWidth = max(textWidth + 2*pad, KeyBoxSize)、boxHeight = KeyBoxSize
+                                key.MinWidth = KeyBoxSize;
                                 key.MinHeight = KeyBoxSize;
+                                // 文本由 CenterContent 在框内居中（不可用 DWrite 文本对齐：
+                                // 布局宽度未受限，居中会把字形推到屏幕中部而非框内）
                                 key.CenterContent = true;
                             }, () =>
                             {
@@ -222,7 +227,6 @@ internal sealed class KeyboardElement : IOverlayElement
                                     t.ReportedHeight = KeyFontSize;
                                     t.Color = new Color4(1f, 1f, 1f, Opacity);
                                     t.Ellipsis = false;
-                                    t.Alignment = DWriteTextAlignment.Center;
                                 });
                             });
                         }
