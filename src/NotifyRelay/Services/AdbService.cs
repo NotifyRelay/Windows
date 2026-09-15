@@ -9,6 +9,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Items;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Services.Adb;
 
 namespace NotifyRelay.Services;
 
@@ -35,37 +36,11 @@ public class AdbService(
     public AdbClient AdbClient => adbClient;
 
     // Initialize the codec option collections
-    public ObservableCollection<ScrcpyPreferenceItem> DisplayOrientationOptions { get; } =
-    [
-        new(0, "", "Default"),
-        new(1, "0", "0°"),
-        new(2, "90", "90°"),
-        new(3, "180", "180°"),
-        new(4, "270", "270°"),
-        new(5, "flip0", "flip-0°"),
-        new(6, "flip90", "flip-90°"),
-        new(7, "flip180", "flip-180°"),
-        new(8, "flip270", "flip-270°")
-    ];
+    public ObservableCollection<ScrcpyPreferenceItem> DisplayOrientationOptions => ScrcpyPreferences.DisplayOrientation;
 
-    public ObservableCollection<ScrcpyPreferenceItem> VideoCodecOptions { get; } =
-    [
-        new(0, "", "Default"),
-        new(1, "--video-codec=h264 --video-encoder=OMX.qcom.video.encoder.avc", "h264 & c2.qti.avc.encoder (hw)"),
-        new(2, "--video-codec=h264 --video-encoder=c2.android.avc.encoder", "h264 & c2.android.avc.encoder (sw)"),
-        new(4, "--video-codec=h264 --video-encoder=OMX.google.h264.encoder", "h264 & OMX.google.h264.encoder (sw)"),
-        new(5, "--video-codec=h265 --video-encoder=OMX.qcom.video.encoder.hevc", "h265 & OMX.qcom.video.encoder.hevc (hw)"),
-        new(6, "--video-codec=h265 --video-encoder=c2.android.hevc.encoder", "h265 & c2.android.hevc.encoder (sw)")
-    ];
+    public ObservableCollection<ScrcpyPreferenceItem> VideoCodecOptions => ScrcpyPreferences.VideoCodec;
 
-    public ObservableCollection<ScrcpyPreferenceItem> AudioCodecOptions { get; } =
-    [
-        new(0, "", "Default"),
-        new(1, "--audio-codec=opus --audio-encoder=c2.android.opus.encoder", "opus & c2.android.opus.encoder (sw)"),
-        new(2, "--audio-codec=aac --audio-encoder=c2.android.aac.encoder", "aac & c2.android.aac.encoder (sw)"),
-        new(3, "--audio-codec=aac --audio-encoder=OMX.google.aac.encoder", "aac & OMX.google.aac.encoder (sw)"),
-        new(4, "--audio-codec=raw", "raw")
-    ];
+    public ObservableCollection<ScrcpyPreferenceItem> AudioCodecOptions => ScrcpyPreferences.AudioCodec;
 
 
     public async Task StartAsync()
