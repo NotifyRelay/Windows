@@ -26,6 +26,9 @@ public class AdbService : IAdbService
     // ADB 命令执行器（唯一持有 AdbClient 实例的地方）
     private readonly IAdbCommandExecutor commandExecutor;
 
+    // ADB 设备集合目录（唯一持有 AdbDevices 集合实例的地方）
+    private readonly IAdbDeviceCatalog catalog = new AdbDeviceCatalog();
+
     public AdbService(
         ILoggerFactory loggerFactory,
         IDeviceManager deviceManager,
@@ -46,7 +49,7 @@ public class AdbService : IAdbService
     // 仅当 USB 设备断开后重新连接（有线重新连接）时才清除，允许再次尝试
     private readonly ConcurrentDictionary<string, object?> _wirelessFailCooldown = new();
 
-    public ObservableCollection<AdbDevice> AdbDevices { get; } = [];
+    public ObservableCollection<AdbDevice> AdbDevices => catalog.Devices;
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
 
     public AdbClient AdbClient => commandExecutor.AdbClient;
@@ -132,11 +135,7 @@ public class AdbService : IAdbService
         try
         {
             // Check if device already exists in collection (在UI线程上获取以避免并发修改)
-            AdbDevice? existingDevice = null;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
-            });
+            var existingDevice = await catalog.FindBySerialAsync(e.Device.Serial);
             if (existingDevice != null) return;
 
             // get the rudimentary data if it isn't online yet
@@ -154,10 +153,7 @@ public class AdbService : IAdbService
                     AndroidId = "" // Will be populated when device comes online
                 };
 
-                await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-                {
-                    AdbDevices.Add(adbDevice);
-                });
+                await catalog.AddAsync(adbDevice);
                 return;
             }
 
@@ -167,10 +163,7 @@ public class AdbService : IAdbService
             // Check and grant permissions
             await CheckAndGrantLogPermissionAsync(e.Device);
 
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                AdbDevices.Add(connectedDevice);
-            });
+            await catalog.AddAsync(connectedDevice);
             logger.LogDebug($"设备已连接：{connectedDevice.Model} ({connectedDevice.Serial})");
 
             // 有线（USB）重新连接 → 清除该设备的无线 ADB 失败冷却，允许重新尝试
@@ -192,21 +185,10 @@ public class AdbService : IAdbService
     {
         logger.LogTrace($"设备已断开：{e.Device.Serial}");
         // 在UI线程上获取existingDevice，避免集合在枚举时被修改
-        AdbDevice? existingDevice = null;
-        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-        {
-            existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
-        });
+        var existingDevice = await catalog.FindBySerialAsync(e.Device.Serial);
         if (existingDevice != null)
         {
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                var index = AdbDevices.IndexOf(existingDevice);
-                if (index != -1)
-                {
-                    AdbDevices.RemoveAt(index);
-                }
-            });
+            await catalog.RemoveAsync(existingDevice);
         }
     }
 
@@ -216,36 +198,26 @@ public class AdbService : IAdbService
         logger.LogTrace($"设备状态已更改：{e.Device.Serial} {e.OldState} -> {e.NewState}");
 
         // 在UI线程上获取existingDevice，避免集合在枚举时被修改
-        AdbDevice? existingDevice = null;
-        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-        {
-            existingDevice = AdbDevices.FirstOrDefault(d => d.Serial == e.Device.Serial);
-        });
+        var existingDevice = await catalog.FindBySerialAsync(e.Device.Serial);
 
         if (e.NewState == DeviceState.Online)
         {
             var deviceInfo = await GetFullDeviceInfoAsync(e.Device);
 
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
+            if (existingDevice != null)
             {
-                if (existingDevice != null)
+                // Update existing device using Remove + Add to trigger CollectionChanged
+                if (await catalog.ReplaceAsync(existingDevice, deviceInfo))
                 {
-                    // Update existing device using Remove + Add to trigger CollectionChanged
-                    var index = AdbDevices.IndexOf(existingDevice);
-                    if (index != -1)
-                    {
-                        AdbDevices.RemoveAt(index);
-                        AdbDevices.Insert(index, deviceInfo);
-                        logger.LogDebug($"设备已更新：{deviceInfo.Model} ({deviceInfo.Serial})");
-                    }
+                    logger.LogDebug($"设备已更新：{deviceInfo.Model} ({deviceInfo.Serial})");
                 }
-                else
-                {
-                    // Only add if device doesn't exist
-                    AdbDevices.Add(deviceInfo);
-                    logger.LogDebug($"设备已添加：{deviceInfo.Model} ({deviceInfo.Serial})");
-                }
-            });
+            }
+            else
+            {
+                // Only add if device doesn't exist
+                await catalog.AddAsync(deviceInfo);
+                logger.LogDebug($"设备已添加：{deviceInfo.Model} ({deviceInfo.Serial})");
+            }
 
             logger.LogDebug($"设备已连接：{deviceInfo.Model} ({deviceInfo.Serial})");
 
@@ -263,17 +235,7 @@ public class AdbService : IAdbService
             // Device is going offline/authorizing - just update the state if it exists
             if (existingDevice != null)
             {
-                await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-                {
-                    var index = AdbDevices.IndexOf(existingDevice);
-                    if (index != -1)
-                    {
-                        // Update using Remove + Insert to trigger CollectionChanged
-                        existingDevice.State = e.NewState;
-                        AdbDevices.RemoveAt(index);
-                        AdbDevices.Insert(index, existingDevice);
-                    }
-                });
+                await catalog.UpdateStateAsync(existingDevice, e.NewState);
             }
         }
     }
@@ -284,51 +246,42 @@ public class AdbService : IAdbService
         if (devices.Any())
         {
             logger.LogWarning("未找到设备");
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                AdbDevices.Clear();
-            });
+            await catalog.ClearAsync();
             return;
         }
 
-        await App.MainWindow.DispatcherQueue.EnqueueAsync(async () =>
+        foreach (var device in devices)
         {
-            var adbDevices = new List<AdbDevice>();
-            foreach (var device in devices)
+            AdbDevice adbDevice;
+            if (device.State == DeviceState.Online)
             {
-                AdbDevice adbDevice;
-                if (device.State == DeviceState.Online)
-                {
-                    // Get full device info including AndroidId for online devices
-                    adbDevice = await GetFullDeviceInfoAsync(device);
-                }
-                else
-                {
-                    // Create basic device info for non-online devices
-                    adbDevice = new AdbDevice
-                    {
-                        Serial = device.Serial,
-                        Model = device.Model ?? "Unknown",
-                        State = device.State,
-                        Type = device.Serial.Contains(':') || device.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
-                        DeviceData = device,
-                        AndroidId = ""
-                    };
-                }
-                AdbDevices.Add(adbDevice);
+                // Get full device info including AndroidId for online devices
+                adbDevice = await GetFullDeviceInfoAsync(device);
             }
+            else
+            {
+                // Create basic device info for non-online devices
+                adbDevice = new AdbDevice
+                {
+                    Serial = device.Serial,
+                    Model = device.Model ?? "Unknown",
+                    State = device.State,
+                    Type = device.Serial.Contains(':') || device.Serial.Contains("tcp") ? DeviceType.WIFI : DeviceType.USB,
+                    DeviceData = device,
+                    AndroidId = ""
+                };
+            }
+            await catalog.AddAsync(adbDevice);
+        }
 
-            // 启动时已连接的 USB 设备，若开启 AdbAutoConnect 也自动建立无线 ADB（幂等、无副作用）
-            var startupUsbDevices = new List<AdbDevice>();
-            foreach (var d in AdbDevices.Where(x => x.Type == DeviceType.USB && x.IsOnline))
-            {
-                startupUsbDevices.Add(d);
-            }
-            foreach (var d in startupUsbDevices)
-            {
-                await TryEnableWirelessForUsbDeviceAsync(d);
-            }
-        });
+        // 启动时已连接的 USB 设备，若开启 AdbAutoConnect 也自动建立无线 ADB（幂等、无副作用）
+        var startupUsbDevices = (await catalog.SnapshotAsync())
+            .Where(x => x.Type == DeviceType.USB && x.IsOnline)
+            .ToList();
+        foreach (var d in startupUsbDevices)
+        {
+            await TryEnableWirelessForUsbDeviceAsync(d);
+        }
     }
 
     private async Task<AdbDevice> GetFullDeviceInfoAsync(DeviceData deviceData)
@@ -522,11 +475,7 @@ public class AdbService : IAdbService
         logger.LogInformation("正在从设备 {deviceId} 卸载应用 {appPackage}", appPackage, deviceId);
 
         // 在UI线程上查询以避免并发修改
-        AdbDevice? adbDevice = null;
-        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-        {
-            adbDevice = AdbDevices.FirstOrDefault(d => d.AndroidId == deviceId);
-        });
+        var adbDevice = await catalog.ReadAsync(d => d.FirstOrDefault(x => x.AndroidId == deviceId));
         if (adbDevice?.DeviceData == null) return;
 
         var deviceData = adbDevice.DeviceData;
@@ -644,12 +593,7 @@ public class AdbService : IAdbService
             }
 
             // 幂等：若已存在该 hostIp:5555 在线无线设备，直接返回
-            bool alreadyConnected = false;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                alreadyConnected = AdbDevices.Any(d => d.Serial == $"{hostIp}:5555" && d.IsOnline);
-            });
-            if (alreadyConnected)
+            if (await catalog.IsWirelessOnlineAsync(hostIp))
             {
                 logger.LogTrace("无线 ADB {Host}:5555 已连接，跳过（幂等）", hostIp);
                 return true;
@@ -777,12 +721,7 @@ public class AdbService : IAdbService
         try
         {
             var serial = $"{hostIp}:5555";
-            bool exists = false;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                exists = AdbDevices.Any(d => d.Serial == serial);
-            });
-            if (exists) return;
+            if (await catalog.ExistsAsync(serial)) return;
 
             // adb connect 成功后设备通常不会立即出现在设备列表中，轮询几次以覆盖时序竞态
             DeviceData? deviceData = null;
@@ -800,13 +739,7 @@ public class AdbService : IAdbService
             }
 
             var adbDevice = await GetFullDeviceInfoAsync(deviceData);
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                if (!AdbDevices.Any(d => d.Serial == serial))
-                {
-                    AdbDevices.Add(adbDevice);
-                }
-            });
+            await catalog.AddIfMissingAsync(adbDevice);
             logger.LogDebug("已将无线 ADB 设备同步进设备列表：{Serial}", serial);
         }
         catch (Exception ex)
@@ -910,31 +843,35 @@ public class AdbService : IAdbService
     /// </summary>
     private async Task<string?> FindUsbSerialForHostAsync(string host)
     {
-        string? serial = null;
+        // 配对设备集合的读取需在 UI 线程上执行
+        PairedDevice? paired = null;
         await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
         {
-            var paired = deviceManager.PairedDevices.FirstOrDefault(pd =>
+            paired = deviceManager.PairedDevices.FirstOrDefault(pd =>
                 (pd.IpAddresses != null && pd.IpAddresses.Any(ip => string.Equals(ip?.Trim(), host, StringComparison.OrdinalIgnoreCase))) ||
                 string.Equals(pd.RemoteIpAddress?.Trim(), host, StringComparison.OrdinalIgnoreCase));
-            if (paired != null)
-            {
-                var usb = AdbDevices.FirstOrDefault(d => d.Type == DeviceType.USB && !string.IsNullOrEmpty(d.AndroidId) && d.AndroidId == paired.Id);
-                serial = usb?.Serial;
-            }
-
-            if (string.IsNullOrEmpty(serial))
-            {
-                var usbDevices = AdbDevices.Where(d => d.Type == DeviceType.USB && d.IsOnline).ToList();
-                if (usbDevices.Count == 1)
-                {
-                    serial = usbDevices[0].Serial;
-                }
-                else if (usbDevices.Count > 1)
-                {
-                    logger.LogWarning("存在多个 USB 设备且无法按 IP {Host} 匹配，跳过错配的 adb tcpip", host);
-                }
-            }
         });
+
+        string? serial = null;
+        if (paired != null)
+        {
+            var pairedId = paired.Id;
+            serial = await catalog.ReadAsync(d =>
+                d.FirstOrDefault(x => x.Type == DeviceType.USB && !string.IsNullOrEmpty(x.AndroidId) && x.AndroidId == pairedId)?.Serial);
+        }
+
+        if (string.IsNullOrEmpty(serial))
+        {
+            var usbDevices = await catalog.ReadAsync(d => d.Where(x => x.Type == DeviceType.USB && x.IsOnline).ToList()) ?? [];
+            if (usbDevices.Count == 1)
+            {
+                serial = usbDevices[0].Serial;
+            }
+            else if (usbDevices.Count > 1)
+            {
+                logger.LogWarning("存在多个 USB 设备且无法按 IP {Host} 匹配，跳过错配的 adb tcpip", host);
+            }
+        }
         return serial;
     }
 
@@ -962,12 +899,7 @@ public class AdbService : IAdbService
             }
 
             // 无线 ADB 已连接则直接跳过，避免握手反复触发 5s 观察流程
-            bool wirelessOnline = false;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                wirelessOnline = AdbDevices.Any(d => d.Serial == $"{host}:5555" && d.IsOnline);
-            });
-            if (wirelessOnline)
+            if (await catalog.IsWirelessOnlineAsync(host))
             {
                 logger.LogTrace("握手触发无线 ADB：设备 {Host} 无线 ADB 已在线，跳过", host);
                 return;
@@ -1027,23 +959,7 @@ public class AdbService : IAdbService
             logger.LogInformation("尝试自动重连设备 {DeviceName} ({DeviceId})", device.Name, device.Id);
 
             // 检查当前设备是否已经有对应的ADB连接 (在UI线程上执行以避免并发修改)
-            bool hasConnection = false;
-            await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-            {
-                hasConnection = AdbDevices.Any(adbDevice =>
-                    adbDevice.IsOnline &&
-                    (
-                        (!string.IsNullOrEmpty(adbDevice.AndroidId) && adbDevice.AndroidId == device.Id) ||
-                        (string.IsNullOrEmpty(adbDevice.AndroidId) &&
-                            !string.IsNullOrEmpty(adbDevice.Model) &&
-                            !string.IsNullOrEmpty(device.Model) &&
-                            (device.Model.Equals(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                             device.Model.Contains(adbDevice.Model, StringComparison.OrdinalIgnoreCase) ||
-                             adbDevice.Model.Contains(device.Model, StringComparison.OrdinalIgnoreCase)))
-                    ));
-            });
-
-            if (hasConnection)
+            if (await catalog.HasConnectionForAsync(device))
             {
                 logger.LogDebug("设备 {DeviceName} 已有对应的ADB连接，跳过自动重连", device.Name);
                 return true;
@@ -1105,11 +1021,7 @@ public class AdbService : IAdbService
                     while (DateTime.Now - startTime < maxWaitTime)
                     {
                         // 在UI线程上查询以避免并发修改
-                        AdbDevice? newDevice = null;
-                        await App.MainWindow.DispatcherQueue.EnqueueAsync(() =>
-                        {
-                            newDevice = AdbDevices.FirstOrDefault(d => d.Serial == deviceSerial && d.IsOnline);
-                        });
+                        var newDevice = await catalog.ReadAsync(d => d.FirstOrDefault(x => x.Serial == deviceSerial && x.IsOnline));
                         if (newDevice != null)
                         {
                             logger.LogDebug("设备 {Serial} 已出现在ADB设备列表中", deviceSerial);
