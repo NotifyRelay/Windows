@@ -20,49 +20,31 @@
 
 | 排名 | 文件 | 行数 | 方法数 | 类/结构数 |
 |------|------|------|--------|-----------|
-| 1 | `Services/AdbService.cs` | **1067** | 24 | 1 |
-| 2 | `Services/NotificationService.cs` | **991** | 22 | 1 |
-| 3 | `Services/ScreenMirrorService.cs` | **862** | 10 | 1 |
-| 4 | `Platforms/Windows/Services/WindowsPlaybackService.cs` | **900** | 30 | 1 |
-| 5 | `Native/NativeCore.cs` | **583** | 33 | 1（静态类） |
-| 6 | `Services/FileTransferService.cs` | **565** | 19 | 1 |
-| 7 | `Helpers/AppLifecycleHelper.cs` | **532** | 15 | 1（静态类） |
-| 8 | `ViewModels/MainPageViewModel.cs` | **527** | 19 | 1 |
-| 9 | `ViewModels/Settings/DeviceSettingsViewModel.cs` | **606** | 3 | 1 |
-| 10 | `Services/Settings/GeneralSettingsService.cs` | **531** | 5 | 1 |
-| 11 | `Converters/Converters.cs` | **414** | 32 | **19** |
+| 1 | `Services/NotificationService.cs` | **991** | 22 | 1 |
+| 2 | `Overlay/Models/Render/SuperIslandParamV2Parser.cs` | **908** | 43 | 1 |
+| 3 | `Platforms/Windows/Services/WindowsPlaybackService.cs` | **900** | 30 | 1 |
+| 4 | `Services/ScreenMirrorService.cs` | **762** | 10 | 1 |
+| 5 | `ViewModels/Settings/DeviceSettingsViewModel.cs` | **606** | 3 | 1 |
+| 6 | `Native/NativeCore.cs` | **583** | 33 | 1（静态类） |
+| 7 | `Services/FileTransferService.cs` | **565** | 19 | 1 |
+| 8 | `Helpers/AppLifecycleHelper.cs` | **532** | 15 | 1（静态类） |
+| 9 | `Services/Settings/GeneralSettingsService.cs` | **531** | 5 | 1 |
+| 10 | `ViewModels/MainPageViewModel.cs` | **527** | 19 | 1 |
+| 11 | `Platforms/Windows/Services/WindowsNotificationHandler.cs` | **491** | — | 1 |
 | 12 | `Services/NetworkService.cs` | **430** | 15 | 1 |
-| 13 | `Services/HeartRate/HeartRateBleService.cs` | **379** | — | 1 |
-| 14 | `Services/ClipboardService.cs` | **374** | — | 1 |
-| 15 | `Platforms/Windows/Services/WindowsNotificationHandler.cs` | **491** | — | 1 |
+| 13 | `Services/LocalNotificationListenerService.cs` | **418** | — | 1 |
+| 14 | `Converters/Converters.cs` | **414** | 32 | **19** |
+| 15 | `Services/HeartRate/HeartRateBleService.cs` | **379** | — | 1 |
+
+> 注：原排名第 1 的 `Services/AdbService.cs`（1067 行）已移出本文档，计划见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)；排名顺延并据实测补齐了原先遗漏的 `NotifyRelay.Overlay` 项目文件。
 
 ---
 
 ## 三、🔴 严重级 — 上帝类分析
 
-### 3.1 `AdbService.cs`（1067行，24方法）
+### 3.0 关于 `Services/AdbService.cs`
 
-**单一职责违反：5+ 个不相关职责**
-
-| 职责领域 | 代表方法 | 大致行数 |
-|----------|----------|----------|
-| ADB 设备监控 | `StartAsync`, `StopAsync`, `CleanupAsync` | ~100 |
-| 设备连接/断开处理 | `DeviceConnected`, `DeviceDisconnected`, `DeviceChanged` | ~180 |
-| USB 设备信息获取 | `GetFullDeviceInfoAsync`, `RefreshDevicesAsync` | ~170 |
-| 无线 ADB 连接 | `EnableTcpipMode`, `TryEnableWirelessAdbAsync`, `VerifyWirelessFileAsync` | ~250 |
-| TCP 自动重连 | `TryConnectTcp`, `TryAutoReconnectAsync`, `IsPairedDeviceOnlineAsync` | ~120 |
-| Scrcpy 偏好选项 | `DisplayOrientationOptions`, `VideoCodecOptions`, `AudioCodecOptions` | ~30 |
-| 设备操作 | `UnlockDevice`, `IsLocked`, `UninstallApp`, `CheckAndGrantLogPermissionAsync` | ~100 |
-
-**建议拆分：**
-```
-AdbService（瘦身后~250行，保留设备监控核心）
-├── AdbCommandExecutor.cs       — ADB 进程调用/命令执行
-├── WirelessAdbConnector.cs     — 无线 ADB 连接/验证/失败冷却
-├── AdbDeviceMonitor.cs         — 设备连接/断开事件处理
-├── ScrcpyPreferences.cs        — Scrcpy 选项配置集合
-└── AdbTcpReconnector.cs        — TCP 自动重连逻辑
-```
+已移出本文档，拆分计划详见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)。
 
 ---
 
@@ -256,15 +238,17 @@ Converters/
 ```
 阶段1: GeneralSettingsService 拆分（影响最广，所有设置页面都依赖它）
     ↓
-阶段2: AdbService 拆分（行数最多，职责最杂）
+阶段2: AdbService 拆分（原行数最多，职责最杂）→ 见 AdbServiceSplitPlan.md
     ↓
 阶段3: NotificationService 拆分（核心业务类）
     ↓
-阶段4: WindowsPlaybackService 拆分（媒体功能独立性强）
+阶段4: SuperIslandParamV2Parser 拆分（叠加层解析，908行/43方法，仅本轮新增评估项）
     ↓
-阶段5: NativeCore.cs 拆分（FFI 桥接层清理）
+阶段5: WindowsPlaybackService 拆分（媒体功能独立性强）
     ↓
-阶段6: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
+阶段6: NativeCore.cs 拆分（FFI 桥接层清理）
+    ↓
+阶段7: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
 ```
 
 ---
