@@ -45,6 +45,9 @@ public sealed class WirelessAdbConnector(
     // 仅当 USB 设备断开后重新连接（有线重新连接）时才清除，允许再次尝试
     private readonly ConcurrentDictionary<string, object?> _wirelessFailCooldown = new();
 
+    // 外部 adb.exe 命令超时（秒）：adb 卡死时必须终止，否则无线连接流程会长期挂起而无法进入失败冷却
+    private const int AdbCommandTimeoutSeconds = 15;
+
     public bool IsCoolingDown(string deviceId) => _wirelessFailCooldown.ContainsKey(deviceId);
 
     public void ClearCooldown(string deviceId) => _wirelessFailCooldown.TryRemove(deviceId, out _);
@@ -75,7 +78,7 @@ public sealed class WirelessAdbConnector(
             }
 
             // 先尝试直连（无副作用）
-            if (await commandExecutor.ConnectAsync(hostIp))
+            if (await RunInProcessWithTimeoutAsync(ct => commandExecutor.ConnectAsync(hostIp, ct: ct), "connect"))
             {
                 // 成功判定：须通过无线连接读取到目标文件文本，而非仅 adb connect 返回成功
                 if (await VerifyWirelessFileAsync(hostIp))
@@ -116,7 +119,7 @@ public sealed class WirelessAdbConnector(
 
                 await Task.Delay(200);
 
-                if (await commandExecutor.ConnectAsync(hostIp))
+                if (await RunInProcessWithTimeoutAsync(ct => commandExecutor.ConnectAsync(hostIp, ct: ct), "connect"))
                 {
                     if (await VerifyWirelessFileAsync(hostIp))
                     {
@@ -207,7 +210,7 @@ public sealed class WirelessAdbConnector(
             // 先列出当前 adb devices，帮助诊断多设备情况
             try
             {
-                var listResult = await processLauncher.RunAsync(adbPath, "devices -l");
+                var listResult = await RunWithTimeoutAsync(adbPath, "devices -l");
                 if (listResult != null)
                 {
                     logger.LogTrace("adb devices 输出:\n{Out}", listResult.StandardOutput);
@@ -223,10 +226,10 @@ public sealed class WirelessAdbConnector(
             var tcpipArgs = string.IsNullOrEmpty(targetSerial) ? "tcpip 5555" : $"-s {targetSerial} tcpip 5555";
             logger.LogTrace("将执行 adb 命令: {Args}", tcpipArgs);
 
-            var processResult = await processLauncher.RunAsync(adbPath, tcpipArgs);
+            var processResult = await RunWithTimeoutAsync(adbPath, tcpipArgs);
             if (processResult == null)
             {
-                logger.LogError("启动 ADB 进程失败");
+                logger.LogError("启动 ADB 进程失败或执行超时（{Timeout}s）", AdbCommandTimeoutSeconds);
                 return false;
             }
 
@@ -254,6 +257,35 @@ public sealed class WirelessAdbConnector(
     }
 
     /// <summary>
+    /// 带超时执行外部 adb.exe：超时即取消，由 <see cref="AdbProcessLauncher"/> 终止进程并返回 null。
+    /// </summary>
+    private async Task<AdbProcessResult?> RunWithTimeoutAsync(string adbPath, string arguments)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(AdbCommandTimeoutSeconds));
+        return await processLauncher.RunAsync(adbPath, arguments, timeoutCts.Token);
+    }
+
+    /// <summary>
+    /// 带超时执行进程内 adb 调用（经 <see cref="IAdbCommandExecutor"/> 走 AdvancedSharpAdbClient）。
+    /// 这类调用不受 <see cref="Process"/> 超时保护，实测 server 卡死时不返回、黑洞 IP 直连约 21s，
+    /// 因此与外部命令统一按 <see cref="AdbCommandTimeoutSeconds"/> 限时；超时按失败处理并返回 default，
+    /// 避免 _pendingWireless 长期占用导致该主机再无法重试。
+    /// </summary>
+    private async Task<T?> RunInProcessWithTimeoutAsync<T>(Func<CancellationToken, Task<T>> operation, string operationName)
+    {
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(AdbCommandTimeoutSeconds));
+        try
+        {
+            return await operation(timeoutCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogWarning("adb 命令 {Operation} 超时（{Timeout}s），按失败处理", operationName, AdbCommandTimeoutSeconds);
+            return default;
+        }
+    }
+
+    /// <summary>
     /// 记录无线 ADB 失败冷却（key=配对设备 ID），本次有线连接期间不再重试。
     /// </summary>
     private void RecordWirelessFailure(string? deviceId)
@@ -271,7 +303,7 @@ public sealed class WirelessAdbConnector(
     {
         try
         {
-            var devices = await commandExecutor.GetDevicesAsync();
+            var devices = await RunInProcessWithTimeoutAsync(ct => commandExecutor.GetDevicesAsync(ct), "devices") ?? [];
             var device = devices.FirstOrDefault(d => d.Serial == $"{hostIp}:5555");
             if (device == null)
             {
@@ -279,7 +311,7 @@ public sealed class WirelessAdbConnector(
                 return false;
             }
 
-            var text = (await commandExecutor.ReadDeviceInfoFileAsync(device)).Trim();
+            var text = ((await RunInProcessWithTimeoutAsync(ct => commandExecutor.ReadDeviceInfoFileAsync(device, ct), "cat device_info.txt")) ?? string.Empty).Trim();
             if (string.IsNullOrEmpty(text))
             {
                 logger.LogWarning("无线设备 {Host}:5555 目标文件文本为空", hostIp);
@@ -306,13 +338,17 @@ public sealed class WirelessAdbConnector(
             var serial = $"{hostIp}:5555";
             if (await catalog.ExistsAsync(serial)) return;
 
-            // adb connect 成功后设备通常不会立即出现在设备列表中，轮询几次以覆盖时序竞态
+            // adb connect 成功后设备通常不会立即出现在设备列表中，轮询几次以覆盖时序竞态；
+            // 整个轮询共用一份超时预算，避免 server 卡死时逐次超时叠加
             DeviceData? deviceData = null;
-            for (int i = 0; i < 5 && deviceData == null; i++)
+            using (var pollCts = new CancellationTokenSource(TimeSpan.FromSeconds(AdbCommandTimeoutSeconds)))
             {
-                if (i > 0) await Task.Delay(400);
-                var devices = await commandExecutor.GetDevicesAsync();
-                deviceData = devices.FirstOrDefault(d => d.Serial == serial);
+                for (int i = 0; i < 5 && deviceData == null; i++)
+                {
+                    if (i > 0) await Task.Delay(400, pollCts.Token);
+                    var devices = await commandExecutor.GetDevicesAsync(pollCts.Token);
+                    deviceData = devices.FirstOrDefault(d => d.Serial == serial);
+                }
             }
 
             if (deviceData == null)

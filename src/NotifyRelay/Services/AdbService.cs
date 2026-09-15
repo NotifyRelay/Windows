@@ -247,7 +247,7 @@ public class AdbService : IAdbService
     private async Task RefreshDevicesAsync()
     {
         var devices = await commandExecutor.GetDevicesAsync();
-        if (devices.Any())
+        if (!devices.Any())
         {
             logger.LogWarning("未找到设备");
             await catalog.ClearAsync();

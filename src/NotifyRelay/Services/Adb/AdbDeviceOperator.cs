@@ -45,7 +45,7 @@ public sealed class AdbDeviceOperator(
 
     public async Task UninstallApp(string deviceId, string appPackage)
     {
-        logger.LogInformation("正在从设备 {deviceId} 卸载应用 {appPackage}", appPackage, deviceId);
+        logger.LogInformation("正在从设备 {deviceId} 卸载应用 {appPackage}", deviceId, appPackage);
 
         // 在UI线程上查询以避免并发修改
         var adbDevice = await catalog.ReadAsync(d => d.FirstOrDefault(x => x.AndroidId == deviceId));
