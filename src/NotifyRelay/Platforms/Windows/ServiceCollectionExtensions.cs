@@ -14,6 +14,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlaybackService, WindowsPlaybackService>();
         services.AddSingleton<AudioDeviceManager>();
         services.AddSingleton<SmtcSessionRegistry>();
+        services.AddSingleton<PlaybackDataSyncer>();
         services.AddSingleton<IActionService, WindowsActionService>();
         services.AddSingleton<IUpdateService, WindowsUpdateService>();
 
