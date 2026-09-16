@@ -103,6 +103,8 @@
 
 ## 二、目标结构
 
+> 下列为计划时的估算行数；**实际落地行数**见文首「执行结果」表。
+
 ```
 Platforms/Windows/Services/
 ├── WindowsPlaybackService.cs     瘦身后 ~195 行   编排 + IPlaybackService 实现 + 事件接线
@@ -163,7 +165,7 @@ WindowsPlaybackService ──> MediaControlExecutor ──> AudioDeviceManager
 | `Session_MediaPropertiesChanged` | 459–475 | 改为触发 `MediaPropertiesChanged` 事件（**去掉** `if (!generalSettings.EnableSendMediaNotifications) return;` 判断，该判断上移到 `PlaybackDataSyncer.SendPlaybackData` 内部——该处已有 `shouldSendRemote` 判断，语义等价） |
 | `Session_PlaybackInfoChanged` | 477–492 | 同上 |
 | ~~`Session_TimelinePropertiesChanged`~~ | 394–423 | **整删除**（见 6.5） |
-| `UnsubscribeFromSessionEvents(...)` | 425–457 | **拆分**：① 退订（`MediaPropertiesChanged` / `PlaybackInfoChanged`）+ `SessionRemoved` 事件触发留在本类（去掉 `TimelinePropertiesChanged` 退订与 `lastTimelinePosition.Remove`，见 6.5）；② 移除 Overlay 卡片（433–445）与推送结束标记（447–456）迁移到 `PlaybackDataSyncer.HandleSessionRemovedAsync(...)` |
+| `UnsubscribeFromSessionEvents(...)` | 425–457 | **拆分**：① 退订（`MediaPropertiesChanged` / `PlaybackInfoChanged`）+ `SessionRemoved` 事件触发留在本类（去掉 `TimelinePropertiesChanged` 退订与 `lastTimelinePosition.Remove`，见 6.5）；② 移除 Overlay 卡片（433–445）与推送结束标记（447–456）迁移到 `PlaybackDataSyncer.HandleSessionRemoved(...)` |
 
 新增成员（供 `PlaybackDataSyncer` / `MediaControlExecutor` 使用）：
 - `int Count { get; }`
@@ -190,7 +192,7 @@ WindowsPlaybackService ──> MediaControlExecutor ──> AudioDeviceManager
 
 新增：
 - `StartPeriodicSyncLoop()`：内容即 113–138 行原逻辑，`manager.GetCurrentSession()` → `registry.CurrentSession`，`activeSessions.ContainsKey` → `registry.Contains`。
-- `HandleSessionRemovedAsync(string appUserModelId)`：承载从 `UnsubscribeFromSessionEvents` 迁出的 433–456 行（移除 Overlay 媒体卡片 + 对已连接且启用媒体同步的设备 `NativeCore.PushMediaState(id, "{}", true)`）。
+- `HandleSessionRemoved(string appUserModelId)`：承载从 `UnsubscribeFromSessionEvents` 迁出的 433–456 行（移除 Overlay 媒体卡片 + 对已连接且启用媒体同步的设备 `NativeCore.PushMediaState(id, "{}", true)`）。**注**：原计划名为 `HandleSessionRemovedAsync`，因方法体无 await 实际实现为同步 `HandleSessionRemoved`。
 - `private sealed record PlaybackSnapshot(string? Source, string? TrackTitle, string? Artist, string? Thumbnail, bool IsPlaying);`（内部传递用，替代 JSON 字符串）
 
 依赖：`ILogger<PlaybackDataSyncer>`、`IGeneralSettingsService`、`IDeviceManager`、`DispatcherQueue`、`SmtcSessionRegistry`。
@@ -286,8 +288,8 @@ sequenceDiagram
     Exec->>Exec: ParseMediaActionData(json)
     Exec->>Reg: TryGetBySource(source) / CurrentSession
     Reg-->>Exec: session
-    alt source 为本应用自身进程名
-        Exec-->>Svc: (null, 未执行)
+    alt source 未解析出，或为本应用自身进程名
+        Exec-->>Svc: MediaControlExecutionResult(Ignored=true)
         Svc-->>Router: return（不发响应，语义同现状）
     end
     Exec->>Exec: dispatcher.EnqueueAsync(执行 switch)
@@ -297,7 +299,7 @@ sequenceDiagram
     else DefaultDevice / VolumeUpdate / ToggleMute
         Exec->>Audio: SetDefaultAudioDevice / SetVolume / ToggleMute
     end
-    Exec-->>Svc: success
+    Exec-->>Svc: MediaControlExecutionResult(ActionType, Success)
     Svc->>Svc: SendMediaControlResponse(action, success)
     Svc->>Sender: SendMessageAsync(deviceId, DATA_STATUS, "DATA_STATUS")
     Sender-->>Remote: 控制响应
@@ -320,8 +322,8 @@ sequenceDiagram
     Reg->>Svc: 事件 MediaPropertiesChanged(session)
     Svc->>Sync: UpdatePlaybackDataAsync(session)
     Sync->>Sync: dispatcher.EnqueueAsync
-    Sync->>SMTC: TryGetMediaPropertiesAsync / GetTimelineProperties
-    SMTC-->>Sync: 标题 / 艺术家 / 封面 / 时间线
+    Sync->>SMTC: TryGetMediaPropertiesAsync
+    SMTC-->>Sync: 标题 / 艺术家 / 封面
     Sync->>Sync: 构造 PlaybackSnapshot（不再经 JSON 中转）
     Sync->>Reg: Contains(appId)?
     alt 会话已不存在
@@ -344,7 +346,7 @@ sequenceDiagram
     Note over SMTC,Reg: 会话移除路径
     SMTC->>Reg: SessionsChanged → 差集 → RemoveSession
     Reg->>Svc: 事件 SessionRemoved(appId)
-    Svc->>Sync: HandleSessionRemovedAsync(appId)
+    Svc->>Sync: HandleSessionRemoved(appId)
     Sync->>Overlay: RemoveMediaCard(appId)（DanmakuMediaCardEnabled 时）
     Sync->>Core: PushMediaState(deviceId, "{}", true)（结束标记）
 ```
@@ -534,17 +536,21 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
 
 ## 八、验收标准
 
-1. `msbuild -p:Platform=x64` 构建通过，错误数不增加、无新增警告（与步骤 0 基线对比）。
-2. `IPlaybackService` 接口 4 个成员签名不变，外部 4 处调用点无需修改。
-3. `WindowsPlaybackService.cs` 行数降至约 195 行。
-4. 第七节 7 项中间层移除均已落地：
+> 各项前面标注**实际结果**（截至 `9cfcffc`）。
+
+1. ✅ `msbuild -p:Platform=x64` 构建通过，错误数不增加、无新增警告（与步骤 0 基线对比）。
+   实测：错误 0；警告 CS8604×2、WMC1506×7、Rust dead_code×3，与基线**逐项一致**。
+2. ✅ `IPlaybackService` 接口 4 个成员签名不变，外部 4 处调用点无需修改（`git diff` 该文件与其调用点为 0 改动）。
+3. ✅ `WindowsPlaybackService.cs` 行数降至约 195 行。实测 **155 行**。
+4. ✅ 第七节 7 项中间层移除均已落地：
    - 6.1 代码中不再出现 `GetPlaybackSessionAsync` → `SendPlaybackData` 的 JSON 往返
    - 6.2 两处死 null 判消失
    - 6.3 恒真 `Where` 消失
    - 6.4 `SessionsChanged` / `UpdateActiveSessions` 已合并
    - 6.5 `lastTimelinePosition` 与 `TimelinePropertiesChanged` 全链路消失
+   - 6.6 `HandleRemotePlaybackMessageAsync` 按计划**保留** `NotImplementedException`
    - 6.7 `ConvertBase64ToBytes` / `ConvertCoverUrlToBytes` 均改为 `ImageHelper.FromBase64`
-5. 手工冒烟：
+5. ⏳ **手工冒烟未执行**（需真实设备与音频硬件，构建环境无法验证）：
    - 本地播放媒体 → 对端收到媒体状态；
    - 远端下发播放/暂停/下一首/音量/静音 → 本地生效且收到 `DATA_STATUS` 响应；
    - 插拔/切换音频输出设备 → 设备列表刷新；
@@ -552,7 +558,10 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
    - 关闭媒体应用 → Overlay 媒体卡片移除、对端收到结束标记；
    - 封面图正常显示（`ImageHelper.FromBase64` 的 data URI 分支未破坏）；
    - 媒体卡片 Overlay 与 Gamebar 转发均正常。
-6. 每步骤一次 Git 提交（`Win` 仓库）；步骤 5 因触及 `MusicMediaBlockManager.cs`，建议单独一次提交。
+   - ⚠️ 额外需确认（因第 4 项行为变化）：`EnableSendMediaNotifications` **关闭**时，
+     Overlay 媒体卡片与 Gamebar 转发**仍会刷新**（原实现会整体抑制）。
+6. ✅ 每步骤一次 Git 提交（`Win` 仓库）。实际 5 个代码提交 + 1 个文档提交：
+   `594f01f` / `94d8436` / `f2d7a06` / `7a45583` / `8b24f1e` + `9cfcffc`。
 
 ---
 
