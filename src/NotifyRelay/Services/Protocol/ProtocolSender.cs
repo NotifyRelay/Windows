@@ -2,7 +2,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 /// <summary>
 /// 统一加密发送器 - 通过 Rust core 发送队列发送

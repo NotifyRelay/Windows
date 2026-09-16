@@ -18,10 +18,6 @@
         <converters:CountToVisibilityConverter x:Key="InverseCountToVisibilityConverter" Inverse="True" />
     </Page.Resources>
 
-    <Page.DataContext>
-        <vm:DevicesViewModel x:Name="ViewModel" />
-    </Page.DataContext>
-
     <ScrollViewer Padding="0,0,40,0">
         <StackPanel Spacing="4">
             <!--  Breadcrumb Navigation  -->

@@ -410,19 +410,6 @@ public sealed partial class MainPageViewModel : BaseViewModel
     #region Commands
 
     [RelayCommand]
-    public async Task ToggleConnection(PairedDevice? device)
-    {
-        if (Device!.ConnectionStatus)
-        {
-            var message = new CommandMessage { CommandType = CommandType.Disconnect };
-            SessionManager.SendMessage(Device.Id, SocketMessageSerializer.Serialize(message));
-            await Task.Delay(50);
-            SessionManager.DisconnectDevice(Device.Id);
-            Device.ConnectionStatus = false;
-        }
-    }
-
-    [RelayCommand]
     public async Task StartScrcpy()
     {
         try

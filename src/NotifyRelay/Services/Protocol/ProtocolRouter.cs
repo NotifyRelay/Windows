@@ -8,7 +8,7 @@ using NotifyRelay.Platforms.Windows.Services;
 
 using NotifyRelay.Services.Overlay;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 /// <summary>
 /// 统一协议路由器
@@ -24,6 +24,8 @@ public class ProtocolRouter
     private readonly IScreenMirrorService screenMirrorService;
     private readonly IGeneralSettingsService generalSettingsService;
     private readonly Lazy<INotificationService> notificationService;
+    private readonly Lazy<IMusicMediaBlockManager> musicMediaBlockManager;
+    private readonly Lazy<INotificationIconResolver> iconResolver;
     private readonly Lazy<IClipboardService> clipboardService;
     private readonly Lazy<IRemoteAppService> remoteAppService;
     private readonly Lazy<IPlaybackService> playbackService;
@@ -37,6 +39,8 @@ public class ProtocolRouter
         IScreenMirrorService screenMirrorService,
         IGeneralSettingsService generalSettingsService,
         Func<INotificationService> notificationServiceFactory,
+        Func<IMusicMediaBlockManager> musicMediaBlockManagerFactory,
+        Func<INotificationIconResolver> iconResolverFactory,
         Func<IClipboardService> clipboardServiceFactory,
         Func<IRemoteAppService> remoteAppServiceFactory,
         Func<IPlaybackService> playbackServiceFactory,
@@ -50,6 +54,8 @@ public class ProtocolRouter
         this.screenMirrorService = screenMirrorService;
         this.generalSettingsService = generalSettingsService;
         this.notificationService = new Lazy<INotificationService>(notificationServiceFactory);
+        this.musicMediaBlockManager = new Lazy<IMusicMediaBlockManager>(musicMediaBlockManagerFactory);
+        this.iconResolver = new Lazy<INotificationIconResolver>(iconResolverFactory);
         this.clipboardService = new Lazy<IClipboardService>(clipboardServiceFactory);
         this.remoteAppService = new Lazy<IRemoteAppService>(remoteAppServiceFactory);
         this.playbackService = new Lazy<IPlaybackService>(playbackServiceFactory);
@@ -77,18 +83,18 @@ public class ProtocolRouter
             var json = rawJson;
             if (json != null)
             {
-                await notificationService.Value.HandleMediaPlayNotification(device, json);
+                await musicMediaBlockManager.Value.HandleMediaPlayNotification(device, json);
             }
             return;
         }
-        await notificationService.Value.ProcessMediaPlayMessageAsync(device, plaintext);
+        await musicMediaBlockManager.Value.ProcessMediaPlayMessageAsync(device, plaintext);
     }
 
     public Task OnDataAppListResponseAsync(PairedDevice device, string plaintext)
         => remoteAppService.Value.ProcessAppListResponseAsync(device, plaintext);
 
     public Task OnDataIconResponseAsync(PairedDevice device, string plaintext)
-        => notificationService.Value.ProcessIconResponseAsync(device, plaintext);
+        => iconResolver.Value.ProcessIconResponseAsync(device, plaintext);
 
     public async Task OnDataMediaControlAsync(PairedDevice device, string plaintext)
     {

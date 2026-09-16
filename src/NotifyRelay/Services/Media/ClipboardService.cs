@@ -11,7 +11,7 @@ using Windows.Storage.Streams;
 using Windows.System;
 using DispatcherQueue = Microsoft.UI.Dispatching.DispatcherQueue;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Media;
 
 /// <summary>
 /// 剪贴板同步服务。

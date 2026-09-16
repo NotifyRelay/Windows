@@ -1,6 +1,6 @@
 using System.Net.Sockets;
 
-namespace NotifyRelay.Services.Socket;
+namespace NotifyRelay.Services.Protocol;
 
 public interface ITcpClientProvider
 {

@@ -3,14 +3,14 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Native;
-using NotifyRelay.Services.Filters;
+// LocalNotificationListenerService 与 BaseActionService 保留在 NotifyRelay.Services 根命名空间
+using NotifyRelay.Services;
+using NotifyRelay.Services.Notifications;
 using NotifyRelay.Services.Overlay;
+using NotifyRelay.Services.Protocol;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
-using Windows.Data.Xml.Dom;
 using Windows.System;
-using Windows.UI.Notifications;
 using Notification = NotifyRelay.Data.Models.Notification;
 
 namespace NotifyRelay.Services;
@@ -21,25 +21,17 @@ public class NotificationService(
     IPlatformNotificationHandler platformNotificationHandler,
     RemoteAppRepository remoteAppsRepository,
     NotificationRepository notificationRepository,
-    Func<IRemoteAppService> remoteAppServiceFactory,
     IPlaybackService playbackService,
     IGeneralSettingsService generalSettings,
-    OverlayRenderService overlayRender) : INotificationService, INotifyPropertyChanged
+    OverlayRenderService overlayRender,
+    INotificationGrouper grouper,
+    IMusicMediaBlockManager musicMediaBlockManager,
+    INotificationIconResolver iconResolver,
+    INotificationBadgeService badgeService) : INotificationService, INotifyPropertyChanged
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = App.MainWindow.DispatcherQueue;
 
     private readonly ObservableCollection<Notification> activeNotifications = [];
-    private readonly ObservableCollection<GroupedNotification> groupedNotifications = [];
-
-    // 音乐媒体块相关（支持多个设备同时显示）
-    private readonly ObservableCollection<MusicMediaBlock> _currentMusicMediaBlocks = new();
-    private ReadOnlyObservableCollection<MusicMediaBlock>? _currentMusicMediaBlocksReadOnly;
-    private System.Threading.Timer? _musicMediaBlockTimer;
-    private const int MUSIC_MEDIA_BLOCK_TIMEOUT = 30; // 30秒超时
-
-    // 跟踪图标请求状态的字典，key: packageName|deviceId, value: TaskCompletionSource<bool>
-    private readonly Dictionary<string, TaskCompletionSource<bool>> pendingIconRequests = [];
-    private const int ICON_REQUEST_TIMEOUT = 3000; // 图标请求最长等待时间：3秒
 
     /// <summary>
     /// 属性变更事件
@@ -50,16 +42,12 @@ public class NotificationService(
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
     /// <summary>
-    /// 分组通知集合变化事件
+    /// 分组通知集合变化事件（转发 NotificationGrouper 的事件）
     /// </summary>
-    public event System.Collections.Specialized.NotifyCollectionChangedEventHandler? GroupedNotificationsChanged;
-
-    /// <summary>
-    /// 触发分组通知变化事件
-    /// </summary>
-    private void OnGroupedNotificationsChanged(System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    public event System.Collections.Specialized.NotifyCollectionChangedEventHandler? GroupedNotificationsChanged
     {
-        GroupedNotificationsChanged?.Invoke(this, e);
+        add => grouper.GroupedNotificationsChanged += value;
+        remove => grouper.GroupedNotificationsChanged -= value;
     }
 
     /// <summary>
@@ -70,27 +58,28 @@ public class NotificationService(
     /// <summary>
     /// Gets grouped notifications from all devices
     /// </summary>
-    public ReadOnlyObservableCollection<GroupedNotification> GroupedNotificationHistory => new(groupedNotifications);
+    public ReadOnlyObservableCollection<GroupedNotification> GroupedNotificationHistory => grouper.GroupedNotificationHistory;
 
     /// <summary>
     /// 当前显示的音乐媒体块列表（只读）
     /// </summary>
-    public ReadOnlyObservableCollection<MusicMediaBlock> CurrentMusicMediaBlocks => _currentMusicMediaBlocksReadOnly ??= new ReadOnlyObservableCollection<MusicMediaBlock>(_currentMusicMediaBlocks);
+    public ReadOnlyObservableCollection<MusicMediaBlock> CurrentMusicMediaBlocks => musicMediaBlockManager.Blocks;
 
     // Initialize the service - call this after DI container creates the instance
     public void Initialize()
     {
-        ClearBadge();
+        // 注入通知集合访问器与重建回调，避免 Resolver 反向依赖本服务
+        iconResolver.Configure(
+            notificationsProvider: () => activeNotifications,
+            rebuildCallback: () => grouper.Rebuild(activeNotifications));
+
+        _ = badgeService.ClearBadgeAsync(); // 显式丢弃：异常已在 BadgeService 内记录
 
         // Load all notifications at startup
         _ = LoadAllNotificationsAsync();
 
         // 初始化音乐媒体块超时检查定时器，每1秒检查一次
-        _musicMediaBlockTimer = new System.Threading.Timer(
-            _ => CheckMusicMediaBlockTimeout(),
-            null,
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromSeconds(1));
+        musicMediaBlockManager.StartTimeoutChecker();
 
         // 订阅 Socket 指令
         LocalSocketRelayServer.CommandReceived += OnSocketCommandReceived;
@@ -198,7 +187,7 @@ public class NotificationService(
                         }
 
                         notificationRepository.DeleteNotification(device.Id, notificationKey);
-                        UpdateActiveNotifications();
+                        grouper.Rebuild(activeNotifications);
                     }
                 });
                 return;
@@ -211,24 +200,7 @@ public class NotificationService(
 
                 if (filter == NotificationFilter.Disabled) return;
 
-                bool needIconRequest = !string.IsNullOrEmpty(appPackage) && !IconUtils.AppIconExists(appPackage);
-                TaskCompletionSource<bool>? iconRequestTcs = null;
-                string? requestKey = null;
-
-                if (needIconRequest)
-                {
-                    requestKey = $"{appPackage}|{device.Id}";
-                    iconRequestTcs = new TaskCompletionSource<bool>();
-                    pendingIconRequests[requestKey] = iconRequestTcs;
-                    remoteAppServiceFactory().SendIconRequest(device.Id, [appPackage]);
-                }
-
-                if (iconRequestTcs != null)
-                {
-                    var timeoutTask = Task.Delay(ICON_REQUEST_TIMEOUT);
-                    var completedTask = await Task.WhenAny(iconRequestTcs.Task, timeoutTask);
-                    if (requestKey != null) pendingIconRequests.Remove(requestKey);
-                }
+                await iconResolver.WaitForIconAsync(device.Id, appPackage);
 
                 await dispatcher.EnqueueAsync(async () =>
                         {
@@ -278,7 +250,7 @@ public class NotificationService(
                                 notificationRepository.UpsertNotification(device.Id, payload, notification.Pinned);
                             }
 
-                            UpdateActiveNotifications();
+                            grouper.Rebuild(activeNotifications);
 
 #if WINDOWS
                             bool isNotifyRelaySelf = appPackage?.Contains("notifyrelay", StringComparison.OrdinalIgnoreCase) == true
@@ -291,35 +263,8 @@ public class NotificationService(
                                 var forceGamebar = generalSettings.GamebarRelayEnabled;
                                 var overlayEnabled = generalSettings.DanmakuNotificationEnabled;
 
-                                string? iconUrlForTcp = null;
-                                byte[]? iconBytes = null;
-                                if (!string.IsNullOrEmpty(appPackage))
-                                {
-                                    try
-                                    {
-                                        string iconFilePath = IconUtils.GetAppIconFilePath(appPackage);
-                                        if (System.IO.File.Exists(iconFilePath))
-                                        {
-                                            iconBytes = System.IO.File.ReadAllBytes(iconFilePath);
-                                            var ext = System.IO.Path.GetExtension(iconFilePath).ToLowerInvariant();
-                                            string contentType = ext switch
-                                            {
-                                                ".png" => "image/png",
-                                                ".jpg" or ".jpeg" => "image/jpeg",
-                                                ".gif" => "image/gif",
-                                                ".webp" => "image/webp",
-                                                ".svg" => "image/svg+xml",
-                                                _ => "application/octet-stream",
-                                            };
-                                            var b64 = Convert.ToBase64String(iconBytes);
-                                            iconUrlForTcp = $"data:{contentType};base64,{b64}";
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        logger.LogError(ex, "将图标编码为data URL失败");
-                                    }
-                                }
+                                // 一次性读取图标文件，同时取得弹幕用原始字节与 TCP 转发用 data URL
+                                var (iconBytes, iconUrlForTcp) = await iconResolver.LoadIconAsync(appPackage ?? string.Empty);
 
                                 // Priority chain: Overlay → Gamebar TCP → System notification
                                 if (overlayEnabled)
@@ -382,7 +327,7 @@ public class NotificationService(
 
                     platformNotificationHandler.RemoveNotificationsByTagAndGroup(notification.Tag, notification.GroupKey);
 
-                    UpdateActiveNotifications();
+                    grouper.Rebuild(activeNotifications);
                 });
             }
         }
@@ -404,7 +349,7 @@ public class NotificationService(
             notificationRepository.UpdatePinned(source.DeviceId, notification.Key, notification.Pinned);
         }
 
-        UpdateActiveNotifications();
+        grouper.Rebuild(activeNotifications);
     });
     }
 
@@ -442,9 +387,9 @@ public class NotificationService(
                     notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
                 }
 
-                ClearBadge();
+                _ = badgeService.ClearBadgeAsync(); // 显式丢弃：异常已在 BadgeService 内记录
 
-                UpdateActiveNotifications();
+                grouper.Rebuild(activeNotifications);
             }
             catch (Exception ex)
             {
@@ -473,7 +418,7 @@ public class NotificationService(
                     }
                 }
 
-                UpdateActiveNotifications();
+                grouper.Rebuild(activeNotifications);
             }
             catch (Exception ex)
             {
@@ -505,10 +450,10 @@ public class NotificationService(
                     }
                 }
 
-                ClearBadge();
+                _ = badgeService.ClearBadgeAsync(); // 显式丢弃：异常已在 BadgeService 内记录
                 notificationRepository.ClearDeviceNotificationsExceptPinned(device.Id);
 
-                UpdateActiveNotifications();
+                grouper.Rebuild(activeNotifications);
             }
             catch (Exception ex)
             {
@@ -518,143 +463,6 @@ public class NotificationService(
     }
 
 
-
-    private void UpdateActiveNotifications(PairedDevice? activeDevice = null)
-    {
-        dispatcher.EnqueueAsync(() =>
-        {
-            // 保存现有分组的展开/折叠状态和时间信息
-            Dictionary<string, (bool IsCollapsed, DateTime EarliestTime, DateTime LatestTime)> existingGroupStates = [];
-            foreach (var existingGroup in groupedNotifications)
-            {
-                existingGroupStates[existingGroup.Id] = (existingGroup.IsCollapsed, existingGroup.EarliestTime, existingGroup.LatestTime);
-            }
-
-            // 排序 activeNotifications
-            var sortedNotifications = activeNotifications.OrderByDescending(n => n.TimeStamp).ToList();
-            activeNotifications.Clear();
-            foreach (var n in sortedNotifications) activeNotifications.Add(n);
-
-            groupedNotifications.Clear();
-
-            // Update badge
-            int totalNotifications = activeNotifications.Count;
-            if (activeDevice?.DeviceSettings.ShowBadge == true)
-            {
-                XmlDocument badgeXml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-                XmlElement? badgeElement = badgeXml.SelectSingleNode("/badge") as XmlElement;
-                badgeElement?.SetAttribute("value", totalNotifications.ToString());
-                BadgeNotification badge = new(badgeXml);
-                BadgeUpdater badgeUpdater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
-                badgeUpdater.Update(badge);
-            }
-
-            // Group notifications
-            Dictionary<string, List<Notification>> appNotificationsDict = [];
-            List<Notification> pinnedNotifications = [];
-
-            foreach (var notification in activeNotifications)
-            {
-                if (notification.Pinned)
-                {
-                    pinnedNotifications.Add(notification);
-                }
-                else
-                {
-                    string groupKey = notification.AppPackage ?? "UnknownApp";
-                    if (!appNotificationsDict.TryGetValue(groupKey, out var notificationsList))
-                    {
-                        notificationsList = [];
-                        appNotificationsDict[groupKey] = notificationsList;
-                    }
-                    notificationsList.Add(notification);
-                }
-            }
-
-            Dictionary<string, GroupedNotification> groupedNotificationsDict = [];
-            List<Notification> singleNotifications = [];
-
-            foreach (var (groupKey, notificationsList) in appNotificationsDict)
-            {
-                if (notificationsList.Count == 1)
-                {
-                    singleNotifications.Add(notificationsList[0]);
-                }
-                else
-                {
-                    var notificationTime = ParseNotificationTime(notificationsList[0]);
-                    var group = new GroupedNotification
-                    {
-                        Id = groupKey,
-                        EarliestTime = notificationTime,
-                        LatestTime = notificationTime
-                    };
-
-                    if (existingGroupStates.TryGetValue(groupKey, out var groupState))
-                    {
-                        group.IsCollapsed = groupState.IsCollapsed;
-                        if (!groupState.IsCollapsed)
-                        {
-                            group.EarliestTime = groupState.EarliestTime;
-                            group.LatestTime = groupState.LatestTime;
-                        }
-                    }
-
-                    foreach (var notif in notificationsList)
-                    {
-                        group.AddNotification(notif);
-                    }
-
-                    groupedNotificationsDict[groupKey] = group;
-                }
-            }
-
-            var finalNotifications = new List<object>();
-            finalNotifications.AddRange(pinnedNotifications.OrderByDescending(n => n.TimeStamp));
-
-            var nonPinnedNotifications = new List<object>();
-            foreach (var notification in singleNotifications) nonPinnedNotifications.Add(notification);
-            nonPinnedNotifications.AddRange(groupedNotificationsDict.Values);
-
-            var sortedNonPinnedNotifications = nonPinnedNotifications.OrderByDescending(item =>
-            {
-                if (item is Notification notification) return ParseNotificationTime(notification);
-                else if (item is GroupedNotification group) return group.LatestTime;
-                return DateTime.MinValue;
-            }).ToList();
-
-            finalNotifications.AddRange(sortedNonPinnedNotifications);
-
-            foreach (var item in finalNotifications)
-            {
-                if (item is GroupedNotification group)
-                {
-                    groupedNotifications.Add(group);
-                }
-                else if (item is Notification notification)
-                {
-                    var singleGroup = new GroupedNotification
-                    {
-                        Id = notification.Key,
-                        EarliestTime = ParseNotificationTime(notification)
-                    };
-                    singleGroup.AddNotification(notification);
-                    groupedNotifications.Add(singleGroup);
-                }
-            }
-
-            OnGroupedNotificationsChanged(new System.Collections.Specialized.NotifyCollectionChangedEventArgs(System.Collections.Specialized.NotifyCollectionChangedAction.Reset));
-        });
-    }
-
-    private DateTime ParseNotificationTime(Notification notification)
-    {
-        if (notification.TimeStamp != null && long.TryParse(notification.TimeStamp, out var timestamp))
-        {
-            return DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime;
-        }
-        return DateTime.Now;
-    }
 
     public async Task LoadAllNotificationsAsync()
     {
@@ -744,31 +552,12 @@ public class NotificationService(
                 {
                     activeNotifications.Add(n);
                 }
-                UpdateActiveNotifications();
+                grouper.Rebuild(activeNotifications);
             });
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to load all notifications");
-        }
-    }
-
-    /// <summary>
-    /// Clears the badge number on the app tile
-    /// </summary>
-    private void ClearBadge()
-    {
-        try
-        {
-            _ = dispatcher.EnqueueAsync(() =>
-            {
-                BadgeUpdater badgeUpdater = BadgeUpdateManager.CreateBadgeUpdaterForApplication();
-                badgeUpdater.Clear();
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "启动时清除角标失败");
         }
     }
 
@@ -790,318 +579,6 @@ public class NotificationService(
         }
     }
 #endif
-
-    /// <summary>
-    /// 处理媒体播放通知
-    /// </summary>
-    /// <param name="device">设备</param>
-    /// <param name="notificationMessage">通知消息</param>
-    public async Task HandleMediaPlayNotification(PairedDevice device, string payload)
-    {
-        try
-        {
-            if (!device.DeviceSettings.NotificationSyncEnabled)
-            {
-                return;
-            }
-
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
-
-            var mediaType = root.TryGetProperty("mediaType", out var mtProp) ? mtProp.GetString() : null;
-            var titleStr = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
-            var textStr = root.TryGetProperty("text", out var txProp) ? txProp.GetString() ?? "" : "";
-            var coverUrl = root.TryGetProperty("coverUrl", out var cuProp) ? cuProp.GetString() : null
-                ?? (root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null)
-                ?? (root.TryGetProperty("largeIcon", out var liProp) ? liProp.GetString() : null);
-
-            // 解析播放状态：缺省视为播放中（与 SendMediaInfoAsync 行为一致）
-            bool isPlaying = true;
-            if (root.TryGetProperty("isPlaying", out var ipProp))
-            {
-                if (ipProp.ValueKind == JsonValueKind.False) isPlaying = false;
-                else if (ipProp.ValueKind == JsonValueKind.True) isPlaying = true;
-            }
-
-            // 叠加层媒体卡片开关（与本地媒体一致）
-            var mediaOverlayEnabled = generalSettings.DanmakuMediaCardEnabled;
-
-            if (mediaType == "END")
-            {
-                await dispatcher.EnqueueAsync(async () =>
-                {
-                    try
-                    {
-                        var existingBlock = _currentMusicMediaBlocks.FirstOrDefault(b => b.DeviceId == device.Id);
-                        if (existingBlock != null)
-                        {
-                            _currentMusicMediaBlocks.Remove(existingBlock);
-                            _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, "", "", "", false);
-                        }
-
-                        if (mediaOverlayEnabled)
-                        {
-                            overlayRender.RemoveMediaCard(device.Id);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogError(ex, "移除媒体块时出错，设备：{deviceId}", device.Id);
-                    }
-                });
-                return;
-            }
-
-            await dispatcher.EnqueueAsync(async () =>
-            {
-                try
-                {
-                    var existingBlock = _currentMusicMediaBlocks.FirstOrDefault(b => b.DeviceId == device.Id);
-                    if (existingBlock == null)
-                    {
-                        var newBlock = new MusicMediaBlock(
-                            device.Id,
-                            device.Name,
-                            titleStr,
-                            textStr,
-                            coverUrl
-                        );
-                        _currentMusicMediaBlocks.Add(newBlock);
-                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, titleStr, textStr, coverUrl ?? "", true);
-
-                        if (mediaOverlayEnabled)
-                        {
-                            var coverBytes = ConvertCoverUrlToBytes(coverUrl);
-                            overlayRender.ShowMediaCard(device.Id, device.Name, titleStr, textStr, coverBytes, isPlaying);
-                        }
-                    }
-                    else
-                    {
-                        string updatedTitle = existingBlock.Title;
-                        string updatedText = existingBlock.Text;
-                        string? updatedCoverUrl = existingBlock.CoverUrl;
-
-                        if (!string.IsNullOrEmpty(titleStr))
-                        {
-                            updatedTitle = titleStr;
-                        }
-
-                        if (!string.IsNullOrEmpty(textStr))
-                        {
-                            updatedText = textStr;
-                        }
-
-                        if (!string.IsNullOrEmpty(coverUrl))
-                        {
-                            updatedCoverUrl = coverUrl;
-                        }
-
-                        existingBlock.Update(updatedTitle, updatedText, updatedCoverUrl);
-                        _ = LocalSocketRelayServer.SendMediaInfoAsync(device.Id, device.Name, updatedTitle, updatedText, updatedCoverUrl ?? "", true);
-
-                        if (mediaOverlayEnabled)
-                        {
-                            var coverBytes = ConvertCoverUrlToBytes(updatedCoverUrl);
-                            overlayRender.ShowMediaCard(device.Id, device.Name, updatedTitle, updatedText, coverBytes, isPlaying);
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "在UI线程上处理媒体播放通知时出错");
-                }
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理媒体播放通知时出错");
-        }
-    }
-
-    /// <summary>
-    /// 将封面 URL（Data URL 或纯 base64）转换为字节数组，失败返回 null。
-    /// </summary>
-    private static byte[]? ConvertCoverUrlToBytes(string? coverUrl)
-    {
-        if (string.IsNullOrEmpty(coverUrl)) return null;
-        try
-        {
-            var base64 = coverUrl.Contains(',') ? coverUrl.Split(',')[1] : coverUrl;
-            return Convert.FromBase64String(base64);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    /// <summary>
-    /// 检查音乐媒体块是否超时
-    /// </summary>
-    public void CheckMusicMediaBlockTimeout()
-    {
-        dispatcher.EnqueueAsync(async () =>
-        {
-            // 检查集合中每个媒体块是否超时，超时则移除
-            var toRemove = _currentMusicMediaBlocks.Where(b => b.IsTimeout(MUSIC_MEDIA_BLOCK_TIMEOUT)).ToList();
-            foreach (var b in toRemove)
-            {
-                try
-                {
-                    _currentMusicMediaBlocks.Remove(b);
-
-                    if (generalSettings.DanmakuMediaCardEnabled)
-                    {
-                        overlayRender.RemoveMediaCard(b.DeviceId);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    logger.LogError(ex, "移除超时的音乐媒体块时出错，设备：{deviceId}", b.DeviceId);
-                }
-
-                _ = LocalSocketRelayServer.SendMediaInfoAsync(b.DeviceId, b.DeviceName, "", "", "", false);
-            }
-        });
-    }
-
-    /// <summary>
-    /// 处理图标响应，通知等待的图标请求任务
-    /// </summary>
-    /// <param name="deviceId">设备 ID</param>
-    /// <param name="packageName">应用包名</param>
-    public void HandleIconResponse(string deviceId, string packageName)
-    {
-        try
-        {
-            string requestKey = $"{packageName}|{deviceId}";
-            if (pendingIconRequests.TryGetValue(requestKey, out var tcs))
-            {
-                // 完成等待的任务
-                tcs.TrySetResult(true);
-                logger.LogDebug("已通知图标请求完成：{PackageName}", packageName);
-            }
-
-            // 更新所有使用该包名的通知的图标
-            dispatcher.EnqueueAsync(async () =>
-            {
-                var notificationsToUpdate = activeNotifications.Where(n => n.AppPackage == packageName).ToList();
-                foreach (var notification in notificationsToUpdate)
-                {
-                    // 更新图标路径和图标
-                    notification.IconPath = IconUtils.GetAppIconPath(packageName);
-                    await notification.LoadIconAsync();
-                }
-
-                // 刷新所有通知
-                UpdateActiveNotifications();
-            });
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理图标响应通知时出错");
-        }
-    }
-
-    public async Task ProcessMediaPlayMessageAsync(PairedDevice device, string payload)
-    {
-        try
-        {
-            logger.LogTrace("收到DATA_MEDIAPLAY消息，设备：{deviceId}", device.Id);
-
-            // 检查是否为结束包
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
-            var terminateValue = root.TryGetProperty("terminateValue", out var tv) && tv.ValueKind == JsonValueKind.String ? tv.GetString() : null;
-
-            string finalPayload = payload;
-            if (terminateValue != null && terminateValue.Equals("__END__", StringComparison.OrdinalIgnoreCase))
-            {
-                // 构造结束标记payload
-                var rawJson = JsonSerializer.Serialize(new { type = "DATA_MEDIAPLAY", mediaType = "END", time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() });
-                var validatedJson = rawJson;
-                if (validatedJson != null) finalPayload = validatedJson;
-            }
-
-            await HandleMediaPlayNotification(device, finalPayload);
-        }
-        catch (JsonException jsonEx)
-        {
-            logger.LogError(jsonEx, "解析DATA_MEDIAPLAY消息JSON时出错，消息内容：{payload}", payload.Length > 100 ? payload[..100] + "..." : payload);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理DATA_MEDIAPLAY消息时出错");
-        }
-    }
-
-    public async Task ProcessIconResponseAsync(PairedDevice device, string payload)
-    {
-        try
-        {
-            logger.LogInformation("处理ICON_RESPONSE消息");
-
-            // 解析由 Rust 完成：返回 {"icons":[{packageName,iconData}],"missing":[...]}
-            var parsed = NativeCore.AppSyncParseIconResponse(payload);
-            if (parsed == null) return;
-
-            using var doc = JsonDocument.Parse(parsed);
-            var root = doc.RootElement;
-
-            if (root.TryGetProperty("icons", out var iconsArray) && iconsArray.ValueKind == JsonValueKind.Array)
-            {
-                logger.LogInformation("接收到图标响应，包含 {count} 个图标", iconsArray.GetArrayLength());
-                int savedCount = 0;
-                foreach (var iconElement in iconsArray.EnumerateArray())
-                {
-                    // 获取包名
-                    if (!iconElement.TryGetProperty("packageName", out var packageProp))
-                    {
-                        logger.LogWarning("图标响应中的图标缺少 packageName 属性");
-                        continue;
-                    }
-
-                    var packageName = packageProp.GetString();
-                    if (string.IsNullOrEmpty(packageName))
-                    {
-                        logger.LogWarning("图标响应中的图标 packageName 为空");
-                        continue;
-                    }
-
-                    // 获取图标数据
-                    if (!iconElement.TryGetProperty("iconData", out var iconDataProp))
-                    {
-                        logger.LogWarning("图标响应中的图标缺少 iconData 属性");
-                        continue;
-                    }
-
-                    var iconData = iconDataProp.GetString();
-                    if (string.IsNullOrEmpty(iconData))
-                    {
-                        logger.LogWarning("图标响应中的图标 iconData 为空");
-                        continue;
-                    }
-
-                    logger.LogInformation("正在保存应用 {packageName} 的图标，数据长度：{length}", packageName, iconData.Length);
-                    // 保存图标
-                    await IconUtils.SaveAppIconToPathAsync(iconData, packageName);
-                    savedCount++;
-
-                    // 触发应用图标更新
-                    HandleIconResponse(device.Id, packageName);
-                }
-                logger.LogInformation("图标响应处理完成，已保存 {savedCount} 个应用图标", savedCount);
-            }
-        }
-        catch (JsonException ex)
-        {
-            logger.LogWarning("解析图标响应JSON时出错：{ex.Message}", ex.Message);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "处理图标响应时出错");
-        }
-    }
 
     public async Task ProcessNotificationMessageAsync(PairedDevice device, string payload)
     {
