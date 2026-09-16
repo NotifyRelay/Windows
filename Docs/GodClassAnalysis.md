@@ -35,43 +35,12 @@
 | 13 | `Converters/Converters.cs` | **414** | 32 | **19** |
 | 14 | `Services/HeartRate/HeartRateBleService.cs` | **379** | — | 1 |
 
-> 注：原排名第 1 的 `Services/AdbService.cs`（1067 行）已移出本文档，计划见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)。
 
 ---
 
 ## 三、🔴 严重级 — 上帝类分析
 
-### 3.0 关于已移出的类
-
-| 文件 | 行数 | 拆分计划 |
-|------|------|----------|
-| `Services/AdbService.cs` | 1067 | [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md) |
-
-> 该类已从本文档的分析范围移出，本文档不再维护其职责清单与拆分建议。
-
----
-
-### 3.1 `WindowsPlaybackService.cs`（900行，30方法）
-
-**单一职责违反：5+ 个不相关职责**
-
-| 职责领域 | 代表方法 | 大致行数 |
-|----------|----------|----------|
-| SMTC 会话管理 | `SessionsChanged`, `UpdateActiveSessions`, `AddSession`, `RemoveSession` | ~200 |
-| 音频设备枚举/管理 | `GetAllAudioDevices`, `DeviceWatcher_*`, `UpdateDefaultSelection`, `SetDefaultAudioDevice` | ~200 |
-| 音量控制 | `ToggleMute`, `SetVolume` | ~50 |
-| 媒体操作执行 | `HandleMediaActionAsync`, `ExecuteSessionActionAsync` | ~150 |
-| 播放数据同步 | `UpdatePlaybackDataAsync`, `SendPlaybackData` | ~150 |
-| 远程媒体控制 | `HandleRemotePlaybackMessageAsync`, `SendMediaControlRequest` | ~80 |
-| App 名称解析 | `ResolveMediaAppName` | ~40 |
-
-**建议拆分：**
-```
-WindowsPlaybackService（瘦身后~300行，保留 SMTC 会话管理核心）
-├── AudioDeviceManager.cs       — 音频设备枚举/DeviceWatcher/默认设备切换
-├── PlaybackDataSyncer.cs       — 播放数据更新/diff/发送
-└── MediaControlHandler.cs      — 远程媒体操作/控制请求响应
-```
+（原 3.1 `WindowsPlaybackService.cs` 已整体迁移至 WindowsPlaybackServiceSplitPlan.md）
 
 ---
 
@@ -220,11 +189,9 @@ Converters/
     ↓
 阶段3: SuperIslandParamV2Parser 拆分（叠加层解析，908行/43方法，仅本轮新增评估项）
     ↓
-阶段4: WindowsPlaybackService 拆分（媒体功能独立性强）
+阶段4: NativeCore.cs 拆分（FFI 桥接层清理）
     ↓
-阶段5: NativeCore.cs 拆分（FFI 桥接层清理）
-    ↓
-阶段6: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
+阶段5: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
 ```
 
 ---
