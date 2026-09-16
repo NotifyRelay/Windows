@@ -32,12 +32,11 @@ public class PlaybackDataSyncer(
     /// <summary>启动 9 秒周期的媒体状态重推循环（fire-and-forget，与现状一致）。</summary>
     public void StartPeriodicSyncLoop()
     {
-        // 定期发送媒体消息（每9秒发送一次）
         _ = Task.Run(async () =>
         {
+            // 启动后先立即执行首次同步，再每轮结束后等待 9 秒
             while (true)
             {
-                await Task.Delay(TimeSpan.FromSeconds(9));
                 try
                 {
                     // 获取当前活跃的媒体会话
@@ -56,6 +55,11 @@ public class PlaybackDataSyncer(
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "定期更新播放数据时出错");
+                }
+                finally
+                {
+                    // 即便同步抛异常也保证间隔，避免异常时形成忙循环
+                    await Task.Delay(TimeSpan.FromSeconds(9));
                 }
             }
         });
@@ -119,7 +123,19 @@ public class PlaybackDataSyncer(
 
             var source = session.SourceAppUserModelId;
             var trackTitle = mediaProperties.Title;
-            var artist = mediaProperties.Artist ?? "Unknown Artist";
+            var rawArtist = mediaProperties.Artist;
+
+            // SMTC 中空值表示"未改变"而非"无数据"：标题与原始艺术家均为空时跳过本次更新，
+            // 保留 Overlay / Gamebar 上一次的有效状态，避免被空值覆盖。
+            // 注意必须用原始 Artist 判断——若先默认成 "Unknown Artist" 则此判断恒为 false。
+            if (string.IsNullOrEmpty(trackTitle) && string.IsNullOrEmpty(rawArtist))
+            {
+                logger.LogDebug("GetPlaybackSessionAsync: 跳过空媒体数据 source={Source}", source);
+                return null;
+            }
+
+            // 确认快照有效后，才为缺失的艺术家补默认显示名
+            var artist = string.IsNullOrEmpty(rawArtist) ? "Unknown Artist" : rawArtist;
             string? thumbnail = null;
 
             // 只获取封面图片，其他字段不需要

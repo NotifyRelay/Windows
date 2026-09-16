@@ -14,7 +14,7 @@ namespace NotifyRelay.Platforms.Windows.Services;
 /// 音频设备枚举、监听与音量/静音/默认设备管理。
 /// 由 WindowsPlaybackService 的初始化流程启动，并由 MediaControlExecutor 处理远端音频控制指令。
 /// </summary>
-public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
+public class AudioDeviceManager(ILogger<AudioDeviceManager> logger) : IDisposable
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
     private readonly List<AudioDevice> audioDevices = [];
@@ -54,22 +54,29 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
             audioDevices.Clear();
 
             // Get the default device ID (NAudio)
-            var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia).ID;
+            string defaultDeviceId;
+            using (var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia))
+            {
+                defaultDeviceId = defaultDevice.ID;
+            }
 
-            // List all active devices
-            var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
+            // List all active devices（MMDevice 与集合均为 IDisposable，需确定性释放）
+            using var devices = enumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active);
             foreach (var device in devices)
             {
-                audioDevices.Add(
-                    new AudioDevice
-                    {
-                        DeviceId = device.ID,
-                        DeviceName = device.FriendlyName,
-                        Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
-                        IsMuted = device.AudioEndpointVolume.Mute,
-                        IsSelected = device.ID == defaultDevice
-                    }
-                );
+                using (device)
+                {
+                    audioDevices.Add(
+                        new AudioDevice
+                        {
+                            DeviceId = device.ID,
+                            DeviceName = device.FriendlyName,
+                            Volume = device.AudioEndpointVolume.MasterVolumeLevelScalar,
+                            IsMuted = device.AudioEndpointVolume.Mute,
+                            IsSelected = device.ID == defaultDeviceId
+                        }
+                    );
+                }
             }
         }
         catch (Exception ex)
@@ -78,63 +85,95 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
         }
     }
 
-    public void ToggleMute(string deviceId)
+    /// <summary>切换指定设备的静音状态。</summary>
+    /// <returns>实际执行成功返回 true；设备不存在、未激活或调用失败返回 false。</returns>
+    public bool ToggleMute(string deviceId)
     {
         try
         {
-            var endpoint = enumerator.GetDevice(deviceId);
-            if (endpoint is null || endpoint.State != DeviceState.Active) return;
+            using var endpoint = enumerator.GetDevice(deviceId);
+            if (endpoint is null || endpoint.State != DeviceState.Active)
+            {
+                logger.LogWarning("设备 {DeviceId} 不存在或未激活，无法切换静音", deviceId);
+                return false;
+            }
 
             try
             {
                 endpoint.AudioEndpointVolume.Mute = !endpoint.AudioEndpointVolume.Mute;
+                return true;
             }
             catch (COMException comEx) when (comEx.HResult == unchecked((int)0x8007001F))
             {
                 logger.LogWarning("设备 {DeviceId} 在静音时无法正常工作", deviceId);
+                return false;
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "静音设备 {DeviceId} 时出错", deviceId);
+            return false;
         }
     }
 
-    public void SetVolume(string deviceId, float volume)
+    /// <summary>设置指定设备的音量。</summary>
+    /// <returns>实际执行成功返回 true；设备不存在、未激活或调用失败返回 false。</returns>
+    public bool SetVolume(string deviceId, float volume)
     {
         try
         {
-            var endpoint = enumerator.GetDevice(deviceId);
-            if (endpoint is null || endpoint.State is not DeviceState.Active) return;
+            using var endpoint = enumerator.GetDevice(deviceId);
+            if (endpoint is null || endpoint.State is not DeviceState.Active)
+            {
+                logger.LogWarning("设备 {DeviceId} 不存在或未激活，无法设置音量", deviceId);
+                return false;
+            }
 
             try
             {
                 endpoint.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
+                return true;
             }
             catch (COMException comEx) when (comEx.HResult == unchecked((int)0x8007001F))
             {
                 logger.LogWarning("设备 {DeviceId} 在设置音量时无法正常工作", deviceId);
+                return false;
             }
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "为设备 {DeviceId} 设置音量 {Volume} 时出错", volume, deviceId);
+            return false;
         }
     }
 
 
-    public void SetDefaultAudioDevice(string deviceId)
+    /// <summary>设置系统默认音频设备。</summary>
+    /// <returns>实际执行成功返回 true；COM 创建失败、SetDefaultEndpoint 返回非 S_OK 或异常时返回 false。</returns>
+    public bool SetDefaultAudioDevice(string deviceId)
     {
         object? policyConfigObject = null;
         try
         {
             Type? policyConfigType = Type.GetTypeFromCLSID(new Guid("870af99c-171d-4f9e-af0d-e63df40c2bc9"));
-            if (policyConfigType is null) return;
+            if (policyConfigType is null)
+            {
+                logger.LogError("无法解析 IPolicyConfig 的 COM 类型");
+                return false;
+            }
 
             policyConfigObject = Activator.CreateInstance(policyConfigType);
-            if (policyConfigObject is null) return;
+            if (policyConfigObject is null)
+            {
+                logger.LogError("无法创建 IPolicyConfig COM 实例");
+                return false;
+            }
 
-            if (policyConfigObject is not IPolicyConfig policyConfig) return;
+            if (policyConfigObject is not IPolicyConfig policyConfig)
+            {
+                logger.LogError("IPolicyConfig COM 实例类型不匹配");
+                return false;
+            }
 
             int result1 = policyConfig.SetDefaultEndpoint(deviceId, ERole.eMultimedia);
             int result2 = policyConfig.SetDefaultEndpoint(deviceId, ERole.eCommunications);
@@ -143,7 +182,7 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
             if (result1 != HResult.S_OK || result2 != HResult.S_OK || result3 != HResult.S_OK)
             {
                 logger.LogError("SetDefaultEndpoint 返回错误代码：{Result1}, {Result2}, {Result3}", result1, result2, result3);
-                return;
+                return false;
             }
 
             var index = audioDevices.FindIndex(d => d.DeviceId == deviceId);
@@ -153,11 +192,13 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
                 audioDevices.First().IsSelected = false;
                 audioDevices[index].IsSelected = true;
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "设置默认设备时出错");
-            return;
+            return false;
         }
         finally
         {
@@ -238,7 +279,7 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
     {
         try
         {
-            var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
+            using var defaultDevice = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
             if (defaultDevice != null)
             {
                 var id = defaultDevice.ID;
@@ -257,5 +298,11 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
         {
             logger.LogWarning(ex, "更新默认音频设备选择时出错");
         }
+    }
+
+    /// <summary>释放长期持有的 COM 资源（设备枚举器）。</summary>
+    public void Dispose()
+    {
+        enumerator.Dispose();
     }
 }

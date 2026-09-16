@@ -89,6 +89,24 @@ public class MediaControlExecutor(
         {
             try
             {
+                // 音频类指令不依赖 SMTC 会话，须在 session 判空之前执行；
+                // 仅播放类指令依赖活动媒体会话。
+                switch (actionType)
+                {
+                    case "DefaultDevice":
+                        success = audioDeviceManager.SetDefaultAudioDevice(source ?? string.Empty);
+                        return;
+                    case "VolumeUpdate":
+                        if (value.HasValue)
+                        {
+                            success = audioDeviceManager.SetVolume(source ?? string.Empty, Convert.ToSingle(value.Value));
+                        }
+                        return;
+                    case "ToggleMute":
+                        success = audioDeviceManager.ToggleMute(source ?? string.Empty);
+                        return;
+                }
+
                 if (session == null)
                 {
                     logger.LogWarning("没有活跃的媒体会话，无法执行操作：{actionType}", actionType);
@@ -166,21 +184,6 @@ public class MediaControlExecutor(
                                 success = repeatResult == true;
                             }
                         }
-                        break;
-                    case "DefaultDevice":
-                        audioDeviceManager.SetDefaultAudioDevice(source ?? string.Empty);
-                        success = true;
-                        break;
-                    case "VolumeUpdate":
-                        if (value.HasValue)
-                        {
-                            audioDeviceManager.SetVolume(source ?? string.Empty, Convert.ToSingle(value.Value));
-                            success = true;
-                        }
-                        break;
-                    case "ToggleMute":
-                        audioDeviceManager.ToggleMute(source ?? string.Empty);
-                        success = true;
                         break;
                     default:
                         logger.LogWarning("未处理的媒体操作：{actionType}", actionType);

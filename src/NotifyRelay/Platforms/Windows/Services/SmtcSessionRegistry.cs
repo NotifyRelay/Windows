@@ -49,8 +49,9 @@ public class SmtcSessionRegistry(ILogger<SmtcSessionRegistry> logger)
             return false;
         }
 
-        SyncSessions();
+        // 先订阅再首次同步：否则 SyncSessions 执行期间发生的会话增减无人接收而丢失
         manager.SessionsChanged += SessionsChanged;
+        SyncSessions();
         return true;
     }
 
