@@ -1,10 +1,38 @@
 # `WindowsPlaybackService.cs` 拆分计划
 
-> 状态：**仅计划，尚未执行任何代码改动**
-> 目标文件：`Win/src/NotifyRelay/Platforms/Windows/Services/WindowsPlaybackService.cs`（当前 1005 行）
+> 状态：**已完成（已执行并提交，拆分生效）**
+> 目标文件：`Win/src/NotifyRelay/Platforms/Windows/Services/WindowsPlaybackService.cs`（1005 → 155 行）
 > 来源：`Win/Docs/GodClassAnalysis.md` 第 3.1 节（该节已整体迁移至本文档）
 > 构建验证命令：`msbuild -p:Platform=x64`（根目录 `Win/`）
 > 用户已确认：迁移时**顺带移除全部 7 项无谓中间层**（见第六节）
+>
+> **执行结果**（5 次提交，每步独立构建通过）：
+>
+> | 提交 | 内容 |
+> |---|---|
+> | `594f01f` | 抽出 `AudioDeviceManager` |
+> | `94d8436` | 抽出 `SmtcSessionRegistry`（含 6.3 / 6.4 / 6.5） |
+> | `f2d7a06` | 抽出 `PlaybackDataSyncer`（含 6.1 / 6.7 前半） |
+> | `7a45583` | 抽出 `MediaControlExecutor` |
+> | `8b24f1e` | 收尾清理（6.2 / 6.7 后半 / using / `ISessionManager` 依赖） |
+>
+> 最终规模：`WindowsPlaybackService` 155、`SmtcSessionRegistry` 177、
+> `PlaybackDataSyncer` 305、`MediaControlExecutor` 200、`AudioDeviceManager` 263。
+> 构建错误 0、警告数与基线完全一致（CS8604×2、WMC1506×7、Rust dead_code×3，均为存量）。
+> `IPlaybackService` 接口与 4 处外部调用点零改动；`notify-relay-core` 子模块未改动。
+>
+> **执行时与原计划的差异**（均经用户确认）：
+>
+> 1. `SmtcSessionRegistry.InitializeAsync()` 返回 `Task<bool>` 而非 `Task`——否则会话管理器
+>    获取失败时调用方无从得知，会继续执行本应中止的后续初始化（行为改变）。
+> 2. `MediaControlExecutor.ExecuteAsync` 返回 `MediaControlExecutionResult`
+>    （`Ignored`/`ActionType`/`Success`）而非 `Task<bool>`——`SendMediaControlResponse`
+>    需要 `actionType` 且自应用会话需「不发响应」，单 bool 无法表达。
+> 3. 依用户决定，`WindowsPlaybackService` 的 `IGeneralSettingsService` 与 `ISessionManager`
+>    两个构造依赖一并移除（下沉后已无使用点；保留会产生新增警告 CS9113）。
+> 4. 第 3.2 节称把 `EnableSendMediaNotifications` 判断上移到 `SendPlaybackData` 属「语义等价」，
+>    该表述有误：原判断同时抑制了 Overlay/Gamebar 刷新。依用户决定按计划字面执行，
+>    即开关关闭时 Overlay/Gamebar 仍会刷新（**行为变化，非等价**）。
 
 ---
 
