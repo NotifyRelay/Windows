@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Models;
 
-namespace NotifyRelay.Services.Filters;
+namespace NotifyRelay.Services.Notifications;
 
 /// <summary>
 /// 本机通知过滤器（PC → Android 方向）

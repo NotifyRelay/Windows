@@ -1,4 +1,4 @@
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Devices;
 
 /// <summary>
 /// TCP 心跳（<c>HEARTBEAT_TCP</c>）处理。

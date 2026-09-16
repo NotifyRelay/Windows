@@ -1,6 +1,8 @@
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+// LocalSocketRelayServer 现位于 NotifyRelay.Services.Protocol
+using NotifyRelay.Services.Protocol;
 using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Services.Notifications;

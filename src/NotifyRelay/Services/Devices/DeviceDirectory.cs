@@ -1,7 +1,7 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Devices;
 
 /// <summary>
 /// 设备信息的<b>同步查询</b>入口，全部数据来自 <see cref="IDeviceSnapshotStore"/> 的只读投影。

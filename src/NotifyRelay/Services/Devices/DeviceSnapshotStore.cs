@@ -5,7 +5,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Devices;
 
 /// <summary>
 /// 设备状态的<b>唯一真源消费端</b>：把 Rust core 的 <c>nrc_get_device_list</c> 快照

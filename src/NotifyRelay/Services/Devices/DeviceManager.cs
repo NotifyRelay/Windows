@@ -7,7 +7,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 using NotifyRelay.Native;
 using NotifyRelay.Utils;
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Devices;
 
 public partial class DeviceManager(
     ILogger<DeviceManager> logger,

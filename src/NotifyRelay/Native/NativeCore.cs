@@ -2,7 +2,10 @@ using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
-using NotifyRelay.Services;
+using NotifyRelay.Services.Devices;
+using NotifyRelay.Services.Media;
+using NotifyRelay.Services.Protocol;
+using NotifyRelay.Services.Infrastructure;
 
 namespace NotifyRelay.Native;
 

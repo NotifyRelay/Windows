@@ -4,8 +4,9 @@ using NotifyRelay.Data.AppDatabase.Models;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
+using NotifyRelay.Services.Infrastructure;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Devices;
 
 /// <summary>
 /// 设备发现服务：把 Rust core 的设备快照投影为「可配对设备列表」。

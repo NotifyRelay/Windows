@@ -1,6 +1,6 @@
 using NotifyRelay.Native;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 public static class SuperIslandProtocol
 {

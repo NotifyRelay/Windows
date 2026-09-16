@@ -4,10 +4,11 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
+using NotifyRelay.Services.Infrastructure;
 using Windows.UI.Notifications;
 
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 public class NetworkService(
     ILogger<NetworkService> logger,

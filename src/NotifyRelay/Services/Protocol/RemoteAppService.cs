@@ -4,7 +4,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
 using NotifyRelay.Utils;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 public class RemoteAppService(
     ILogger<RemoteAppService> logger,

@@ -2,7 +2,7 @@ using System.Collections.Specialized;
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Services.Socket;
+using NotifyRelay.Services.Protocol;
 
 #if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;

@@ -8,7 +8,7 @@ using NotifyRelay.Platforms.Windows.Services;
 
 using NotifyRelay.Services.Overlay;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 /// <summary>
 /// 统一协议路由器

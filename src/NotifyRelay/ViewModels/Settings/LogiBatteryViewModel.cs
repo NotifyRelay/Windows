@@ -4,7 +4,10 @@ using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Native;
-using NotifyRelay.Services;
+using NotifyRelay.Services.Devices;
+using NotifyRelay.Services.Media;
+using NotifyRelay.Services.Protocol;
+using NotifyRelay.Services.Infrastructure;
 using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.ViewModels.Settings;
