@@ -23,8 +23,6 @@ public class AudioDeviceManager(ILogger<AudioDeviceManager> logger)
     // WinRT device watcher for audio endpoint changes
     private DeviceWatcher? deviceWatcher;
 
-    public IReadOnlyList<AudioDevice> AudioDevices => audioDevices;
-
     /// <summary>
     /// 创建并启动音频设备监视器。失败时不阻断调用方初始化流程。
     /// </summary>

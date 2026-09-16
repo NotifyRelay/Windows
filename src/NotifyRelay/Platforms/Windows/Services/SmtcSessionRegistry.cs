@@ -27,9 +27,6 @@ public class SmtcSessionRegistry(ILogger<SmtcSessionRegistry> logger)
     /// <summary>系统当前活动的媒体会话（无则为 null）。</summary>
     public GlobalSystemMediaTransportControlsSession? CurrentSession => manager?.GetCurrentSession();
 
-    /// <summary>会话新增（登记并订阅事件后触发）。</summary>
-    public event EventHandler<string>? SessionAdded;
-
     /// <summary>会话移除（退订事件后触发）。</summary>
     public event EventHandler<string>? SessionRemoved;
 
@@ -84,7 +81,14 @@ public class SmtcSessionRegistry(ILogger<SmtcSessionRegistry> logger)
     {
         if (manager is null) return;
 
-        UpdateSessionsList(manager.GetSessions());
+        try
+        {
+            UpdateSessionsList(manager.GetSessions());
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "更新活动会话时出错");
+        }
     }
 
     private void UpdateSessionsList(IReadOnlyList<GlobalSystemMediaTransportControlsSession> sessions)
@@ -127,7 +131,6 @@ public class SmtcSessionRegistry(ILogger<SmtcSessionRegistry> logger)
         {
             activeSessions[session.SourceAppUserModelId] = session;
             SubscribeToSessionEvents(session);
-            SessionAdded?.Invoke(this, session.SourceAppUserModelId);
         }
     }
 

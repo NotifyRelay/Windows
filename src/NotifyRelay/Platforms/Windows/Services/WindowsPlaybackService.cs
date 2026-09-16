@@ -1,8 +1,6 @@
 using System.Runtime.InteropServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Native;
-using NotifyRelay.Services.Devices;
-using NotifyRelay.Services.Protocol;
 using Windows.Media.Control;
 
 namespace NotifyRelay.Platforms.Windows.Services;
@@ -21,15 +19,16 @@ public class WindowsPlaybackService(
     {
         try
         {
+            // 先订阅 registry 事件，再触发首次会话同步：
+            // 否则 SyncSessions 期间已建好的会话事件会因无人订阅而被丢弃
+            sessionRegistry.MediaPropertiesChanged += OnSessionMediaPropertiesChanged;
+            sessionRegistry.PlaybackInfoChanged += OnSessionPlaybackInfoChanged;
+            sessionRegistry.SessionRemoved += OnSessionRemoved;
+
             if (!await sessionRegistry.InitializeAsync())
             {
                 return;
             }
-
-            // 订阅会话事件：媒体属性/播放状态变更触发播放数据刷新，会话移除触发卡片清理与结束标记
-            sessionRegistry.MediaPropertiesChanged += OnSessionMediaPropertiesChanged;
-            sessionRegistry.PlaybackInfoChanged += OnSessionPlaybackInfoChanged;
-            sessionRegistry.SessionRemoved += OnSessionRemoved;
 
             audioDeviceManager.GetAllAudioDevices();
 
