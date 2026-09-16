@@ -386,7 +386,7 @@ sequenceDiagram
     UI->>Audio: GetAllAudioDevices()
     Audio->>NAudio: EnumerateAudioEndPoints(Render, Active) + GetDefaultAudioEndpoint
     NAudio-->>Audio: 设备列表
-    Audio->>Audio: AudioDevices 重建（含 IsSelected = id == 默认设备）
+    Audio->>Audio: audioDevices 重建（含 IsSelected = id == 默认设备）
 
     OS->>Watcher: 默认渲染设备变更
     Watcher->>Audio: DefaultAudioRenderDeviceChanged
@@ -395,6 +395,43 @@ sequenceDiagram
 ```
 
 > 注：`SetDefaultAudioDevice` / `SetVolume` / `ToggleMute` 由 `MediaControlExecutor` 经 dispatcher 同步调用（现状即同步调用，无 UI 封送），拆分后保持不变。
+
+### 4.5 启动初始化时序（含 `cf9cc71` 修复的订阅顺序）
+
+`cf9cc71` 修复前，`WindowsPlaybackService` 在 `sessionRegistry.InitializeAsync()` **返回之后**才订阅
+registry 事件；而该调用内部已 `SyncSessions()` 并为会话订阅了转发处理器，故这段窗口内的事件会因
+「registry 已转发、但无人接收」而被**直接丢弃**。修复为**先订阅、后初始化**：
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as App.xaml.cs / AppLifecycleHelper
+    participant Svc as WindowsPlaybackService
+    participant Reg as SmtcSessionRegistry
+    participant Audio as AudioDeviceManager
+    participant Sync as PlaybackDataSyncer
+    participant SMTC as SMTC 会话
+
+    App->>Svc: InitializeAsync()
+    Note over Svc,Reg: ① 先订阅（修复点）
+    Svc->>Reg: MediaPropertiesChanged / PlaybackInfoChanged / SessionRemoved +=
+    Note over Svc,Reg: ② 再初始化（内部会做首次同步并订阅会话事件）
+    Svc->>Reg: InitializeAsync()
+    Reg->>SMTC: SessionManager.RequestAsync()
+    Reg->>Reg: SyncSessions()（含 try/catch，失败仅记日志）
+    Reg->>SMTC: 对每个会话 SubscribeToSessionEvents()
+    Reg->>Reg: manager.SessionsChanged += SessionsChanged
+    Reg-->>Svc: true（失败则为 false，服务端 return 中止）
+    Note over Svc,SMTC: 此窗口内的事件已有人接收，不再丢弃
+    SMTC-->>Reg: MediaPropertiesChanged
+    Reg-->>Svc: 事件转发
+    Svc->>Sync: UpdatePlaybackDataAsync(session)
+    Note over Svc: ③ 其余初始化
+    Svc->>Audio: GetAllAudioDevices()
+    Svc->>Audio: StartWatcher()
+    Svc->>Svc: NativeCore.MediaSessionQueryHandler = _ => registry.Count > 0
+    Svc->>Sync: StartPeriodicSyncLoop()
+```
 
 ---
 
