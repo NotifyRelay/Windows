@@ -1,26 +1,14 @@
-using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
-using CommunityToolkit.WinUI;
-using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Enums;
-using NotifyRelay.Data.Models;
-using NotifyRelay.Helpers;
 using NotifyRelay.Native;
 using NotifyRelay.Services.Devices;
-using NotifyRelay.Services.Media;
 using NotifyRelay.Services.Protocol;
-using NotifyRelay.Services.Infrastructure;
-using NotifyRelay.Services.Overlay;
-using Windows.Media;
 using Windows.Media.Control;
-using Windows.System;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
 public class WindowsPlaybackService(
     ILogger<WindowsPlaybackService> logger,
-    ISessionManager sessionManager,
     IDeviceManager deviceManager,
     IProtocolSender protocolSender,
     AudioDeviceManager audioDeviceManager,
@@ -51,11 +39,6 @@ public class WindowsPlaybackService(
             // 注册媒体会话存在性查询（Rust 心跳查询回调 on_state_query 使用）：
             // 无活跃媒体会话时 Rust 移除媒体发送会话，避免接收端持续收到陈旧全量
             NativeCore.MediaSessionQueryHandler = _ => sessionRegistry.Count > 0;
-
-            sessionManager.ConnectionStatusChanged += async (sender, args) =>
-            {
-                await Task.CompletedTask;
-            };
 
             // 启动 9 秒周期的媒体状态重推循环
             playbackDataSyncer.StartPeriodicSyncLoop();
@@ -127,13 +110,11 @@ public class WindowsPlaybackService(
     /// <inheritdoc/>
     public void SendMediaControlRequest(string deviceId, string controlType)
     {
-        var rawJson = JsonSerializer.Serialize(new
+        var requestJson = JsonSerializer.Serialize(new
         {
             type = "DATA_MEDIA_CONTROL",
             action = controlType
         });
-        string requestJson = rawJson;
-        if (requestJson == null) return;
         _ = protocolSender.SendMessageAsync(deviceId, requestJson);
     }
 
@@ -147,7 +128,7 @@ public class WindowsPlaybackService(
     {
         try
         {
-            var rawJson = JsonSerializer.Serialize(new
+            var responseJson = JsonSerializer.Serialize(new
             {
                 type = "DATA_STATUS",
                 originalHeader = "DATA_MEDIA_CONTROL",
@@ -155,8 +136,6 @@ public class WindowsPlaybackService(
                 result = success ? "success" : "error",
                 errorMessage = success ? string.Empty : "媒体操作失败"
             });
-            string responseJson = rawJson;
-            if (responseJson == null) return;
 
             foreach (var device in deviceManager.PairedDevices)
             {
