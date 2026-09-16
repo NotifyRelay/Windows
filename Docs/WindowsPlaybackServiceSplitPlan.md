@@ -1,12 +1,12 @@
 # `WindowsPlaybackService.cs` 拆分计划
 
-> 状态：**已完成（已执行并提交，拆分生效）**
-> 目标文件：`Win/src/NotifyRelay/Platforms/Windows/Services/WindowsPlaybackService.cs`（1005 → 155 行）
+> 状态：**已完成（已执行并提交，经独立子代理对抗性审查并修复回归）**
+> 目标文件：`Win/src/NotifyRelay/Platforms/Windows/Services/WindowsPlaybackService.cs`（1005 → 154 行）
 > 来源：`Win/Docs/GodClassAnalysis.md` 第 3.1 节（该节已整体迁移至本文档）
 > 构建验证命令：`msbuild -p:Platform=x64`（根目录 `Win/`）
 > 用户已确认：迁移时**顺带移除全部 7 项无谓中间层**（见第六节）
 >
-> **执行结果**（5 次提交，每步独立构建通过）：
+> **执行结果**（5 次提交 + 2 次文档提交 + 1 次回归修复）：
 >
 > | 提交 | 内容 |
 > |---|---|
@@ -15,9 +15,11 @@
 > | `f2d7a06` | 抽出 `PlaybackDataSyncer`（含 6.1 / 6.7 前半） |
 > | `7a45583` | 抽出 `MediaControlExecutor` |
 > | `8b24f1e` | 收尾清理（6.2 / 6.7 后半 / using / `ISessionManager` 依赖） |
+> | `9cfcffc`、`3da32da` | 文档状态更新与时序图/验收标准同步 |
+> | `cf9cc71` | **修复独立审查发现的 2 处回归** + 清理 2 个死成员 |
 >
-> 最终规模：`WindowsPlaybackService` 155、`SmtcSessionRegistry` 177、
-> `PlaybackDataSyncer` 305、`MediaControlExecutor` 200、`AudioDeviceManager` 263。
+> 最终规模：`WindowsPlaybackService` 154、`SmtcSessionRegistry` 180、
+> `PlaybackDataSyncer` 305、`MediaControlExecutor` 200、`AudioDeviceManager` 261。
 > 构建错误 0、警告数与基线完全一致（CS8604×2、WMC1506×7、Rust dead_code×3，均为存量）。
 > `IPlaybackService` 接口与 4 处外部调用点零改动；`notify-relay-core` 子模块未改动。
 >
@@ -33,6 +35,20 @@
 > 4. 第 3.2 节称把 `EnableSendMediaNotifications` 判断上移到 `SendPlaybackData` 属「语义等价」，
 >    该表述有误：原判断同时抑制了 Overlay/Gamebar 刷新。依用户决定按计划字面执行，
 >    即开关关闭时 Overlay/Gamebar 仍会刷新（**行为变化，非等价**）。
+>
+> **独立审查发现并已修复的两处回归**（`cf9cc71`）：
+>
+> 1. **初始化窗口内会话事件被丢弃**：`SmtcSessionRegistry.InitializeAsync()` 内部
+>    `SyncSessions()` 时就已订阅会话级事件并转发，但 `WindowsPlaybackService` 直到 await
+>    返回后才订阅 registry 事件，该窗口内的事件因无人接收而**直接丢弃**（原实现处理器为
+>    同实例方法，不存在此窗口）。已改为先订阅再初始化。
+> 2. **6.4 合并丢失了异常保护**：原 `UpdateActiveSessions` 的 try/catch 包住的是
+>    `manager.GetSessions()` 本身，本节原判断「无实际保护对象」**不准确**。初次同步抛
+>    COM 异常时，原为记日志后继续初始化，合并后会中止后续全部初始化（音频设备、
+>    `MediaSessionQueryHandler`、9 秒循环）。已恢复 try/catch。
+>
+> 另按用户确认清理：`SmtcSessionRegistry.SessionAdded`（全仓零订阅者）、
+> `AudioDeviceManager.AudioDevices` 公开属性（无读取方）。
 
 ---
 
@@ -488,7 +504,14 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
 
 ### 6.4 合并 `SessionsChanged` / `UpdateActiveSessions`（324–342）
 
-两者都是「取 `manager.GetSessions()` → 调 `UpdateSessionsList`」的一行壳，且 `UpdateSessionsList` 内部无抛出路径，`UpdateActiveSessions` 的 try/catch 无实际保护对象。合并为单一 `SyncSessions()`，`SessionsChanged` 处理器直接调用。
+两者都是「取 `manager.GetSessions()` → 调 `UpdateSessionsList`」的一行壳。合并为单一 `SyncSessions()`，`SessionsChanged` 处理器直接调用。
+
+> ⚠️ **本节原判断「`UpdateActiveSessions` 的 try/catch 无实际保护对象」不准确**（已由独立审查纠正）：
+> 该 try/catch 包住的是 `manager.GetSessions()` **本身**，而非 `UpdateSessionsList`。
+> `GetSessions()` 是 WinRT 调用，初次同步时可能抛 `COMException`。原语义为「记日志后**继续**其余初始化」，
+> 而合并为无保护的 `SyncSessions()` 后，异常会冒泡到 `WindowsPlaybackService.InitializeAsync` 的外层
+> `catch (Exception)`，导致**后续全部初始化被跳过**（音频设备枚举、`MediaSessionQueryHandler`、9 秒循环）。
+> **已在 `cf9cc71` 恢复 `SyncSessions()` 内的 try/catch 以保持原语义。**
 
 ### 6.5 删除死逻辑 `Session_TimelinePropertiesChanged` 与 `lastTimelinePosition`（394–423、43、382、430、521）— 收益最大
 
@@ -514,6 +537,11 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
 `MusicMediaBlockManager.cs` 需新增 `using NotifyRelay.Helpers;`（当前未引用该命名空间）。
 
 > 注：此项是 7 项中唯一触及拆分范围外文件（`MusicMediaBlockManager.cs`）的改动，已确认纳入。
+>
+> 更正：`MusicMediaBlockManager` 中该转换器的调用点实际为 **2 处**（`coverUrl` 与 `updatedCoverUrl`）；
+> 提交信息中「3 处调用」有误——第 3 处（原 88 行）是 `LocalSocketRelayServer.SendMediaInfoAsync`，从不经过该转换器。
+> 另：新增的 `using NotifyRelay.Helpers;` 实为**冗余**（`GlobalUsings.cs` 已有 `global using NotifyRelay.Helpers;`），
+> 保留无害，仅作记录。
 
 ---
 
@@ -541,7 +569,7 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
 1. ✅ `msbuild -p:Platform=x64` 构建通过，错误数不增加、无新增警告（与步骤 0 基线对比）。
    实测：错误 0；警告 CS8604×2、WMC1506×7、Rust dead_code×3，与基线**逐项一致**。
 2. ✅ `IPlaybackService` 接口 4 个成员签名不变，外部 4 处调用点无需修改（`git diff` 该文件与其调用点为 0 改动）。
-3. ✅ `WindowsPlaybackService.cs` 行数降至约 195 行。实测 **155 行**。
+3. ✅ `WindowsPlaybackService.cs` 行数降至约 195 行。实测 **154 行**。
 4. ✅ 第七节 7 项中间层移除均已落地：
    - 6.1 代码中不再出现 `GetPlaybackSessionAsync` → `SendPlaybackData` 的 JSON 往返
    - 6.2 两处死 null 判消失
@@ -560,8 +588,17 @@ if (requestJson == null) return;   // 死代码：JsonSerializer.Serialize 返�
    - 媒体卡片 Overlay 与 Gamebar 转发均正常。
    - ⚠️ 额外需确认（因第 4 项行为变化）：`EnableSendMediaNotifications` **关闭**时，
      Overlay 媒体卡片与 Gamebar 转发**仍会刷新**（原实现会整体抑制）。
-6. ✅ 每步骤一次 Git 提交（`Win` 仓库）。实际 5 个代码提交 + 1 个文档提交：
-   `594f01f` / `94d8436` / `f2d7a06` / `7a45583` / `8b24f1e` + `9cfcffc`。
+6. ✅ 每步骤一次 Git 提交（`Win` 仓库）。实际 5 个代码提交 + 1 个回归修复 + 3 个文档提交：
+   `594f01f` / `94d8436` / `f2d7a06` / `7a45583` / `8b24f1e` / `cf9cc71` + `9cfcffc`、`3da32da` 等。
+7. ✅ **独立子代理对抗性审查**（2 个并行只读审查代理）已完成：
+   - 逐条确认 7 项中间层移除**全部真实落地**（代码级证据，非文档声称）
+   - 独立验证 `ImageHelper.FromBase64` 与被删的两个私有实现**逐字符等价**（含 data URI 分割、
+     空载荷、多逗号、非法输入等边界）
+   - 独立验证推送 Rust 的 `mediaJson` 六字段与旧实现**逐字一致**
+   - 独立验证 `ResolveMediaAppName` 与 `ParseMediaActionData` 与旧实现逐字一致
+   - 独立验证 Rust 侧 `MediaPayload` 无任何时间线/位置字段（6.5 删除确无下游消费者）
+   - 独立验证 `MediaControlExecutionResult.Ignored` 与原 3 处 `return` 一一对应
+   - 发现并促成修复上述 2 处回归
 
 ---
 
