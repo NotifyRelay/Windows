@@ -15,6 +15,11 @@
     x:Name="PageRoot">
 
     <Page.Resources>
+        <!-- 在线状态文本（只读展示，非交互按钮） -->
+        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionStatusTextConverter"
+            FalseValue="{helpers:ResourceString Name=Disconnected/Text}"
+            TrueValue="{helpers:ResourceString Name=Connected/Text}" />
+
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinTextConverter"
             FalseValue="{helpers:ResourceString Name=Pin}"
             TrueValue="{helpers:ResourceString Name=Unpin}" />
@@ -34,6 +39,8 @@
         <converters:EmptyObjectToVisibilityConverter x:Key="InverseEmptyObjectToVisibilityConverter" Inverse="True" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
         <converters:AdbIconToTypeConverter x:Key="AdbIconToTypeConverter" />
+        <!-- bool 在线状态 → 绿/灰圆点（与罗技电池页在线指示一致） -->
+        <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
 
         <!-- Phone Frame Overlay Animations -->
         <Storyboard x:Key="FadeInAnimation" x:Name="FadeInStoryboard">
@@ -233,6 +240,23 @@
 
                         <!--  Connection Status Card with ADB Info  -->
                         <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                            <!--  在线状态指示（只读：由 Rust core 快照 online 驱动，不提供手动连接/断开）  -->
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center"
+                                Visibility="{x:Bind ViewModel.Device.Name, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
+                                <Ellipse
+                                    Width="10"
+                                    Height="10"
+                                    VerticalAlignment="Center"
+                                    Fill="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource LogiBatteryStatusToBrushConverter}}" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource BoolToConnectionStatusTextConverter}}" />
+                            </StackPanel>
+
                             <!--  ADB Connection Status Labels  -->
                             <ItemsRepeater ItemsSource="{x:Bind ViewModel.AdbConnectionTypes, Mode=OneWay}" Visibility="{x:Bind ViewModel.AdbConnectionTypes.Count, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
                                 <ItemsRepeater.Layout>

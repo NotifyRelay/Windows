@@ -132,9 +132,18 @@ public partial class PairedDevice : ObservableObject
             DeviceNameCache.Update(Id, resolvedName);
         }
 
+        // IP：core 快照为唯一真源。RemoteIpAddress 供各业务模块直接读取；
+        // IpAddresses 同步做「去重追加」，保留历史 IP 以便 ADB 重连/投屏多路径尝试
+        // （列表成员与当前值始终以快照最新值为准，排在首位）。
         if (!string.IsNullOrWhiteSpace(snapshot.Ip))
         {
             RemoteIpAddress = snapshot.Ip;
+
+            IpAddresses ??= [];
+            if (!IpAddresses.Contains(snapshot.Ip))
+            {
+                IpAddresses.Insert(0, snapshot.Ip);
+            }
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.DeviceType)

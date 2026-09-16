@@ -47,7 +47,15 @@ public sealed class DeviceSnapshotStore(
     /// <summary>name/deviceType 兜底缓存容量上限</summary>
     private const int FallbackMaxEntries = 500;
 
-    private readonly DispatcherQueue? dispatcher = DispatcherQueue.GetForCurrentThread();
+    /// <summary>
+    /// 发布快照用的 UI 调度队列。
+    ///
+    /// 必须归属 UI 线程：快照回调会驱动 <c>PairedDevices</c> / <c>DiscoveredDevices</c> 等
+    /// 绑定集合的变更，若在后台线程发布会由原生集合变更处理器抛出 0x80004005。
+    /// 构造时通常已在 UI 线程；兜底取主窗口队列，避免服务在后台线程被首次解析时丢失归属。
+    /// </summary>
+    private readonly DispatcherQueue? dispatcher =
+        DispatcherQueue.GetForCurrentThread() ?? App.MainWindow?.DispatcherQueue;
 
     /// <summary>core 快照的只读投影（刷新在后台线程写，查询可能在任意线程读）。</summary>
     private volatile Dictionary<string, DeviceSnapshot> projection = [];
