@@ -112,8 +112,13 @@ public partial class PairedDevice : ObservableObject
     {
         ConnectionStatus = snapshot.Online;
 
+        // 仅在电量/充电状态真正变化时才替换对象：快照由心跳驱动（约 500ms 一轮），
+        // 无条件赋值会让绑定电量的 UI 每秒重估两次
         var battery = snapshot.BatteryPercent;
-        if (battery >= 0)
+        if (battery >= 0
+            && (Status is null
+                || Status.BatteryStatus != battery
+                || Status.ChargingStatus != snapshot.IsCharging))
         {
             Status = new DeviceStatus
             {
@@ -122,19 +127,23 @@ public partial class PairedDevice : ObservableObject
             };
         }
 
-        // 名称：core 快照优先，其次平台侧已有名，最后 uuid→名称缓存兜底
+        // 名称：core 快照优先，其次平台侧已有名，最后 uuid→名称缓存，终极兜底用 uuid
+        // （平台无库行且缓存未命中时，避免设备名显示为空）
         var resolvedName = !string.IsNullOrWhiteSpace(snapshot.Name)
             ? snapshot.Name
-            : (!string.IsNullOrWhiteSpace(Name) ? Name : DeviceNameCache.TryGetDisplayName(Id));
+            : (!string.IsNullOrWhiteSpace(Name)
+                ? Name
+                : (DeviceNameCache.TryGetDisplayName(Id) ?? Id));
         if (!string.IsNullOrWhiteSpace(resolvedName))
         {
             Name = resolvedName;
             DeviceNameCache.Update(Id, resolvedName);
         }
 
-        // IP：core 快照为唯一真源。RemoteIpAddress 供各业务模块直接读取；
-        // IpAddresses 同步做「去重追加」，保留历史 IP 以便 ADB 重连/投屏多路径尝试
-        // （列表成员与当前值始终以快照最新值为准，排在首位）。
+        // IP：core 快照为唯一真源。
+        // - 非空：更新当前地址，并去重插入 IpAddresses 首位（保留历史供多路径重连尝试）
+        // - 空（core 未知/离线）：清空当前地址，避免业务模块连接已失效主机；
+        //   IpAddresses 历史保留，调用方的 `RemoteIpAddress ?? IpAddresses.First()` 链仍可回退
         if (!string.IsNullOrWhiteSpace(snapshot.Ip))
         {
             RemoteIpAddress = snapshot.Ip;
@@ -144,6 +153,10 @@ public partial class PairedDevice : ObservableObject
             {
                 IpAddresses.Insert(0, snapshot.Ip);
             }
+        }
+        else
+        {
+            RemoteIpAddress = null;
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.DeviceType)

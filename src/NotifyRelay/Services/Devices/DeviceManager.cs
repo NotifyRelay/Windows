@@ -162,7 +162,11 @@ public partial class DeviceManager(
     }
 
     /// <summary>
-    /// 从平台库装载单台设备的配置（名称/型号/IP/壁纸/ftp 标记），不存在则新建空记录。
+    /// 从平台库装载单台设备的配置（名称/型号/IP/壁纸/ftp 标记）。
+    ///
+    /// 平台无库行时为 core 已配对的设备补建一条最小行：否则
+    /// <see cref="VerifyHandshakeAsync"/> 以 <c>repository.HasDevice</c> 判定会导致
+    /// 重启后该设备虽被 core 标记为已配对、却仍被当作未知设备拒绝握手。
     /// 壁纸解码为异步，先加入列表再后台回填，避免阻塞快照刷新（本方法在 UI 线程执行）。
     /// </summary>
     private void AddFromRepository(string deviceId)
@@ -188,6 +192,16 @@ public partial class DeviceManager(
             else
             {
                 device = new PairedDevice(deviceId);
+                // 补建最小平台行（只有 uuid）：配对关系的权威在 core，此行仅承载平台侧配置，
+                // 使握手校验（HasDevice）与后续配置读写有落点
+                try
+                {
+                    repository.AddOrUpdateRemoteDevice(new RemoteDeviceEntity { DeviceId = deviceId });
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "为 core 已配对设备 {deviceId} 补建平台行失败", deviceId);
+                }
             }
         }
         catch (Exception ex)

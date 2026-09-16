@@ -66,6 +66,17 @@ public sealed class DeviceSnapshotStore(
     /// <summary>刷新闸门：心跳/回调/定时器并发触发时跳过重复刷新，避免同时进入 core。</summary>
     private int refreshBusy;
 
+    /// <summary>刷新轮次序号：用于与 <see cref="forgotten"/> 比较，判定读到的快照是否为删除前的旧数据。</summary>
+    private int refreshSeq;
+
+    /// <summary>
+    /// 已遗忘设备的墓碑（uuid → 遗忘发生时的轮次序号）。
+    ///
+    /// 设备被显式移除后，core 侧删除尚未完全生效时返回的快照可能仍包含该设备；
+    /// 记录墓碑可阻止「旧快照把已删设备写回列表」。
+    /// </summary>
+    private readonly Dictionary<string, int> forgotten = [];
+
     private DispatcherQueueTimer? refreshTimer;
     private bool started;
 
@@ -154,6 +165,9 @@ public sealed class DeviceSnapshotStore(
     {
         try
         {
+            // 本轮序号：与墓碑比较，判定读到的数据是否为「遗忘之前」的旧快照
+            var seq = Interlocked.Increment(ref refreshSeq);
+
             var json = NativeCore.GetDeviceList();
             if (string.IsNullOrEmpty(json)) return;
 
@@ -167,6 +181,7 @@ public sealed class DeviceSnapshotStore(
             foreach (var raw in parsed)
             {
                 if (string.IsNullOrEmpty(raw.Uuid) || raw.Uuid == localUuid) continue;
+
                 var snap = ApplyDisplayFallback(raw);
                 next[raw.Uuid] = snap;
 
@@ -175,7 +190,26 @@ public sealed class DeviceSnapshotStore(
                 DeviceNameCache.Update(snap.Uuid, snap.Name);
             }
 
-            projection = next;
+            lock (forgotten)
+            {
+                // 墓碑过期：本轮读取严格晚于「遗忘」，core 侧删除必已生效，其状态可权威采信
+                if (forgotten.Count > 0)
+                {
+                    foreach (var uuid in forgotten.Where(kv => kv.Value < seq).Select(kv => kv.Key).ToList())
+                    {
+                        forgotten.Remove(uuid);
+                    }
+                }
+
+                // 仍在有效期内的墓碑一律剔除：本次读取可能早于删除，不得把已删设备写回列表
+                foreach (var uuid in forgotten.Keys)
+                {
+                    next.Remove(uuid);
+                }
+
+                projection = next;
+            }
+
             // 首个可解析快照即视为 core 就绪：此后「不在列表 / online=false」才代表真实离线
             IsReady = true;
 
@@ -247,14 +281,33 @@ public sealed class DeviceSnapshotStore(
         dispatcher.TryEnqueue(() => Refreshed?.Invoke(snapshot));
     }
 
+    /// <summary>
+    /// 清除某设备的兜底缓存、投影与墓碑（设备被移除时调用）。
+    ///
+    /// 必须主动发布新投影：<see cref="DiscoveryService"/> 仅通过 <see cref="Refreshed"/>
+    /// 更新列表，不发布会让已删设备残留在 UI 上直到下一次心跳/定时刷新。
+    /// </summary>
     public void Forget(string uuid)
     {
         lock (displayFallback) { displayFallback.Remove(uuid); }
 
-        var next = new Dictionary<string, DeviceSnapshot>(projection);
-        if (next.Remove(uuid))
+        Dictionary<string, DeviceSnapshot>? published = null;
+        lock (forgotten)
         {
-            projection = next;
+            // 记录墓碑：本轮（及更早开始的）刷新若读到删除前的旧快照，不得把该设备写回
+            forgotten[uuid] = Volatile.Read(ref refreshSeq);
+
+            var next = new Dictionary<string, DeviceSnapshot>(projection);
+            if (next.Remove(uuid))
+            {
+                projection = next;
+                published = next;
+            }
+        }
+
+        if (published is not null)
+        {
+            PublishRefreshed(published);
         }
     }
 }
