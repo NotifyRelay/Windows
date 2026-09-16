@@ -9,7 +9,7 @@ using NotifyRelay.Native;
 using NotifyRelay.Services.Overlay;
 using OverlayLogiDevice = NotifyRelay.Models.Render.LogiBatteryDeviceInfo;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Infrastructure;
 
 /// <summary>
 /// 主项目实现的 ILogiBatteryProvider。

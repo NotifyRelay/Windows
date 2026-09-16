@@ -16,64 +16,42 @@
 
 ---
 
-## 二、文件行数排行（Top 15，仅源码）
+## 二、文件行数排行（Top 14，仅源码）
 
 | 排名 | 文件 | 行数 | 方法数 | 类/结构数 |
 |------|------|------|--------|-----------|
-| 1 | `Services/NotificationService.cs` | **991** | 22 | 1 |
-| 2 | `Overlay/Models/Render/SuperIslandParamV2Parser.cs` | **908** | 43 | 1 |
-| 3 | `Platforms/Windows/Services/WindowsPlaybackService.cs` | **900** | 30 | 1 |
-| 4 | `Services/ScreenMirrorService.cs` | **762** | 10 | 1 |
-| 5 | `ViewModels/Settings/DeviceSettingsViewModel.cs` | **606** | 3 | 1 |
-| 6 | `Native/NativeCore.cs` | **583** | 33 | 1（静态类） |
-| 7 | `Services/FileTransferService.cs` | **565** | 19 | 1 |
-| 8 | `Helpers/AppLifecycleHelper.cs` | **532** | 15 | 1（静态类） |
-| 9 | `Services/Settings/GeneralSettingsService.cs` | **531** | 5 | 1 |
-| 10 | `ViewModels/MainPageViewModel.cs` | **527** | 19 | 1 |
-| 11 | `Platforms/Windows/Services/WindowsNotificationHandler.cs` | **491** | — | 1 |
-| 12 | `Services/NetworkService.cs` | **430** | 15 | 1 |
-| 13 | `Services/LocalNotificationListenerService.cs` | **418** | — | 1 |
-| 14 | `Converters/Converters.cs` | **414** | 32 | **19** |
-| 15 | `Services/HeartRate/HeartRateBleService.cs` | **379** | — | 1 |
+| 1 | `Overlay/Models/Render/SuperIslandParamV2Parser.cs` | **908** | 43 | 1 |
+| 2 | `Platforms/Windows/Services/WindowsPlaybackService.cs` | **900** | 30 | 1 |
+| 3 | `Services/ScreenMirrorService.cs` | **762** | 10 | 1 |
+| 4 | `ViewModels/Settings/DeviceSettingsViewModel.cs` | **606** | 3 | 1 |
+| 5 | `Native/NativeCore.cs` | **583** | 33 | 1（静态类） |
+| 6 | `Services/FileTransferService.cs` | **565** | 19 | 1 |
+| 7 | `Helpers/AppLifecycleHelper.cs` | **532** | 15 | 1（静态类） |
+| 8 | `Services/Settings/GeneralSettingsService.cs` | **531** | 5 | 1 |
+| 9 | `ViewModels/MainPageViewModel.cs` | **527** | 19 | 1 |
+| 10 | `Platforms/Windows/Services/WindowsNotificationHandler.cs` | **491** | — | 1 |
+| 11 | `Services/NetworkService.cs` | **430** | 15 | 1 |
+| 12 | `Services/LocalNotificationListenerService.cs` | **418** | — | 1 |
+| 13 | `Converters/Converters.cs` | **414** | 32 | **19** |
+| 14 | `Services/HeartRate/HeartRateBleService.cs` | **379** | — | 1 |
 
-> 注：原排名第 1 的 `Services/AdbService.cs`（1067 行）已移出本文档，计划见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)；排名顺延并据实测补齐了原先遗漏的 `NotifyRelay.Overlay` 项目文件。
+> 注：原排名第 1 的 `Services/AdbService.cs`（1067 行）已移出本文档，计划见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)。
 
 ---
 
 ## 三、🔴 严重级 — 上帝类分析
 
-### 3.0 关于 `Services/AdbService.cs`
+### 3.0 关于已移出的类
 
-已移出本文档，拆分计划详见 [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md)。
+| 文件 | 行数 | 拆分计划 |
+|------|------|----------|
+| `Services/AdbService.cs` | 1067 | [`AdbServiceSplitPlan.md`](./AdbServiceSplitPlan.md) |
 
----
-
-### 3.2 `NotificationService.cs`（991行，22方法）
-
-**单一职责违反：4+ 个不相关职责**
-
-| 职责领域 | 代表方法 | 大致行数 |
-|----------|----------|----------|
-| 通知 CRUD 与历史管理 | `HandleNotificationMessage`, `RemoveNotification`, `LoadAllNotificationsAsync` | ~300 |
-| 分组通知管理 | `UpdateActiveNotifications`, `GroupedNotificationsChanged` | ~120 |
-| 音乐媒体块 | `HandleMediaPlayNotification`, `ProcessMediaPlayMessageAsync`, `CheckMusicMediaBlockTimeout` | ~180 |
-| 图标请求 | `HandleIconResponse`, `ProcessIconResponseAsync`, `pendingIconRequests` | ~80 |
-| Socket 命令处理 | `OnSocketCommandReceived` | ~30 |
-| 徽章管理 | `ClearBadge` | ~15 |
-| 通知过滤/判定 | `IsAppActiveAsync`, `ParseNotificationTime` | ~50 |
-
-**建议拆分：**
-```
-NotificationService（瘦身后~350行，保留通知核心 CRUD）
-├── NotificationGrouper.cs       — 分组/排序/历史查询
-├── MusicMediaBlockManager.cs    — 音乐媒体块生命周期管理
-├── NotificationIconResolver.cs  — 图标请求/缓存/超时
-└── NotificationBadgeHelper.cs   — 徽章清除
-```
+> 该类已从本文档的分析范围移出，本文档不再维护其职责清单与拆分建议。
 
 ---
 
-### 3.3 `WindowsPlaybackService.cs`（900行，30方法）
+### 3.1 `WindowsPlaybackService.cs`（900行，30方法）
 
 **单一职责违反：5+ 个不相关职责**
 
@@ -240,15 +218,13 @@ Converters/
     ↓
 阶段2: AdbService 拆分（原行数最多，职责最杂）→ 见 AdbServiceSplitPlan.md
     ↓
-阶段3: NotificationService 拆分（核心业务类）
+阶段3: SuperIslandParamV2Parser 拆分（叠加层解析，908行/43方法，仅本轮新增评估项）
     ↓
-阶段4: SuperIslandParamV2Parser 拆分（叠加层解析，908行/43方法，仅本轮新增评估项）
+阶段4: WindowsPlaybackService 拆分（媒体功能独立性强）
     ↓
-阶段5: WindowsPlaybackService 拆分（媒体功能独立性强）
+阶段5: NativeCore.cs 拆分（FFI 桥接层清理）
     ↓
-阶段6: NativeCore.cs 拆分（FFI 桥接层清理）
-    ↓
-阶段7: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
+阶段6: 其他文件优化（ScreenMirror, DeviceSettingsVM, FileTransfer, Converters）
 ```
 
 ---

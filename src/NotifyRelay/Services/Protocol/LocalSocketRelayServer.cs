@@ -4,11 +4,10 @@ using System.Net.Sockets;
 using System.Text;
 using Microsoft.Extensions.Logging.Abstractions;
 using NetCoreServer;
-using NotifyRelay.Services.Socket;
 using SocketError = System.Net.Sockets.SocketError;
 using TcpSession = NetCoreServer.TcpSession;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 /// <summary>
 /// Local TCP server (backed by NetCoreServer) for delivering notifications to UWP widget clients.

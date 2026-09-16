@@ -7,7 +7,7 @@ using NotifyRelay.Dialogs;
 using NotifyRelay.Utils;
 using Windows.ApplicationModel.DataTransfer;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Media;
 
 public class ScreenMirrorService(
     ILogger<ScreenMirrorService> logger,

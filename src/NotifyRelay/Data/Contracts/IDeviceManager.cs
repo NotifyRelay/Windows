@@ -43,11 +43,6 @@ public interface IDeviceManager
     void SaveDevice(PairedDevice device);
 
     /// <summary>
-    /// Updates the device properties (battery..)
-    /// </summary>
-    void UpdateDeviceStatus(PairedDevice device, DeviceStatus deviceStatus);
-
-    /// <summary>
     /// Returns the device if it get's successfully verified and added to the database.
     /// </summary>
     Task<PairedDevice?> VerifyHandshakeAsync(string deviceId, string remotePublicKey, string? deviceName, string? ipAddress);
@@ -57,7 +52,13 @@ public interface IDeviceManager
     /// </summary>
     Task<LocalDeviceEntity> GetLocalDeviceAsync();
     void UpdateLocalDevice(LocalDeviceEntity localDevice);
-    Task Initialize();
+
+    /// <summary>
+    /// 订阅 Rust core 设备快照并完成首次刷新。
+    /// 设备列表成员与运行时状态（在线/电量/名称/IP）全部由 core 快照驱动。
+    /// </summary>
+    /// <param name="localDeviceId">平台侧本机 uuid，用于排除自我配对记录。</param>
+    Task Initialize(string? localDeviceId = null);
 
     List<string> GetRemoteDeviceIpAddresses();
 

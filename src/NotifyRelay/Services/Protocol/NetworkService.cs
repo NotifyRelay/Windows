@@ -4,10 +4,11 @@ using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Native;
+using NotifyRelay.Services.Infrastructure;
 using Windows.UI.Notifications;
 
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Protocol;
 
 public class NetworkService(
     ILogger<NetworkService> logger,
@@ -15,6 +16,7 @@ public class NetworkService(
     IAdbService adbService,
     ISystemInfoService systemInfoService,
     IProtocolSender protocolSender,
+    IDeviceSnapshotStore snapshotStore,
     Func<IRemoteAppService> remoteAppServiceFactory) : INetworkService, ISessionManager
 {
     public int ServerPort { get; private set; } = 23333;
@@ -58,19 +60,21 @@ public class NetworkService(
                 isRunning = true;
                 logger.LogInformation($"服务器已在端口 {ServerPort} 启动（Rust 统一启动完成）");
 
-                // 登记已配对设备到 known_devices（心跳调度器与自动扫描依赖此列表）
-                foreach (var paired in PairedDevices.ToList())
+                // 登记已配对设备到 known_devices（心跳调度器与自动扫描依赖此列表）。
+                // 与 Android 端 rehydrateFromCore 一致：以 core 快照为源（core 侧目标表为内存态、
+                // 不落盘，重启后必须重灌），平台列表不作为登记依据。
+                var knownDevices = snapshotStore.Snapshots.Values.Where(s => s.Paired).ToList();
+                foreach (var snap in knownDevices)
                 {
                     // 跳过本机自身记录（历史残留或配对异常写入），避免自我连接循环
-                    if (paired.Id == localDeviceId) continue;
-                    // 优先用最近一次握手更新的 IP，其次用最新追加的 IP，避免旧 IP 残留导致心跳连错目标
-                    var ip = paired.RemoteIpAddress ?? paired.IpAddresses?.LastOrDefault();
-                    if (!string.IsNullOrEmpty(ip))
+                    if (snap.Uuid == localDeviceId) continue;
+                    // IP 取自 core 快照（core 已按「私有库行 + 运行时注册表」合并，口径与在线判定一致）
+                    if (!string.IsNullOrEmpty(snap.Ip))
                     {
-                        NativeCore.AddKnownDevice(paired.Id, ip);
+                        NativeCore.AddKnownDevice(snap.Uuid, snap.Ip);
                     }
                 }
-                logger.LogInformation("步骤17-StartServer: 已登记 {count} 个已配对设备", PairedDevices.Count);
+                logger.LogInformation("步骤17-StartServer: 已登记 {count} 个已配对设备", knownDevices.Count);
 
                 // 订阅电量变化监听（实时推送本机电量/充电状态）
                 systemInfoService.BatteryChanged += OnBatteryChanged;
@@ -135,12 +139,11 @@ public class NetworkService(
 
             device = await deviceManager.UpdateOrAddDeviceAsync(device, connectedDevice =>
             {
-                connectedDevice.ConnectionStatus = true;
                 connectedDevice.RemotePublicKey = remotePublicKey;
                 connectedDevice.RemoteIpAddress = remoteIpAddress;
                 connectedDevice.RemoteDeviceType = remoteDeviceType;
                 deviceManager.ActiveDevice = connectedDevice;
-                connectedDevice.LastHeartbeat = DateTime.UtcNow;
+                // 在线状态由 core 快照（online）判定，平台端不在此置位
 
                 if (connectedDevice.DeviceSettings.AdbAutoConnect && !string.IsNullOrEmpty(remoteIpAddress))
                 {
@@ -356,7 +359,7 @@ public class NetworkService(
                 // CollectionChanged 原生处理器抛出 COMException(0x80004005)
                 await deviceManager.UpdateOrAddDeviceAsync(newDevice, d =>
                 {
-                    d.ConnectionStatus = true;
+                    // 在线状态由 core 快照（online）判定，平台端不在此置位
                     deviceManager.ActiveDevice = d;
                     ConnectionStatusChanged?.Invoke(this, (d, true));
                 });

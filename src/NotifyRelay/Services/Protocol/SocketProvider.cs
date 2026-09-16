@@ -4,7 +4,7 @@ using SocketError = System.Net.Sockets.SocketError;
 using TcpClient = NetCoreServer.TcpClient;
 using TcpServer = NetCoreServer.TcpServer;
 
-namespace NotifyRelay.Services.Socket;
+namespace NotifyRelay.Services.Protocol;
 
 public partial class ServerSession(TcpServer server, ITcpServerProvider socketProvider) : TcpSession(server)
 {

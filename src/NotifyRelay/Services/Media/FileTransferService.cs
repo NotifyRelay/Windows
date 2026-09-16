@@ -6,9 +6,9 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Dialogs;
 using NotifyRelay.Helpers;
-using NotifyRelay.Services.Socket;
+using NotifyRelay.Services.Protocol;
 using NotifyRelay.Utils.Serialization;
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Media;
 
 public class FileTransferService(
     ILogger logger,

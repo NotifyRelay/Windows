@@ -1,6 +1,6 @@
 using NotifyRelay.Data.Models;
 
-namespace NotifyRelay.Services.Filters;
+namespace NotifyRelay.Services.Notifications;
 
 /// <summary>
 /// 过滤配置模型

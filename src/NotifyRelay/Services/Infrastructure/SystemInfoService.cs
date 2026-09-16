@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
 using Windows.Devices.Power;
 
-namespace NotifyRelay.Services;
+namespace NotifyRelay.Services.Infrastructure;
 
 public interface ISystemInfoService
 {

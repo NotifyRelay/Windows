@@ -1,5 +1,5 @@
 using NotifyRelay.Data.AppDatabase.Models;
-using NotifyRelay.Services.Filters;
+using NotifyRelay.Services.Notifications;
 
 namespace NotifyRelay.Data.AppDatabase.Repository;
 
