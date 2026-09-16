@@ -24,16 +24,14 @@ public class WindowsPlaybackService(
     IDeviceManager deviceManager,
     IProtocolSender protocolSender,
     IGeneralSettingsService generalSettings,
-    AudioDeviceManager audioDeviceManager) : IPlaybackService
+    AudioDeviceManager audioDeviceManager,
+    SmtcSessionRegistry sessionRegistry) : IPlaybackService
 {
     private readonly Microsoft.UI.Dispatching.DispatcherQueue dispatcher = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread();
-    private readonly Dictionary<string, GlobalSystemMediaTransportControlsSession> activeSessions = [];
-    private GlobalSystemMediaTransportControlsSessionManager? manager;
 
     // Local SMTC for remote media display
 
     private static readonly ConcurrentDictionary<string, string> _appNameCache = new();
-    private readonly Dictionary<string, double> lastTimelinePosition = [];
 
     // 媒体播放状态跟踪已移至 Rust 合并引擎（由 PushMediaState 推送全量，Rust 负责 diff）。
 
@@ -42,30 +40,24 @@ public class WindowsPlaybackService(
     {
         try
         {
-            manager = await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            if (manager is null)
+            if (!await sessionRegistry.InitializeAsync())
             {
-                logger.LogError("初始化系统媒体传输控制会话管理器失败");
                 return;
             }
 
+            // 订阅会话事件：媒体属性/播放状态变更触发播放数据刷新，会话移除触发卡片清理与结束标记
+            sessionRegistry.MediaPropertiesChanged += OnSessionMediaPropertiesChanged;
+            sessionRegistry.PlaybackInfoChanged += OnSessionPlaybackInfoChanged;
+            sessionRegistry.SessionRemoved += OnSessionRemoved;
+
             audioDeviceManager.GetAllAudioDevices();
-            UpdateActiveSessions();
 
             // 启动音频设备监视器（失败不阻断初始化）
             audioDeviceManager.StartWatcher();
 
-            manager.SessionsChanged += SessionsChanged;
-
             // 注册媒体会话存在性查询（Rust 心跳查询回调 on_state_query 使用）：
             // 无活跃媒体会话时 Rust 移除媒体发送会话，避免接收端持续收到陈旧全量
-            NativeCore.MediaSessionQueryHandler = _ =>
-            {
-                lock (activeSessions)
-                {
-                    return activeSessions.Count > 0;
-                }
-            };
+            NativeCore.MediaSessionQueryHandler = _ => sessionRegistry.Count > 0;
 
             sessionManager.ConnectionStatusChanged += async (sender, args) =>
             {
@@ -93,8 +85,8 @@ public class WindowsPlaybackService(
                     try
                     {
                         // 获取当前活跃的媒体会话
-                        var currentSession = manager.GetCurrentSession();
-                        if (currentSession != null && activeSessions.ContainsKey(currentSession.SourceAppUserModelId))
+                        var currentSession = sessionRegistry.CurrentSession;
+                        if (currentSession != null && sessionRegistry.Contains(currentSession.SourceAppUserModelId))
                         {
                             // 定期发送媒体数据，与Android端保持一致
                             await UpdatePlaybackDataAsync(currentSession);
@@ -131,12 +123,13 @@ public class WindowsPlaybackService(
         if (source == null) return;
 
         // 尝试根据Source字段查找对应的媒体会话
-        var session = activeSessions.Values.FirstOrDefault(s => s.SourceAppUserModelId == source);
+        GlobalSystemMediaTransportControlsSession? session = null;
+        bool found = sessionRegistry.TryGetBySource(source, out session);
 
         // 如果找不到匹配的会话，或者Source是"MediaControl"（来自外部设备的控制指令），则使用当前活动的媒体会话
-        if (session == null || source == "MediaControl")
+        if (!found || session is null || source == "MediaControl")
         {
-            session = manager?.GetCurrentSession();
+            session = sessionRegistry.CurrentSession;
         }
 
         // 检查是否是本应用自身的媒体会话，如果是则不执行控制指令
@@ -296,122 +289,50 @@ public class WindowsPlaybackService(
         return success;
     }
 
-    private void SessionsChanged(GlobalSystemMediaTransportControlsSessionManager manager, SessionsChangedEventArgs args)
-    {
-        UpdateSessionsList(manager.GetSessions());
-    }
-
-    private void UpdateActiveSessions()
-    {
-        if (manager is null) return;
-
-        try
-        {
-            var activeSessions = manager.GetSessions();
-            UpdateSessionsList(activeSessions);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "更新活动会话时出错");
-        }
-    }
-
-    private void UpdateSessionsList(IReadOnlyList<GlobalSystemMediaTransportControlsSession> activeSessions)
-    {
-        lock (this.activeSessions)
-        {
-            var currentSessionIds = new HashSet<string>(activeSessions.Select(s => s.SourceAppUserModelId));
-
-            foreach (var sessionId in this.activeSessions.Keys.ToList())
-            {
-                if (!currentSessionIds.Contains(sessionId))
-                {
-                    RemoveSession(sessionId);
-                }
-            }
-
-            foreach (var session in activeSessions.Where(s => s is not null))
-            {
-                if (!this.activeSessions.ContainsKey(session.SourceAppUserModelId))
-                {
-                    AddSession(session);
-                }
-            }
-        }
-    }
-
-    private void RemoveSession(string sessionId)
-    {
-        if (activeSessions.TryGetValue(sessionId, out var session))
-        {
-            activeSessions.Remove(sessionId);
-            UnsubscribeFromSessionEvents(session);
-        }
-    }
-
-    private void AddSession(GlobalSystemMediaTransportControlsSession session)
-    {
-        if (!activeSessions.ContainsKey(session.SourceAppUserModelId))
-        {
-            activeSessions[session.SourceAppUserModelId] = session;
-            lastTimelinePosition[session.SourceAppUserModelId] = 0;
-            SubscribeToSessionEvents(session);
-        }
-    }
-
-    private void SubscribeToSessionEvents(GlobalSystemMediaTransportControlsSession session)
-    {
-        session.TimelinePropertiesChanged += Session_TimelinePropertiesChanged;
-        session.MediaPropertiesChanged += Session_MediaPropertiesChanged;
-        session.PlaybackInfoChanged += Session_PlaybackInfoChanged;
-    }
-
-    private void Session_TimelinePropertiesChanged(GlobalSystemMediaTransportControlsSession sender, TimelinePropertiesChangedEventArgs args)
+    private async void OnSessionMediaPropertiesChanged(object? sender, GlobalSystemMediaTransportControlsSession session)
     {
         try
         {
-            if (!activeSessions.ContainsKey(sender.SourceAppUserModelId)) return;
-            var timelineProperties = sender.GetTimelineProperties();
-            var isCurrentSession = manager?.GetCurrentSession()?.SourceAppUserModelId == sender.SourceAppUserModelId;
-
-            if (timelineProperties is null || !isCurrentSession) return;
-
-            if (lastTimelinePosition.TryGetValue(sender.SourceAppUserModelId, out var lastPosition))
-            {
-                double currentPosition = timelineProperties.Position.TotalMilliseconds;
-                if (Math.Abs(currentPosition - lastPosition) < 1000) return; // Ignore minor changes under 1 second
-
-                lastTimelinePosition[sender.SourceAppUserModelId] = currentPosition;
-
-                // 时间线位置变化不再单独发送：全量媒体状态由 Rust 合并引擎统一推送（见 SendPlaybackData）。
-            }
+            if (!generalSettings.EnableSendMediaNotifications) return;
+            await UpdatePlaybackDataAsync(session);
         }
         catch (COMException comEx)
         {
-            // 忽略WinRT COM异常，避免频繁触发日志
-            logger.LogDebug(comEx, "WinRT COM异常（时间线属性）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
+            logger.LogDebug(comEx, "WinRT COM异常（媒体属性变更）：{SourceAppUserModelId}", session.SourceAppUserModelId);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "处理时间线属性时出错：{SourceAppUserModelId}", sender.SourceAppUserModelId);
+            logger.LogError(ex, "更新播放数据时出错：{SourceAppUserModelId}", session.SourceAppUserModelId);
         }
     }
 
-    private void UnsubscribeFromSessionEvents(GlobalSystemMediaTransportControlsSession session)
+    private async void OnSessionPlaybackInfoChanged(object? sender, GlobalSystemMediaTransportControlsSession session)
     {
-        session.MediaPropertiesChanged -= Session_MediaPropertiesChanged;
-        session.PlaybackInfoChanged -= Session_PlaybackInfoChanged;
-        session.TimelinePropertiesChanged -= Session_TimelinePropertiesChanged;
-        lastTimelinePosition.Remove(session.SourceAppUserModelId);
+        try
+        {
+            if (!generalSettings.EnableSendMediaNotifications) return;
+            await UpdatePlaybackDataAsync(session);
+        }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常（播放信息变更）：{SourceAppUserModelId}", session.SourceAppUserModelId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "更新播放数据时出错：{SourceAppUserModelId}", session.SourceAppUserModelId);
+        }
+    }
 
+    private void OnSessionRemoved(object? sender, string appUserModelId)
+    {
         // 会话真正结束时移除 Overlay 媒体卡片
         if (generalSettings.DanmakuMediaCardEnabled)
         {
             try
             {
                 var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
-                overlay.RemoveMediaCard(session.SourceAppUserModelId ?? "local");
-                logger?.LogDebug("UnsubscribeFromSessionEvents: 移除媒体卡片 source={Source}", session.SourceAppUserModelId);
+                overlay.RemoveMediaCard(appUserModelId ?? "local");
+                logger?.LogDebug("OnSessionRemoved: 移除媒体卡片 source={Source}", appUserModelId);
             }
             catch (Exception ex)
             {
@@ -431,41 +352,6 @@ public class WindowsPlaybackService(
         }
     }
 
-    private async void Session_MediaPropertiesChanged(GlobalSystemMediaTransportControlsSession sender, MediaPropertiesChangedEventArgs args)
-    {
-        try
-        {
-            if (!generalSettings.EnableSendMediaNotifications) return;
-            await UpdatePlaybackDataAsync(sender);
-
-        }
-        catch (COMException comEx)
-        {
-            logger.LogDebug(comEx, "WinRT COM异常（媒体属性变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "更新播放数据时出错：{SourceAppUserModelId}", sender.SourceAppUserModelId);
-        }
-    }
-
-    private async void Session_PlaybackInfoChanged(GlobalSystemMediaTransportControlsSession sender, PlaybackInfoChangedEventArgs args)
-    {
-        try
-        {
-            if (!generalSettings.EnableSendMediaNotifications) return;
-            await UpdatePlaybackDataAsync(sender);
-        }
-        catch (COMException comEx)
-        {
-            logger.LogDebug(comEx, "WinRT COM异常（播放信息变更）：{SourceAppUserModelId}", sender.SourceAppUserModelId);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "更新播放数据时出错：{SourceAppUserModelId}", sender.SourceAppUserModelId);
-        }
-    }
-
     private async Task UpdatePlaybackDataAsync(GlobalSystemMediaTransportControlsSession session)
     {
         try
@@ -474,7 +360,7 @@ public class WindowsPlaybackService(
             {
 
                 var playbackJson = await GetPlaybackSessionAsync(session);
-                if (playbackJson is null || !activeSessions.ContainsKey(session.SourceAppUserModelId)) return;
+                if (playbackJson is null || !sessionRegistry.Contains(session.SourceAppUserModelId)) return;
 
                 SendPlaybackData(playbackJson);
             });
@@ -491,9 +377,6 @@ public class WindowsPlaybackService(
         {
             // 只获取Android端需要的媒体字段
             var mediaProperties = await session.TryGetMediaPropertiesAsync();
-            var timelineProperties = session.GetTimelineProperties();
-
-            lastTimelinePosition[session.SourceAppUserModelId] = timelineProperties.Position.TotalMilliseconds;
 
             var source = session.SourceAppUserModelId;
             var trackTitle = mediaProperties.Title;
