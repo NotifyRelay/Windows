@@ -12,6 +12,10 @@ public static class ServiceCollectionExtensions
     {
         services.AddSingleton<IPlatformNotificationHandler, WindowsNotificationHandler>();
         services.AddSingleton<IPlaybackService, WindowsPlaybackService>();
+        services.AddSingleton<AudioDeviceManager>();
+        services.AddSingleton<SmtcSessionRegistry>();
+        services.AddSingleton<PlaybackDataSyncer>();
+        services.AddSingleton<MediaControlExecutor>();
         services.AddSingleton<IActionService, WindowsActionService>();
         services.AddSingleton<IUpdateService, WindowsUpdateService>();
 

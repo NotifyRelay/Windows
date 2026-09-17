@@ -1,6 +1,7 @@
 using CommunityToolkit.WinUI;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
+using NotifyRelay.Helpers;
 // LocalSocketRelayServer 现位于 NotifyRelay.Services.Protocol
 using NotifyRelay.Services.Protocol;
 using NotifyRelay.Services.Overlay;
@@ -120,7 +121,7 @@ public class MusicMediaBlockManager(
 
                         if (mediaOverlayEnabled)
                         {
-                            var coverBytes = ConvertCoverUrlToBytes(coverUrl);
+                            var coverBytes = ImageHelper.FromBase64(coverUrl);
                             overlayRender.ShowMediaCard(device.Id, device.Name, titleStr, textStr, coverBytes, isPlaying);
                         }
                     }
@@ -150,7 +151,7 @@ public class MusicMediaBlockManager(
 
                         if (mediaOverlayEnabled)
                         {
-                            var coverBytes = ConvertCoverUrlToBytes(updatedCoverUrl);
+                            var coverBytes = ImageHelper.FromBase64(updatedCoverUrl);
                             overlayRender.ShowMediaCard(device.Id, device.Name, updatedTitle, updatedText, coverBytes, isPlaying);
                         }
                     }
@@ -164,23 +165,6 @@ public class MusicMediaBlockManager(
         catch (Exception ex)
         {
             logger.LogError(ex, "处理媒体播放通知时出错");
-        }
-    }
-
-    /// <summary>
-    /// 将封面 URL（Data URL 或纯 base64）转换为字节数组，失败返回 null。
-    /// </summary>
-    private static byte[]? ConvertCoverUrlToBytes(string? coverUrl)
-    {
-        if (string.IsNullOrEmpty(coverUrl)) return null;
-        try
-        {
-            var base64 = coverUrl.Contains(',') ? coverUrl.Split(',')[1] : coverUrl;
-            return Convert.FromBase64String(base64);
-        }
-        catch
-        {
-            return null;
         }
     }
 
