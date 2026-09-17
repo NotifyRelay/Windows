@@ -63,11 +63,11 @@ public static class AppLifecycleHelper
         // ===== 并行阶段A：无依赖服务同时启动 =====
         logger.LogInformation("步骤12-13-16-18-19：并行启动无依赖服务...");
         await Task.WhenAll(
-            RegisterWindowsNotificationAsync(logger),
-            InitRustCoreAsync(logger),
-            StartLocalSocketRelayAsync(logger),
-            InitWorkerConfigAsync(logger),
-            InitAudioRelayAsync(logger)
+            AppInitializer.RegisterWindowsNotificationAsync(logger),
+            AppInitializer.InitRustCoreAsync(logger),
+            AppInitializer.StartLocalSocketRelayAsync(logger),
+            AppInitializer.InitWorkerConfigAsync(logger),
+            AppInitializer.InitAudioRelayAsync(logger)
         );
         logger.LogInformation("无依赖服务并行启动完成");
 
@@ -160,7 +160,7 @@ public static class AppLifecycleHelper
         }
 
         // 本地通知监听后台启动
-        _ = StartLocalNotificationListenerAsync(logger);
+        _ = AppInitializer.StartLocalNotificationListenerAsync(logger);
 
         // 启动叠加层渲染引擎
         try
@@ -196,7 +196,7 @@ public static class AppLifecycleHelper
         // 步骤17b：Rust 持久化收尾（uuid 已进入核心，触发落盘后清理平台旧存储）
         try
         {
-            await FinalizeRustPersistenceAsync(logger, localDevice, allMigrationsSucceeded);
+            await AppInitializer.FinalizeRustPersistenceAsync(logger, localDevice, allMigrationsSucceeded);
         }
         catch (Exception ex)
         {
@@ -212,61 +212,7 @@ public static class AppLifecycleHelper
         logger.LogInformation("应用组件初始化全部完成");
     }
 
-    /// <summary>
-    /// 步骤17b：Rust 持久化收尾（start_core 已传入本机 uuid）
-    /// - GetLocalUuid 触发自动落盘并校验
-    /// - 平台表 DeviceId 与库对齐
-    /// - 清理旧平台存储：LocalDeviceEntity.StateJson 值、RemoteDeviceEntity.SharedSecret 列值
-    /// </summary>
-    private static async Task FinalizeRustPersistenceAsync(ILogger logger, LocalDeviceEntity localDevice, bool allMigrationsSucceeded)
-    {
-        var rustUuid = NativeCore.GetLocalUuid();
-        if (string.IsNullOrEmpty(rustUuid))
-        {
-            logger.LogWarning("步骤17b：Rust 持久化未就绪，暂缓清理旧平台存储");
-            return;
-        }
-        var repo = Ioc.Default.GetRequiredService<DeviceRepository>();
-
-        if (rustUuid != localDevice.DeviceId)
-        {
-            logger.LogInformation("步骤17b：UUID 以 Rust 持久化为准: {rustUuid} (原: {oldId})", rustUuid, localDevice.DeviceId);
-            var oldId = localDevice.DeviceId;
-            localDevice.DeviceId = rustUuid;
-            if (!repo.RenameLocalDeviceKey(oldId, rustUuid))
-            {
-                logger.LogWarning("步骤17b：平台主键更新失败，保持旧 DeviceId 以维护内存与数据库一致性");
-                localDevice.DeviceId = oldId;
-                return;
-            }
-        }
-
-        if (!string.IsNullOrEmpty(localDevice.StateJson))
-        {
-            localDevice.StateJson = string.Empty;
-            repo.AddOrUpdateLocalDevice(localDevice);
-            logger.LogInformation("步骤17b：已清理旧加密状态 blob（密钥由 Rust 私有库持有）");
-        }
-
-        // 远程设备旧密钥列值已全部迁移至 Rust，清空平台存储
-        // 仅当所有设备迁移均成功且持久化已确认后才清理，否则保留旧密钥允许下次启动重试
-        if (allMigrationsSucceeded)
-        {
-            int cleared = repo.ClearRemoteSecrets();
-            if (cleared > 0)
-            {
-                logger.LogInformation("步骤17b：已清空 {count} 条旧设备密钥记录", cleared);
-            }
-        }
-        else
-        {
-            logger.LogWarning("步骤17b：存在迁移失败的设备，跳过清空旧密钥列，下次启动将重试");
-        }
-
-        await Task.CompletedTask;
-    }
-
-    private static void LogSubtaskDone(ILogger logger, string name, Task task)
+    internal static void LogSubtaskDone(ILogger logger, string name, Task task)
     {
         if (task.IsFaulted)
             logger.LogError(task.Exception, "步骤17-子任务[{name}]异常", name);
@@ -276,122 +222,10 @@ public static class AppLifecycleHelper
             logger.LogInformation("步骤17-子任务[{name}]完成", name);
     }
 
-    private static async Task RegisterWindowsNotificationAsync(ILogger logger)
-    {
-#if WINDOWS
-        try
-        {
-            var handler = Ioc.Default.GetRequiredService<IPlatformNotificationHandler>();
-            await handler.RegisterForNotifications();
-            logger.LogInformation("Windows通知注册成功");
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "注册Windows通知失败");
-        }
-#endif
-    }
-
-    private static async Task InitRustCoreAsync(ILogger logger)
-    {
-        try
-        {
-            NativeCore.Initialize();
-            NativeCore.SetLogCallback(logger);
-            NativeCore.ProtocolRouter = Ioc.Default.GetRequiredService<ProtocolRouter>();
-            NativeCore.DeviceManager = Ioc.Default.GetRequiredService<IDeviceManager>();
-            NativeCore.RegisterCallbacks();
-            NativeCore.NetworkService = (NetworkService?)Ioc.Default.GetService<INetworkService>();
-            NativeCore.HeartbeatProcessor = Ioc.Default.GetService<HeartbeatProcessor>();
-            logger.LogInformation("Rust Core 初始化完成，回调已注册");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "初始化 Rust Core 失败");
-        }
-    }
-
-    private static async Task StartLocalSocketRelayAsync(ILogger logger)
-    {
-        try
-        {
-            var socketLogger = Ioc.Default.GetRequiredService<ILogger>();
-            LocalSocketRelayServer.SetLogger(socketLogger);
-            LocalSocketRelayServer.Start();
-            logger.LogInformation("LocalSocketRelayServer启动完成");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "启动LocalSocketRelayServer失败");
-        }
-    }
-
-    private static async Task InitWorkerConfigAsync(ILogger logger)
-    {
-        try
-        {
-            var config = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Configuration.WorkerConfiguration>();
-            var settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-
-            config.ControlMyMonitorPath = settings.ControlMyMonitorPath;
-            config.SelectedMonitors = settings.SelectedMonitors;
-            config.EnableMonitorBrightnessSync = settings.EnableMonitorBrightnessSync;
-            config.DynamicLightingBrightness = settings.DynamicLightingBrightness;
-            config.DynamicLightingColor = settings.DynamicLightingColor;
-            config.DynamicLightingEffect = settings.DynamicLightingEffect;
-            config.EnableAutoRGB = settings.EnableAutoRGB;
-            config.AutoRGBUpdateInterval = settings.AutoRGBUpdateInterval;
-
-            logger.LogInformation("Worker 服务配置已初始化");
-
-            // 按已持久化的设置开关，在应用启动时自动拉起对应的 Worker 服务
-            await StartWorkerServicesAsync(logger, settings);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "初始化 Worker 服务配置失败");
-        }
-    }
-
-    /// <summary>
-    /// 应用启动时，依据已开启的设置项自动启动对应的 Worker 服务。
-    /// </summary>
-    private static async Task StartWorkerServicesAsync(ILogger logger, IGeneralSettingsService settings)
-    {
-        // 动态光效依赖 WinRT UI 亲和 API（DeviceWatcher / LampArray），需在 UI 线程启动
-        if (settings.EnableDynamicLighting)
-        {
-            try
-            {
-                var lightingService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.DynamicLightingService>();
-                await RunOnUiThreadAsync(lightingService.Initialize);
-                logger.LogInformation("动态光效服务已按设置自动启动");
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "自动启动动态光效服务失败");
-            }
-        }
-
-        if (settings.EnableMonitorBrightnessSync)
-        {
-            try
-            {
-                var brightnessService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.MonitorBrightnessService>();
-                brightnessService.StartSync();
-                logger.LogInformation("显示器亮度同步服务已按设置自动启动");
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "自动启动显示器亮度同步服务失败");
-            }
-        }
-    }
-
     /// <summary>
     /// 将操作分发到 UI 线程执行并等待其完成。
     /// </summary>
-    private static Task RunOnUiThreadAsync(Action action)
+    internal static Task RunOnUiThreadAsync(Action action)
     {
         var dispatcher = App.MainWindow?.DispatcherQueue;
         if (dispatcher is null)
@@ -419,33 +253,6 @@ public static class AppLifecycleHelper
         return tcs.Task;
     }
 
-    private static async Task InitAudioRelayAsync(ILogger logger)
-    {
-        try
-        {
-            var audioRelayService = Ioc.Default.GetRequiredService<DeviceCtrl.AudioRelay.AudioRelayService>();
-            logger.LogInformation("音频中继服务已就绪");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "初始化音频中继服务失败");
-        }
-    }
-
-    private static async Task StartLocalNotificationListenerAsync(ILogger logger)
-    {
-        try
-        {
-            var localListener = Ioc.Default.GetRequiredService<ILocalNotificationListenerService>();
-            localListener.Start();
-            logger.LogInformation("本地通知监听服务启动完成");
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "启动本地通知监听服务失败");
-        }
-    }
-
     public static IHost BuildHost()
     {
         return new HostBuilder()
@@ -468,7 +275,7 @@ public static class AppLifecycleHelper
             .ConfigureServices((context, services) =>
             {
                 services.AddLocalization();
-                ConfigureServices(services);
+                ServiceCollectionConfigurator.ConfigureServices(services);
             })
             .UseSerilog((context, config) =>
             {
@@ -483,109 +290,6 @@ public static class AppLifecycleHelper
                     );
             })
             .Build();
-    }
-
-    private static void ConfigureServices(IServiceCollection services)
-    {
-        services.AddSingleton<ILogger>(sp => sp.GetRequiredService<ILogger<App>>())
-
-        // Settings Services
-        .AddSingleton<UserSettingsService>()
-        .AddSingleton<IUserSettingsService>(sp => sp.GetRequiredService<UserSettingsService>())
-        .AddSingleton<IGeneralSettingsService>(sp => sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
-        .AddSingleton<IOverlaySettings>(sp => (IOverlaySettings)sp.GetRequiredService<UserSettingsService>().GeneralSettingsService)
-        .AddSingleton<NotifyRelay.Worker.Configuration.IDeepSeekBalanceSettings, DeepSeekBalanceSettingsAccessor>()
-
-        // Database and Repositories
-        .AddSingleton<DatabaseContext>()
-        .AddSingleton<DeviceRepository>()
-        .AddSingleton<RemoteAppRepository>()
-        .AddSingleton<NotificationRepository>()
-        .AddSingleton<FilterConfigRepository>()
-
-        // Platform-specific services
-        .AddWindowsServices()
-        // Services
-        // 1. 首先注册基础服务
-        .AddSingleton<ISystemInfoService, SystemInfoService>()
-        .AddSingleton<IDeviceManager, DeviceManager>()
-        .AddSingleton<IAdbService, AdbService>()
-        .AddSingleton<IScreenMirrorService, ScreenMirrorService>()
-        .AddSingleton<IFileTransferService, FileTransferService>()
-        .AddSingleton<IProtocolSender, ProtocolSender>()
-        .AddSingleton<IClipboardService, ClipboardService>()
-        .AddSingleton<IRemoteAppService, RemoteAppService>()
-
-        // 3. 注册ProtocolRouter
-#if WINDOWS
-        // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
-        .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
-#endif
-        .AddSingleton<ProtocolRouter>()
-        .AddSingleton<HeartbeatProcessor>()
-
-        // 设备状态唯一真源消费端与同步查询入口
-        .AddSingleton<IDeviceSnapshotStore, DeviceSnapshotStore>()
-        .AddSingleton<IDeviceDirectory, DeviceDirectory>()
-
-        // 4. 注册INetworkService和工厂函数，它依赖ProtocolRouter
-        .AddSingleton<INetworkService, NetworkService>()
-        .AddSingleton<Func<INetworkService>>(sp => () => sp.GetRequiredService<INetworkService>())
-
-        // 5. 注册ISessionManager，由INetworkService实现
-        .AddSingleton<ISessionManager>(sp => (ISessionManager)sp.GetRequiredService<INetworkService>())
-
-        // 6. 注册通知相关服务
-        .AddNotificationServices()
-        .AddSingleton<ILocalNotificationListenerService, LocalNotificationListenerService>()
-
-        // 注册其他需要的工厂
-        .AddSingleton<Func<IClipboardService>>(sp => () => sp.GetRequiredService<IClipboardService>())
-        .AddSingleton<Func<IRemoteAppService>>(sp => () => sp.GetRequiredService<IRemoteAppService>())
-        .AddSingleton<Func<IPlaybackService>>(sp => () => sp.GetRequiredService<IPlaybackService>())
-
-        // 7. 注册IDiscoveryService，它依赖INetworkService
-        .AddSingleton<IDiscoveryService, DiscoveryService>()
-
-        // Worker Services
-        .AddSingleton<NotifyRelay.Worker.Configuration.WorkerConfiguration>()
-        .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
-        .AddSingleton<NotifyRelay.Worker.Services.MonitorBrightnessService>()
-        .AddSingleton<NotifyRelay.Worker.Services.DynamicLightingService>()
-
-        // Audio Relay Service
-        .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
-
-        // Overlay Render Service
-        .AddSingleton<OverlayRenderService>()
-
-        // 叠加层功能：登记后由 OverlayRenderService 主初始化按各自开关自动引导，
-        // 新增功能只需在此追加一行登记，无需改动启动流程
-        .AddSingleton<IOverlayFeature, KeyboardOverlayFeature>()
-        .AddSingleton<IOverlayFeature, LogiBatteryOverlayFeature>()
-        .AddSingleton<IOverlayFeature, HeartRateOverlayFeature>()
-        .AddSingleton<IOverlayFeature, DeepSeekBalanceOverlayFeature>()
-
-        // Heart Rate BLE Service
-        .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
-        .AddSingleton<ViewModels.Settings.HeartRateViewModel>()
-
-        // 罗技电池（LogiBattery）Provider 和 ViewModel
-        .AddSingleton<LogiBatteryProvider>()
-        .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
-        .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
-
-        // 时间浮窗（Clock）ViewModel
-        .AddSingleton<ViewModels.Settings.ClockViewModel>()
-
-        // DeepSeek 余额（覆盖层子页）ViewModel
-        .AddSingleton<ViewModels.Settings.DeepSeekBalanceViewModel>()
-
-        // ViewModels
-        .AddSingleton<MainPageViewModel>()
-        .AddSingleton<DevicesViewModel>()
-        .AddSingleton<AppsViewModel>()
-        .AddSingleton<LocalNotificationHistoryViewModel>();
     }
 
     /// <summary>
