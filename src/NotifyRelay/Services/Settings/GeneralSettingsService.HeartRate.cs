@@ -13,7 +13,7 @@ internal sealed partial class GeneralSettingsService
 
     public int HeartRateStyle
     {
-        get => _configuration.Get(SettingsKey(nameof(HeartRateStyle)), 1);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateStyle)), 4);
         set => _configuration.Set(SettingsKey(nameof(HeartRateStyle)), value);
     }
 
@@ -25,13 +25,13 @@ internal sealed partial class GeneralSettingsService
 
     public int HeartRateXPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(HeartRateXPercent)), 90);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateXPercent)), 21);
         set => _configuration.Set(SettingsKey(nameof(HeartRateXPercent)), value);
     }
 
     public int HeartRateYPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(HeartRateYPercent)), 85);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateYPercent)), 97);
         set => _configuration.Set(SettingsKey(nameof(HeartRateYPercent)), value);
     }
 
@@ -73,7 +73,7 @@ internal sealed partial class GeneralSettingsService
 
     public float HeartRateScale
     {
-        get => _configuration.Get(SettingsKey(nameof(HeartRateScale)), 1f);
+        get => _configuration.Get(SettingsKey(nameof(HeartRateScale)), 0.6f);
         set => _configuration.Set(SettingsKey(nameof(HeartRateScale)), Math.Clamp(value, 0.5f, 2f));
     }
 

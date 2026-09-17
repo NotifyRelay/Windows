@@ -43,20 +43,20 @@ internal sealed partial class GeneralSettingsService
 
     public int DeepSeekBalanceXPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceXPercent)), 20);
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceXPercent)), 42);
         set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceXPercent)), Math.Clamp(value, 0, 100));
     }
 
     public int DeepSeekBalanceYPercent
     {
-        // 默认与罗技电池(20,70)、时间浮窗(50,10)错开，避免同类卡片默认重叠
-        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceYPercent)), 50);
+        // 与心率(21,97)、罗技电池(53,98)、时间浮窗(50,100)错开，避免同类卡片默认重叠
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceYPercent)), 100);
         set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceYPercent)), Math.Clamp(value, 0, 100));
     }
 
     public float DeepSeekBalanceScale
     {
-        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceScale)), 1f);
+        get => _configuration.Get(SettingsKey(nameof(DeepSeekBalanceScale)), 0.7f);
         set => _configuration.Set(SettingsKey(nameof(DeepSeekBalanceScale)), Math.Clamp(value, 0.5f, 4f));
     }
 }

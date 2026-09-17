@@ -19,19 +19,19 @@ internal sealed partial class GeneralSettingsService
 
     public int LogiBatteryXPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(LogiBatteryXPercent)), 20);
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryXPercent)), 53);
         set => _configuration.Set(SettingsKey(nameof(LogiBatteryXPercent)), Math.Clamp(value, 0, 100));
     }
 
     public int LogiBatteryYPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(LogiBatteryYPercent)), 70);
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryYPercent)), 98);
         set => _configuration.Set(SettingsKey(nameof(LogiBatteryYPercent)), Math.Clamp(value, 0, 100));
     }
 
     public float LogiBatteryScale
     {
-        get => _configuration.Get(SettingsKey(nameof(LogiBatteryScale)), 1f);
+        get => _configuration.Get(SettingsKey(nameof(LogiBatteryScale)), 0.7f);
         set => _configuration.Set(SettingsKey(nameof(LogiBatteryScale)), Math.Clamp(value, 0.5f, 4f));
     }
 

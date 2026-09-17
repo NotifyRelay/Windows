@@ -25,7 +25,7 @@ internal sealed partial class GeneralSettingsService
 
     public int ClockYPercent
     {
-        get => _configuration.Get(SettingsKey(nameof(ClockYPercent)), 10);
+        get => _configuration.Get(SettingsKey(nameof(ClockYPercent)), 100);
         set => _configuration.Set(SettingsKey(nameof(ClockYPercent)), Math.Clamp(value, 0, 100));
     }
 
@@ -37,13 +37,13 @@ internal sealed partial class GeneralSettingsService
 
     public float ClockTextOutlineWidth
     {
-        get => _configuration.Get(SettingsKey(nameof(ClockTextOutlineWidth)), 2f);
+        get => _configuration.Get(SettingsKey(nameof(ClockTextOutlineWidth)), 3f);
         set => _configuration.Set(SettingsKey(nameof(ClockTextOutlineWidth)), Math.Clamp(value, 0.1f, 3f));
     }
 
     public float ClockScale
     {
-        get => _configuration.Get(SettingsKey(nameof(ClockScale)), 1f);
+        get => _configuration.Get(SettingsKey(nameof(ClockScale)), 0.5f);
         set => _configuration.Set(SettingsKey(nameof(ClockScale)), Math.Clamp(value, 0.5f, 2f));
     }
 
