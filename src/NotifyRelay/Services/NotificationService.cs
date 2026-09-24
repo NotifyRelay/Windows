@@ -272,11 +272,9 @@ public class NotificationService(
 
                             grouper.Rebuild(activeNotifications);
 
-#if WINDOWS
                             bool isNotifyRelaySelf = appPackage?.Contains("notifyrelay", StringComparison.OrdinalIgnoreCase) == true
                                 || appName?.Contains("notifyrelay", StringComparison.OrdinalIgnoreCase) == true;
                             if (device.DeviceSettings.IgnoreWindowsApps && !isNotifyRelaySelf && await IsAppActiveAsync(appName ?? "")) return;
-#endif
 
                             if (isNewToUser && notificationType == NotificationType.New)
                             {
@@ -581,7 +579,6 @@ public class NotificationService(
         }
     }
 
-#if WINDOWS
     private async Task<bool> IsAppActiveAsync(string appName)
     {
         try
@@ -598,7 +595,6 @@ public class NotificationService(
             return false;
         }
     }
-#endif
 
     public async Task ProcessNotificationMessageAsync(PairedDevice device, string payload)
     {

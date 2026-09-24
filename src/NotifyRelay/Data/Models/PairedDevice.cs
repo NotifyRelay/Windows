@@ -4,9 +4,7 @@ using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Protocol;
 
-#if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
-#endif
 
 namespace NotifyRelay.Data.Models;
 
@@ -80,12 +78,10 @@ public partial class PairedDevice : ObservableObject
             {
                 try
                 {
-#if WINDOWS
                     if (ConnectionStatus && HasSentftpRequest)
                     {
                         Ioc.Default.GetRequiredService<NetworkDriveMapper>().SendftpCommand(this, "start");
                     }
-#endif
                 }
                 catch (Exception ex)
                 {

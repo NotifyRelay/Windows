@@ -4,10 +4,7 @@ using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils;
 using NotifyRelay.Utils.Serialization;
-
-#if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
-#endif
 
 namespace NotifyRelay.ViewModels;
 
@@ -21,9 +18,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
     private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
     private IUpdateService UpdateService { get; } = Ioc.Default.GetRequiredService<IUpdateService>();
     private IFileTransferService FileTransferService { get; } = Ioc.Default.GetRequiredService<IFileTransferService>();
-#if WINDOWS
     private NetworkDriveMapper NetworkDriveMapper { get; } = Ioc.Default.GetRequiredService<NetworkDriveMapper>();
-#endif
     private IPlaybackService PlaybackService { get; } = Ioc.Default.GetRequiredService<IPlaybackService>();
     #endregion
 

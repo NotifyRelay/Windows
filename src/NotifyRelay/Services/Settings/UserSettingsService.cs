@@ -1,5 +1,4 @@
-using NotifyRelay.Data.AppDatabase;
-using NotifyRelay.Data.Configuration;
+using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 
 namespace NotifyRelay.Services.Settings;
@@ -9,22 +8,20 @@ internal sealed class UserSettingsService : IUserSettingsService
     private IGeneralSettingsService? _generalSettingsService;
 
     /// <summary>
-    /// Shared configuration root used by all settings services.
+    /// Shared strongly-typed settings store, backed by the SQLite <c>AppSettingEntity</c> table.
     /// </summary>
-    public IConfigurationRoot Configuration { get; }
+    public SettingsRepository SettingsRepository { get; }
 
     // Cache for device-specific settings
     private readonly Dictionary<string, IDeviceSettingsService> _deviceSettingsCache = [];
 
-    public UserSettingsService(DatabaseContext dbContext)
+    public UserSettingsService(SettingsRepository settingsRepository)
     {
-        Configuration = new ConfigurationBuilder()
-            .Add(new SqliteConfigurationSource(dbContext))
-            .Build();
+        SettingsRepository = settingsRepository;
     }
 
     public IGeneralSettingsService GeneralSettingsService =>
-        _generalSettingsService ??= new GeneralSettingsService(Configuration);
+        _generalSettingsService ??= new GeneralSettingsService(SettingsRepository);
 
     public IDeviceSettingsService GetDeviceSettings(string deviceId)
     {
@@ -38,7 +35,7 @@ internal sealed class UserSettingsService : IUserSettingsService
         }
 
         // Create new device-specific settings instance
-        var deviceSettings = new DeviceSettingsService(deviceId, Configuration);
+        var deviceSettings = new DeviceSettingsService(deviceId, SettingsRepository);
         _deviceSettingsCache[deviceId] = deviceSettings;
 
         return deviceSettings;

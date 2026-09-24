@@ -4,9 +4,7 @@ using Microsoft.UI.Xaml.Media.Imaging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
-#if WINDOWS
 using NotifyRelay.Platforms.Windows.Interop;
-#endif
 using Windows.UI.ViewManagement;
 
 namespace NotifyRelay.UserControls;
@@ -54,7 +52,6 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
     [RelayCommand]
     public void ShowHideWindow()
     {
-#if WINDOWS
         var window = App.MainWindow;
         if (window.Visible)
         {
@@ -65,7 +62,6 @@ public sealed partial class TrayIconControl : UserControl, INotifyPropertyChange
             window.AppWindow.Show();
             InteropHelpers.SetForegroundWindow(App.WindowHandle);
         }
-#endif
     }
 
     [RelayCommand]

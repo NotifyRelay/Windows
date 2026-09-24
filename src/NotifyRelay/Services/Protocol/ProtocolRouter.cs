@@ -2,10 +2,7 @@ using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
-#if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
-#endif
-
 using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Services.Protocol;
@@ -30,9 +27,7 @@ public class ProtocolRouter
     private readonly Lazy<IRemoteAppService> remoteAppService;
     private readonly Lazy<IPlaybackService> playbackService;
     private readonly AudioRelayService _audioRelayService;
-#if WINDOWS
     private readonly Lazy<NetworkDriveMapper> networkDriveMapper;
-#endif
 
     public ProtocolRouter(
         ILogger<ProtocolRouter> logger,
@@ -44,10 +39,8 @@ public class ProtocolRouter
         Func<IClipboardService> clipboardServiceFactory,
         Func<IRemoteAppService> remoteAppServiceFactory,
         Func<IPlaybackService> playbackServiceFactory,
-        AudioRelayService audioRelayService
-#if WINDOWS
-        , Func<NetworkDriveMapper> networkDriveMapperFactory
-#endif
+        AudioRelayService audioRelayService,
+        Func<NetworkDriveMapper> networkDriveMapperFactory
         )
     {
         this.logger = logger;
@@ -60,13 +53,8 @@ public class ProtocolRouter
         this.remoteAppService = new Lazy<IRemoteAppService>(remoteAppServiceFactory);
         this.playbackService = new Lazy<IPlaybackService>(playbackServiceFactory);
         this._audioRelayService = audioRelayService;
-#if WINDOWS
-        if (networkDriveMapperFactory == null)
-        {
-            throw new ArgumentNullException(nameof(networkDriveMapperFactory), "NetworkDriveMapperFactory cannot be null on Windows platform");
-        }
+        ArgumentNullException.ThrowIfNull(networkDriveMapperFactory);
         this.networkDriveMapper = new Lazy<NetworkDriveMapper>(networkDriveMapperFactory);
-#endif
     }
 
     // ========= 已由 Rust 回调驱动的 DATA_* 独立处理方法 =========
@@ -143,10 +131,8 @@ public class ProtocolRouter
         catch (Exception ex) { logger.LogError(ex, "处理DATA_MEDIA_CONTROL分发时出错"); }
     }
 
-#if WINDOWS
     public Task OnDataFtpAsync(PairedDevice device, string plaintext)
         => networkDriveMapper.Value.ProcessFtpMessageAsync(device, plaintext);
-#endif
 
     public Task OnDataClipboardAsync(PairedDevice device, string plaintext)
         => clipboardService.Value.ProcessClipboardMessageAsync(device, plaintext);

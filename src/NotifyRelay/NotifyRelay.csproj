@@ -19,7 +19,6 @@
         <LangVersion>Preview</LangVersion>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <DefaultLanguage>zh-cn</DefaultLanguage>
-        <StartupObject>NotifyRelay.Platforms.Windows.Program</StartupObject>
         <UseWinUI>true</UseWinUI>
 
         <WindowsPackageType>MSIX</WindowsPackageType>

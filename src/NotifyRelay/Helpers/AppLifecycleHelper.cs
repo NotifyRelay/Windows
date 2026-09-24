@@ -302,7 +302,6 @@ public static class AppLifecycleHelper
 
     public static async Task HandleStartupTaskAsync(bool enable)
     {
-#if WINDOWS
         var startupTask = await StartupTask.GetAsync("8B5D3E3F-9B69-4E8A-A9F7-BFCA793B9AF0");
 
         if (enable)
@@ -315,6 +314,5 @@ public static class AppLifecycleHelper
             if (startupTask.State == StartupTaskState.Enabled)
                 startupTask.Disable();
         }
-#endif
     }
 }
