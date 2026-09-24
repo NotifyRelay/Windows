@@ -26,4 +26,13 @@ public static class SuperIslandProtocol
             instanceId ?? ""
         );
     }
+
+    /// <summary>
+    /// 超级岛入站解析：委托给 Rust Core (nrc_parse_superisland_inbound)。
+    /// 返回归一结构 JSON 字符串（featureId/packageName/appName/title/text/paramV2Raw/pics/isEnd/sourceKey）。
+    /// </summary>
+    public static string? ParseSuperIslandInbound(string deviceUuid, string pkg, string fullJson)
+    {
+        return NotifyRelayCore.Safe.ParseSuperIslandInbound(deviceUuid, pkg, fullJson);
+    }
 }

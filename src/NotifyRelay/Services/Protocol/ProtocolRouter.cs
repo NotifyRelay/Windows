@@ -242,20 +242,21 @@ public class ProtocolRouter
             }
 
             var packageName = TryGetString(root, "packageName");
-            var title = TryGetString(root, "title");
-            var text = TryGetString(root, "text");
-            var paramV2Raw = TryGetString(root, "param_v2_raw");
-            var featureKeyValue = TryGetString(root, "featureKeyValue");
-            if (string.IsNullOrWhiteSpace(featureKeyValue))
+            var parsedJson = SuperIslandProtocol.ParseSuperIslandInbound(device.Id, packageName ?? "", decryptedPayload);
+            if (string.IsNullOrEmpty(parsedJson))
             {
-                featureKeyValue = SuperIslandProtocol.ComputeFeatureId(packageName, paramV2Raw, title, text);
+                logger.LogWarning("超级岛入站解析返回空结果，跳过: deviceId={DeviceId}", device.Id);
+                return;
             }
-
-            var sourceId = BuildSuperIslandSourceId(device.Id, packageName, featureKeyValue);
-            var terminateValue = TryGetString(root, "terminateValue");
-            var isEnd = string.Equals(terminateValue, SuperIslandProtocol.TerminateValue, StringComparison.Ordinal);
-            var state = BuildSuperIslandState(root, title, text, paramV2Raw);
-            var pics = ParsePics(root);
+            using var parsedDoc = JsonDocument.Parse(parsedJson);
+            var parsed = parsedDoc.RootElement;
+            var sourceId = parsed.GetProperty("sourceKey").GetString() ?? "";
+            var isEnd = parsed.GetProperty("isEnd").GetBoolean();
+            var title = TryGetString(parsed, "title");
+            var text = TryGetString(parsed, "text");
+            var paramV2Raw = TryGetString(parsed, "paramV2Raw");
+            var state = BuildSuperIslandState(parsed, title, text, paramV2Raw);
+            var pics = ParsePics(parsed);
 
             logger.LogInformation(
                 "收到超级岛包: deviceId={DeviceId}, packageName={PackageName}, sourceId={SourceId}, isEnd={IsEnd}",
@@ -329,15 +330,6 @@ public class ProtocolRouter
             return prop.GetString();
         }
         return null;
-    }
-
-    private static string BuildSuperIslandSourceId(string deviceId, string? packageName, string? featureId)
-    {
-        var parts = new List<string>();
-        if (!string.IsNullOrWhiteSpace(deviceId)) parts.Add(deviceId);
-        if (!string.IsNullOrWhiteSpace(packageName)) parts.Add(packageName);
-        if (!string.IsNullOrWhiteSpace(featureId)) parts.Add(featureId);
-        return string.Join("|", parts);
     }
 
     private static Dictionary<string, object?>? BuildSuperIslandState(

@@ -43,6 +43,8 @@ public static partial class NotifyRelayCore
     public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_superisland_inbound(IntPtr deviceUuid, IntPtr pkg, IntPtr fullJson);
 
     // ======== FTP credentials ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -128,6 +130,14 @@ public static partial class NotifyRelayCore
             var tx = StringToPtr(text); var iid = StringToPtr(instanceId);
             var result = NotifyRelayCore.nrc_compute_feature_id(pkg, param, t, tx, iid);
             Marshal.FreeHGlobal(pkg); Marshal.FreeHGlobal(param); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx); Marshal.FreeHGlobal(iid);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseSuperIslandInbound(string deviceUuid, string pkg, string fullJson)
+        {
+            var u = StringToPtr(deviceUuid); var p = StringToPtr(pkg); var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_superisland_inbound(u, p, f);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(f);
             return PtrToStringAndFree(result);
         }
 
