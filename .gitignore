@@ -413,3 +413,6 @@ solution-config.props
 *.code-workspace
 /src/.vscode
 /src/.vsconfig
+
+# AI 记忆系统
+.memory/
