@@ -16,12 +16,6 @@ public sealed class DeviceSnapshot
     /// <summary>core 未识别设备类型时的占位值</summary>
     public const string UnknownDeviceType = "unknown";
 
-    /// <summary>电量绝对值超过该值视为未知</summary>
-    public const int BatteryUnknownThreshold = 100;
-
-    /// <summary>电量未知哨兵（与 core BATTERY_UNKNOWN 一致）</summary>
-    public const int BatteryUnknown = -BatteryUnknownThreshold - 1;
-
     [JsonPropertyName("uuid")]
     public string Uuid { get; init; } = string.Empty;
 
@@ -35,9 +29,9 @@ public sealed class DeviceSnapshot
     [JsonPropertyName("port")]
     public int Port { get; init; }
 
-    /// <summary>带符号电量：正=充电，负=放电；|v|&gt;100 视为未知</summary>
+    /// <summary>带符号电量：正=充电，负=放电；|v|&gt;100 视为未知（core 下发，平台不再据此派生）</summary>
     [JsonPropertyName("battery")]
-    public int Battery { get; init; } = BatteryUnknown;
+    public int Battery { get; init; }
 
     /// <summary>设备类型，如 android / pc；core 不落库，重启首帧可能为空</summary>
     [JsonPropertyName("deviceType")]
@@ -58,14 +52,17 @@ public sealed class DeviceSnapshot
     [JsonPropertyName("online")]
     public bool Online { get; init; }
 
-    /// <summary>电量是否未知</summary>
-    public bool BatteryUnknownValue => Math.Abs(Battery) > BatteryUnknownThreshold;
+    /// <summary>电量是否未知（core 派生）</summary>
+    [JsonPropertyName("batteryUnknown")]
+    public bool BatteryUnknownValue { get; init; }
 
-    /// <summary>电量百分比；未知时为 -1</summary>
-    public int BatteryPercent => BatteryUnknownValue ? -1 : Math.Abs(Battery);
+    /// <summary>电量百分比；未知时为 -1（core 派生）</summary>
+    [JsonPropertyName("batteryPercent")]
+    public int BatteryPercent { get; init; }
 
-    /// <summary>是否充电中；电量未知时为 false</summary>
-    public bool IsCharging => !BatteryUnknownValue && Battery >= 0;
+    /// <summary>是否充电中；电量未知时为 false（core 派生）</summary>
+    [JsonPropertyName("isCharging")]
+    public bool IsCharging { get; init; }
 
     /// <summary>设备类型是否有效</summary>
     public bool HasKnownDeviceType =>
