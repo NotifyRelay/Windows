@@ -45,6 +45,10 @@ public static partial class NotifyRelayCore
     public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_parse_superisland_inbound(IntPtr deviceUuid, IntPtr pkg, IntPtr fullJson);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_notification_inbound(IntPtr fullJson);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_media_inbound(IntPtr fullJson);
 
     // ======== FTP credentials ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -138,6 +142,22 @@ public static partial class NotifyRelayCore
             var u = StringToPtr(deviceUuid); var p = StringToPtr(pkg); var f = StringToPtr(fullJson);
             var result = NotifyRelayCore.nrc_parse_superisland_inbound(u, p, f);
             Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(f);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseNotificationInbound(string fullJson)
+        {
+            var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_notification_inbound(f);
+            Marshal.FreeHGlobal(f);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseMediaInbound(string fullJson)
+        {
+            var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_media_inbound(f);
+            Marshal.FreeHGlobal(f);
             return PtrToStringAndFree(result);
         }
 

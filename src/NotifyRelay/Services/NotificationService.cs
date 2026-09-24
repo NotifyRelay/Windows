@@ -130,12 +130,32 @@ public class NotificationService(
         var notificationType = root.TryGetProperty("notificationType", out var ntProp) && ntProp.ValueKind == JsonValueKind.String
             ? Enum.TryParse<NotificationType>(ntProp.GetString(), true, out var nt) ? nt : NotificationType.New
             : NotificationType.New;
-        var title = root.TryGetProperty("title", out var tProp) ? tProp.GetString() : null;
-        var appPackage = root.TryGetProperty("packageName", out var pnProp) && pnProp.ValueKind == JsonValueKind.String ? pnProp.GetString() : null;
-        var appName = root.TryGetProperty("appName", out var anProp) ? anProp.GetString() : null;
-        var text = root.TryGetProperty("text", out var txProp) ? txProp.GetString() : null;
+        // 通知入站字段归一化委托 core（packageName/appName/title/text/time）
+        var parsedJson = SuperIslandProtocol.ParseNotificationInbound(payload);
+        string? title = null;
+        string? appPackage = null;
+        string? appName = null;
+        string? text = null;
+        string timeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
+        if (!string.IsNullOrEmpty(parsedJson))
+        {
+            try
+            {
+                using var parsedDoc = JsonDocument.Parse(parsedJson);
+                var parsed = parsedDoc.RootElement;
+                title = parsed.TryGetProperty("title", out var tProp) ? tProp.GetString() : null;
+                appPackage = parsed.TryGetProperty("packageName", out var pnProp) ? pnProp.GetString() : null;
+                appName = parsed.TryGetProperty("appName", out var anProp) ? anProp.GetString() : null;
+                text = parsed.TryGetProperty("text", out var txProp) ? txProp.GetString() : null;
+                if (parsed.TryGetProperty("time", out var tsProp) && tsProp.ValueKind == JsonValueKind.Number)
+                {
+                    var timeVal = tsProp.GetInt64();
+                    if (timeVal != 0) timeStamp = timeVal.ToString();
+                }
+            }
+            catch { /* core 归一解析失败，使用缺省值 */ }
+        }
         var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) && nkProp.ValueKind == JsonValueKind.String ? nkProp.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-        var timeStamp = root.TryGetProperty("time", out var tsProp) && tsProp.ValueKind == JsonValueKind.Number ? tsProp.GetInt64().ToString() : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString();
         var appIcon = root.TryGetProperty("appIcon", out var aiProp) ? aiProp.GetString() : null;
         var isLocked = root.TryGetProperty("isLocked", out var ilProp) && ilProp.GetBoolean();
         var bigPicture = root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null;
