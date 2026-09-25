@@ -377,11 +377,22 @@ public class NetworkService(
     /// <summary>
     /// 处理 REJECT（由 Rust on_reject 回调调用）
     /// </summary>
-    public async Task HandleRejectAsync(string remoteUuid)
+    public async Task HandleRejectAsync(string remoteUuid, string reason)
     {
         try
         {
-            logger.LogWarning($"收到 REJECT: {remoteUuid}");
+            if (reason == "version_mismatch")
+            {
+                logger.LogWarning("收到 REJECT: {uuid}，原因=core 版本不兼容，两端需升级到同一版本（major.minor 一致）", remoteUuid);
+            }
+            else if (!string.IsNullOrEmpty(reason))
+            {
+                logger.LogWarning("收到 REJECT: {uuid}，原因={reason}", remoteUuid, reason);
+            }
+            else
+            {
+                logger.LogWarning("收到 REJECT: {uuid}", remoteUuid);
+            }
         }
         catch (Exception ex)
         {
@@ -400,6 +411,10 @@ public class NetworkService(
             if (success == 1)
             {
                 logger.LogInformation($"配对成功: {remoteUuid}");
+            }
+            else if (errorMsg == "version_mismatch")
+            {
+                logger.LogWarning("配对失败: {uuid}，原因=core 版本不兼容，两端需升级到同一版本（major.minor 一致）", remoteUuid);
             }
             else
             {
