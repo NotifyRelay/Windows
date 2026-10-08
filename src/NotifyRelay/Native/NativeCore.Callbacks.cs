@@ -136,7 +136,14 @@ public static partial class NativeCore
                     {
                         var ns = NetworkService;
                         if (ns == null) return;
-                        _ = ns.HandleRejectAsync(uuid);
+                        // core 在版本不兼容等主动拒绝场景会在 data/extra 携带 reason，
+                        // 平台据此把笼统的"配对失败"细化为可定位的原因。
+                        var reason = extra ?? "";
+                        if (string.IsNullOrEmpty(reason) && !string.IsNullOrEmpty(data))
+                        {
+                            try { reason = System.Text.Json.JsonDocument.Parse(data).RootElement.GetProperty("reason").GetString() ?? ""; } catch { }
+                        }
+                        _ = ns.HandleRejectAsync(uuid, reason);
                     }
                     break;
                 case "RESULT":

@@ -13,16 +13,6 @@ public static class Constants
         public const string RemoteNotification = "RemoteNotification";
         public const string Clipboard = "Clipboard";
     }
-    public static class LocalSettings
-    {
-        public const string DateTimeFormat = "datetimeformat";
-
-        public const string SettingsFolderName = "settings";
-        public const string UserSettingsFileName = "user_settings.json";
-        public const string DatabaseFileName = "notifyrelay.db";
-        public static readonly string ConnectionString = $"Filename={Path.Combine(ApplicationData.Current.LocalFolder.Path, DatabaseFileName)}";
-    }
-
     public static class ExternalUrl
     {
         public const string ReleasesUrl = @"https://github.com/xzy-nine/NotifyRelay-pc/releases/latest";

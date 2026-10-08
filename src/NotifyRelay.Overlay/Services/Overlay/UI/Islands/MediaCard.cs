@@ -190,6 +190,9 @@ internal static class MediaCard
                 {
                     r.Gap = 6f;
                     r.CrossAlignment = CrossAlignment.Center;
+                    // 短文本时胶囊被 MinWidth 撑宽，把多余空白插入频谱之前（末项贴右），
+                    // 避免末项与右边界之间留空隙
+                    r.AlignLastToEnd = true;
                 }, () =>
                 {
                     // 小封面（有封面图时）或音符图标

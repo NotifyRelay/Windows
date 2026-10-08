@@ -1,9 +1,7 @@
 using NotifyRelay.Data.Models;
 using NotifyRelay.Utils;
 
-#if WINDOWS
 using NotifyRelay.Platforms.Windows.Services;
-#endif
 
 namespace NotifyRelay.ViewModels;
 
@@ -136,9 +134,7 @@ public sealed partial class MainPageViewModel
         {
             // 设置手动发送过ftp请求的标记
             Device.HasSentftpRequest = true;
-#if WINDOWS
             NetworkDriveMapper.SendftpCommand(Device, "start");
-#endif
         }
     }
 

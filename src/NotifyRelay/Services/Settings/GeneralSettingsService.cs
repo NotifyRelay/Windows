@@ -1,7 +1,7 @@
 using CommunityToolkit.WinUI;
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
-using NotifyRelay.Data.Configuration;
+using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Enums;
 using NotifyRelay.Data.Models.Actions;
@@ -14,13 +14,13 @@ namespace NotifyRelay.Services.Settings;
 
 internal sealed partial class GeneralSettingsService : IGeneralSettingsService, IOverlaySettings
 {
-    private readonly IConfigurationRoot _configuration;
+    private readonly SettingsRepository _settings;
     private readonly UISettings _uiSettings = new();
     private bool _isApplyingTheme;
 
-    public GeneralSettingsService(IConfigurationRoot configuration)
+    public GeneralSettingsService(SettingsRepository settings)
     {
-        _configuration = configuration;
+        _settings = settings;
 
         // Listen for system theme changes
         _uiSettings.ColorValuesChanged += (s, e) =>
@@ -38,20 +38,18 @@ internal sealed partial class GeneralSettingsService : IGeneralSettingsService, 
         ApplyTheme(App.MainWindow, null, Theme);
     }
 
-    private string SettingsKey(string settingName) => SqliteConfigurationProvider.BuildKey(null, settingName);
-
     public StartupOptions StartupOption
     {
-        get => _configuration.Get(SettingsKey(nameof(StartupOption)), StartupOptions.InTray);
-        set => _configuration.Set(SettingsKey(nameof(StartupOption)), value);
+        get => _settings.Get(nameof(StartupOption), StartupOptions.InTray);
+        set => _settings.Set(nameof(StartupOption), value);
     }
 
     public Theme Theme
     {
-        get => _configuration.Get(SettingsKey(nameof(Theme)), Theme.Default);
+        get => _settings.Get(nameof(Theme), Theme.Default);
         set
         {
-            if (_configuration.Set(SettingsKey(nameof(Theme)), value))
+            if (_settings.Set(nameof(Theme), value))
             {
                 ApplyTheme(App.MainWindow, null, value);
             }
@@ -82,7 +80,7 @@ internal sealed partial class GeneralSettingsService : IGeneralSettingsService, 
                     _ => ElementTheme.Default
                 };
             }
-#if WINDOWS
+
             // Update titlebar
             if (titleBar is not null)
             {
@@ -105,7 +103,6 @@ internal sealed partial class GeneralSettingsService : IGeneralSettingsService, 
                         break;
                 }
             }
-#endif
         }
         catch (Exception ex)
         {
@@ -119,32 +116,32 @@ internal sealed partial class GeneralSettingsService : IGeneralSettingsService, 
 
     public string ReceivedFilesPath
     {
-        get => _configuration.Get(SettingsKey(nameof(ReceivedFilesPath)), Constants.UserEnvironmentPaths.DownloadsPath)!;
-        set => _configuration.Set(SettingsKey(nameof(ReceivedFilesPath)), value);
+        get => _settings.Get(nameof(ReceivedFilesPath), Constants.UserEnvironmentPaths.DownloadsPath);
+        set => _settings.Set(nameof(ReceivedFilesPath), value);
     }
 
     public string ScrcpyPath
     {
-        get => _configuration.Get(SettingsKey(nameof(ScrcpyPath)), string.Empty)!;
-        set => _configuration.Set(SettingsKey(nameof(ScrcpyPath)), value);
+        get => _settings.Get(nameof(ScrcpyPath), string.Empty);
+        set => _settings.Set(nameof(ScrcpyPath), value);
     }
 
     public string AdbPath
     {
-        get => _configuration.Get(SettingsKey(nameof(AdbPath)), string.Empty)!;
-        set => _configuration.Set(SettingsKey(nameof(AdbPath)), value);
+        get => _settings.Get(nameof(AdbPath), string.Empty);
+        set => _settings.Set(nameof(AdbPath), value);
     }
 
     public MediaMessageReceiveMode MediaMessageReceiveMode
     {
-        get => _configuration.Get(SettingsKey(nameof(MediaMessageReceiveMode)), MediaMessageReceiveMode.AudioOnly);
-        set => _configuration.Set(SettingsKey(nameof(MediaMessageReceiveMode)), value);
+        get => _settings.Get(nameof(MediaMessageReceiveMode), MediaMessageReceiveMode.AudioOnly);
+        set => _settings.Set(nameof(MediaMessageReceiveMode), value);
     }
 
     public List<BaseAction> Actions
     {
-        get => _configuration.Get(SettingsKey(nameof(Actions)), new List<BaseAction>())!;
-        set => _configuration.Set(SettingsKey(nameof(Actions)), value);
+        get => _settings.Get(nameof(Actions), new List<BaseAction>());
+        set => _settings.Set(nameof(Actions), value);
     }
 
     public void AddAction(BaseAction action)
@@ -180,25 +177,25 @@ internal sealed partial class GeneralSettingsService : IGeneralSettingsService, 
     // 显示器亮度同步设置
     public string? ControlMyMonitorPath
     {
-        get => _configuration.Get<string?>(SettingsKey(nameof(ControlMyMonitorPath)), null);
-        set => _configuration.Set(SettingsKey(nameof(ControlMyMonitorPath)), value);
+        get => _settings.Get<string?>(nameof(ControlMyMonitorPath), null);
+        set => _settings.Set(nameof(ControlMyMonitorPath), value);
     }
 
     public bool EnableMonitorBrightnessSync
     {
-        get => _configuration.Get(SettingsKey(nameof(EnableMonitorBrightnessSync)), false);
-        set => _configuration.Set(SettingsKey(nameof(EnableMonitorBrightnessSync)), value);
+        get => _settings.Get(nameof(EnableMonitorBrightnessSync), false);
+        set => _settings.Set(nameof(EnableMonitorBrightnessSync), value);
     }
 
     public List<string> SelectedMonitors
     {
-        get => _configuration.Get(SettingsKey(nameof(SelectedMonitors)), new List<string>())!;
-        set => _configuration.Set(SettingsKey(nameof(SelectedMonitors)), value);
+        get => _settings.Get(nameof(SelectedMonitors), new List<string>());
+        set => _settings.Set(nameof(SelectedMonitors), value);
     }
 
     public bool EnableSendMediaNotifications
     {
-        get => _configuration.Get(SettingsKey(nameof(EnableSendMediaNotifications)), true);
-        set => _configuration.Set(SettingsKey(nameof(EnableSendMediaNotifications)), value);
+        get => _settings.Get(nameof(EnableSendMediaNotifications), true);
+        set => _settings.Set(nameof(EnableSendMediaNotifications), value);
     }
 }

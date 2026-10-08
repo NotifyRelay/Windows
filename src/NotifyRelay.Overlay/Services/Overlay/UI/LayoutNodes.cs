@@ -160,6 +160,12 @@ internal sealed class Row : ContainerNode
     public CrossAlignment CrossAlignment = CrossAlignment.Center;
     /// <summary>为 true 时所有子节点等分可用宽度（复刻按钮行 btnW = (avail - gap*(count-1))/count）。</summary>
     public bool EqualWidth;
+    /// <summary>
+    /// 为 true 时，若本行矩形宽于内容的自然宽度，则把剩余宽度整体插入到<b>最后一个子节点之前</b>：
+    /// 首项仍贴左、末项贴右，空白落在两者之间而非右边界。
+    /// 用于收起态胶囊被 MinWidth 撑宽（短文本）时消化多余空白，避免末项与右边界之间出现空隙。
+    /// </summary>
+    public bool AlignLastToEnd;
 
     protected override Size Measure(MeasureScope s, Constraints c)
     {
@@ -209,11 +215,26 @@ internal sealed class Row : ContainerNode
     protected override void Place(Rect rect)
     {
         float x = rect.X;
-        float equalW = EqualWidth && Children.Count > 0
-            ? MathF.Max(0f, (rect.Width - Gap * (Children.Count - 1)) / Children.Count)
+        int n = Children.Count;
+        float equalW = EqualWidth && n > 0
+            ? MathF.Max(0f, (rect.Width - Gap * (n - 1)) / n)
             : 0f;
 
-        for (int i = 0; i < Children.Count; i++)
+        // AlignLastToEnd：自然宽度不足本行矩形宽时，把剩余宽度整体插入末项之前，
+        // 使首项贴左、末项贴右，空白落在两者之间而非右边界（仅收起态胶囊被 MinWidth 撑宽时触发）。
+        float extraBeforeLast = 0f;
+        if (AlignLastToEnd && !EqualWidth && n > 1)
+        {
+            float natural = Gap * (n - 1);
+            for (int i = 0; i < n; i++)
+            {
+                var c = Children[i];
+                natural += c is Spacer sp0 && sp0.Weight > 0f ? sp0.MeasuredFraction : c.MeasuredSize.Width;
+            }
+            extraBeforeLast = MathF.Max(0f, rect.Width - natural);
+        }
+
+        for (int i = 0; i < n; i++)
         {
             var child = Children[i];
             float w = EqualWidth ? equalW
@@ -221,6 +242,8 @@ internal sealed class Row : ContainerNode
                 : child.MeasuredSize.Width;
             float h = child.MeasuredSize.Height;
             float y = rect.Y;
+
+            if (i == n - 1) x += extraBeforeLast;
 
             if (CrossAlignment == CrossAlignment.Center) y = rect.Y + (rect.Height - h) / 2f;
             else if (CrossAlignment == CrossAlignment.End) y = rect.Bottom - h;

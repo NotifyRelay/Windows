@@ -104,6 +104,9 @@ internal static class SuperIslandCard
                 {
                     r.Gap = hasA && hasB ? CollapsedGapAB : 0f;
                     r.CrossAlignment = CrossAlignment.Center;
+                    // 短内容时胶囊被 MinWidth 撑宽，把多余空白插入 B 区之前（B 区贴右），
+                    // 避免 B 区与右边界之间留空隙
+                    r.AlignLastToEnd = true;
                 }, () =>
                 {
                     if (hasA)

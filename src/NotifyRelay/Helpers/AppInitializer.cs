@@ -85,7 +85,6 @@ internal static class AppInitializer
 
     internal static async Task RegisterWindowsNotificationAsync(ILogger logger)
     {
-#if WINDOWS
         try
         {
             var handler = Ioc.Default.GetRequiredService<IPlatformNotificationHandler>();
@@ -96,7 +95,6 @@ internal static class AppInitializer
         {
             logger.LogWarning(ex, "注册Windows通知失败");
         }
-#endif
     }
 
     internal static async Task InitRustCoreAsync(ILogger logger)

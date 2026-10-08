@@ -24,6 +24,8 @@ internal sealed class HeartRateElement : IOverlayElement
     private const float CardPadY = 6f;
     private const float HeartTextGap = 6f;
     private const int HistoryMax = 60;
+    /// <summary>曲线滑动平均窗口：对最近 N 个原始心率值取均值后入历史。</summary>
+    private const int SmoothWindow = 5;
 
     private readonly ElementContext _ctx;
 
@@ -44,6 +46,8 @@ internal sealed class HeartRateElement : IOverlayElement
     private int _bpm = -1;
     private bool _connected;
     private readonly List<int> _history = [];
+    // 滑动平均窗口：保存最近 SmoothWindow 个原始心率值（_lock 保护）
+    private readonly List<int> _rawWindow = [];
 
     // 心形几何缓存（设备无关资源，0..1 单位空间）
     private ID2D1PathGeometry? _heartGeometry;
@@ -83,6 +87,7 @@ internal sealed class HeartRateElement : IOverlayElement
             {
                 // 关闭显示时清空历史，避免下次开启残留旧曲线
                 _history.Clear();
+                _rawWindow.Clear();
             }
         }, "覆盖层数据锁获取超时，跳过心率配置更新");
 
@@ -90,13 +95,17 @@ internal sealed class HeartRateElement : IOverlayElement
     public void UpdateHeartRate(int bpm)
     {
         if (bpm <= 0) return;
-        // 最小单位 5 bpm，避免过小波动导致统计图剧烈变化
-        int q = (int)Math.Round(bpm / 5.0) * 5;
-        if (q <= 0) return;
         _ctx.WithLock(() =>
         {
             _bpm = bpm;              // 显示与异常判定使用原始值
-            _history.Add(q);         // 统计图使用量化值
+            // 统计图使用最近 SmoothWindow 个原始值的滑动平均，替代原先的 5 bpm 量化
+            _rawWindow.Add(bpm);
+            if (_rawWindow.Count > SmoothWindow) _rawWindow.RemoveAt(0);
+            int sum = 0;
+            foreach (var v in _rawWindow) sum += v;
+            int smoothed = (int)Math.Round((double)sum / _rawWindow.Count);
+            if (smoothed <= 0) return;
+            _history.Add(smoothed);
             if (_history.Count > HistoryMax) _history.RemoveAt(0);
         }, string.Empty);
     }
@@ -110,6 +119,7 @@ internal sealed class HeartRateElement : IOverlayElement
             {
                 _bpm = -1;
                 _history.Clear();
+                _rawWindow.Clear();
             }
         }, "覆盖层数据锁获取超时，跳过心率连接状态更新");
 
@@ -119,6 +129,7 @@ internal sealed class HeartRateElement : IOverlayElement
         {
             _bpm = -1;
             _history.Clear();
+            _rawWindow.Clear();
         }, "覆盖层数据锁获取超时，跳过心率数据清空");
 
     public bool IsActive()

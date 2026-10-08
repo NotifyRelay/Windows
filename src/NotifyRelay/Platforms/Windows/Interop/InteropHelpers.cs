@@ -30,12 +30,12 @@ internal enum ERole
 
 public static class InteropHelpers
 {
-    public static readonly Guid DataTransferManagerInteropIID = new(0xa5caee9b, 0x8708, 0x49d1, 0x8d, 0x36, 0x67, 0xd2, 0x5a, 0x8d, 0xa0, 0x0c);
-
     [DllImport("user32.dll")]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool GetCursorPos(out POINT point);
+    public static extern void SetForegroundWindow(nint hWnd);
 
+    // 以下三个 API 供单实例激活重定向使用：重定向必须等待完成，
+    // 而等待期间必须继续泵消息，否则 RedirectActivationToAsync 无法推进
+    // （见 WindowsAppSDK issue #1709）。
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     public static extern nint CreateEvent(nint lpEventAttributes, bool bManualReset,
             bool bInitialState, string? lpName);
@@ -45,29 +45,4 @@ public static class InteropHelpers
 
     [DllImport("ole32.dll")]
     public static extern uint CoWaitForMultipleObjects(uint dwFlags, uint dwMilliseconds, ulong nHandles, nint[] pHandles, out uint dwIndex);
-
-    [StructLayout(LayoutKind.Sequential)]
-    public struct POINT
-    {
-        public int X;
-        public int Y;
-
-        public POINT(int x, int y)
-            => (X, Y) = (x, y);
-    }
-
-    [DllImport("user32.dll")]
-    public static extern void SetForegroundWindow(nint hWnd);
-
-    [DllImport("user32.dll", SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
-
-    public const uint SWP_NOSIZE = 0x0001;
-    public const uint SWP_NOMOVE = 0x0002;
-    public const uint SWP_NOACTIVATE = 0x0010;
-
-    public const nint HWND_TOP = 0;
-    public const nint HWND_TOPMOST = -1;
-    public const nint HWND_NOTOPMOST = -2;
 }

@@ -41,6 +41,7 @@ internal static class ServiceCollectionConfigurator
 
         // Database and Repositories
         .AddSingleton<DatabaseContext>()
+        .AddSingleton<SettingsRepository>()
         .AddSingleton<DeviceRepository>()
         .AddSingleton<RemoteAppRepository>()
         .AddSingleton<NotificationRepository>()
@@ -59,11 +60,8 @@ internal static class ServiceCollectionConfigurator
         .AddSingleton<IClipboardService, ClipboardService>()
         .AddSingleton<IRemoteAppService, RemoteAppService>()
 
-        // 3. 注册ProtocolRouter
-#if WINDOWS
-        // 在Windows平台上，ProtocolRouter需要NetworkDriveMapper
+        // 3. 注册ProtocolRouter（ProtocolRouter 依赖 NetworkDriveMapper）
         .AddSingleton<Func<NetworkDriveMapper>>(sp => () => sp.GetRequiredService<NetworkDriveMapper>())
-#endif
         .AddSingleton<ProtocolRouter>()
         .AddSingleton<HeartbeatProcessor>()
 

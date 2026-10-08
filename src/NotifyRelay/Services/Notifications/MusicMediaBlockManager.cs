@@ -55,28 +55,25 @@ public class MusicMediaBlockManager(
                 return;
             }
 
-            using var doc = JsonDocument.Parse(payload);
-            var root = doc.RootElement;
+            // 媒体入站字段归一化委托 core（含 isEnd 判定 + coverImage 纯透传，消除死回退链）
+            var parsedJson = SuperIslandProtocol.ParseMediaInbound(payload);
+            if (string.IsNullOrEmpty(parsedJson)) return;
+            using var parsedDoc = JsonDocument.Parse(parsedJson);
+            var parsed = parsedDoc.RootElement;
 
-            var mediaType = root.TryGetProperty("mediaType", out var mtProp) ? mtProp.GetString() : null;
-            var titleStr = root.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
-            var textStr = root.TryGetProperty("text", out var txProp) ? txProp.GetString() ?? "" : "";
-            var coverUrl = root.TryGetProperty("coverUrl", out var cuProp) ? cuProp.GetString() : null
-                ?? (root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null)
-                ?? (root.TryGetProperty("largeIcon", out var liProp) ? liProp.GetString() : null);
+            var isEnd = parsed.TryGetProperty("isEnd", out var ieProp) && ieProp.GetBoolean();
+            var titleStr = parsed.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
+            var textStr = parsed.TryGetProperty("text", out var txProp) ? txProp.GetString() ?? "" : "";
+            var coverUrl = parsed.TryGetProperty("coverImage", out var cuProp) ? cuProp.GetString() : null;
 
             // 解析播放状态：缺省视为播放中（与 SendMediaInfoAsync 行为一致）
             bool isPlaying = true;
-            if (root.TryGetProperty("isPlaying", out var ipProp))
-            {
-                if (ipProp.ValueKind == JsonValueKind.False) isPlaying = false;
-                else if (ipProp.ValueKind == JsonValueKind.True) isPlaying = true;
-            }
+            if (parsed.TryGetProperty("isPlaying", out var ipProp) && ipProp.ValueKind == JsonValueKind.False) isPlaying = false;
 
             // 叠加层媒体卡片开关（与本地媒体一致）
             var mediaOverlayEnabled = generalSettings.DanmakuMediaCardEnabled;
 
-            if (mediaType == "END")
+            if (isEnd)
             {
                 await dispatcher.EnqueueAsync(async () =>
                 {
