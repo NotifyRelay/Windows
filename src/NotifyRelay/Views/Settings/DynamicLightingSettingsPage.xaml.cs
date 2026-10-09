@@ -11,6 +11,19 @@ public sealed partial class DynamicLightingSettingsPage : Page
         ViewModel = new DynamicLightingViewModel();
         DataContext = ViewModel;
         ViewModel.AutoRGBIntervalComboBox = AutoRGBIntervalComboBox;
+        SetupBreadcrumb();
+    }
+
+    private void SetupBreadcrumb()
+    {
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
+        {
+            if (Frame.CanGoBack)
+            {
+                Frame.GoBack();
+            }
+        },
+            ("动态光效", typeof(DynamicLightingSettingsPage)));
     }
 
     private void ColorPickerButton_Click(object sender, RoutedEventArgs e)
