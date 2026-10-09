@@ -9,10 +9,7 @@ public static partial class NativeCore
     {
         if (localIp is not null)
         {
-            var bytes = System.Text.Encoding.UTF8.GetBytes(localIp);
-            var ipPtr = Marshal.AllocHGlobal(bytes.Length + 1);
-            Marshal.Copy(bytes, 0, ipPtr, bytes.Length);
-            Marshal.WriteByte(ipPtr, bytes.Length, 0);
+            var ipPtr = NotifyRelayCore.StringToPtr(localIp);
             NotifyRelayCore.nrc_on_network_changed(_ctx, ipPtr);
             Marshal.FreeHGlobal(ipPtr);
         }

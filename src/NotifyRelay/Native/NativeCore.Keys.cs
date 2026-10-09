@@ -24,11 +24,6 @@ public static partial class NativeCore
         return NotifyRelayCore.Safe.GetPublicKey(_ctx);
     }
 
-    public static int HasKeypair()
-    {
-        return NotifyRelayCore.Safe.HasKeypair(_ctx);
-    }
-
     public static int DeriveSharedSecret(string deviceUuid, string peerPubKeyB64)
     {
         return NotifyRelayCore.Safe.DeriveSharedSecret(_ctx, deviceUuid, peerPubKeyB64);

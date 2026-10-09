@@ -19,11 +19,6 @@ public static partial class NativeCore
         return NotifyRelayCore.Safe.AppSyncPrepareIconRequest(_ctx, packagesJson, installedJson, cachedJson, appDeviceJson, sourceDeviceUuid, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
-    public static void AppSyncClearIconPending(string packagesJson)
-    {
-        NotifyRelayCore.Safe.AppSyncClearIconPending(_ctx, packagesJson);
-    }
-
     public static string? AppSyncParseIconResponse(string payloadJson)
     {
         return NotifyRelayCore.Safe.AppSyncParseIconResponse(payloadJson);
