@@ -1,5 +1,4 @@
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Items;
 using NotifyRelay.ViewModels.Settings;
 using NotifyRelay.Views.DevicePreferences;
 

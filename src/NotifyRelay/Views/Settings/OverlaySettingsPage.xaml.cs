@@ -1,4 +1,3 @@
-using NotifyRelay.Data.Items;
 
 namespace NotifyRelay.Views.Settings;
 
