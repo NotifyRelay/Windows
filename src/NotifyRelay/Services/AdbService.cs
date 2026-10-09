@@ -63,8 +63,6 @@ public class AdbService : IAdbService
     public ObservableCollection<AdbDevice> AdbDevices => catalog.Devices;
     public bool IsMonitoring => deviceMonitor != null && !(cts?.IsCancellationRequested ?? true);
 
-    public AdbClient AdbClient => commandExecutor.AdbClient;
-
     // Initialize the codec option collections
     public ObservableCollection<ScrcpyPreferenceItem> DisplayOrientationOptions => ScrcpyPreferences.DisplayOrientation;
 

@@ -136,34 +136,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
             {
                 try
                 {
-                    var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
-                    if (deviceIds?.Contains(deviceId) ?? false)
-                    {
-                        // 如果是最后一个设备，删除整个通知
-                        if (deviceIds.Count == 1)
-                        {
-                            context.Database.Delete(entity);
-                        }
-                        else
-                        {
-                            // 否则，从设备列表中移除该设备
-                            var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
-                            var index = deviceIds.IndexOf(deviceId);
-
-                            if (index >= 0)
-                            {
-                                deviceIds.RemoveAt(index);
-                                if (index < deviceNames.Count)
-                                {
-                                    deviceNames.RemoveAt(index);
-                                }
-
-                                entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
-                                entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
-                                context.Database.InsertOrReplace(entity);
-                            }
-                        }
-                    }
+                    RemoveDeviceFromNotification(entity, deviceId);
                 }
                 catch (Exception innerEx)
                 {
@@ -187,34 +160,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
             {
                 try
                 {
-                    var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
-                    if (deviceIds?.Contains(deviceId) ?? false)
-                    {
-                        // 如果是最后一个设备，删除整个通知
-                        if (deviceIds.Count == 1)
-                        {
-                            context.Database.Delete(entity);
-                        }
-                        else
-                        {
-                            // 否则，从设备列表中移除该设备
-                            var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
-                            var index = deviceIds.IndexOf(deviceId);
-
-                            if (index >= 0)
-                            {
-                                deviceIds.RemoveAt(index);
-                                if (index < deviceNames.Count)
-                                {
-                                    deviceNames.RemoveAt(index);
-                                }
-
-                                entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
-                                entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
-                                context.Database.InsertOrReplace(entity);
-                            }
-                        }
-                    }
+                    RemoveDeviceFromNotification(entity, deviceId);
                 }
                 catch (Exception innerEx)
                 {
@@ -242,32 +188,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
                     if (!entity.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
                         continue;
 
-                    var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
-                    if (deviceIds?.Contains(deviceId) ?? false)
-                    {
-                        if (deviceIds.Count == 1)
-                        {
-                            context.Database.Delete(entity);
-                        }
-                        else
-                        {
-                            var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
-                            var index = deviceIds.IndexOf(deviceId);
-
-                            if (index >= 0)
-                            {
-                                deviceIds.RemoveAt(index);
-                                if (index < deviceNames.Count)
-                                {
-                                    deviceNames.RemoveAt(index);
-                                }
-
-                                entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
-                                entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
-                                context.Database.InsertOrReplace(entity);
-                            }
-                        }
-                    }
+                    RemoveDeviceFromNotification(entity, deviceId);
                 }
                 catch (Exception innerEx)
                 {
@@ -291,34 +212,7 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
             {
                 try
                 {
-                    var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
-                    if (deviceIds?.Contains(deviceId) ?? false)
-                    {
-                        // 如果是最后一个设备，删除整个通知
-                        if (deviceIds.Count == 1)
-                        {
-                            context.Database.Delete(entity);
-                        }
-                        else
-                        {
-                            // 否则，从设备列表中移除该设备
-                            var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
-                            var index = deviceIds.IndexOf(deviceId);
-
-                            if (index >= 0)
-                            {
-                                deviceIds.RemoveAt(index);
-                                if (index < deviceNames.Count)
-                                {
-                                    deviceNames.RemoveAt(index);
-                                }
-
-                                entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
-                                entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
-                                context.Database.InsertOrReplace(entity);
-                            }
-                        }
-                    }
+                    RemoveDeviceFromNotification(entity, deviceId);
                 }
                 catch (Exception innerEx)
                 {
@@ -359,6 +253,41 @@ public class NotificationRepository(DatabaseContext context, ILogger logger)
         catch (Exception ex)
         {
             logger.LogError(ex, "更新设备 {DeviceId} 的通知 {Key} 的置顶状态失败", deviceId, notificationKey);
+        }
+    }
+
+    /// <summary>
+    /// 从通知的设备列表中移除指定设备：仅剩一个设备时删除整条通知，否则按同一索引同步移除设备名后回写。
+    /// </summary>
+    private void RemoveDeviceFromNotification(NotificationEntity entity, string deviceId)
+    {
+        var deviceIds = JsonSerializer.Deserialize<List<string>>(entity.DeviceIds);
+        if (deviceIds?.Contains(deviceId) ?? false)
+        {
+            // 如果是最后一个设备，删除整个通知
+            if (deviceIds.Count == 1)
+            {
+                context.Database.Delete(entity);
+            }
+            else
+            {
+                // 否则，从设备列表中移除该设备
+                var deviceNames = JsonSerializer.Deserialize<List<string>>(entity.DeviceNames) ?? [];
+                var index = deviceIds.IndexOf(deviceId);
+
+                if (index >= 0)
+                {
+                    deviceIds.RemoveAt(index);
+                    if (index < deviceNames.Count)
+                    {
+                        deviceNames.RemoveAt(index);
+                    }
+
+                    entity.DeviceIds = JsonSerializer.Serialize(deviceIds);
+                    entity.DeviceNames = JsonSerializer.Serialize(deviceNames);
+                    context.Database.InsertOrReplace(entity);
+                }
+            }
         }
     }
 

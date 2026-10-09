@@ -4,6 +4,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.DeviceCtrl.AudioRelay;
 using NotifyRelay.Platforms.Windows.Services;
 using NotifyRelay.Services.Overlay;
+using NotifyRelay.Utils.Json;
 
 namespace NotifyRelay.Services.Protocol;
 
@@ -220,14 +221,14 @@ public class ProtocolRouter
             using var doc = JsonDocument.Parse(decryptedPayload);
             var root = doc.RootElement;
 
-            var type = TryGetString(root, "type");
+            var type = root.TryGetString("type");
             if (string.Equals(type, "SI_ACK", StringComparison.OrdinalIgnoreCase))
             {
                 logger.LogDebug("收到超级岛ACK，忽略转发: deviceId={DeviceId}", device.Id);
                 return;
             }
 
-            var packageName = TryGetString(root, "packageName");
+            var packageName = root.TryGetString("packageName");
             var parsedJson = SuperIslandProtocol.ParseSuperIslandInbound(device.Id, packageName ?? "", decryptedPayload);
             if (string.IsNullOrEmpty(parsedJson))
             {
@@ -238,9 +239,9 @@ public class ProtocolRouter
             var parsed = parsedDoc.RootElement;
             var sourceId = parsed.GetProperty("sourceKey").GetString() ?? "";
             var isEnd = parsed.GetProperty("isEnd").GetBoolean();
-            var title = TryGetString(parsed, "title");
-            var text = TryGetString(parsed, "text");
-            var paramV2Raw = TryGetString(parsed, "paramV2Raw");
+            var title = parsed.TryGetString("title");
+            var text = parsed.TryGetString("text");
+            var paramV2Raw = parsed.TryGetString("paramV2Raw");
             var state = BuildSuperIslandState(parsed, title, text, paramV2Raw);
             var pics = ParsePics(parsed);
 
@@ -307,15 +308,6 @@ public class ProtocolRouter
         {
             logger.LogError(ex, "处理超级岛消息时出错");
         }
-    }
-
-    private static string? TryGetString(JsonElement root, string propertyName)
-    {
-        if (root.TryGetProperty(propertyName, out var prop) && prop.ValueKind == JsonValueKind.String)
-        {
-            return prop.GetString();
-        }
-        return null;
     }
 
     private static Dictionary<string, object?>? BuildSuperIslandState(

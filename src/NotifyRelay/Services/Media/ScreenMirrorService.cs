@@ -137,8 +137,6 @@ public class ScreenMirrorService : IScreenMirrorService, IDisposable
     private (string, string) BuildScrcpyArguments(List<string> args, string deviceSerial, IDeviceSettingsService settings)
         => configBuilder.Build(args, deviceSerial, settings);
 
-    public Task<string> SelectScrcpyLocationClick() => pathResolver.PickLocationAsync();
-
     public void StopScrcpy(string deviceSerial) => processManager.StopScrcpy(deviceSerial);
 
     public void StopScrcpyByDeviceId(string deviceId) => processManager.StopScrcpyByDeviceId(deviceId);
