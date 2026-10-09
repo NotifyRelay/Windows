@@ -258,54 +258,6 @@ internal sealed partial class BatteryStatusToColorConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
-internal sealed partial class RingerModeToIconConverter : IValueConverter
-{
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is int ringerMode)
-        {
-            return ringerMode switch
-            {
-                2 => "\uE995",    // Normal (Speaker icon)
-                1 => "\uE877",    // Vibrate icon
-                0 => "\uE74F",    // Silent (Mute icon)
-                _ => "\uE995"     // Default to speaker icon
-            };
-        }
-
-        return "\uE995"; // Default icon
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
-    {
-        throw new NotImplementedException();
-    }
-}
-
-internal sealed partial class AdbIconToTypeConverter : IValueConverter
-{
-    public static readonly AdbIconToTypeConverter Instance = new();
-
-    public object Convert(object value, Type targetType, object parameter, string language)
-    {
-        if (value is string icon)
-        {
-            return icon switch
-            {
-                "\uE89E" => "USB",
-                "\uE927" => "WiFi",
-                _ => string.Empty
-            };
-        }
-        return string.Empty;
-    }
-
-    public object ConvertBack(object value, Type targetType, object parameter, string language)
-    {
-        throw new NotImplementedException();
-    }
-}
-
 internal sealed partial class BoolToOpacityConverter : ValueConverter<bool, double>
 {
     protected override double Convert(bool value, object? parameter, string? language)

@@ -504,19 +504,4 @@ public partial class DeviceManager(
 
         await Task.CompletedTask;
     }
-
-    public string GeneratePairingCode()
-    {
-        return PairingCodeHelper.GenerateCode();
-    }
-
-    public string? GetCurrentPairingCode()
-    {
-        return PairingCodeHelper.GetCurrentCode();
-    }
-
-    public bool VerifyPairingCode(string code)
-    {
-        return PairingCodeHelper.VerifyCode(code);
-    }
 }

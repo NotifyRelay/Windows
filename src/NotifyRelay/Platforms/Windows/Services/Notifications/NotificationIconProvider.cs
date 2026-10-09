@@ -68,7 +68,6 @@ internal sealed class NotificationIconProvider
         if (!string.IsNullOrEmpty(appPackage))
         {
             var iconUri = await IconUtils.GetAppIconUriAsync(appPackage);
-            var appIconExists = IconUtils.AppIconExists(appPackage);
 
 
             if (iconUri is not null)
@@ -126,28 +125,7 @@ internal sealed class NotificationIconProvider
                 var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) ? nkProp.GetString() : null;
                 if (!string.IsNullOrEmpty(largeIcon))
                 {
-                    try
-                    {
-                        string tempIconsDirectory = GetTempIconsDirectory();
-
-                        string tempFileName = $"largeIcon_{DateTime.UtcNow.Ticks}.png";
-                        string tempFilePath = Path.Combine(tempIconsDirectory, tempFileName);
-
-                        var bytes = Convert.FromBase64String(largeIcon);
-                        await File.WriteAllBytesAsync(tempFilePath, bytes);
-
-                        var fileUri = new Uri($"file://{tempFilePath}");
-                        logger.LogDebug("包名图标不存在，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", fileUri, notificationKey);
-                        builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
-                    }
-                    catch (COMException comEx)
-                    {
-                        logger.LogDebug(comEx, "WinRT COM异常：保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
-                    }
+                    await TrySetLargeIconFromBase64Async(builder, largeIcon, "largeIcon", "包名图标不存在，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", notificationKey, logger);
                 }
                 else
                 {
@@ -158,32 +136,49 @@ internal sealed class NotificationIconProvider
         else if (!string.IsNullOrEmpty(largeIcon))
         {
             var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) ? nkProp.GetString() : null;
-            try
-            {
-                string tempIconsDirectory = GetTempIconsDirectory();
-
-                string tempFileName = $"largeIcon_{notificationKey}_{DateTime.UtcNow.Ticks}.png";
-                string tempFilePath = Path.Combine(tempIconsDirectory, tempFileName);
-
-                var bytes = Convert.FromBase64String(largeIcon);
-                await File.WriteAllBytesAsync(tempFilePath, bytes);
-
-                var fileUri = new Uri($"file://{tempFilePath}");
-                logger.LogDebug("未设置包名，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", fileUri, notificationKey);
-                builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
-            }
-            catch (COMException comEx)
-            {
-                logger.LogDebug(comEx, "WinRT COM异常：保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
-            }
+            await TrySetLargeIconFromBase64Async(builder, largeIcon, $"largeIcon_{notificationKey}", "未设置包名，已保存大图标到临时目录：{FileUri}，通知键：{NotificationKey}", notificationKey, logger);
         }
         else
         {
             logger.LogDebug("未设置图标：LargeIcon 为空");
+        }
+    }
+
+    /// <summary>
+    /// 将 base64 大图标落盘到临时目录并设置为通知图标，失败时按异常类型记录日志。
+    /// </summary>
+    private static async Task TrySetLargeIconFromBase64Async(
+        AppNotificationBuilder builder,
+        string largeIconBase64,
+        string fileNamePrefix,
+        string? successLogMessage,
+        string? notificationKey,
+        ILogger logger)
+    {
+        try
+        {
+            string tempIconsDirectory = GetTempIconsDirectory();
+
+            string tempFileName = $"{fileNamePrefix}_{DateTime.UtcNow.Ticks}.png";
+            string tempFilePath = Path.Combine(tempIconsDirectory, tempFileName);
+
+            var bytes = Convert.FromBase64String(largeIconBase64);
+            await File.WriteAllBytesAsync(tempFilePath, bytes);
+
+            var fileUri = new Uri($"file://{tempFilePath}");
+            if (successLogMessage is not null)
+            {
+                logger.LogDebug(successLogMessage, fileUri, notificationKey);
+            }
+            builder.SetAppLogoOverride(fileUri, AppNotificationImageCrop.Circle);
+        }
+        catch (COMException comEx)
+        {
+            logger.LogDebug(comEx, "WinRT COM异常：保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "保存大图标到临时目录时出错，通知键：{NotificationKey}", notificationKey);
         }
     }
 }

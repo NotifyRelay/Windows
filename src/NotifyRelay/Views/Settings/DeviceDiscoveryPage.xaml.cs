@@ -1,5 +1,4 @@
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Items;
 using NotifyRelay.ViewModels.Settings;
 using NotifyRelay.Views.DevicePreferences;
 
@@ -24,38 +23,25 @@ public sealed partial class DeviceDiscoveryPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, clickedPageType =>
         {
-            new("Devices.Title".GetLocalizedResource(), typeof(DeviceSettingsPage)),
-            new("AvailableDevices/Title".GetLocalizedResource(), typeof(DeviceDiscoveryPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        var items = BreadcrumbBar.ItemsSource as ObservableCollection<BreadcrumbBarItemModel>;
-        var clickedItem = items?[args.Index];
-
-        if (clickedItem?.PageType != null && clickedItem.PageType != typeof(DeviceDiscoveryPage))
-        {
-            // Navigate back to devices page
-            if (Frame.CanGoBack)
+            if (clickedPageType != null && clickedPageType != typeof(DeviceDiscoveryPage))
             {
-                Frame.GoBack();
+                // Navigate back to devices page
+                if (Frame.CanGoBack)
+                {
+                    Frame.GoBack();
+                }
             }
-        }
+        },
+            ("Devices.Title".GetLocalizedResource(), typeof(DeviceSettingsPage)),
+            ("AvailableDevices/Title".GetLocalizedResource(), typeof(DeviceDiscoveryPage)));
     }
 
     protected override void OnNavigatedTo(NavigationEventArgs e)
     {
         base.OnNavigatedTo(e);
         DiscoveryService.StartDiscoveryAsync();
-    }
-
-    protected override void OnNavigatingFrom(NavigatingCancelEventArgs e)
-    {
-        base.OnNavigatingFrom(e);
     }
 }
 

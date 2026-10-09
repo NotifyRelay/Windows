@@ -5,39 +5,6 @@ public sealed partial class MainPageViewModel
     // 合并后的仪表盘项目集合（包含媒体块和通知）
     public ObservableCollection<object> DashboardItems { get; } = new ObservableCollection<object>();
 
-    // 混合集合，包含所有通知（分组和单个）
-    public ObservableCollection<object> MixedNotifications
-    {
-        get
-        {
-            var mixed = new ObservableCollection<object>();
-
-            // 获取所有分组通知
-            var grouped = GroupedNotifications.ToList();
-
-            // 获取所有分组使用的应用包名
-            var groupedPackageNames = new HashSet<string>(grouped.Select(g => g.AppPackage ?? "UnknownApp"));
-
-            // 添加所有分组通知
-            foreach (var group in grouped)
-            {
-                mixed.Add(group);
-            }
-
-            // 添加未分组的单个通知
-            foreach (var notification in Notifications)
-            {
-                string packageName = notification.AppPackage ?? "UnknownApp";
-                if (!groupedPackageNames.Contains(packageName))
-                {
-                    mixed.Add(notification);
-                }
-            }
-
-            return mixed;
-        }
-    }
-
     private void InitializeDashboardItems()
     {
         // 初始填充

@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.AudioRelay;
 using NotifyRelay.Native;
 
@@ -26,19 +25,14 @@ public sealed partial class VirtualSpeakerSettingsPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
         {
-            new("虚拟扬声器", typeof(VirtualSpeakerSettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+            if (Frame.CanGoBack)
+            {
+                Frame.GoBack();
+            }
+        },
+            ("虚拟扬声器", typeof(VirtualSpeakerSettingsPage)));
     }
 
     private void OnStatusChanged(object? sender, EventArgs e)

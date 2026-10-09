@@ -17,11 +17,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         {
             Applications.Clear();
 
-            var appEntities = context.Database.Table<ApplicationInfoEntity>()
-                .ToList()
-                .Where(a => HasDevice(a, deviceId))
-                .OrderBy(a => a.AppName)
-                .ToList();
+            var appEntities = QueryByDevice(deviceId);
 
             foreach (var entity in appEntities)
             {
@@ -33,9 +29,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
 
     public ObservableCollection<ApplicationInfo> GetApplicationsForDevice(string deviceId)
     {
-        return context.Database.Table<ApplicationInfoEntity>()
-            .ToList()
-            .Where(a => HasDevice(a, deviceId))
+        return QueryByDevice(deviceId)
             .Select(a => a.ToApplicationInfo(deviceId))
             .OrderBy(a => a.AppName)
             .ToObservableCollection();
@@ -225,6 +219,18 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
     }
 
     #region Helpers
+    /// <summary>
+    /// 按设备筛选应用实体，并按应用名升序排序。
+    /// </summary>
+    private List<ApplicationInfoEntity> QueryByDevice(string deviceId)
+    {
+        return context.Database.Table<ApplicationInfoEntity>()
+            .ToList()
+            .Where(a => HasDevice(a, deviceId))
+            .OrderBy(a => a.AppName)
+            .ToList();
+    }
+
     private static bool HasDevice(ApplicationInfoEntity entity, string deviceId)
     {
         return entity.AppDeviceInfoList.Any(d => d.DeviceId == deviceId);

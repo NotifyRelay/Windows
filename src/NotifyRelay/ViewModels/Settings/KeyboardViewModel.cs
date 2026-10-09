@@ -1,16 +1,13 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Platforms.Windows.Services;
 
 namespace NotifyRelay.ViewModels.Settings;
 
-public class KeyboardViewModel : INotifyPropertyChanged
+public class KeyboardViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly KeyboardHookService? _keyboardHookService;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool KeyboardOverlayEnabled
     {
@@ -69,10 +66,5 @@ public class KeyboardViewModel : INotifyPropertyChanged
     {
         _settings.KeyboardMappings = Mappings.ToList();
         _keyboardHookService?.ReloadMappings();
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

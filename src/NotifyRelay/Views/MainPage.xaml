@@ -30,17 +30,12 @@
         <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
-        <converters:RingerModeToIconConverter x:Key="RingerModeToIconConverter" />
         <converters:BatteryStatusToIconConverter x:Key="BatteryStatusToIconConverter" />
         <converters:BatteryStatusToColorConverter x:Key="BatteryStatusToColorConverter" />
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
         <converters:EmptyObjectToVisibilityConverter x:Key="InverseEmptyObjectToVisibilityConverter" Inverse="True" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
-        <converters:AdbIconToTypeConverter x:Key="AdbIconToTypeConverter" />
-        <!-- bool 在线状态 → 绿/灰圆点（与罗技电池页在线指示一致） -->
-        <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
 
         <!-- Phone Frame Overlay Animations -->
         <Storyboard x:Key="FadeInAnimation" x:Name="FadeInStoryboard">

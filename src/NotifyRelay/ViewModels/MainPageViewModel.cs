@@ -67,7 +67,6 @@ public sealed partial class MainPageViewModel : BaseViewModel
                     OnPropertyChanged(nameof(AudioStatusIcon));
                     OnPropertyChanged(nameof(AudioStatusText));
                     OnPropertyChanged(nameof(AdbConnectionTypes));
-                    OnPropertyChanged(nameof(AdbStatusIcons));
                     OnPropertyChanged(nameof(AdbDeviceInfo));
 
                     // 添加新设备的事件监听
@@ -113,17 +112,7 @@ public sealed partial class MainPageViewModel : BaseViewModel
             e.PropertyName == nameof(PairedDevice.IpAddresses))
         {
             OnPropertyChanged(nameof(AdbConnectionTypes));
-            OnPropertyChanged(nameof(AdbStatusIcons));
             OnPropertyChanged(nameof(AdbDeviceInfo));
         }
-    }
-
-    /// <summary>
-    /// 根据设备ID获取设备名称
-    /// </summary>
-    public string GetDeviceName(string deviceId)
-    {
-        var device = PairedDevices.FirstOrDefault(d => d.Id == deviceId);
-        return device?.Name ?? deviceId;
     }
 }

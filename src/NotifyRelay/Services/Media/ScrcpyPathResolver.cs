@@ -9,8 +9,7 @@ namespace NotifyRelay.Services.Media;
 /// scrcpy 可执行文件路径解析：读取设置 → 校验存在性 → 缺失时弹窗引导用户手动选择。
 /// </summary>
 /// <remarks>
-/// 承接原 <c>ScreenMirrorService</c> 中的 <c>ResolveScrcpyPathAsync</c>，
-/// 以及 <c>SelectScrcpyLocationClick</c> 的实体（该方法为公开 API，主类保留同名转发）。
+/// 承接原 <c>ScreenMirrorService</c> 中的 <c>ResolveScrcpyPathAsync</c>。
 /// </remarks>
 internal sealed class ScrcpyPathResolver(
     ILogger<ScreenMirrorService> logger,

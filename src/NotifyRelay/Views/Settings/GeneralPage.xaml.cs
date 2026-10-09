@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml.Media.Animation;
-using NotifyRelay.Data.Items;
 using NotifyRelay.Utils;
 using Windows.System;
 
@@ -24,25 +23,18 @@ public sealed partial class GeneralPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, clickedPageType =>
         {
-            new("General".GetLocalizedResource(), typeof(GeneralPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        var items = BreadcrumbBar.ItemsSource as ObservableCollection<BreadcrumbBarItemModel>;
-        var clickedItem = items?[args.Index];
-
-        if (clickedItem?.PageType != typeof(ActionsPage))
-        {
-            // Navigate back to general page
-            if (Frame.CanGoBack)
+            if (clickedPageType != typeof(ActionsPage))
             {
-                Frame.GoBack();
+                // Navigate back to general page
+                if (Frame.CanGoBack)
+                {
+                    Frame.GoBack();
+                }
             }
-        }
+        },
+            ("General".GetLocalizedResource(), typeof(GeneralPage)));
     }
 
     public async void SelectSaveLocation_Click(object sender, RoutedEventArgs e)

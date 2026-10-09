@@ -149,13 +149,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     }
 
     private static byte ParseColorChannel(string? hex, byte fallback, int offset)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#")) return fallback;
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6) return fallback;
-        try { return byte.Parse(hex.Substring(offset, 2), System.Globalization.NumberStyles.HexNumber); }
-        catch { return fallback; }
-    }
+        => UI.ColorHexParser.ParseChannel(hex, fallback, offset);
 
     public void Stop()
     {

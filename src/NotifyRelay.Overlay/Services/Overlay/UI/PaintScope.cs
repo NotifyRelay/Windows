@@ -109,7 +109,12 @@ internal sealed class PaintScope
 
     /// <summary>创建文本格式（统一 Normal 字型/拉伸）。</summary>
     public IDWriteTextFormat CreateTextFormat(string fontFamily, DWriteFontWeight weight, float size)
-        => DwFactory.CreateTextFormat(fontFamily, null!, weight, DWriteFontStyle.Normal, DWriteFontStretch.Normal, size);
+        => CreateTextFormat(DwFactory, fontFamily, weight, size);
+
+    /// <summary>文本格式唯一定义点：PaintScope / MeasureScope / OverlayRenderService 共用。</summary>
+    internal static IDWriteTextFormat CreateTextFormat(IDWriteFactory dwFactory, string fontFamily,
+        DWriteFontWeight weight, float size)
+        => dwFactory.CreateTextFormat(fontFamily, null!, weight, DWriteFontStyle.Normal, DWriteFontStretch.Normal, size);
 
     /// <summary>创建单行、超出以字符级尾随省略号截断的文本布局。</summary>
     public IDWriteTextLayout CreateTruncatedLayout(string text, IDWriteTextFormat format,

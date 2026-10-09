@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
 
@@ -9,12 +8,10 @@ namespace NotifyRelay.ViewModels.Settings;
 /// 时间浮窗子页 ViewModel：显示开关、目标屏幕、X/Y 位置、颜色、描边、缩放、格式，
 /// 并把配置推送到覆盖层渲染服务。复用 HeartRateViewModel 的 ScreenOption 作为屏幕下拉项。
 /// </summary>
-public class ClockViewModel : INotifyPropertyChanged
+public class ClockViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public List<ScreenOption> Screens { get; } = [];
 
@@ -111,10 +108,5 @@ public class ClockViewModel : INotifyPropertyChanged
             _settings.ClockScale,
             _settings.ClockShowSeconds,
             _settings.ClockUse24Hour);
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

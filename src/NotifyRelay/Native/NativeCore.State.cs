@@ -23,12 +23,6 @@ public static partial class NativeCore
         NotifyRelayCore.Safe.EnqueueMessage(_ctx, _senderQueueHandle, deviceUuid, header, plaintext, dedupKey);
     }
 
-    // 推送「全量」超级岛/媒体状态；Rust 内部 diff 并经 on_data 回调回传合并后的全量。
-    public static void PushSuperIslandState(string deviceUuid, string fullJson, bool isEnd = false)
-    {
-        NotifyRelayCore.Safe.PushSuperIslandState(_ctx, _senderQueueHandle, deviceUuid, fullJson, isEnd);
-    }
-
     public static void PushMediaState(string deviceUuid, string fullJson, bool isEnd = false)
     {
         NotifyRelayCore.Safe.PushMediaState(_ctx, _senderQueueHandle, deviceUuid, fullJson, isEnd);

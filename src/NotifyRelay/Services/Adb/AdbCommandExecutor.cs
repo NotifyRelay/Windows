@@ -10,7 +10,6 @@ namespace NotifyRelay.Services.Adb;
 /// </summary>
 public interface IAdbCommandExecutor
 {
-    AdbClient AdbClient { get; }
     Task<IReadOnlyList<DeviceData>> GetDevicesAsync(CancellationToken ct = default);
     Task<string> ExecuteShellCommandAsync(DeviceData device, string command, CancellationToken ct = default);
     Task<bool> ConnectAsync(string? host, int port = 5555, CancellationToken ct = default);
@@ -33,8 +32,6 @@ public sealed class AdbCommandExecutor(ILogger<AdbService> logger) : IAdbCommand
     internal const string PackageName = "com.xzyht.notifyrelay";
 
     private readonly AdbClient adbClient = new();
-
-    public AdbClient AdbClient => adbClient;
 
     public async Task<IReadOnlyList<DeviceData>> GetDevicesAsync(CancellationToken ct = default)
     {

@@ -113,35 +113,6 @@ public sealed partial class MainPageViewModel
         }
     }
 
-    /// <summary>
-    /// 获取所有连接的ADB设备图标
-    /// </summary>
-    public List<string> AdbStatusIcons
-    {
-        get
-        {
-            var icons = new List<string>();
-
-            if (Device == null || !Device.HasAdbConnection || Device.ConnectedAdbDevices.Count == 0)
-            {
-                return icons;
-            }
-
-            // 添加USB图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.USB))
-            {
-                icons.Add("\uE89E"); // USB图标
-            }
-
-            // 添加WiFi图标
-            if (Device.ConnectedAdbDevices.Any(d => d.Type == NotifyRelay.Data.Enums.DeviceType.WIFI))
-            {
-                icons.Add("\uE927"); // WiFi图标
-            }
-
-            return icons;
-        }
-    }
     #endregion
 
     /// <summary>
@@ -160,7 +131,6 @@ public sealed partial class MainPageViewModel
     private void OnAdbDevicesCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
     {
         OnPropertyChanged(nameof(AdbConnectionTypes));
-        OnPropertyChanged(nameof(AdbStatusIcons));
         OnPropertyChanged(nameof(AdbDeviceInfo));
     }
 }

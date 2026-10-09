@@ -50,8 +50,8 @@ internal sealed class DeepSeekBalanceElement : IOverlayElement
         {
             _enabled = enabled;
             _targetScreen = string.IsNullOrEmpty(targetScreen) ? "PRIMARY" : targetScreen;
-            _xPct = Math.Clamp(xPct, 0f, 100f);
-            _yPct = Math.Clamp(yPct, 0f, 100f);
+            _xPct = ElementConfig.ClampXPercent(xPct);
+            _yPct = ElementConfig.ClampYPercent(yPct);
             _scale = ElementContext.ResolveScale(scale, 0.5f, 4f);
         }, "覆盖层数据锁获取超时，跳过 DeepSeek 余额配置更新");
     }

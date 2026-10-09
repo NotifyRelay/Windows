@@ -63,10 +63,7 @@ public static partial class NativeCore
     public static string? GetGitHash()
     {
         var ptr = NotifyRelayCore.nrc_get_git_hash();
-        if (ptr == IntPtr.Zero) return null;
-        var result = Marshal.PtrToStringAnsi(ptr);
-        NotifyRelayCore.nrc_free_string(ptr);
-        return result;
+        return NotifyRelayCore.PtrToStringAndFree(ptr);
     }
 
     // ======== Heartbeat scheduler ========

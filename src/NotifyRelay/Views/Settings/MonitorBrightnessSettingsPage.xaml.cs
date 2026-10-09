@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Items;
+using NotifyRelay.Utils;
 using NotifyRelay.Worker.Services;
-using Windows.Storage.Pickers;
 
 namespace NotifyRelay.Views.Settings;
 
@@ -26,16 +25,11 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
         {
-            new("显示器亮度", typeof(MonitorBrightnessSettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack) Frame.GoBack();
+            if (Frame.CanGoBack) Frame.GoBack();
+        },
+            ("显示器亮度", typeof(MonitorBrightnessSettingsPage)));
     }
 
     private void OnSyncStatusChanged(object? sender, EventArgs e) => UpdateSyncStatusUI();
@@ -56,15 +50,7 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
     private async void BrowseButton_Click(object sender, RoutedEventArgs e)
     {
-        var openPicker = new FileOpenPicker();
-        var hWnd = WinRT.Interop.WindowNative.GetWindowHandle(App.MainWindow);
-        WinRT.Interop.InitializeWithWindow.Initialize(openPicker, hWnd);
-
-        openPicker.ViewMode = PickerViewMode.List;
-        openPicker.FileTypeFilter.Add(".exe");
-
-        var file = await openPicker.PickSingleFileAsync();
-        if (file != null)
+        if (await PickerHelper.PickFileAsync([".exe"]) is { } file)
             ViewModel.ControlMyMonitorPath = file.Path;
     }
 
