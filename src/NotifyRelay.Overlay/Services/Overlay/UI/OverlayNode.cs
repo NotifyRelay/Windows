@@ -21,8 +21,7 @@ internal sealed class MeasureScope
 
     /// <summary>创建文本格式（统一 Normal 字型/拉伸）。</summary>
     public IDWriteTextFormat CreateTextFormat(string fontFamily, FontWeight weight, float size)
-        => DwFactory.CreateTextFormat(fontFamily, null!, weight,
-            FontStyle.Normal, FontStretch.Normal, size);
+        => PaintScope.CreateTextFormat(DwFactory, fontFamily, weight, size);
 
     /// <summary>创建单行、不换行、宽度不限的文本布局（用于精确量测）。</summary>
     public IDWriteTextLayout CreateMeasureLayout(string text, IDWriteTextFormat format, float measureWidth = 10000f)
