@@ -36,8 +36,6 @@
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
         <converters:EmptyObjectToVisibilityConverter x:Key="InverseEmptyObjectToVisibilityConverter" Inverse="True" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
-        <!-- bool 在线状态 → 绿/灰圆点（与罗技电池页在线指示一致） -->
-        <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
 
         <!-- Phone Frame Overlay Animations -->
         <Storyboard x:Key="FadeInAnimation" x:Name="FadeInStoryboard">

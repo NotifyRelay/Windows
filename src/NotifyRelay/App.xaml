@@ -20,6 +20,7 @@
 
             <!--  无参转换器共享资源（原分散于各页面）  -->
             <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
 
 
 
