@@ -61,6 +61,5 @@ public static partial class NotifyRelayCore
         // ======== Key management wrappers ========
         public static int GenerateKeypair(IntPtr ctx) => NotifyRelayCore.nrc_ecdh_generate_keypair(ctx);
         public static string? GetPublicKey(IntPtr ctx) => PtrToStringAndFree(NotifyRelayCore.nrc_ecdh_get_public_key(ctx));
-        public static int HasKeypair(IntPtr ctx) => NotifyRelayCore.nrc_ecdh_has_keypair(ctx);
     }
 }
