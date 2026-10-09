@@ -4,6 +4,7 @@ using NotifyRelay.Data.Models;
 using NotifyRelay.Helpers;
 // LocalSocketRelayServer 现位于 NotifyRelay.Services.Protocol
 using NotifyRelay.Services.Protocol;
+using NotifyRelay.Utils.Json;
 using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Services.Notifications;
@@ -64,7 +65,7 @@ public class MusicMediaBlockManager(
             var isEnd = parsed.TryGetProperty("isEnd", out var ieProp) && ieProp.GetBoolean();
             var titleStr = parsed.TryGetProperty("title", out var tProp) ? tProp.GetString() ?? "" : "";
             var textStr = parsed.TryGetProperty("text", out var txProp) ? txProp.GetString() ?? "" : "";
-            var coverUrl = parsed.TryGetProperty("coverImage", out var cuProp) ? cuProp.GetString() : null;
+            var coverUrl = parsed.TryGetString("coverImage");
 
             // 解析播放状态：缺省视为播放中（与 SendMediaInfoAsync 行为一致）
             bool isPlaying = true;

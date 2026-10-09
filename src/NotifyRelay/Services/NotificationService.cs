@@ -9,6 +9,7 @@ using NotifyRelay.Services.Notifications;
 using NotifyRelay.Services.Overlay;
 using NotifyRelay.Services.Protocol;
 using NotifyRelay.Utils;
+using NotifyRelay.Utils.Json;
 using NotifyRelay.Utils.Serialization;
 using Windows.System;
 using Notification = NotifyRelay.Data.Models.Notification;
@@ -143,10 +144,10 @@ public class NotificationService(
             {
                 using var parsedDoc = JsonDocument.Parse(parsedJson);
                 var parsed = parsedDoc.RootElement;
-                title = parsed.TryGetProperty("title", out var tProp) ? tProp.GetString() : null;
-                appPackage = parsed.TryGetProperty("packageName", out var pnProp) ? pnProp.GetString() : null;
-                appName = parsed.TryGetProperty("appName", out var anProp) ? anProp.GetString() : null;
-                text = parsed.TryGetProperty("text", out var txProp) ? txProp.GetString() : null;
+                title = parsed.TryGetString("title");
+                appPackage = parsed.TryGetString("packageName");
+                appName = parsed.TryGetString("appName");
+                text = parsed.TryGetString("text");
                 if (parsed.TryGetProperty("time", out var tsProp) && tsProp.ValueKind == JsonValueKind.Number)
                 {
                     var timeVal = tsProp.GetInt64();
@@ -156,14 +157,14 @@ public class NotificationService(
             catch { /* core 归一解析失败，使用缺省值 */ }
         }
         var notificationKey = root.TryGetProperty("notificationKey", out var nkProp) && nkProp.ValueKind == JsonValueKind.String ? nkProp.GetString() ?? Guid.NewGuid().ToString() : Guid.NewGuid().ToString();
-        var appIcon = root.TryGetProperty("appIcon", out var aiProp) ? aiProp.GetString() : null;
+        var appIcon = root.TryGetString("appIcon");
         var isLocked = root.TryGetProperty("isLocked", out var ilProp) && ilProp.GetBoolean();
-        var bigPicture = root.TryGetProperty("bigPicture", out var bpProp) ? bpProp.GetString() : null;
-        var largeIcon = root.TryGetProperty("largeIcon", out var liProp) ? liProp.GetString() : null;
-        var coverUrl = root.TryGetProperty("coverUrl", out var cuProp) ? cuProp.GetString() : null;
-        var mediaType = root.TryGetProperty("mediaType", out var mtProp) ? mtProp.GetString() : null;
-        var tag = root.TryGetProperty("tag", out var tgProp) ? tgProp.GetString() : null;
-        var groupKey = root.TryGetProperty("groupKey", out var gkProp) ? gkProp.GetString() : null;
+        var bigPicture = root.TryGetString("bigPicture");
+        var largeIcon = root.TryGetString("largeIcon");
+        var coverUrl = root.TryGetString("coverUrl");
+        var mediaType = root.TryGetString("mediaType");
+        var tag = root.TryGetString("tag");
+        var groupKey = root.TryGetString("groupKey");
 
         logger.LogDebug("收到通知消息: NotificationType={NotificationType}, Title={Title}, AppPackage={AppPackage}, AppName={AppName}, Text={Text}",
             notificationType, title, appPackage, appName, text);
