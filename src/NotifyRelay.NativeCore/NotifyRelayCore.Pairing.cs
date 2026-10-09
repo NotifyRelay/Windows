@@ -75,12 +75,6 @@ public static partial class NotifyRelayCore
             return result;
         }
 
-        // ======== Pairing code management (Rust-generated) ========
-        public static string? GeneratePairingCode(IntPtr ctx, uint ttlSecs = 300)
-        {
-            return PtrToStringAndFree(NotifyRelayCore.nrc_generate_pairing_code(ctx, ttlSecs));
-        }
-
         // ======== Device identity ========
         public static string? ExportDeviceKey(IntPtr ctx, string deviceUuid)
         {
