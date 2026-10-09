@@ -32,7 +32,6 @@
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
         <converters:BatteryStatusToIconConverter x:Key="BatteryStatusToIconConverter" />
         <converters:BatteryStatusToColorConverter x:Key="BatteryStatusToColorConverter" />
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
         <converters:EmptyObjectToVisibilityConverter x:Key="InverseEmptyObjectToVisibilityConverter" Inverse="True" />
