@@ -26,16 +26,11 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
         {
-            new("显示器亮度", typeof(MonitorBrightnessSettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack) Frame.GoBack();
+            if (Frame.CanGoBack) Frame.GoBack();
+        },
+            ("显示器亮度", typeof(MonitorBrightnessSettingsPage)));
     }
 
     private void OnSyncStatusChanged(object? sender, EventArgs e) => UpdateSyncStatusUI();

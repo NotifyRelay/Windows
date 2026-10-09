@@ -13,17 +13,12 @@ public sealed partial class OverlaySettingsPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
         {
-            new("覆盖层", typeof(OverlaySettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack)
-            Frame.GoBack();
+            if (Frame.CanGoBack)
+                Frame.GoBack();
+        },
+            ("覆盖层", typeof(OverlaySettingsPage)));
     }
 
     private void NavigationView_SelectionChanged(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
