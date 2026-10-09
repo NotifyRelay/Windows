@@ -33,13 +33,6 @@ public static partial class NotifyRelayCore
             return PtrToStringAndFree(result);
         }
 
-        public static void AppSyncClearIconPending(IntPtr ctx, string packagesJson)
-        {
-            var pk = StringToPtr(packagesJson);
-            NotifyRelayCore.nrc_app_sync_clear_icon_pending(ctx, pk);
-            Marshal.FreeHGlobal(pk);
-        }
-
         public static string? AppSyncParseIconResponse(string payloadJson)
         {
             var p = StringToPtr(payloadJson);
