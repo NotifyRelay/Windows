@@ -1,4 +1,3 @@
-using NotifyRelay.ViewModels.Settings;
 using Windows.System;
 
 namespace NotifyRelay.Views.DeviceSettings;

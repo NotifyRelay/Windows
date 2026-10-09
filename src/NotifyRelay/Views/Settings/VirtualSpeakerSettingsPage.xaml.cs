@@ -1,7 +1,6 @@
 using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Data.Items;
 using NotifyRelay.DeviceCtrl.AudioRelay;
 using NotifyRelay.Native;
 

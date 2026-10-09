@@ -1,5 +1,4 @@
 using Microsoft.UI.Xaml.Media.Animation;
-using NotifyRelay.Data.Items;
 using NotifyRelay.Utils;
 using Windows.System;
 
