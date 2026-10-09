@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.HeartRate;
@@ -19,14 +18,11 @@ public sealed class ScreenOption
 /// 心率设置子页 ViewModel：BLE 扫描/连接/断开、显示开关、样式组合、
 /// 目标屏幕与 X/Y 位置，并把配置与实时心率推送到覆盖层渲染服务。
 /// </summary>
-public class HeartRateViewModel : INotifyPropertyChanged
+public class HeartRateViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
     private readonly HeartRateBleService _bleService;
-    private DispatcherQueue? _dispatcher;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<HeartRateDeviceInfo> Devices { get; } = [];
 
@@ -208,7 +204,7 @@ public class HeartRateViewModel : INotifyPropertyChanged
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
         _bleService = Ioc.Default.GetRequiredService<HeartRateBleService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
 
@@ -275,15 +271,6 @@ public class HeartRateViewModel : INotifyPropertyChanged
         RunOnUi(() => CurrentBpm = bpm);
     }
 
-    private void RunOnUi(Action action)
-    {
-        var dispatcher = _dispatcher ??= DispatcherQueue.GetForCurrentThread();
-        if (dispatcher != null && !dispatcher.HasThreadAccess)
-            dispatcher.TryEnqueue(() => action());
-        else if (dispatcher != null)
-            action();
-    }
-
     /// <summary>把当前显示配置推送到渲染服务。</summary>
     private void PushConfig()
     {
@@ -301,10 +288,5 @@ public class HeartRateViewModel : INotifyPropertyChanged
             _settings.HeartRateHighAlert,
             _settings.HeartRateSpikeDelta,
             _settings.HeartRateHideWhenDisconnected);
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

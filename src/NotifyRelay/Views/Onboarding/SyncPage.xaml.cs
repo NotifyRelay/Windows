@@ -27,9 +27,4 @@ public sealed partial class SyncPage : Page
         ApplicationData.Current.LocalSettings.Values["HasCompletedOnboarding"] = true;
         Frame.Navigate(typeof(MainPage), null, new DrillInNavigationTransitionInfo());
     }
-
-    protected override void OnNavigatingFrom(NavigatingCancelEventArgs e)
-    {
-        base.OnNavigatingFrom(e);
-    }
 }

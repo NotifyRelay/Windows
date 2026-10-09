@@ -13,19 +13,14 @@ public sealed partial class ScrcpyAdbSettingsPage : Page
 
     private void SetupBreadcrumb()
     {
-        BreadcrumbBar.ItemsSource = new ObservableCollection<BreadcrumbBarItemModel>
+        BreadcrumbHelper.Setup(BreadcrumbBar, _ =>
         {
-            new("ScrcpyAdbSettings".GetLocalizedResource(), typeof(ScrcpyAdbSettingsPage))
-        };
-        BreadcrumbBar.ItemClicked += BreadcrumbBar_ItemClicked;
-    }
-
-    private void BreadcrumbBar_ItemClicked(BreadcrumbBar sender, BreadcrumbBarItemClickedEventArgs args)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
-        }
+            if (Frame.CanGoBack)
+            {
+                Frame.GoBack();
+            }
+        },
+            ("ScrcpyAdbSettings".GetLocalizedResource(), typeof(ScrcpyAdbSettingsPage)));
     }
 
     public async void SelectScrcpyLocation_Click(object sender, RoutedEventArgs e)

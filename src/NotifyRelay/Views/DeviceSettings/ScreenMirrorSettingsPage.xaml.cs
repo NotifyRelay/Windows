@@ -3,27 +3,11 @@ using Windows.System;
 
 namespace NotifyRelay.Views.DeviceSettings;
 
-public sealed partial class ScreenMirrorSettingsPage : Page
+public sealed partial class ScreenMirrorSettingsPage : DeviceSettingsSubPageBase
 {
-    public DeviceSettingsViewModel ViewModel
-    {
-        get => (DeviceSettingsViewModel)DataContext;
-        private set => DataContext = value;
-    }
-
     public ScreenMirrorSettingsPage()
     {
         InitializeComponent();
-    }
-
-    protected override void OnNavigatedTo(NavigationEventArgs e)
-    {
-        base.OnNavigatedTo(e);
-
-        if (e.Parameter is DeviceSettingsViewModel deviceSettingsViewModel)
-        {
-            ViewModel = deviceSettingsViewModel;
-        }
     }
 
     private void OnKeyDown(object sender, KeyRoutedEventArgs e)
@@ -32,14 +16,6 @@ public sealed partial class ScreenMirrorSettingsPage : Page
         {
             Focus(FocusState.Pointer);
             e.Handled = true;
-        }
-    }
-
-    private void BackButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
         }
     }
 }

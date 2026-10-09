@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Services.Overlay;
@@ -6,12 +5,10 @@ using Vortice.DirectWrite;
 
 namespace NotifyRelay.ViewModels.Settings;
 
-public class DanmakuViewModel : INotifyPropertyChanged
+public class DanmakuViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool DanmakuNotificationEnabled
     {
@@ -288,10 +285,5 @@ public class DanmakuViewModel : INotifyPropertyChanged
             PerformanceMode = DanmakuPerformanceMode
         };
         _renderService?.UpdateStyle(style);
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

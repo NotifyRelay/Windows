@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
@@ -11,19 +10,18 @@ namespace NotifyRelay.ViewModels.Settings;
 /// 职责：余额监控开关（开 = 轮询 + 叠加层显示）、API Token、查询间隔、历史记录，
 /// 以及余额卡片的显示设置（目标屏幕 / X、Y 位置 / 缩放），并推送到覆盖层渲染服务。
 /// </summary>
-public class DeepSeekBalanceViewModel : INotifyPropertyChanged
+public class DeepSeekBalanceViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly DeepSeekBalanceService _deepSeekService;
     private readonly OverlayRenderService? _renderService;
-    private DispatcherQueue? _dispatcher;
 
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _deepSeekService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
 
@@ -32,8 +30,6 @@ public class DeepSeekBalanceViewModel : INotifyPropertyChanged
 
         LoadFromSettings();
     }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     // ===== 历史记录 =====
 
@@ -365,18 +361,4 @@ public class DeepSeekBalanceViewModel : INotifyPropertyChanged
         3 => 86400000,
         _ => 60000
     };
-
-    private void RunOnUi(Action action)
-    {
-        var dispatcher = _dispatcher ??= DispatcherQueue.GetForCurrentThread();
-        if (dispatcher != null && !dispatcher.HasThreadAccess)
-            dispatcher.TryEnqueue(() => action());
-        else if (dispatcher != null)
-            action();
-        else
-            action();
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
