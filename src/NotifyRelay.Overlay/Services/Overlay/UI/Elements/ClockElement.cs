@@ -46,13 +46,13 @@ internal sealed class ClockElement : IOverlayElement
         {
             _enabled = enabled;
             _targetScreen = string.IsNullOrEmpty(targetScreen) ? "PRIMARY" : targetScreen;
-            _xPct = Math.Clamp(xPct, 0f, 100f);
-            _yPct = Math.Clamp(yPct, 0f, 100f);
+            _xPct = ElementConfig.ClampXPercent(xPct);
+            _yPct = ElementConfig.ClampYPercent(yPct);
             _colorR = ColorHexParser.ParseChannel(colorHex, 255, 0);
             _colorG = ColorHexParser.ParseChannel(colorHex, 255, 2);
             _colorB = ColorHexParser.ParseChannel(colorHex, 255, 4);
-            _outlineWidth = Math.Clamp(outlineWidth, 0.1f, 3f);
-            _scale = Math.Clamp(scale, 0.5f, 2f);
+            _outlineWidth = ElementConfig.ClampOutlineWidth(outlineWidth);
+            _scale = ElementConfig.ClampScale(scale);
             _showSeconds = showSeconds;
             _use24Hour = use24Hour;
         }, "覆盖层数据锁获取超时，跳过时间浮窗配置更新");
