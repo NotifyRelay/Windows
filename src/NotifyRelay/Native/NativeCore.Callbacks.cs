@@ -40,6 +40,13 @@ public static partial class NativeCore
         _callbackRefs.Add(cb);
     }
 
+    // 注册回调并登记保活引用：先 setter 后 Add。
+    private static void Register<TDelegate>(Action<IntPtr, TDelegate> setter, TDelegate cb) where TDelegate : Delegate
+    {
+        setter(_ctx, cb);
+        _callbackRefs.Add(cb);
+    }
+
     public static void RegisterCallbacks()
     {
         if (_ctx == IntPtr.Zero) return;
@@ -160,8 +167,7 @@ public static partial class NativeCore
                     break;
             }
         };
-        NotifyRelayCore.nrc_set_on_pairing_cb(_ctx, onPairingCb);
-        _callbackRefs.Add(onPairingCb);
+        Register(NotifyRelayCore.nrc_set_on_pairing_cb, onPairingCb);
 
         NotifyRelayCore.OnDataCb onDataCb = (uuidPtr, msgTypePtr, plaintextPtr, userData) =>
         {
@@ -211,8 +217,7 @@ public static partial class NativeCore
                     break;
             }
         };
-        NotifyRelayCore.nrc_set_on_data_cb(_ctx, onDataCb);
-        _callbackRefs.Add(onDataCb);
+        Register(NotifyRelayCore.nrc_set_on_data_cb, onDataCb);
 
         // ---- on_state_query (超级岛/媒体心跳查询回调：0=不存在 / 1=存在无变更 / 2=存在有变更) ----
         // 运行在 Rust 心跳线程且锁已释放；PC 仅作为媒体发送端：
@@ -234,8 +239,7 @@ public static partial class NativeCore
                 return 1; // 异常保守保活，等待下一次查询
             }
         };
-        NotifyRelayCore.nrc_set_on_state_query_cb(_ctx, onStateQueryCb);
-        _callbackRefs.Add(onStateQueryCb);
+        Register(NotifyRelayCore.nrc_set_on_state_query_cb, onStateQueryCb);
 
         // ---- on_device_discovered（TCP 扫描发现）----
         // 设备状态（名称解码、状态登记、可见性）全部由 Rust core 负责，
@@ -250,8 +254,7 @@ public static partial class NativeCore
 
             HeartbeatProcessor?.NotifyDeviceListChanged();
         };
-        NotifyRelayCore.nrc_set_on_device_discovered_cb(_ctx, onDeviceDiscoveredCb);
-        _callbackRefs.Add(onDeviceDiscoveredCb);
+        Register(NotifyRelayCore.nrc_set_on_device_discovered_cb, onDeviceDiscoveredCb);
 
         NotifyRelayCore.OnDeviceTimeoutCb onDeviceTimeoutCb = (uuidPtr, userData) =>
         {
@@ -275,8 +278,7 @@ public static partial class NativeCore
                 HandleDeviceTimeout(uuid);
             }
         };
-        NotifyRelayCore.nrc_set_on_device_timeout_cb(_ctx, onDeviceTimeoutCb);
-        _callbackRefs.Add(onDeviceTimeoutCb);
+        Register(NotifyRelayCore.nrc_set_on_device_timeout_cb, onDeviceTimeoutCb);
 
         NotifyRelayCore.OnDeviceConnectedCb onDeviceConnectedCb = (uuidPtr, ipPtr, userData) =>
         {
@@ -289,22 +291,19 @@ public static partial class NativeCore
                 System.Diagnostics.Debug.WriteLine($"[CoreCb] 设备已连接: {uuid} ({ip})");
             }
         };
-        NotifyRelayCore.nrc_set_on_device_connected_cb(_ctx, onDeviceConnectedCb);
-        _callbackRefs.Add(onDeviceConnectedCb);
+        Register(NotifyRelayCore.nrc_set_on_device_connected_cb, onDeviceConnectedCb);
 
         NotifyRelayCore.OnDeviceDisconnectedCb onDeviceDisconnectedCb = (uuidPtr, userData) =>
         {
             // 心跳维持连接的断开不打印，真实离线由 on_device_timeout（超时检测）体现
         };
-        NotifyRelayCore.nrc_set_on_device_disconnected_cb(_ctx, onDeviceDisconnectedCb);
-        _callbackRefs.Add(onDeviceDisconnectedCb);
+        Register(NotifyRelayCore.nrc_set_on_device_disconnected_cb, onDeviceDisconnectedCb);
 
         NotifyRelayCore.OnTcpErrorCb onTcpErrorCb = (errorPtr, userData) =>
         {
             var error = Marshal.PtrToStringUTF8(errorPtr) ?? "unknown";
             System.Diagnostics.Debug.WriteLine($"[CoreCb] TCP 错误: {error}");
         };
-        NotifyRelayCore.nrc_set_on_tcp_error_cb(_ctx, onTcpErrorCb);
-        _callbackRefs.Add(onTcpErrorCb);
+        Register(NotifyRelayCore.nrc_set_on_tcp_error_cb, onTcpErrorCb);
     }
 }
