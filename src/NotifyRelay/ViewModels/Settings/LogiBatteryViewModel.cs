@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
@@ -16,14 +15,11 @@ namespace NotifyRelay.ViewModels.Settings;
 /// 叠加层子设置页 - 罗技电池 ViewModel。
 /// 包装 6 个设置项 + 实时设备列表（与 LogiBatteryProvider 事件同步）。
 /// </summary>
-public class LogiBatteryViewModel : INotifyPropertyChanged
+public class LogiBatteryViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly ILogiBatteryProvider? _provider;
     private readonly OverlayRenderService? _renderService;
-    private DispatcherQueue? _dispatcher;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<LogiBatteryDeviceInfo> Devices { get; } = [];
 
@@ -92,7 +88,7 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _provider = Ioc.Default.GetService<ILogiBatteryProvider>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
 
@@ -147,18 +143,6 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
                 StatusHint = null;
         });
     }
-
-    private void RunOnUi(Action action)
-    {
-        var dispatcher = _dispatcher ??= DispatcherQueue.GetForCurrentThread();
-        if (dispatcher != null && !dispatcher.HasThreadAccess)
-            dispatcher.TryEnqueue(() => action());
-        else if (dispatcher != null)
-            action();
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "") =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 /// <summary>LogiBatteryProvider 的小扩展方法：设置页手动刷新按钮使用。</summary>
