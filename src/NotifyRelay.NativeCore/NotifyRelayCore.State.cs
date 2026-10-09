@@ -21,25 +21,12 @@ public static partial class NotifyRelayCore
 
     public static partial class Safe
     {
-        public static string? ExportState(IntPtr ctx)
-        {
-            return PtrToStringAndFree(nrc_export_state(ctx));
-        }
-
         public static int ImportState(IntPtr ctx, string json)
         {
             var jsonPtr = StringToPtr(json);
             var result = nrc_import_state(ctx, jsonPtr);
             Marshal.FreeHGlobal(jsonPtr);
             return result;
-        }
-
-        public static string? EncryptLocalState(IntPtr ctx, string plaintext, string deviceUuid)
-        {
-            var p = StringToPtr(plaintext); var u = StringToPtr(deviceUuid);
-            var result = nrc_encrypt_local_state(ctx, p, u);
-            Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(u);
-            return PtrToStringAndFree(result);
         }
 
         public static string? DecryptLocalState(IntPtr ctx, string encryptedB64, string deviceUuid)

@@ -45,22 +45,6 @@ public static partial class NotifyRelayCore
     public static partial class Safe
     {
         // ======== Send functions ========
-        public static int SendHandshake(IntPtr ctx, string uuid, string pubKey, string localIp, string targetIp, int battery, string deviceType)
-        {
-            var u = StringToPtr(uuid); var k = StringToPtr(pubKey); var li = StringToPtr(localIp); var ti = StringToPtr(targetIp); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_send_handshake(ctx, u, k, li, ti, battery, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(k); Marshal.FreeHGlobal(li); Marshal.FreeHGlobal(ti); Marshal.FreeHGlobal(d);
-            return result;
-        }
-
-        public static int SendPairingInit(IntPtr ctx, string localUuid, string targetUuid, string expectedCode, int battery, string deviceType)
-        {
-            var lu = StringToPtr(localUuid); var tu = StringToPtr(targetUuid); var c = StringToPtr(expectedCode); var d = StringToPtr(deviceType);
-            var result = NotifyRelayCore.nrc_send_pairing_init(ctx, lu, tu, c, battery, d);
-            Marshal.FreeHGlobal(lu); Marshal.FreeHGlobal(tu); Marshal.FreeHGlobal(c); Marshal.FreeHGlobal(d);
-            return result;
-        }
-
         public static int SendPairingResp(IntPtr ctx, string uuid, string ltPub, string pairingCode, string ip, int battery, string deviceType)
         {
             var u = StringToPtr(uuid); var l = StringToPtr(ltPub); var c = StringToPtr(pairingCode); var i = StringToPtr(ip); var d = StringToPtr(deviceType);
@@ -95,11 +79,6 @@ public static partial class NotifyRelayCore
         public static string? GeneratePairingCode(IntPtr ctx, uint ttlSecs = 300)
         {
             return PtrToStringAndFree(NotifyRelayCore.nrc_generate_pairing_code(ctx, ttlSecs));
-        }
-
-        public static void ClearPairingCode(IntPtr ctx)
-        {
-            NotifyRelayCore.nrc_clear_pairing_code(ctx);
         }
 
         // ======== Device identity ========
