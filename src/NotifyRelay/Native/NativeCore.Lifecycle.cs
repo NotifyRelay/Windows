@@ -22,24 +22,9 @@ public static partial class NativeCore
         return NotifyRelayCore.Safe.ComputeDedupKey(deviceUuid, data);
     }
 
-    public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
-    {
-        return NotifyRelayCore.Safe.ComputeFeatureId(superPkg, paramV2Raw, title, text, instanceId);
-    }
-
-    public static string? ExportState()
-    {
-        return NotifyRelayCore.Safe.ExportState(_ctx);
-    }
-
     public static int ImportState(string json)
     {
         return NotifyRelayCore.Safe.ImportState(_ctx, json);
-    }
-
-    public static string? EncryptLocalState(string plaintext, string deviceUuid)
-    {
-        return NotifyRelayCore.Safe.EncryptLocalState(_ctx, plaintext, deviceUuid);
     }
 
     public static string? DecryptLocalState(string encryptedB64, string deviceUuid)
