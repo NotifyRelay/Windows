@@ -581,7 +581,7 @@ internal static class Templates
                     }
 
                     // 进度条（底部），现状 progY = ty + 6 且累加 12
-                    if (state.HasProgress)
+                    if (state.HasProgress || state.IsAutoProgress)
                     {
                         c.Leaf<Spacer>("progGap", sp => { sp.FixedHeight = 6f; });
                         c.Leaf<ProgressBar>("progress", p =>
@@ -590,7 +590,7 @@ internal static class Templates
                             p.Radius = 1.5f;
                             p.TrackColor = new Color4(0.35f, 0.35f, 0.35f, Opacity * 0.6f);
                             p.FillColor = new Color4(0.3f, 0.7f, 1f, Opacity);
-                            p.Progress = Math.Clamp(state.Progress, 0, 100);
+                            p.Progress = state.GetRenderProgress();
                             p.Opacity = Opacity;
                         });
                         c.Leaf<Spacer>("progTail", sp => { sp.FixedHeight = 3f; });
@@ -734,7 +734,9 @@ internal static class Templates
         int requested = mp.Points ?? 3;
         int nodeCount = Math.Max(1, requested);
         int segmentCount = Math.Max(1, nodeCount - 1);
-        float progressValue = Math.Clamp(mp.Progress, 0, 100);
+        float progressValue = item.State.IsAutoProgress
+            ? item.State.GetRenderProgress()
+            : Math.Clamp(mp.Progress, 0, 100);
         float pct = progressValue / 100f;
         int pointerIndex = Math.Clamp((int)(pct * segmentCount), 0, nodeCount - 1);
         bool isFood = string.Equals(item.State.ParamV2?.Business, "food_delivery", StringComparison.OrdinalIgnoreCase);

@@ -445,7 +445,9 @@ internal static class SuperIslandCard
                                 {
                                     p.Height = 4f;
                                     p.Radius = 2f;
-                                    p.Progress = Math.Clamp(pv.ProgressInfo.Progress, 0, 100);
+                                    p.Progress = item.State.IsAutoProgress
+                                        ? item.State.GetRenderProgress()
+                                        : Math.Clamp(pv.ProgressInfo.Progress, 0, 100);
                                     p.FillColor = ColorHexParser.Parse(pv.ProgressInfo.ColorProgress
                                         ?? pv.ProgressInfo.ColorProgressEnd) ?? new Color4(0f, 1f, 0f, 1f);
                                     p.Opacity = Opacity;
