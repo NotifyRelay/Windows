@@ -225,11 +225,13 @@ public class NotificationService(
 
                 await dispatcher.EnqueueAsync(async () =>
                         {
-                            var existingNotification = activeNotifications.FirstOrDefault(n =>
-                                n.AppPackage == appPackage &&
-                                n.Title == title &&
-                                n.Text == text &&
-                                n.Type == notificationType);
+                            var existingNotification =
+                                activeNotifications.FirstOrDefault(n => n.Key == notificationKey)
+                                ?? activeNotifications.FirstOrDefault(n =>
+                                    n.AppPackage == appPackage &&
+                                    n.Title == title &&
+                                    n.Text == text &&
+                                    n.Type == notificationType);
 
                             bool isNewToUser = existingNotification is null;
                             Notification notification;
@@ -237,6 +239,10 @@ public class NotificationService(
                             if (existingNotification != null)
                             {
                                 notification = existingNotification;
+                                // 同一通知键的后续更新：原地同步内容，不新增条目、不重复弹幕
+                                if (!string.IsNullOrEmpty(title)) notification.Title = title;
+                                if (text != null) notification.Text = text;
+                                notification.TimeStamp = timeStamp;
                                 if (!notification.SourceDevices.Any(sd => sd.DeviceId == device.Id))
                                 {
                                     notification.AddSourceDevice(device.Id, device.Name);
