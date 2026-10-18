@@ -1,6 +1,6 @@
 using NotifyRelay.Data.AppDatabase.Repository;
 using NotifyRelay.Data.Contracts;
-using NotifyRelay.Services.Filters;
+using NotifyRelay.Services.Notifications;
 using NotifyRelay.Utils;
 using Windows.Storage.Streams;
 using Windows.UI.Notifications;
@@ -432,26 +432,6 @@ public class LocalNotificationListenerService : ILocalNotificationListenerServic
         }
 
         _logger.LogDebug("ExtractAppIcon: 所有方案均失败，返回 null");
-        return null;
-    }
-
-    private static async Task<IRandomAccessStream?> ResolveImageUrlAsync(string url)
-    {
-        try
-        {
-            var uri = new Uri(url);
-            if (uri.Scheme == "file")
-            {
-                var file = await Windows.Storage.StorageFile.GetFileFromPathAsync(uri.LocalPath);
-                return await file.OpenReadAsync();
-            }
-            if (uri.Scheme is "ms-appx" or "ms-appdata")
-            {
-                var file = await Windows.Storage.StorageFile.GetFileFromApplicationUriAsync(uri);
-                return await file.OpenReadAsync();
-            }
-        }
-        catch { }
         return null;
     }
 

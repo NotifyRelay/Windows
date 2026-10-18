@@ -20,7 +20,6 @@ public interface INotificationService
     void Initialize();
 
     Task HandleNotificationMessage(PairedDevice device, string payload);
-    Task HandleMediaPlayNotification(PairedDevice device, string payload);
     void RemoveNotification(PairedDevice device, Notification notification);
 
     /// <summary>
@@ -44,27 +43,11 @@ public interface INotificationService
     void ClearAllNotifications(string appPackage);
 
     void ClearHistory(PairedDevice device);
-    void HandleIconResponse(string deviceId, string packageName);
 
     /// <summary>
     /// 当前显示的音乐媒体块列表（只读，支持多个设备同时显示）
     /// </summary>
     ReadOnlyObservableCollection<MusicMediaBlock> CurrentMusicMediaBlocks { get; }
-
-    /// <summary>
-    /// 处理音乐媒体块超时
-    /// </summary>
-    void CheckMusicMediaBlockTimeout();
-
-    /// <summary>
-    /// 处理媒体播放消息 (DATA_MEDIAPLAY)
-    /// </summary>
-    Task ProcessMediaPlayMessageAsync(PairedDevice device, string payload);
-
-    /// <summary>
-    /// 处理图标响应消息 (DATA_ICON_RESPONSE)
-    /// </summary>
-    Task ProcessIconResponseAsync(PairedDevice device, string payload);
 
     /// <summary>
     /// 处理普通通知消息 (DATA_NOTIFICATION)

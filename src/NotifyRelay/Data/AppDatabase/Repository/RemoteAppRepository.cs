@@ -17,11 +17,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         {
             Applications.Clear();
 
-            var appEntities = context.Database.Table<ApplicationInfoEntity>()
-                .ToList()
-                .Where(a => HasDevice(a, deviceId))
-                .OrderBy(a => a.AppName)
-                .ToList();
+            var appEntities = QueryByDevice(deviceId);
 
             foreach (var entity in appEntities)
             {
@@ -33,9 +29,7 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
 
     public ObservableCollection<ApplicationInfo> GetApplicationsForDevice(string deviceId)
     {
-        return context.Database.Table<ApplicationInfoEntity>()
-            .ToList()
-            .Where(a => HasDevice(a, deviceId))
+        return QueryByDevice(deviceId)
             .Select(a => a.ToApplicationInfo(deviceId))
             .OrderBy(a => a.AppName)
             .ToObservableCollection();
@@ -196,36 +190,6 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
         }
     }
 
-    public void RemoveAllAppsForDeviceAsync(string deviceId)
-    {
-        var allApps = context.Database.Table<ApplicationInfoEntity>();
-        List<ApplicationInfoEntity> appsToDelete = [];
-        foreach (var app in allApps)
-        {
-            if (HasDevice(app, deviceId))
-            {
-                var deviceInfoList = app.AppDeviceInfoList;
-                deviceInfoList.RemoveAll(d => d.DeviceId == deviceId);
-                app.AppDeviceInfoJson = JsonSerializer.Serialize(deviceInfoList);
-
-                if (deviceInfoList.Count == 0)
-                {
-                    appsToDelete.Add(app);
-                }
-                else
-                {
-                    context.Database.Update(app);
-                }
-            }
-        }
-
-        // Delete apps that no longer have any devices
-        foreach (var app in appsToDelete)
-        {
-            context.Database.Delete(app);
-        }
-    }
-
     public void PinApp(ApplicationInfo appInfo, string deviceId)
     {
         var app = context.Database.Find<ApplicationInfoEntity>(appInfo.PackageName);
@@ -255,6 +219,18 @@ public class RemoteAppRepository(DatabaseContext context, ILogger logger)
     }
 
     #region Helpers
+    /// <summary>
+    /// 按设备筛选应用实体，并按应用名升序排序。
+    /// </summary>
+    private List<ApplicationInfoEntity> QueryByDevice(string deviceId)
+    {
+        return context.Database.Table<ApplicationInfoEntity>()
+            .ToList()
+            .Where(a => HasDevice(a, deviceId))
+            .OrderBy(a => a.AppName)
+            .ToList();
+    }
+
     private static bool HasDevice(ApplicationInfoEntity entity, string deviceId)
     {
         return entity.AppDeviceInfoList.Any(d => d.DeviceId == deviceId);

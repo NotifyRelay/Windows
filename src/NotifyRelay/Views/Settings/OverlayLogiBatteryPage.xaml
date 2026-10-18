@@ -12,7 +12,6 @@
 
     <Page.Resources>
         <!-- 与主页同款：统一调用共享 BatteryIconUtility，避免分段逻辑漂移 -->
-        <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
         <converters:LogiBatteryStatusToGlyphConverter x:Key="LogiBatteryStatusToGlyphConverter" />
         <converters:LogiBatteryTextConverter x:Key="LogiBatteryTextConverter" />
     </Page.Resources>

@@ -19,7 +19,7 @@ public static partial class NotifyRelayCore
         return result;
     }
 
-    private static IntPtr StringToPtr(string? s)
+    public static IntPtr StringToPtr(string? s)
     {
         if (s == null) return IntPtr.Zero;
         var bytes = Encoding.UTF8.GetBytes(s);

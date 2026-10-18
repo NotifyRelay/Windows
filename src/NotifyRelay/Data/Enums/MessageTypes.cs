@@ -1,15 +1,6 @@
 namespace NotifyRelay.Data.Enums;
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
-public enum SessionType
-{
-    Session,
-    TimelineUpdate,
-    PlaybackInfoUpdate,
-    RemovedSession
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum PlaybackActionType
 {
     Play,
@@ -61,15 +52,6 @@ public enum NotificationType
     New,
     Action,
     Invoke
-}
-
-[JsonConverter(typeof(JsonStringEnumConverter))]
-public enum ConversationType
-{
-    Active,
-    ActiveUpdated,
-    Removed,
-    New
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]

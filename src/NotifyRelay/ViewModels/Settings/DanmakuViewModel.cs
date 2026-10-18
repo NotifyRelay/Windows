@@ -1,4 +1,3 @@
-using System.Runtime.CompilerServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Services.Overlay;
@@ -6,12 +5,10 @@ using Vortice.DirectWrite;
 
 namespace NotifyRelay.ViewModels.Settings;
 
-public class DanmakuViewModel : INotifyPropertyChanged
+public class DanmakuViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public bool DanmakuNotificationEnabled
     {
@@ -270,55 +267,23 @@ public class DanmakuViewModel : INotifyPropertyChanged
             Density = DanmakuDensity,
             FontFamilyName = DanmakuFontFamily,
             Bold = DanmakuBold,
-            ColorR = ParseColorR(DanmakuColor, 255),
-            ColorG = ParseColorG(DanmakuColor, 255),
-            ColorB = ParseColorB(DanmakuColor, 255),
+            ColorR = ColorHex.TryParseChannel(DanmakuColor, 255, 0),
+            ColorG = ColorHex.TryParseChannel(DanmakuColor, 255, 2),
+            ColorB = ColorHex.TryParseChannel(DanmakuColor, 255, 4),
             BorderEnabled = DanmakuBorderEnabled,
             BorderThickness = DanmakuBorderThickness,
-            BorderColorR = ParseColorR(DanmakuBorderColor, 0),
-            BorderColorG = ParseColorG(DanmakuBorderColor, 0),
-            BorderColorB = ParseColorB(DanmakuBorderColor, 0),
+            BorderColorR = ColorHex.TryParseChannel(DanmakuBorderColor, 0, 0),
+            BorderColorG = ColorHex.TryParseChannel(DanmakuBorderColor, 0, 2),
+            BorderColorB = ColorHex.TryParseChannel(DanmakuBorderColor, 0, 4),
             ShadowEnabled = DanmakuShadowEnabled,
             ShadowDepth = DanmakuShadowDepth,
             ShadowOpacity = DanmakuShadowOpacity,
-            ShadowColorR = ParseColorR(DanmakuShadowColor, 0),
-            ShadowColorG = ParseColorG(DanmakuShadowColor, 0),
-            ShadowColorB = ParseColorB(DanmakuShadowColor, 0),
+            ShadowColorR = ColorHex.TryParseChannel(DanmakuShadowColor, 0, 0),
+            ShadowColorG = ColorHex.TryParseChannel(DanmakuShadowColor, 0, 2),
+            ShadowColorB = ColorHex.TryParseChannel(DanmakuShadowColor, 0, 4),
             DisplayScreenMode = DanmakuDisplayScreenMode,
             PerformanceMode = DanmakuPerformanceMode
         };
         _renderService?.UpdateStyle(style);
-    }
-
-    private static byte ParseColorR(string? hex, byte fallback)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#")) return fallback;
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6) return fallback;
-        try { return byte.Parse(hex[..2], System.Globalization.NumberStyles.HexNumber); }
-        catch { return fallback; }
-    }
-
-    private static byte ParseColorG(string? hex, byte fallback)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#")) return fallback;
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6) return fallback;
-        try { return byte.Parse(hex[2..4], System.Globalization.NumberStyles.HexNumber); }
-        catch { return fallback; }
-    }
-
-    private static byte ParseColorB(string? hex, byte fallback)
-    {
-        if (string.IsNullOrEmpty(hex) || !hex.StartsWith("#")) return fallback;
-        hex = hex.TrimStart('#');
-        if (hex.Length != 6) return fallback;
-        try { return byte.Parse(hex[4..6], System.Globalization.NumberStyles.HexNumber); }
-        catch { return fallback; }
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

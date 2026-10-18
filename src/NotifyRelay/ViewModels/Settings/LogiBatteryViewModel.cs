@@ -1,10 +1,12 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Native;
-using NotifyRelay.Services;
+using NotifyRelay.Services.Devices;
+using NotifyRelay.Services.Media;
+using NotifyRelay.Services.Protocol;
+using NotifyRelay.Services.Infrastructure;
 using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.ViewModels.Settings;
@@ -13,14 +15,11 @@ namespace NotifyRelay.ViewModels.Settings;
 /// 叠加层子设置页 - 罗技电池 ViewModel。
 /// 包装 6 个设置项 + 实时设备列表（与 LogiBatteryProvider 事件同步）。
 /// </summary>
-public class LogiBatteryViewModel : INotifyPropertyChanged
+public class LogiBatteryViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly ILogiBatteryProvider? _provider;
     private readonly OverlayRenderService? _renderService;
-    private DispatcherQueue? _dispatcher;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<LogiBatteryDeviceInfo> Devices { get; } = [];
 
@@ -89,7 +88,7 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _provider = Ioc.Default.GetService<ILogiBatteryProvider>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
+        Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
 
@@ -124,30 +123,7 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
 
     private void BuildScreenOptions()
     {
-        Screens.Clear();
-        Screens.Add(new ScreenOption { Id = "PRIMARY", DisplayName = "主显示器" });
-        try
-        {
-            var list = _renderService?.GetScreenList();
-            if (list != null)
-            {
-                int i = 1;
-                foreach (var (deviceName, isPrimary) in list)
-                {
-                    Screens.Add(new ScreenOption
-                    {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {i}{(isPrimary ? " (主)" : "")} · {deviceName}"
-                    });
-                    i++;
-                }
-            }
-        }
-        catch { /* 忽略枚举异常 */ }
-
-        var saved = _settings.LogiBatteryTargetScreen;
-        _selectedScreen = Screens.FirstOrDefault(s =>
-            string.Equals(s.Id, saved, StringComparison.OrdinalIgnoreCase)) ?? Screens[0];
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.LogiBatteryTargetScreen);
     }
 
     private void OnDevicesUpdated(object? sender, EventArgs e)
@@ -167,18 +143,6 @@ public class LogiBatteryViewModel : INotifyPropertyChanged
                 StatusHint = null;
         });
     }
-
-    private void RunOnUi(Action action)
-    {
-        var dispatcher = _dispatcher ??= DispatcherQueue.GetForCurrentThread();
-        if (dispatcher != null && !dispatcher.HasThreadAccess)
-            dispatcher.TryEnqueue(() => action());
-        else if (dispatcher != null)
-            action();
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "") =>
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
 /// <summary>LogiBatteryProvider 的小扩展方法：设置页手动刷新按钮使用。</summary>

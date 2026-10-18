@@ -27,5 +27,6 @@ global using Microsoft.UI.Xaml.Input;
 global using Microsoft.UI.Xaml.Media;
 global using Microsoft.UI.Xaml.Navigation;
 global using NotifyRelay.Extensions;
+global using NotifyRelay.Helpers;
 global using Windows.ApplicationModel;
 global using Windows.Storage;

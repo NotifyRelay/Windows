@@ -21,6 +21,10 @@ public sealed class ParamV2
     public List<ActionData>? Actions { get; set; }
     public HintInfoData? HintInfo { get; set; }
     public TextButtonData? TextButton { get; set; }
+    public IconTextInfoData? IconTextInfo { get; set; }
+    public CoverInfoData? CoverInfo { get; set; }
+    public HighlightInfoV3Data? HighlightInfoV3 { get; set; }
+    public BgInfoData? BgInfo { get; set; }
     public ParamIslandData? ParamIsland { get; set; }
     public string? Business { get; set; }
     public string? AodPic { get; set; }
@@ -42,12 +46,19 @@ public sealed class BaseInfoData
     public string? PicFunction { get; set; }
     public string? PicFunctionDark { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
     public string? ColorSubTitle { get; set; }
+    public string? ColorSubTitleDark { get; set; }
     public string? ColorExtraTitle { get; set; }
+    public string? ColorExtraTitleDark { get; set; }
     public string? ColorSpecialTitle { get; set; }
+    public string? ColorSpecialTitleDark { get; set; }
     public string? ColorSpecialBg { get; set; }
+    public string? ColorSpecialBgDark { get; set; }
     public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
     public string? ColorSubContent { get; set; }
+    public string? ColorSubContentDark { get; set; }
     public bool ShowDivider { get; set; }
     public bool ShowContentDivider { get; set; }
 }
@@ -62,7 +73,9 @@ public sealed class ChatInfoData
     public string? Content { get; set; }
     public TimerInfoData? TimerInfo { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
     public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
 }
 
 /// <summary>高亮信息模板：强调图文组件。</summary>
@@ -76,8 +89,11 @@ public sealed class HighlightInfoData
     public string? SubContent { get; set; }
     public int? Type { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
     public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
     public string? ColorSubContent { get; set; }
+    public string? ColorSubContentDark { get; set; }
     public string? BigImageLeft { get; set; }
     public string? BigImageRight { get; set; }
     public bool IconOnly { get; set; }
@@ -94,10 +110,15 @@ public sealed class HintInfoData
     public string? SubContent { get; set; }
     public string? PicContent { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
     public string? ColorSubTitle { get; set; }
+    public string? ColorSubTitleDark { get; set; }
     public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
     public string? ColorSubContent { get; set; }
+    public string? ColorSubContentDark { get; set; }
     public string? ColorContentBg { get; set; }
+    public string? ColorContentBgDark { get; set; }
     public ActionData? ActionInfo { get; set; }
 }
 
@@ -110,6 +131,7 @@ public sealed class PicInfoData
     public ActionData? ActionInfo { get; set; }
     public string? Title { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
 }
 
 // ---------- components ----------
@@ -163,7 +185,9 @@ public sealed class ActionData
     public string? ActionIconDark { get; set; }
     public string? ActionTitle { get; set; }
     public string? ActionTitleColor { get; set; }
+    public string? ActionTitleColorDark { get; set; }
     public string? ActionBgColor { get; set; }
+    public string? ActionBgColorDark { get; set; }
     public int? ActionIntentType { get; set; }
     public string? ActionIntent { get; set; }
     public bool? ClickWithCollapse { get; set; }
@@ -186,7 +210,67 @@ public sealed class AnimTextInfoData
     public string? Content { get; set; }
     public TimerInfoData? TimerInfo { get; set; }
     public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
     public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
+}
+
+// ---------- 新增 OS3 组件（iconTextInfo / coverInfo / highlightInfoV3 / bgInfo） ----------
+
+/// <summary>新图文组件：图标 + 主/次文本（iconTextInfo）。</summary>
+public sealed class IconTextInfoData
+{
+    public string? IconKey { get; set; }     // animIconInfo.src
+    public string? IconKeyDark { get; set; } // animIconInfo.srcDark
+    public string? Title { get; set; }
+    public string? Content { get; set; }
+    public string? SubContent { get; set; }
+    public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
+    public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
+}
+
+/// <summary>封面组件：封面图 + 主/次文本（coverInfo）。</summary>
+public sealed class CoverInfoData
+{
+    public string? PicCover { get; set; }
+    public string? Title { get; set; }
+    public string? Content { get; set; }
+    public string? SubContent { get; set; }
+    public string? ColorTitle { get; set; }
+    public string? ColorTitleDark { get; set; }
+    public string? ColorContent { get; set; }
+    public string? ColorContentDark { get; set; }
+    public string? ColorSubContent { get; set; }
+    public string? ColorSubContentDark { get; set; }
+}
+
+/// <summary>按钮组件5：高亮文本 + 文字标签 + 圆头图文按钮（highlightInfoV3）。</summary>
+public sealed class HighlightInfoV3Data
+{
+    public string? PrimaryText { get; set; }
+    public string? SecondaryText { get; set; }
+    public bool ShowSecondaryLine { get; set; }
+    public string? HighLightText { get; set; }
+    public string? PrimaryColor { get; set; }
+    public string? SecondaryColor { get; set; }
+    public string? HighLightTextColor { get; set; }
+    public string? HighLightBgColor { get; set; }
+    public string? PrimaryColorDark { get; set; }
+    public string? SecondaryColorDark { get; set; }
+    public string? HighLightTextColorDark { get; set; }
+    public string? HighLightBgColorDark { get; set; }
+    public ActionData? ActionInfo { get; set; }
+}
+
+/// <summary>模板背景：背景图或背景色（bgInfo）。</summary>
+public sealed class BgInfoData
+{
+    /// <summary>1 全屏（默认） / 2 右侧。</summary>
+    public int Type { get; set; } = 1;
+    public string? PicBg { get; set; }
+    public string? ColorBg { get; set; }
 }
 
 // ---------- param_island / A-B 区 ----------

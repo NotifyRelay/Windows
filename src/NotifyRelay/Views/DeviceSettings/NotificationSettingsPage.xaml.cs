@@ -1,28 +1,11 @@
-using NotifyRelay.ViewModels.Settings;
 
 namespace NotifyRelay.Views.DeviceSettings;
 
-public sealed partial class NotificationSettingsPage : Page
+public sealed partial class NotificationSettingsPage : DeviceSettingsSubPageBase
 {
-    public DeviceSettingsViewModel ViewModel
-    {
-        get => (DeviceSettingsViewModel)DataContext;
-        private set => DataContext = value;
-    }
-
     public NotificationSettingsPage()
     {
         InitializeComponent();
-    }
-
-    protected override void OnNavigatedTo(NavigationEventArgs e)
-    {
-        base.OnNavigatedTo(e);
-
-        if (e.Parameter is DeviceSettingsViewModel viewModel)
-        {
-            ViewModel = viewModel;
-        }
     }
 
     public void OnMenuFlyoutItemClick(object sender, RoutedEventArgs e)
@@ -31,14 +14,6 @@ public sealed partial class NotificationSettingsPage : Page
             menuItem.Tag is string appPackage)
         {
             ViewModel.ChangeNotificationFilter(menuItem.Text, appPackage);
-        }
-    }
-
-    private void BackButton_Click(object sender, RoutedEventArgs e)
-    {
-        if (Frame.CanGoBack)
-        {
-            Frame.GoBack();
         }
     }
 }

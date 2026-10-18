@@ -26,7 +26,6 @@
         <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />

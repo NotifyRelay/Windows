@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
-using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
 
@@ -10,13 +8,10 @@ namespace NotifyRelay.ViewModels.Settings;
 /// 时间浮窗子页 ViewModel：显示开关、目标屏幕、X/Y 位置、颜色、描边、缩放、格式，
 /// 并把配置推送到覆盖层渲染服务。复用 HeartRateViewModel 的 ScreenOption 作为屏幕下拉项。
 /// </summary>
-public class ClockViewModel : INotifyPropertyChanged
+public class ClockViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
     private readonly OverlayRenderService? _renderService;
-    private readonly DispatcherQueue? _dispatcher;
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public List<ScreenOption> Screens { get; } = [];
 
@@ -38,38 +33,12 @@ public class ClockViewModel : INotifyPropertyChanged
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
-        _dispatcher = DispatcherQueue.GetForCurrentThread();
         BuildScreenOptions();
     }
 
     private void BuildScreenOptions()
     {
-        Screens.Clear();
-        Screens.Add(new ScreenOption { Id = "PRIMARY", DisplayName = "主显示器" });
-        try
-        {
-            var list = _renderService?.GetScreenList();
-            if (list != null)
-            {
-                int index = 1;
-                foreach (var (deviceName, isPrimary) in list)
-                {
-                    Screens.Add(new ScreenOption
-                    {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {index}{(isPrimary ? " (主)" : "")} · {deviceName}"
-                    });
-                    index++;
-                }
-            }
-        }
-        catch
-        {
-            // 枚举失败时仅保留主显示器选项
-        }
-
-        var saved = _settings.ClockTargetScreen;
-        _selectedScreen = Screens.FirstOrDefault(s => s.Id == saved) ?? Screens[0];
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.ClockTargetScreen);
     }
 
     // ===== 显示设置（持久化 + 推送渲染层） =====
@@ -139,10 +108,5 @@ public class ClockViewModel : INotifyPropertyChanged
             _settings.ClockScale,
             _settings.ClockShowSeconds,
             _settings.ClockUse24Hour);
-    }
-
-    protected void OnPropertyChanged([CallerMemberName] string propertyName = "")
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -17,7 +17,6 @@ public interface IAdbService
     Task UninstallApp(string deviceId, string appPackage);
     void UnlockDevice(DeviceData deviceData, List<string> unlockCommands);
     bool IsMonitoring { get; }
-    AdbClient AdbClient { get; }
     void TryConnectTcp(string host);
     Task<bool> TryEnableWirelessAdbAsync(string hostIp, string? usbSerial = null, string? deviceId = null);
 

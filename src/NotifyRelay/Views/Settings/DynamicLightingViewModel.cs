@@ -1,12 +1,12 @@
-using System.Runtime.CompilerServices;
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
+using NotifyRelay.ViewModels;
 using NotifyRelay.Worker.Services;
 using Windows.UI;
 
 namespace NotifyRelay.Views.Settings;
 
-public class DynamicLightingViewModel : INotifyPropertyChanged
+public class DynamicLightingViewModel : ObservableViewModelBase
 {
     private readonly DynamicLightingService _lightingService;
     private readonly IGeneralSettingsService _settingsService;
@@ -19,7 +19,6 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
     private int _selectedIntervalIndex;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
     private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
-    public event PropertyChangedEventHandler? PropertyChanged;
 
     public ObservableCollection<LampArrayDeviceDto> Devices { get; } = new();
 
@@ -310,10 +309,5 @@ public class DynamicLightingViewModel : INotifyPropertyChanged
         var offColor = new Color { A = 255, R = 0, G = 0, B = 0 };
         _lightingService.TurnOffAllDevices();
         CurrentColor = offColor;
-    }
-
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

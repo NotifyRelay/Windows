@@ -67,6 +67,28 @@ public class DeviceRepository(DatabaseContext context, ILogger logger)
         }
     }
 
+    /// <summary>
+    /// 仅更新设备显示名（单列 UPDATE）。
+    ///
+    /// 不使用 InsertOrReplace：那会把 WallpaperBytes / LastConnected 等未携带的列一并覆盖为空，
+    /// 造成壁纸与连接时间丢失（设备名随心跳变化，是高频写入路径）。
+    /// </summary>
+    public bool UpdateDeviceName(string deviceId, string name)
+    {
+        try
+        {
+            return context.Database.Execute(
+                "UPDATE RemoteDeviceEntity SET Name = ? WHERE DeviceId = ?",
+                name,
+                deviceId) > 0;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "更新设备名失败 {deviceId}", deviceId);
+            return false;
+        }
+    }
+
     public void AddOrUpdateRemoteDevice(RemoteDeviceEntity device)
     {
         context.Database.InsertOrReplace(device);

@@ -45,6 +45,26 @@ public class SuperIslandState
     public bool IsMedia => string.Equals(Business, "media", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// 自动推进进度循环周期（毫秒）。
+    /// </summary>
+    public const long AutoProgressCycleMs = 2000;
+
+    /// <summary>
+    /// 是否自动推进进度（param_v2 的 progressInfo.isAutoProgress）。
+    /// </summary>
+    public bool IsAutoProgress => ParamV2?.ProgressInfo?.IsAutoProgress == true;
+
+    /// <summary>
+    /// 渲染用进度取值：自动推进进度时按 [AutoProgressCycleMs] 周期循环 0→100，否则为收敛后的静态进度。
+    /// </summary>
+    public int GetRenderProgress()
+    {
+        if (!IsAutoProgress) return Math.Clamp(Progress, 0, 100);
+        var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        return (int)(nowMs % AutoProgressCycleMs * 100 / AutoProgressCycleMs);
+    }
+
+    /// <summary>
     /// 原始 param_v2_raw JSON，用于后续增量合并解析
     /// </summary>
     public string? ParamV2Raw { get; set; }
@@ -105,12 +125,12 @@ public class SuperIslandState
     }
 
     /// <summary>
-    /// 获取进度百分比文本（如 "67%"）
+    /// 获取进度百分比文本（如 "67%"）；自动推进进度时与 [GetRenderProgress] 同步取循环值。
     /// </summary>
     public string? GetProgressText()
     {
-        if (!HasProgress) return null;
-        return $"{Math.Clamp(Progress, 0, 100)}%";
+        if (!HasProgress && !IsAutoProgress) return null;
+        return $"{GetRenderProgress()}%";
     }
 
     private static string FormatTime(long seconds)

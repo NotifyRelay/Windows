@@ -291,6 +291,10 @@ public class DeepSeekBalanceService
                     if (BalanceHistory.Count > 0)
                         CurrentBalance = BalanceHistory.Last().Balance;
                 }
+                // 历史为异步加载，加载完成即广播一次状态变化，
+                // 使已订阅的展示方（如叠加层余额卡片）能立刻拿到恢复的历史余额，
+                // 不必等待第一次轮询（可能长达一天）或轮询失败时才刷新。
+                StatusChanged?.Invoke();
             }
         }
         catch (Exception ex)

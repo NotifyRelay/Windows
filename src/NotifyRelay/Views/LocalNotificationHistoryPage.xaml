@@ -17,7 +17,6 @@
         <wctconverters:BoolToObjectConverter x:Key="BoolToCollapseGlyphConverter" FalseValue="&#xE71D;" TrueValue="&#xE90A;" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
 

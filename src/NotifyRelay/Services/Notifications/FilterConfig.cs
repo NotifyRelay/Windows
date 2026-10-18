@@ -1,0 +1,51 @@
+using NotifyRelay.Data.Models;
+
+namespace NotifyRelay.Services.Notifications;
+
+/// <summary>
+/// 过滤配置模型
+/// 持久化由 FilterConfigRepository 负责（数据库存储）
+/// </summary>
+public class FilterConfig
+{
+    // ====== 本地过滤配置 ======
+
+    public bool FilterSelf { get; set; } = true;
+    public bool FilterNoTitleOrText { get; set; } = true;
+    public List<FilterEntry> LocalFilterEntries { get; set; } = [];
+    public HashSet<string> EnabledLocalFilterEntryIds { get; set; } = [];
+
+    // ====== 远程过滤配置（Rust Core 接管，持久化由 FilterConfigRepository 负责） ======
+
+    public bool EnablePackageGroupMapping { get; set; } = true;
+    public List<List<string>> PackageGroups { get; set; } = DefaultPackageGroups();
+    public List<bool> PackageGroupEnabled { get; set; } = [true, true, true];
+    public bool EnableDeduplication { get; set; } = true;
+    public string FilterMode { get; set; } = "none";
+    public bool EnablePeerMode { get; set; } = false;
+    public List<FilterListEntry> FilterList { get; set; } = [];
+
+    public static List<List<string>> DefaultPackageGroups()
+    {
+        return
+        [
+            ["tv.danmaku.bilibilihd", "tv.danmaku.bili"],
+            ["com.sina.weibo", "com.sina.weibog3", "com.weico.international"],
+            ["com.tencent.mobileqq", "com.tencent.tim"]
+        ];
+    }
+
+    /// <summary>
+    /// 刷新本地过滤缓存
+    /// </summary>
+    public void ApplyLocalFilter()
+    {
+        var enabledIds = EnabledLocalFilterEntryIds.Count > 0
+            ? EnabledLocalFilterEntryIds
+            : new HashSet<string>(LocalFilterEntries.Select(e => e.Id));
+
+        BackendLocalFilter.FilterSelf = FilterSelf;
+        BackendLocalFilter.FilterNoTitleOrText = FilterNoTitleOrText;
+        BackendLocalFilter.RefreshCache(LocalFilterEntries, enabledIds);
+    }
+}

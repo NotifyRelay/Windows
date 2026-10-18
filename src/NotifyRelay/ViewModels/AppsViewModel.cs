@@ -13,7 +13,6 @@ public sealed partial class AppsViewModel : BaseViewModel
     private IRemoteAppService RemoteAppService { get; } = Ioc.Default.GetRequiredService<IRemoteAppService>();
     private IScreenMirrorService ScreenMirrorService { get; } = Ioc.Default.GetRequiredService<IScreenMirrorService>();
     private IDeviceManager DeviceManager { get; } = Ioc.Default.GetRequiredService<IDeviceManager>();
-    private ISessionManager SessionManager { get; } = Ioc.Default.GetRequiredService<ISessionManager>();
     private IAdbService AdbService { get; } = Ioc.Default.GetRequiredService<IAdbService>();
     #endregion
 

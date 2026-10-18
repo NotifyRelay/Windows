@@ -125,6 +125,11 @@ public class SuperIslandItem : OverlayItem
     public ID2D1Bitmap? PicInfoBitmap { get; set; }        // picInfo 图片
     public ID2D1Bitmap? LeftIconBitmap { get; set; }       // A 区图标
     public ID2D1Bitmap? RightIconBitmap { get; set; }      // B 区图标
+    public ID2D1Bitmap? IconTextInfoBitmap { get; set; }   // iconTextInfo 图标
+    /// <summary>IconTextInfoBitmap 实际使用的图片键：键变化时作废旧位图，避免复用陈旧图。</summary>
+    public string? IconTextInfoPicKey { get; set; }
+    public ID2D1Bitmap? CoverInfoBitmap { get; set; }      // coverInfo 封面图
+    public ID2D1Bitmap? BgInfoBitmap { get; set; }         // bgInfo 背景图
 
     // multiProgressInfo 节点与指针图（对齐 Android MultiProgressCompose）
     public ID2D1Bitmap? MultiForwardBitmap { get; set; }       // picForward 指针
@@ -182,6 +187,9 @@ public class SuperIslandItem : OverlayItem
         PicInfoBitmap?.Dispose();
         LeftIconBitmap?.Dispose();
         RightIconBitmap?.Dispose();
+        IconTextInfoBitmap?.Dispose();
+        CoverInfoBitmap?.Dispose();
+        BgInfoBitmap?.Dispose();
         MultiForwardBitmap?.Dispose();
         MultiForwardBoxBitmap?.Dispose();
         MultiMiddleBitmap?.Dispose();

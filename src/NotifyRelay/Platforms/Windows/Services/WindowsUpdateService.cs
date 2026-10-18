@@ -17,8 +17,6 @@ public partial class WindowsUpdateService : ObservableObject, IUpdateService
         set => SetProperty(ref isUpdateAvailable, value);
     }
 
-    public bool IsMandatory => updatePackages?.Where(e => e.Mandatory).ToList().Count >= 1;
-
     public async Task CheckForUpdatesAsync()
     {
         await GetUpdatePackagesAsync();

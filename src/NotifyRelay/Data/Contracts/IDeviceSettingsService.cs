@@ -45,11 +45,6 @@ public interface IDeviceSettingsService
     NotificationLaunchPreference NotificationLaunchPreference { get; set; }
 
     /// <summary>
-    /// Gets or sets the path for remote storage.
-    /// </summary>
-    string RemoteStoragePath { get; set; }
-
-    /// <summary>
     /// Gets or sets the path for received files.
     /// </summary>
     string ReceivedFilesPath { get; set; }

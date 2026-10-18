@@ -11,34 +11,6 @@ public partial class OverlayRenderService
     /// <summary>网络 URL 图片下载用 HttpClient（复用，避免每帧重建）。</summary>
     private static readonly HttpClient s_httpClient = new() { Timeout = TimeSpan.FromSeconds(15) };
 
-    private void EnsureDanmakuResources(DanmakuItem item, ID2D1DCRenderTarget rt)
-    {
-        if (item.TextLayout == null)
-        {
-            var s = item.Settings;
-            using var format = CreateTextFormat(s.FontFamilyName,
-                s.Bold ? DWriteFontWeight.Bold : DWriteFontWeight.Normal, (float)s.FontSize);
-
-            item.TextLayout = _dwFactory.CreateTextLayout(
-                item.Text, format, float.MaxValue, (float)s.FontSize * 2);
-
-            var metrics = item.TextLayout.Metrics;
-            item.TextWidth = metrics.Width;
-            item.TextHeight = metrics.Height;
-            item.TotalWidth = item.TextWidth
-                + (item.IconPng != null ? (float)s.FontSize + 8 : 0) + 20;
-        }
-
-        if (item.IconBitmap == null && item.IconPng != null)
-        {
-            try { item.IconBitmap = LoadBitmapFromPng(item.IconPng, rt); }
-            catch
-            {
-                item.IconPng = null;
-            }
-        }
-    }
-
     private void EnsureMediaResources(MediaCardItem item, ID2D1DCRenderTarget rt)
     {
         if (item.CoverBitmap == null && item.CoverPng != null)
@@ -113,6 +85,21 @@ public partial class OverlayRenderService
             island?.LeftImage ?? ResolveFocusPicKey(pics, island?.AComponent?.PicKey), rt);
         item.RightIconBitmap = EnsurePicBitmap(item, item.RightIconBitmap, pics,
             island?.RightImage ?? GetBComponentPicKey(pv), rt);
+
+        // 新增 OS3 组件位图（iconTextInfo 图标 / coverInfo 封面 / bgInfo 背景图）
+        // iconTextInfo 图标：深色键存在时优先；选中键变化时作废旧位图，避免 EnsurePicBitmap 复用陈旧图
+        var iconTextKey = ResolveIconTextInfoKey(pics, pv?.IconTextInfo);
+        if (!string.Equals(item.IconTextInfoPicKey, iconTextKey, StringComparison.Ordinal))
+        {
+            DeferDispose(item.IconTextInfoBitmap);
+            item.IconTextInfoBitmap = null;
+            item.IconTextInfoPicKey = iconTextKey;
+        }
+        item.IconTextInfoBitmap = EnsurePicBitmap(item, item.IconTextInfoBitmap, pics, iconTextKey, rt);
+        item.CoverInfoBitmap = EnsurePicBitmap(item, item.CoverInfoBitmap, pics,
+            pv?.CoverInfo?.PicCover, rt);
+        item.BgInfoBitmap = EnsurePicBitmap(item, item.BgInfoBitmap, pics,
+            pv?.BgInfo?.PicBg, rt);
 
         // multiProgressInfo 节点与指针图（对齐 Android MultiProgressCompose）
         var mp = pv?.MultiProgressInfo;
@@ -219,6 +206,17 @@ public partial class OverlayRenderService
         }
     }
 
+    /// <summary>
+    /// iconTextInfo 图标键解析：深色键在 Pics 中存在时优先取深色，否则回退浅色键。
+    /// 与 Android IconTextInfoCompose 的 preferDark 取键逻辑保持一致。
+    /// </summary>
+    private static string? ResolveIconTextInfoKey(Dictionary<string, string> pics, IconTextInfoData? info)
+    {
+        if (info == null) return null;
+        if (!string.IsNullOrEmpty(info.IconKeyDark) && pics.ContainsKey(info.IconKeyDark)) return info.IconKeyDark;
+        return info.IconKey;
+    }
+
     /// <summary>解析 B 区组件的图片键（仅显示位图的组件）。</summary>
     private static string? GetBComponentPicKey(ParamV2? pv)
     {
@@ -274,92 +272,6 @@ public partial class OverlayRenderService
         }
         try { return Convert.FromBase64String(s); }
         catch { return null; }
-    }
-
-    /// <summary>
-    /// 为弹幕分配轨道。使用"三角装箱"式判定修复弹幕重叠：
-    /// 既要求同轨道上一条弹幕已进入足够距离，又要保证较快的新弹幕不会在
-    /// 前一条离场前追尾重叠。分配失败时返回 false，调用方保留在待发队列。
-    /// </summary>
-    private bool TryAssignTrack(DanmakuItem item, ScreenOverlay overlay)
-    {
-        var s = item.Settings;
-        double trackHeight = Math.Max(s.FontSize + 24, s.FontSize * 1.5);
-        double avail = Math.Max(trackHeight, overlay.Height - overlay.TopOffset);
-        int totalTracks = Math.Max(1, (int)(avail / trackHeight));
-        int activeCount = Math.Clamp(
-            (int)(totalTracks * (s.DisplayAreaPercent / 100.0)), 1, totalTracks);
-
-        double minGap = s.Density switch { 1 => 20, 2 => -300, _ => 100 };
-        bool allowOverlap = s.Density == 2;
-        double now = Stopwatch.GetTimestamp();
-        double freq = Stopwatch.Frequency;
-        double width = overlay.Width;
-        double vNew = s.PixelsPerSecond;
-
-        var candidates = new List<int>();
-        for (int i = 0; i < activeCount; i++)
-        {
-            bool ok = true;
-            foreach (var existing in overlay.Items)
-            {
-                if (existing.TrackIndex != i || !existing.Active) continue;
-                double elapsed = (now - existing.StartTime) / freq;
-                double vOld = existing.Settings.PixelsPerSecond;
-                double rightEdge = existing.SpawnX - elapsed * vOld + existing.TotalWidth;
-
-                // 初始间距不足
-                if (rightEdge > width - minGap) { ok = false; break; }
-
-                // 追尾判定：新弹幕更快时，检查其是否会在前一条离场前追上
-                if (vNew > vOld)
-                {
-                    double tCatch = (width - rightEdge) / (vNew - vOld);
-                    double tExit = rightEdge / vOld;
-                    if (tCatch < tExit) { ok = false; break; }
-                }
-            }
-            if (ok) candidates.Add(i);
-        }
-
-        int track;
-        if (candidates.Count > 0)
-        {
-            track = candidates[_rand.Next(candidates.Count)];
-        }
-        else if (allowOverlap)
-        {
-            track = _rand.Next(activeCount);
-        }
-        else
-        {
-            return false;
-        }
-
-        item.TrackIndex = track;
-        item.TrackY = (float)(overlay.TopOffset + track * trackHeight);
-        item.SpawnX = overlay.Width;
-        return true;
-    }
-
-    /// <summary>从待发队列尝试将弹幕分配到空闲轨道。</summary>
-    private void SpawnPending(ScreenOverlay overlay, ID2D1DCRenderTarget rt)
-    {
-        while (overlay.Pending.Count > 0)
-        {
-            var item = overlay.Pending.Peek();
-            EnsureDanmakuResources(item, rt);
-            if (TryAssignTrack(item, overlay))
-            {
-                item.StartTime = Stopwatch.GetTimestamp();
-                overlay.Pending.Dequeue();
-                overlay.Items.Add(item);
-            }
-            else
-            {
-                break;
-            }
-        }
     }
 
     private ID2D1Bitmap? LoadBitmapFromPng(byte[] pngData, ID2D1DCRenderTarget rt)

@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Management;
-using System.Text;
 using Microsoft.Extensions.Logging;
 using NotifyRelay.Worker.Configuration;
 
@@ -256,12 +255,15 @@ public class MonitorBrightnessService
 
             if (targetMonitors.Count > 0)
             {
-                var commandBuilder = new StringBuilder();
+                var arguments = new List<string>();
                 foreach (var monitor in targetMonitors)
                 {
-                    commandBuilder.Append($" /SetValue \"{monitor.DeviceName}\" 10 {brightness}");
+                    arguments.Add("/SetValue");
+                    arguments.Add(monitor.DeviceName);
+                    arguments.Add("10");
+                    arguments.Add(brightness.ToString());
                 }
-                RunControlMyMonitor(commandBuilder.ToString().Trim());
+                RunControlMyMonitor(arguments);
             }
         }
         catch (Exception ex)
@@ -277,7 +279,7 @@ public class MonitorBrightnessService
 
         try
         {
-            RunControlMyMonitor($"/smonitors {tempFile}");
+            RunControlMyMonitor(["/smonitors", tempFile]);
 
             if (File.Exists(tempFile))
             {
@@ -327,7 +329,7 @@ public class MonitorBrightnessService
         return !string.IsNullOrEmpty(monitor.Name) && !string.IsNullOrEmpty(monitor.DeviceName) ? monitor : null;
     }
 
-    private void RunControlMyMonitor(string arguments)
+    private void RunControlMyMonitor(IReadOnlyList<string> arguments)
     {
         if (string.IsNullOrEmpty(_config.ControlMyMonitorPath)) return;
         if (!File.Exists(_config.ControlMyMonitorPath)) return;
@@ -337,10 +339,13 @@ public class MonitorBrightnessService
             var processStartInfo = new ProcessStartInfo
             {
                 FileName = _config.ControlMyMonitorPath,
-                Arguments = arguments,
+                UseShellExecute = false,
                 WindowStyle = ProcessWindowStyle.Hidden,
                 CreateNoWindow = true
             };
+
+            foreach (var argument in arguments)
+                processStartInfo.ArgumentList.Add(argument);
 
             using var process = Process.Start(processStartInfo);
             process?.WaitForExit(5000);

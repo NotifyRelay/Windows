@@ -39,23 +39,6 @@ public class ActionMessage : SocketMessage
 }
 
 /// <summary>
-/// 自定义动作消息类
-/// 路径: NotifyRelay.Data.Models.CustomActionMessage
-/// 功能: 用于执行自定义路径的程序，支持传递参数
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → ActionService.HandleActionMessage
-/// </summary>
-public class CustomActionMessage : SocketMessage
-{
-    [JsonPropertyName("path")]
-    public required string Path { get; set; }
-
-    [JsonPropertyName("arguments")]
-    public string? Arguments { get; set; } = null;
-}
-
-
-
-/// <summary>
 /// 设备信息类
 /// 路径: NotifyRelay.Data.Models.DeviceInfo
 /// 功能: 包含设备的基本信息，如设备ID、名称、型号、公钥等
@@ -75,12 +58,6 @@ public class DeviceInfo : SocketMessage
     [JsonPropertyName("avatar")]
     public string? Avatar { get; set; }
 
-    [JsonPropertyName("nonce")]
-    public string? Nonce { get; set; }
-
-    [JsonPropertyName("proof")]
-    public string? Proof { get; set; }
-
     [JsonPropertyName("publicKey")]
     public string PublicKey { get; set; } = string.Empty;
 }
@@ -88,28 +65,18 @@ public class DeviceInfo : SocketMessage
 /// <summary>
 /// 设备状态类
 /// 路径: NotifyRelay.Data.Models.DeviceStatus
-/// 功能: 包含设备的实时状态信息，如电量、充电状态、WiFi状态等
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync → DeviceManager.UpdateDeviceStatus
+/// 功能: 保存对端设备的实时电量/充电状态。
+/// 来源: Rust core 设备快照（nrc_get_device_list 的 battery 字段，带符号：正=充电/负=放电），
+///       由 DeviceSnapshotStore 刷新后经 PairedDevice.ApplySnapshot 回填。
+/// 纯内部运行时模型，不经 JSON 反序列化，平台端不自行采集。
 /// </summary>
 public class DeviceStatus : SocketMessage
 {
-    [JsonPropertyName("batteryStatus")]
+    /// <summary>电量百分比 0-100（心跳带符号电量的绝对值）</summary>
     public int BatteryStatus { get; set; }
 
-    [JsonPropertyName("chargingStatus")]
+    /// <summary>是否正在充电（由心跳带符号电量 intValue >= 0 决定）</summary>
     public bool ChargingStatus { get; set; }
-
-    [JsonPropertyName("wifiStatus")]
-    public bool WifiStatus { get; set; }
-
-    [JsonPropertyName("bluetoothStatus")]
-    public bool BluetoothStatus { get; set; }
-
-    [JsonPropertyName("isDndEnabled")]
-    public bool IsDndEnabled { get; set; }
-
-    [JsonPropertyName("ringerMode")]
-    public int RingerMode { get; set; }
 }
 
 
@@ -208,45 +175,4 @@ public class FileMetadata
 
     [JsonPropertyName("fileSize")]
     public required long FileSize { get; set; }
-}
-
-
-
-/// <summary>
-/// UDP广播消息类
-/// 路径: NotifyRelay.Data.Models.UdpBroadcast
-/// 功能: 用于设备发现和广播设备信息，包含设备ID、名称、公钥等
-/// 处理服务: NotifyRelay.Services.DiscoveryService
-/// </summary>
-public class UdpBroadcast : SocketMessage
-{
-    [JsonPropertyName("ipAddresses")]
-    public List<string> IpAddresses { get; set; } = [];
-
-    [JsonPropertyName("port")]
-    public int? Port { get; set; }
-
-    [JsonPropertyName("deviceId")]
-    public required string DeviceId { get; set; }
-
-    [JsonPropertyName("deviceName")]
-    public required string DeviceName { get; set; }
-
-    [JsonPropertyName("publicKey")]
-    public required string PublicKey { get; set; }
-
-    [JsonPropertyName("timestamp")]
-    public long TimeStamp { get; set; }
-}
-
-/// <summary>
-/// 设备铃声模式类
-/// 路径: NotifyRelay.Data.Models.DeviceRingerMode
-/// 功能: 包含设备的铃声模式信息
-/// 处理服务: NotifyRelay.Services.MessageHandler.HandleMessageAsync
-/// </summary>
-public class DeviceRingerMode : SocketMessage
-{
-    [JsonPropertyName("ringerMode")]
-    public int RingerMode { get; set; }
 }

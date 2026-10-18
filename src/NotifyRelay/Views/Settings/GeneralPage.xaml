@@ -66,14 +66,6 @@
                 <Button Click="SelectSaveLocation_Click" Content="{helpers:ResourceString Name=SelectLocation}" />
             </wuc:SettingsCard>
 
-            <!--  Remote Storage Location  -->
-            <wuc:SettingsCard Description="{x:Bind ViewModel.RemoteStoragePath, Mode=OneWay}" Header="{helpers:ResourceString Name=RemoteStorageLocation}">
-                <wuc:SettingsCard.HeaderIcon>
-                    <SymbolIcon Symbol="SyncFolder" />
-                </wuc:SettingsCard.HeaderIcon>
-                <Button Click="SelectRemoteLocation_Click" Content="{helpers:ResourceString Name=SelectLocation}" />
-            </wuc:SettingsCard>
-
             <!--  发送媒体通知  -->
             <wuc:SettingsCard Description="向已连接设备发送媒体播放状态通知" Header="发送媒体通知">
                 <wuc:SettingsCard.HeaderIcon>

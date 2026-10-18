@@ -44,4 +44,16 @@ public static class ImageHelper
             return string.Empty;
         }
     }
+
+    /// <summary>将封面 base64（Data URL 或纯 base64）转为字节数组，失败返回 null。</summary>
+    public static byte[]? FromBase64(string? base64)
+    {
+        if (string.IsNullOrEmpty(base64)) return null;
+        try
+        {
+            var payload = base64.Contains(',') ? base64.Split(',')[1] : base64;
+            return Convert.FromBase64String(payload);
+        }
+        catch { return null; }
+    }
 }

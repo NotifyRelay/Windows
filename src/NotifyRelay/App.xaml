@@ -18,6 +18,10 @@
             <!--  Windows: Transparent (for Mica backdrop)  -->
             <win:SolidColorBrush x:Key="App.PageBackgroundBrush" Color="Transparent" />
 
+            <!--  无参转换器共享资源（原分散于各页面）  -->
+            <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+            <converters:LogiBatteryStatusToBrushConverter x:Key="LogiBatteryStatusToBrushConverter" />
+
 
 
             <!--  Theme-aware icon resources  -->

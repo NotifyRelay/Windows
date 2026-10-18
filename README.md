@@ -1,7 +1,3 @@
-<p align="center">
-  <img alt="Hero image" src="./.github/readme-images/Readme-Hero.png" />
-</p>
-
 **NotifyRelay** 旨在通过实现 Windows PC 与 Android 设备之间的~~无缝剪贴板~~通知共享来提升您的工作效率。它是现有解决方案的替代方案，专为希望以简单高效的方式保持设备同步的用户设计。
 
 ## 功能特性
@@ -23,22 +19,11 @@
 
 ## 安装
 
-### Windows 应用
-<p align="left">
-  <!-- Store Badge -->
-  <a style="text-decoration:none" href="https://example.com" target="_blank" rel="noopener noreferrer">
-    <picture>
-      <source media="(prefers-color-scheme: light)" srcset=".github/./readme-images/StoreBadge-dark.png" width="220" />
-      <img src=".github/./readme-images/StoreBadge-light.png" width="200" />
-    </picture>
-  </a>
-</p>
-
 ### Android 应用
 
 ## 使用方法
 
-1. **下载并安装 [Android 应用](https://github.com/shrimqy/NotifyRelay-Android)**
+1. **下载并安装 [Android 应用](https://github.com/NotifyRelay/Android)**
 
 2. **设置步骤**：
     - 在 Android 设备上，在引导页面允许必要的权限。（**注意**：尝试授予通知访问权限或辅助功能权限后，请从应用信息中允许受限设置，因为 Android 会阻止侧载应用请求敏感权限。）
@@ -68,12 +53,6 @@
     - 如果默认 tcpip 端口打开，NotifyRelay 将尝试连接到您的设备以进行后续连接。
     - 如果您在连接 scrcpy 时有任何疑问或问题，请参考 [scrcpy 文档](https://github.com/Genymobile/scrcpy/blob/master/doc/connection.md) 和 [Scrcpy FAQ](https://github.com/Genymobile/scrcpy/blob/master/FAQ.md)。
     - 如果您喜欢他们的项目，请考虑支持作者 [rom1v](https://blog.rom1v.com/about/#support-my-open-source-work)
-## 截图
-
-<p align="center">
-  <img alt="Files hero image" src="./.github/readme-images/Screenshot.png" />
-</p>
-
 ## 贡献
 
 如果您想报告错误、提供反馈或提出问题，请随时打开一个 issue。非常欢迎提交拉取请求！

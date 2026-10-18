@@ -20,7 +20,6 @@ public class DanmakuStyleSettings
     public byte BorderColorB { get; set; }
 
     public bool ShadowEnabled { get; set; } = true;
-    public double ShadowBlur { get; set; }
     public double ShadowDepth { get; set; } = 2;
     public double ShadowOpacity { get; set; } = 100;
     public byte ShadowColorR { get; set; }

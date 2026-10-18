@@ -45,7 +45,7 @@ public sealed partial class OverlayLogiBatteryPage : Page
     {
         if (sender is not TextBox tb) return;
         if (tb.DataContext is not LogiBatteryDeviceInfo device) return;
-        var provider = Ioc.Default.GetService<NotifyRelay.Services.LogiBatteryProvider>();
+        var provider = Ioc.Default.GetService<NotifyRelay.Services.Infrastructure.LogiBatteryProvider>();
         if (provider == null) return;
 
         string? newName = tb.Text?.Trim();

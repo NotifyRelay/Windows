@@ -6,7 +6,7 @@ namespace NotifyRelay.Native;
 
 public static partial class NotifyRelayCore
 {
-    // ======== Core start (统一启动 TCP/UDP、心跳、离线检测、发送队列、扫描、重连、mDNS) ========
+    // ======== Core start (统一启动 TCP、心跳、离线检测、发送队列、扫描、重连、mDNS) ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern long nrc_start_core(IntPtr ctx, IntPtr uuid, IntPtr name, int battery, IntPtr deviceType, ushort tcpPort, IntPtr pubKey, ulong heartbeatIntervalMs, long offlineTimeoutSec, ulong offlineCheckIntervalMs, ulong reconnectIntervalSecs, uint reconnectMaxRetries);
 
@@ -43,6 +43,12 @@ public static partial class NotifyRelayCore
     public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_superisland_inbound(IntPtr deviceUuid, IntPtr pkg, IntPtr fullJson);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_notification_inbound(IntPtr fullJson);
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_parse_media_inbound(IntPtr fullJson);
 
     // ======== FTP credentials ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -128,6 +134,30 @@ public static partial class NotifyRelayCore
             var tx = StringToPtr(text); var iid = StringToPtr(instanceId);
             var result = NotifyRelayCore.nrc_compute_feature_id(pkg, param, t, tx, iid);
             Marshal.FreeHGlobal(pkg); Marshal.FreeHGlobal(param); Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(tx); Marshal.FreeHGlobal(iid);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseSuperIslandInbound(string deviceUuid, string pkg, string fullJson)
+        {
+            var u = StringToPtr(deviceUuid); var p = StringToPtr(pkg); var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_superisland_inbound(u, p, f);
+            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(p); Marshal.FreeHGlobal(f);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseNotificationInbound(string fullJson)
+        {
+            var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_notification_inbound(f);
+            Marshal.FreeHGlobal(f);
+            return PtrToStringAndFree(result);
+        }
+
+        public static string? ParseMediaInbound(string fullJson)
+        {
+            var f = StringToPtr(fullJson);
+            var result = NotifyRelayCore.nrc_parse_media_inbound(f);
+            Marshal.FreeHGlobal(f);
             return PtrToStringAndFree(result);
         }
 

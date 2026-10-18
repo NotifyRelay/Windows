@@ -15,10 +15,11 @@
     x:Name="PageRoot">
 
     <Page.Resources>
-        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionButtonTextConverter"
+        <!-- 在线状态文本（只读展示，非交互按钮） -->
+        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionStatusTextConverter"
             FalseValue="{helpers:ResourceString Name=Disconnected/Text}"
             TrueValue="{helpers:ResourceString Name=Connected/Text}" />
-        
+
         <wctconverters:BoolToObjectConverter x:Key="BoolToPinTextConverter"
             FalseValue="{helpers:ResourceString Name=Pin}"
             TrueValue="{helpers:ResourceString Name=Unpin}" />
@@ -29,15 +30,12 @@
         <wctconverters:BoolNegationConverter x:Key="BoolNegationConverter" />
 
         <converters:DateTimeConverter x:Key="DateTimeConverter" />
-        <converters:RingerModeToIconConverter x:Key="RingerModeToIconConverter" />
         <converters:BatteryStatusToIconConverter x:Key="BatteryStatusToIconConverter" />
         <converters:BatteryStatusToColorConverter x:Key="BatteryStatusToColorConverter" />
-        <converters:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Inverse="True" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
         <converters:EmptyObjectToVisibilityConverter x:Key="InverseEmptyObjectToVisibilityConverter" Inverse="True" />
         <converters:StringToImageSourceConverter x:Key="StringToImageSourceConverter" />
-        <converters:AdbIconToTypeConverter x:Key="AdbIconToTypeConverter" />
 
         <!-- Phone Frame Overlay Animations -->
         <Storyboard x:Key="FadeInAnimation" x:Name="FadeInStoryboard">
@@ -237,12 +235,23 @@
 
                         <!--  Connection Status Card with ADB Info  -->
                         <StackPanel Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
-                            <Button
-                                HorizontalAlignment="Left"
-                                Command="{x:Bind ViewModel.ToggleConnectionCommand}"
-                                Content="{x:Bind ViewModel.Device.ConnectionStatus, Converter={StaticResource BoolToConnectionButtonTextConverter}, Mode=OneWay}"
-                                Visibility="{x:Bind ViewModel.Device.Name, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}" />
-                            
+                            <!--  在线状态指示（只读：由 Rust core 快照 online 驱动，不提供手动连接/断开）  -->
+                            <StackPanel
+                                Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center"
+                                Visibility="{x:Bind ViewModel.Device.Name, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
+                                <Ellipse
+                                    Width="10"
+                                    Height="10"
+                                    VerticalAlignment="Center"
+                                    Fill="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource LogiBatteryStatusToBrushConverter}}" />
+                                <TextBlock
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorSecondaryBrush}"
+                                    Text="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource BoolToConnectionStatusTextConverter}}" />
+                            </StackPanel>
+
                             <!--  ADB Connection Status Labels  -->
                             <ItemsRepeater ItemsSource="{x:Bind ViewModel.AdbConnectionTypes, Mode=OneWay}" Visibility="{x:Bind ViewModel.AdbConnectionTypes.Count, Converter={StaticResource EmptyObjectToVisibilityConverter}, Mode=OneWay}">
                                 <ItemsRepeater.Layout>
@@ -384,11 +393,6 @@
                         <NavigationViewItem Content="显示器亮度" Tag="MonitorBrightness">
                             <NavigationViewItem.Icon>
                                 <FontIcon Glyph="&#xE706;" />
-                            </NavigationViewItem.Icon>
-                        </NavigationViewItem>
-                        <NavigationViewItem Content="DeepSeek余额" Tag="DeepSeekBalance">
-                            <NavigationViewItem.Icon>
-                                <FontIcon Glyph="&#xE8BC;" />
                             </NavigationViewItem.Icon>
                         </NavigationViewItem>
                         <NavigationViewItem Content="覆盖层" Tag="DanmakuOverlay">

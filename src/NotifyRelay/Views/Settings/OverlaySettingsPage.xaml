@@ -76,6 +76,11 @@
                         <FontIcon Glyph="&#xE121;" />
                     </NavigationViewItem.Icon>
                 </NavigationViewItem>
+                <NavigationViewItem Content="DeepSeek 余额" Tag="DeepSeekBalancePage">
+                    <NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xE8BC;" />
+                    </NavigationViewItem.Icon>
+                </NavigationViewItem>
             </NavigationView.MenuItems>
 
             <Frame x:Name="OverlayContentFrame" Padding="40,20,0,0" />

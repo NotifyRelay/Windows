@@ -27,7 +27,6 @@ public sealed partial class MainPage : Page
         { "Apps", typeof(AppsPage) },
         { "LocalNotificationHistory", typeof(LocalNotificationHistoryPage) },
         { "MonitorBrightness", typeof(Settings.MonitorBrightnessSettingsPage) },
-        { "DeepSeekBalance", typeof(Settings.DeepSeekBalanceSettingsPage) },
         { "DanmakuOverlay", typeof(Settings.OverlaySettingsPage) },
 { "DynamicLighting", typeof(Settings.DynamicLightingSettingsPage) },
         { "AudioRelay", typeof(Settings.VirtualSpeakerSettingsPage) }

@@ -278,13 +278,13 @@ public class DatabaseContext : IDisposable
                 "NotifyRelay",
                 "filter_config.json");
 
-            Services.Filters.FilterConfig? importedConfig = null;
+            Services.Notifications.FilterConfig? importedConfig = null;
 
             if (oldRowData != null)
             {
                 try
                 {
-                    importedConfig = JsonSerializer.Deserialize<Services.Filters.FilterConfig>((string)oldRowData);
+                    importedConfig = JsonSerializer.Deserialize<Services.Notifications.FilterConfig>((string)oldRowData);
                     Console.WriteLine("从旧数据库 ConfigJson 导入配置成功");
                 }
                 catch (Exception ex)
@@ -298,7 +298,7 @@ public class DatabaseContext : IDisposable
                 try
                 {
                     var json = System.IO.File.ReadAllText(jsonFilePath);
-                    importedConfig = JsonSerializer.Deserialize<Services.Filters.FilterConfig>(json);
+                    importedConfig = JsonSerializer.Deserialize<Services.Notifications.FilterConfig>(json);
                     Console.WriteLine("从旧 JSON 文件导入配置成功");
                     try { System.IO.File.Delete(jsonFilePath); } catch { }
                 }
@@ -316,7 +316,7 @@ public class DatabaseContext : IDisposable
                 Console.WriteLine("FilterConfigEntity 表创建成功");
             }
 
-            var entity = EntityFromConfig(importedConfig ?? new Services.Filters.FilterConfig());
+            var entity = EntityFromConfig(importedConfig ?? new Services.Notifications.FilterConfig());
             db.InsertOrReplace(entity);
             Console.WriteLine("过滤配置已写入数据库");
 
@@ -418,7 +418,7 @@ public class DatabaseContext : IDisposable
         // if (version == 2) { ... db.Execute("PRAGMA user_version = 3"); }
     }
 
-    internal static FilterConfigEntity EntityFromConfig(Services.Filters.FilterConfig config)
+    internal static FilterConfigEntity EntityFromConfig(Services.Notifications.FilterConfig config)
     {
         return new FilterConfigEntity
         {
@@ -438,9 +438,9 @@ public class DatabaseContext : IDisposable
         };
     }
 
-    public static Services.Filters.FilterConfig ConfigFromEntity(FilterConfigEntity entity)
+    public static Services.Notifications.FilterConfig ConfigFromEntity(FilterConfigEntity entity)
     {
-        var config = new Services.Filters.FilterConfig
+        var config = new Services.Notifications.FilterConfig
         {
             FilterSelf = entity.FilterSelf,
             FilterNoTitleOrText = entity.FilterNoTitleOrText,
@@ -458,7 +458,7 @@ public class DatabaseContext : IDisposable
 
         // 确保默认值
         if (config.PackageGroups.Count == 0)
-            config.PackageGroups = Services.Filters.FilterConfig.DefaultPackageGroups();
+            config.PackageGroups = Services.Notifications.FilterConfig.DefaultPackageGroups();
         while (config.PackageGroupEnabled.Count < config.PackageGroups.Count)
             config.PackageGroupEnabled.Add(true);
 

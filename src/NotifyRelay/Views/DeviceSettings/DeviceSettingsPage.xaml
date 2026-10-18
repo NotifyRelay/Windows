@@ -16,6 +16,10 @@
     <Page.Resources>
         <wctconverters:EmptyObjectToObjectConverter x:Key="EmptyObjectToOpacityConverter" EmptyValue="1.0" NotEmptyValue="0.0" />
         <converters:EmptyObjectToVisibilityConverter x:Key="EmptyObjectToVisibilityConverter" />
+        <!-- 在线状态文本（只读展示） -->
+        <wctconverters:BoolToObjectConverter x:Key="BoolToConnectionStatusTextConverter"
+            FalseValue="{helpers:ResourceString Name=Disconnected/Text}"
+            TrueValue="{helpers:ResourceString Name=Connected/Text}" />
     </Page.Resources>
 
     <ScrollViewer>
@@ -93,6 +97,19 @@
                                 FontSize="24"
                                 FontWeight="SemiBold"
                                 Text="{x:Bind ViewModel.Device.Name, Mode=OneWay}" />
+                            <!--  在线状态（只读：由 Rust core 快照 online 驱动）  -->
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <Ellipse
+                                    Width="10"
+                                    Height="10"
+                                    VerticalAlignment="Center"
+                                    Fill="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource LogiBatteryStatusToBrushConverter}}" />
+                                <TextBlock
+                                    FontSize="12"
+                                    VerticalAlignment="Center"
+                                    Foreground="{ThemeResource TextFillColorTertiaryBrush}"
+                                    Text="{x:Bind ViewModel.Device.ConnectionStatus, Mode=OneWay, Converter={StaticResource BoolToConnectionStatusTextConverter}}" />
+                            </StackPanel>
                             <TextBlock
                                 FontSize="12"
                                 Foreground="{ThemeResource TextFillColorTertiaryBrush}"
