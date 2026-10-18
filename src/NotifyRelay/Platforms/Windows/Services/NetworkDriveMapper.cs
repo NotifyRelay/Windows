@@ -47,8 +47,8 @@ public class NetworkDriveMapper
             var ftpUrl = string.IsNullOrEmpty(username)
                 ? $"ftp://{ipAddress}:{port}/"
                 : $"ftp://{Uri.EscapeDataString(username)}:{Uri.EscapeDataString(password ?? string.Empty)}@{ipAddress}:{port}/";
-            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置，FTP URL: {FtpUrl}",
-                device.Name, ftpUrl);
+            _logger.LogInformation("正在将设备 {DeviceName} 创建为网络位置，FTP 地址: ftp://{IpAddress}:{Port}/",
+                device.Name, ipAddress, port);
 
             try
             {
@@ -81,8 +81,8 @@ public class NetworkDriveMapper
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "创建网络位置快捷方式失败，设备: {DeviceName}，FTP URL: {FtpUrl}",
-                    device.Name, ftpUrl);
+                _logger.LogError(ex, "创建网络位置快捷方式失败，设备: {DeviceName}，FTP 地址: ftp://{IpAddress}:{Port}/",
+                    device.Name, ipAddress, port);
                 return string.Empty;
             }
         }

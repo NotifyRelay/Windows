@@ -39,6 +39,10 @@ internal sealed class OverlayWatchdog
     private readonly ILogger _logger;
     private readonly IOverlayWatchdogHost _host;
 
+    // 停止信号：Stop() 置位并唤醒看门狗线程退出轮询循环
+    private readonly ManualResetEventSlim _stopSignal = new(false);
+    private volatile bool _stopRequested;
+
     private long _lastHeartbeatTick;
     private Thread? _watchdogThread;
 
@@ -56,15 +60,30 @@ internal sealed class OverlayWatchdog
     public void EnsureStarted()
     {
         if (_watchdogThread != null && _watchdogThread.IsAlive) return;
+        // 复位停止状态：仅新建线程的路径执行（早返回路径不执行）
+        _stopRequested = false;
+        _stopSignal.Reset();
         _watchdogThread = new Thread(WatchdogLoop) { IsBackground = true, Name = "D2D-Overlay-Watchdog" };
         _watchdogThread.Start();
     }
 
+    /// <summary>停止看门狗线程（幂等：未启动或重复调用均不抛异常）。</summary>
+    public void Stop()
+    {
+        _stopRequested = true;
+        _stopSignal.Set();
+        // Join 超时说明线程仍在内层阻塞：保留句柄，避免其随后的 EnsureStarted 误判为未启动而重建线程
+        var thread = _watchdogThread;
+        if (thread != null && !thread.Join(WatchdogIntervalMs)) return;
+        _watchdogThread = null;
+    }
+
     private void WatchdogLoop()
     {
-        while (true)
+        while (!_stopRequested)
         {
-            Thread.Sleep(WatchdogIntervalMs);
+            // 等待轮询间隔；收到停止信号立即退出循环
+            if (_stopSignal.Wait(WatchdogIntervalMs)) break;
             if (!_host.Running) continue;   // 正常停止中，跳过
             long last = Interlocked.Read(ref _lastHeartbeatTick);
             if (last == 0) continue;
@@ -77,7 +96,8 @@ internal sealed class OverlayWatchdog
     /// <summary>
     /// 覆盖层卡死故障隔离：
     /// 1) 停止渲染循环；2) 清除所有覆盖层窗口 TOPMOST（不依赖窗口消息泵，立即恢复系统可操作性）；
-    /// 3) 等待旧渲染线程退出（在本线程内 Join，不阻塞业务线程）；4) 确认退出后清理残留窗口并自动重启。
+    /// 3) 等待旧渲染线程退出（在本线程内 Join，不阻塞业务线程）；4) 确认退出后清理残留窗口并自动重启，
+    /// 已请求停止（Stop）时不重启。
     /// 若渲染线程永久无法退出，则保持隔离状态（窗口已不再置顶），覆盖层停止工作但不影响系统。
     /// </summary>
     private void RecoverFromHang(long elapsedMs)
@@ -105,7 +125,8 @@ internal sealed class OverlayWatchdog
             exited = !dead.IsAlive;
         }
 
-        if (exited)
+        // 已请求停止（Stop）时不重启渲染循环，避免关停期复活
+        if (exited && !_stopRequested)
         {
             // 旧线程可能未执行 finally：向渲染线程投递清理请求（不直接操作窗口句柄），
             // 由重启后的新渲染线程在启动时执行残留资源清理并重建
@@ -113,7 +134,7 @@ internal sealed class OverlayWatchdog
             _host.Restart();
             _logger.LogWarning("覆盖层渲染线程已恢复并重启");
         }
-        else
+        else if (!exited)
         {
             _logger.LogError("覆盖层渲染线程永久卡死无法退出，已隔离（清除置顶），覆盖层停止工作，请重启应用恢复");
         }

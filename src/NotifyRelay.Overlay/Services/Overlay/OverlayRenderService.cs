@@ -154,6 +154,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     public void Stop()
     {
         Interlocked.Exchange(ref _runningFlag, 0);
+        _watchdog.Stop();
         _renderThread?.Join(2000);
         _featureStartup.Shutdown();
         CleanupOverlays();
