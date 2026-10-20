@@ -7,8 +7,8 @@ namespace NotifyRelay.Native;
 public static partial class NotifyRelayCore
 {
     // ======== Sender queue ========
-    // header 规范化、去重键推导与发送去重均由该入口内部完成
-    // 返回：1=已入队 0=命中去重丢弃 -1=参数无效或队列未初始化
+    // header 规范化、去重键推导与发送去重均由该入口内部完成（发送去重仅通知类 DATA_NOTIFICATION）
+    // 返回：1=已入队 0=命中去重丢弃（仅通知类） -1=参数无效或队列未初始化
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_enqueue_message(IntPtr ctx, long queuePtr, IntPtr deviceUuid, IntPtr header, IntPtr plaintext);
 

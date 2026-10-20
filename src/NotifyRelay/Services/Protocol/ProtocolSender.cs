@@ -78,7 +78,7 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
-            // header 规范化、去重键推导与发送去重均在 Rust core 的入队入口内部完成（IP 同样由 Rust 管理）。
+            // header 规范化、去重键推导与发送去重（仅通知类）均在 Rust core 的入队入口内部完成（IP 同样由 Rust 管理）。
             var result = NativeCore.EnqueueMessage(device.Id, header, plaintext);
             if (result == 1)
             {
