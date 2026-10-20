@@ -43,5 +43,13 @@ public sealed partial class DeviceDiscoveryPage : Page
         base.OnNavigatedTo(e);
         DiscoveryService.StartDiscoveryAsync();
     }
+
+    private async void PairDevice_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Data.Models.DiscoveredDevice device })
+        {
+            await ViewModel.PairDeviceAsync(device);
+        }
+    }
 }
 

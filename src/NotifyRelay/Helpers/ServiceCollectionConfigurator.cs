@@ -88,6 +88,9 @@ internal static class ServiceCollectionConfigurator
         // 7. 注册IDiscoveryService，它依赖INetworkService
         .AddSingleton<IDiscoveryService, DiscoveryService>()
 
+        // 配对发起端编排（PC 主动发起配对）
+        .AddSingleton<NotifyRelay.Services.Protocol.PairingInitiator>()
+
         // Worker Services
         .AddSingleton<NotifyRelay.Worker.Configuration.WorkerConfiguration>()
         .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
