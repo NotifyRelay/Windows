@@ -40,8 +40,6 @@ public static partial class NotifyRelayCore
 
     // ======== Other utilities ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr nrc_compute_dedup_key(IntPtr deviceUuid, IntPtr data);
-    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_compute_feature_id(IntPtr superPkg, IntPtr paramV2Raw, IntPtr title, IntPtr text, IntPtr instanceId);
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern IntPtr nrc_parse_superisland_inbound(IntPtr deviceUuid, IntPtr pkg, IntPtr fullJson);
@@ -61,6 +59,11 @@ public static partial class NotifyRelayCore
     // ======== Dedup unified ========
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern int nrc_dedup(IntPtr ctx, int action, IntPtr dedupKey, long arg1Ms, long arg2Ms);
+
+    // ======== 入站内容去重（10s 窗口；键与 TTL 由 core 持有）========
+    // action：0=纯查询（1=窗口内已见 / 0=未见）1=标记已见 2=清除全部内容键
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern int nrc_content_dedup(IntPtr ctx, int action, IntPtr title, IntPtr text);
 
     public static partial class Safe
     {
@@ -120,14 +123,6 @@ public static partial class NotifyRelayCore
         }
 
         // ======== Utility wrappers ========
-        public static string? ComputeDedupKey(string deviceUuid, string data)
-        {
-            var u = StringToPtr(deviceUuid); var d = StringToPtr(data);
-            var result = NotifyRelayCore.nrc_compute_dedup_key(u, d);
-            Marshal.FreeHGlobal(u); Marshal.FreeHGlobal(d);
-            return PtrToStringAndFree(result);
-        }
-
         public static string? ComputeFeatureId(string superPkg, string paramV2Raw, string title, string text, string instanceId)
         {
             var pkg = StringToPtr(superPkg); var param = StringToPtr(paramV2Raw); var t = StringToPtr(title);
@@ -190,6 +185,15 @@ public static partial class NotifyRelayCore
             var k = StringToPtr(dedupKey);
             var result = NotifyRelayCore.nrc_dedup(ctx, action, k, arg1Ms, arg2Ms);
             Marshal.FreeHGlobal(k);
+            return result;
+        }
+
+        // ======== 入站内容去重 ========
+        public static int ContentDedup(IntPtr ctx, int action, string title, string text)
+        {
+            var t = StringToPtr(title); var x = StringToPtr(text);
+            var result = NotifyRelayCore.nrc_content_dedup(ctx, action, t, x);
+            Marshal.FreeHGlobal(t); Marshal.FreeHGlobal(x);
             return result;
         }
     }

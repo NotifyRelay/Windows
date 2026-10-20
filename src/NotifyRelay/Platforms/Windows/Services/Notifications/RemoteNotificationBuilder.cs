@@ -3,18 +3,17 @@ using System.Runtime.InteropServices;
 using Microsoft.Windows.AppNotifications;
 using Microsoft.Windows.AppNotifications.Builder;
 using NotifyRelay.Data.Contracts;
+using NotifyRelay.Native;
 using NotifyRelay.Services.Devices;
 
 namespace NotifyRelay.Platforms.Windows.Services.Notifications;
 
 /// <summary>
 /// 负责远程通知 payload 解析、去重判定、通知构建与发送。
-/// 去重缓存（_pendingQueue / _contentCache）的所有权仍由主类持有，通过引用传入。
+/// 待复刻队列（_pendingQueue）的所有权仍由主类持有，通过引用传入；10s 内容去重窗口由 Rust core 持有。
 /// </summary>
 internal sealed class RemoteNotificationBuilder
 {
-    private static readonly TimeSpan ContentCacheTtl = TimeSpan.FromSeconds(10);
-
     private readonly ILogger _logger;
     private readonly ILocalNotificationListenerService _localListener;
 
@@ -27,8 +26,7 @@ internal sealed class RemoteNotificationBuilder
     public async Task ShowRemoteNotification(
         string payload,
         string deviceId,
-        ConcurrentDictionary<string, DateTime> pendingQueue,
-        ConcurrentDictionary<string, DateTime> contentCache)
+        ConcurrentDictionary<string, DateTime> pendingQueue)
     {
         try
         {
@@ -68,7 +66,7 @@ internal sealed class RemoteNotificationBuilder
 
             try
             {
-                if (contentCache.ContainsKey(aggregationKey))
+                if (NativeCore.ContentDedup(0, titleText, textText) == 1)
                 {
                     _logger.LogDebug("10s 内容缓存命中，取消复刻 (key={Key})", aggregationKey);
                     return;
@@ -76,8 +74,7 @@ internal sealed class RemoteNotificationBuilder
 
                 AppNotificationManager.Default.Show(notification);
 
-                contentCache.TryAdd(aggregationKey, DateTime.UtcNow);
-                CleanExpiredCacheEntries(contentCache);
+                NativeCore.ContentDedup(1, titleText, textText);
             }
             finally
             {
@@ -96,13 +93,4 @@ internal sealed class RemoteNotificationBuilder
         }
     }
 
-    private static void CleanExpiredCacheEntries(ConcurrentDictionary<string, DateTime> contentCache)
-    {
-        var cutoff = DateTime.UtcNow - ContentCacheTtl;
-        foreach (var kvp in contentCache)
-        {
-            if (kvp.Value < cutoff)
-                contentCache.TryRemove(kvp.Key, out _);
-        }
-    }
 }
