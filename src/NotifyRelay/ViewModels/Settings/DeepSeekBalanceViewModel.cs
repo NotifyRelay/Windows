@@ -15,13 +15,15 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _generalSettingsService;
     private readonly IDeepSeekBalanceTool _deepSeekService;
-    private readonly OverlayRenderService? _renderService;
+    private readonly IOverlayDataSink? _sink;
+    private readonly IScreenCatalog? _screenCatalog;
 
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _deepSeekService = Ioc.Default.GetRequiredService<IDeepSeekBalanceTool>();
-        _renderService = Ioc.Default.GetService<OverlayRenderService>();
+        _sink = Ioc.Default.GetService<IOverlayDataSink>();
+        _screenCatalog = Ioc.Default.GetService<IScreenCatalog>();
         Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
@@ -166,7 +168,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
     private void BuildScreenOptions()
     {
         _selectedScreen = OverlayScreenOptions.BuildInto(
-            Screens, _renderService, _generalSettingsService.DeepSeekBalanceTargetScreen);
+            Screens, _screenCatalog, _generalSettingsService.DeepSeekBalanceTargetScreen);
     }
 
     // ===== 操作 =====
@@ -287,7 +289,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
     /// <summary>把当前显示配置推送到覆盖层渲染服务。</summary>
     public void PushConfig()
     {
-        _renderService?.SetDeepSeekBalanceConfig(
+        _sink?.SetDeepSeekBalanceConfig(
             _generalSettingsService.EnableDeepSeekBalanceMonitor,
             _generalSettingsService.DeepSeekBalanceTargetScreen,
             _generalSettingsService.DeepSeekBalanceXPercent,

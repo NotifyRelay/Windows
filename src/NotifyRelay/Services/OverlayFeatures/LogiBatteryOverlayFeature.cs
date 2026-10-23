@@ -11,12 +11,12 @@ namespace NotifyRelay.Services.OverlayFeatures;
 /// </summary>
 public sealed class LogiBatteryOverlayFeature : IOverlayHostFeature
 {
-    private readonly LogiBatteryProvider _provider;
+    private readonly ILogiBatteryDeviceSource _provider;
     private readonly IGeneralSettingsService _settings;
 
     private IOverlayDataSink? _sink;
 
-    public LogiBatteryOverlayFeature(LogiBatteryProvider provider, IGeneralSettingsService settings)
+    public LogiBatteryOverlayFeature(ILogiBatteryDeviceSource provider, IGeneralSettingsService settings)
     {
         _provider = provider;
         _settings = settings;

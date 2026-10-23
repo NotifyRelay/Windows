@@ -320,10 +320,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         });
     }
 
-    /// <summary>枚举所有显示器（使用完整屏幕区域，弹幕可跨越整屏宽度）。</summary>
-    private static List<ScreenInfo> EnumerateScreens()
-        => OverlayWindowManager.EnumerateScreens();
-
     /// <summary>销毁并清空所有覆盖层窗口与顶部卡片资源（渲染线程调用）。</summary>
     private void CleanupOverlays()
     {

@@ -15,7 +15,7 @@ namespace NotifyRelay.Services.Infrastructure;
 /// 负责：调用 Loader 加载 DLL → 轮询/调用 lb_enumerate_devices → 转换为叠加层消费模型 LogiBatteryDeviceInfo → 派发 DevicesUpdated 事件。
 /// lb_enumerate_devices 每次调用会阻塞（内部启动 tokio runtime），因此放在后台线程轮询。
 /// </summary>
-public sealed class LogiBatteryProvider : IDisposable
+public sealed class LogiBatteryProvider : ILogiBatteryDeviceSource, IDisposable
 {
     private readonly ILogger<LogiBatteryProvider> _logger;
     private readonly IGeneralSettingsService _settings;
@@ -77,6 +77,12 @@ public sealed class LogiBatteryProvider : IDisposable
     }
 
     public IReadOnlyList<OverlayLogiDevice> GetDevices() => Volatile.Read(ref _devices);
+
+    /// <summary>底层原生库是否就绪（DLL 已加载）。</summary>
+    public bool IsReady => LogiBatteryLoader.IsAvailable;
+
+    /// <summary>立即刷新一次设备快照（不改变监控状态）。</summary>
+    public Task RefreshNowAsync() => RefreshOnceAsync();
 
     public event EventHandler? DevicesUpdated;
 

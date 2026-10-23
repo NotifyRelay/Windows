@@ -99,10 +99,6 @@ public partial class OverlayRenderService
     public void UpdateDeepSeekBalance(double? balance, double change)
         => _deepSeekBalanceElement!.Update(balance, change);
 
-    /// <summary>获取当前显示器列表（DeviceName + 是否主屏），供设置页屏幕下拉使用。</summary>
-    public IReadOnlyList<(string DeviceName, bool IsPrimary)> GetScreenList()
-        => EnumerateScreens().ConvertAll(s => (s.DeviceName, s.IsPrimary));
-
     // ===== 元素与声明式 UI 的渲染协调 =====
 
     /// <summary>是否存在任一活跃的元素（收敛原逐个 XxxActive 调用链）。</summary>

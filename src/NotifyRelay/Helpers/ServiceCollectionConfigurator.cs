@@ -106,6 +106,7 @@ internal static class ServiceCollectionConfigurator
         // Overlay Render Service
         .AddSingleton<OverlayRenderService>()
         .AddSingleton<IOverlayDataSink>(sp => sp.GetRequiredService<OverlayRenderService>())
+        .AddSingleton<IScreenCatalog, OverlayScreenCatalog>()
 
         // 叠加层功能：登记后由 OverlayFeatureHost 按各自开关自动引导，
         // 新增功能只需在此追加一行登记，无需改动启动流程
@@ -121,6 +122,7 @@ internal static class ServiceCollectionConfigurator
 
         // 罗技电池（LogiBattery）Provider 和 ViewModel
         .AddSingleton<LogiBatteryProvider>()
+        .AddSingleton<ILogiBatteryDeviceSource>(sp => sp.GetRequiredService<LogiBatteryProvider>())
         .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
 
         // 时间浮窗（Clock）ViewModel
