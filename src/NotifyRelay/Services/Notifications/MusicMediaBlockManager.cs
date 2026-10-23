@@ -16,7 +16,7 @@ public class MusicMediaBlockManager(
     ILogger logger,
     Microsoft.UI.Dispatching.DispatcherQueue dispatcher,
     IGeneralSettingsService generalSettings,
-    OverlayRenderService overlayRender) : IMusicMediaBlockManager
+    IOverlayDataSink overlayRender) : IMusicMediaBlockManager
 {
     // 音乐媒体块相关（支持多个设备同时显示）
     private readonly ObservableCollection<MusicMediaBlock> _currentMusicMediaBlocks = new();

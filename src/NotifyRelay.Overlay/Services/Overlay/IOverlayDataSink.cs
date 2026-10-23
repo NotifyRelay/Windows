@@ -48,4 +48,27 @@ public interface IOverlayDataSink
 
     /// <summary>推送最新余额与相对上一条记录的变化量；balance 传 null 表示暂无数据。</summary>
     void UpdateDeepSeekBalance(double? balance, double change);
+
+    /// <summary>
+    /// 提交一条弹幕。sourceKey 非空时，同键弹幕仍在屏或仍在待发队列则改写其内容，否则新增条目；
+    /// sourceKey 为空时每次新增。
+    /// </summary>
+    void ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName,
+        string? sourceKey = null);
+
+    /// <summary>更新弹幕样式。</summary>
+    void UpdateStyle(DanmakuStyleSettings settings);
+
+    /// <summary>推送媒体卡片；已存在同设备卡片时仅更新有实际值的字段。</summary>
+    void ShowMediaCard(string deviceId, string deviceName, string title, string artist, byte[]? coverPng,
+        bool isPlaying);
+
+    /// <summary>移除指定设备的媒体卡片。</summary>
+    void RemoveMediaCard(string deviceId);
+
+    /// <summary>推送超级岛卡片；已存在同 sourceId 卡片时合并变更。</summary>
+    void ShowSuperIsland(string sourceId, string deviceName, SuperIslandState state);
+
+    /// <summary>移除指定 sourceId 的超级岛卡片。</summary>
+    void RemoveSuperIsland(string sourceId);
 }

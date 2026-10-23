@@ -6,13 +6,6 @@ using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
-public class MonitorInfo
-{
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string DeviceName { get; set; } = string.Empty;
-}
-
 public class MonitorBrightnessService : IMonitorBrightnessTool
 {
     private readonly ILogger _logger;

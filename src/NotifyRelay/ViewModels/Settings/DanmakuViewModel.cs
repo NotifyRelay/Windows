@@ -8,7 +8,7 @@ namespace NotifyRelay.ViewModels.Settings;
 public class DanmakuViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
-    private readonly OverlayRenderService? _renderService;
+    private readonly IOverlayDataSink? _sink;
 
     public bool DanmakuNotificationEnabled
     {
@@ -142,7 +142,7 @@ public class DanmakuViewModel : ObservableViewModelBase
     public DanmakuViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _renderService = Ioc.Default.GetService<OverlayRenderService>();
+        _sink = Ioc.Default.GetService<IOverlayDataSink>();
 
         // 预加载测试图标（异步，启动后很快就绪）
         _ = EnsureTestIconLoadedAsync();
@@ -194,7 +194,7 @@ public class DanmakuViewModel : ObservableViewModelBase
     {
         // 优先使用已预加载的图标字节，未就绪时同步回退到嵌入资源
         var icon = _testIconBytes ?? LoadTestIconFromEmbeddedResource();
-        _renderService?.ShowDanmaku("NotifyRelay", "测试", "这是一条测试弹幕通知", icon, "本机");
+        _sink?.ShowDanmaku("NotifyRelay", "测试", "这是一条测试弹幕通知", icon, "本机");
     }
 
     private static byte[]? _testIconBytes;
@@ -284,6 +284,6 @@ public class DanmakuViewModel : ObservableViewModelBase
             DisplayScreenMode = DanmakuDisplayScreenMode,
             PerformanceMode = DanmakuPerformanceMode
         };
-        _renderService?.UpdateStyle(style);
+        _sink?.UpdateStyle(style);
     }
 }

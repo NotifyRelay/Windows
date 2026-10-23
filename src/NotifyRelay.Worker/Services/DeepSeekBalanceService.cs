@@ -5,15 +5,6 @@ using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
-public class BalanceHistoryItem
-{
-    public DateTime Time { get; set; }
-    public double Balance { get; set; }
-    public double Change { get; set; }
-    public string ChangeType { get; set; } = string.Empty;
-    public int MergeCount { get; set; } = 1;
-}
-
 public class DeepSeekBalanceService : IDeepSeekBalanceTool
 {
     private readonly ILogger _logger;

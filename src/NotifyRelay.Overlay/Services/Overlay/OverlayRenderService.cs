@@ -87,7 +87,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     /// 叠加层模块主初始化：载入设置、启动渲染线程与看门狗。
     /// 数据由宿主经 <see cref="IOverlayDataSink"/> 推送。
     /// </summary>
-    public void Start()
+    void IOverlayDataSink.Start()
     {
         // 原子争用启动所有权：仅当仍处未启动态(0)时置为运行态(1)，
         // 其他线程已拥有启动则直接返回，避免并发 Start 启动多个渲染线程。
@@ -150,7 +150,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private static byte ParseColorChannel(string? hex, byte fallback, int offset)
         => UI.ColorHexParser.ParseChannel(hex, fallback, offset);
 
-    public void Stop()
+    void IOverlayDataSink.Stop()
     {
         Interlocked.Exchange(ref _runningFlag, 0);
         _watchdog.Stop();
@@ -573,13 +573,13 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         CleanupOverlays();
     }
 
-    void IOverlayWatchdogHost.Restart() => Start();
+    void IOverlayWatchdogHost.Restart() => ((IOverlayDataSink)this).Start();
 
     #endregion
 
     public void Dispose()
     {
-        Stop();
+        ((IOverlayDataSink)this).Stop();
         ResetUiAndElements();
         _wicFactory.Dispose();
         _dwFactory.Dispose();

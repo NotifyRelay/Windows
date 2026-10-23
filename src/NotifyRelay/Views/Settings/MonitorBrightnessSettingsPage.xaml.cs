@@ -1,7 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Utils;
 using NotifyRelay.Worker.Contracts;
-using NotifyRelay.Worker.Services;
 
 namespace NotifyRelay.Views.Settings;
 

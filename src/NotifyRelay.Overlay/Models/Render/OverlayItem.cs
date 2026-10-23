@@ -4,14 +4,14 @@ using Vortice.DirectWrite;
 
 namespace NotifyRelay.Models.Render;
 
-public enum DanmakuType
+internal enum DanmakuType
 {
     Notification,
     Media,
     SuperIsland
 }
 
-public abstract class OverlayItem : IDisposable
+internal abstract class OverlayItem : IDisposable
 {
     public DanmakuType Type { get; protected set; }
     public double StartTime { get; set; }
@@ -21,7 +21,7 @@ public abstract class OverlayItem : IDisposable
     public abstract void Dispose();
 }
 
-public class DanmakuItem : OverlayItem
+internal class DanmakuItem : OverlayItem
 {
     public string Text { get; set; }
     public byte[]? IconPng { get; set; }
@@ -61,7 +61,7 @@ public class DanmakuItem : OverlayItem
     }
 }
 
-public class MediaCardItem : OverlayItem
+internal class MediaCardItem : OverlayItem
 {
     public string Title { get; set; } = string.Empty;
     public string Artist { get; set; } = string.Empty;
@@ -111,7 +111,7 @@ public class MediaCardItem : OverlayItem
     }
 }
 
-public class SuperIslandItem : OverlayItem
+internal class SuperIslandItem : OverlayItem
 {
     public SuperIslandState State { get; set; } = new();
     public byte[]? IconPng { get; set; }

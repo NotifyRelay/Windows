@@ -24,7 +24,7 @@ public class NotificationService(
     NotificationRepository notificationRepository,
     IPlaybackService playbackService,
     IGeneralSettingsService generalSettings,
-    OverlayRenderService overlayRender,
+    IOverlayDataSink overlayRender,
     INotificationGrouper grouper,
     IMusicMediaBlockManager musicMediaBlockManager,
     INotificationIconResolver iconResolver,

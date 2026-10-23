@@ -5,7 +5,7 @@ namespace NotifyRelay.Models.Render;
 /// <summary>
 /// SuperIslandParamV2Parser 的进度/计时/动作解析与 param_island（A/B 区）布局解析部分。
 /// </summary>
-public static partial class SuperIslandParamV2Parser
+internal static partial class SuperIslandParamV2Parser
 {
     // ---------- components 解析 ----------
 

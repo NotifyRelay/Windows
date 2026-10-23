@@ -9,7 +9,7 @@ namespace NotifyRelay.Models.Render;
 /// <summary>
 /// param_v2 总容器，按字段分支选择不同模板组件。
 /// </summary>
-public sealed class ParamV2
+internal sealed class ParamV2
 {
     public BaseInfoData? BaseInfo { get; set; }
     public ChatInfoData? ChatInfo { get; set; }
@@ -34,7 +34,7 @@ public sealed class ParamV2
 // ---------- templates ----------
 
 /// <summary>基础信息模板：文本组件1和2。</summary>
-public sealed class BaseInfoData
+internal sealed class BaseInfoData
 {
     public int Type { get; set; } = 1;
     public string? Title { get; set; }
@@ -64,7 +64,7 @@ public sealed class BaseInfoData
 }
 
 /// <summary>聊天信息模板：IM图文组件（头像 + 主要/次要文本）。</summary>
-public sealed class ChatInfoData
+internal sealed class ChatInfoData
 {
     public string? PicProfile { get; set; }
     public string? PicProfileDark { get; set; }
@@ -79,7 +79,7 @@ public sealed class ChatInfoData
 }
 
 /// <summary>高亮信息模板：强调图文组件。</summary>
-public sealed class HighlightInfoData
+internal sealed class HighlightInfoData
 {
     public string? Title { get; set; }
     public TimerInfoData? TimerInfo { get; set; }
@@ -100,7 +100,7 @@ public sealed class HighlightInfoData
 }
 
 /// <summary>提示信息模板：按钮组件2和3。</summary>
-public sealed class HintInfoData
+internal sealed class HintInfoData
 {
     public int Type { get; set; } = 1;
     public string? Title { get; set; }
@@ -123,7 +123,7 @@ public sealed class HintInfoData
 }
 
 /// <summary>图片信息模板：识别图形组件。</summary>
-public sealed class PicInfoData
+internal sealed class PicInfoData
 {
     public int Type { get; set; } = 1;
     public string? Pic { get; set; }
@@ -137,7 +137,7 @@ public sealed class PicInfoData
 // ---------- components ----------
 
 /// <summary>进度信息。</summary>
-public sealed class ProgressData
+internal sealed class ProgressData
 {
     public int Progress { get; set; }
     public string? ColorProgress { get; set; }
@@ -152,7 +152,7 @@ public sealed class ProgressData
 }
 
 /// <summary>多段进度信息。</summary>
-public sealed class MultiProgressData
+internal sealed class MultiProgressData
 {
     public string Title { get; set; } = string.Empty;
     public int Progress { get; set; }
@@ -168,7 +168,7 @@ public sealed class MultiProgressData
 }
 
 /// <summary>计时器信息。</summary>
-public sealed class TimerInfoData
+internal sealed class TimerInfoData
 {
     /// <summary>-2 倒计时暂停，-1 倒计时开始，0 默认（正计时开始），1 正计时中，2 正计时暂停。</summary>
     public int TimerType { get; set; }
@@ -178,7 +178,7 @@ public sealed class TimerInfoData
 }
 
 /// <summary>操作信息（按钮）。</summary>
-public sealed class ActionData
+internal sealed class ActionData
 {
     public string? Action { get; set; }
     public string? ActionIcon { get; set; }
@@ -196,13 +196,13 @@ public sealed class ActionData
 }
 
 /// <summary>文本按钮模板：按钮组（纯文字按钮，1-2 个）。</summary>
-public sealed class TextButtonData
+internal sealed class TextButtonData
 {
     public List<ActionData> Actions { get; set; } = [];
 }
 
 /// <summary>动画文本组件。</summary>
-public sealed class AnimTextInfoData
+internal sealed class AnimTextInfoData
 {
     public string? IconSrc { get; set; }
     public string? IconSrcDark { get; set; }
@@ -218,7 +218,7 @@ public sealed class AnimTextInfoData
 // ---------- 新增 OS3 组件（iconTextInfo / coverInfo / highlightInfoV3 / bgInfo） ----------
 
 /// <summary>新图文组件：图标 + 主/次文本（iconTextInfo）。</summary>
-public sealed class IconTextInfoData
+internal sealed class IconTextInfoData
 {
     public string? IconKey { get; set; }     // animIconInfo.src
     public string? IconKeyDark { get; set; } // animIconInfo.srcDark
@@ -232,7 +232,7 @@ public sealed class IconTextInfoData
 }
 
 /// <summary>封面组件：封面图 + 主/次文本（coverInfo）。</summary>
-public sealed class CoverInfoData
+internal sealed class CoverInfoData
 {
     public string? PicCover { get; set; }
     public string? Title { get; set; }
@@ -247,7 +247,7 @@ public sealed class CoverInfoData
 }
 
 /// <summary>按钮组件5：高亮文本 + 文字标签 + 圆头图文按钮（highlightInfoV3）。</summary>
-public sealed class HighlightInfoV3Data
+internal sealed class HighlightInfoV3Data
 {
     public string? PrimaryText { get; set; }
     public string? SecondaryText { get; set; }
@@ -265,7 +265,7 @@ public sealed class HighlightInfoV3Data
 }
 
 /// <summary>模板背景：背景图或背景色（bgInfo）。</summary>
-public sealed class BgInfoData
+internal sealed class BgInfoData
 {
     /// <summary>1 全屏（默认） / 2 右侧。</summary>
     public int Type { get; set; } = 1;
@@ -276,14 +276,14 @@ public sealed class BgInfoData
 // ---------- param_island / A-B 区 ----------
 
 /// <summary>param_island 节点：小岛摘要区 + 大岛摘要区。</summary>
-public sealed class ParamIslandData
+internal sealed class ParamIslandData
 {
     public SmallIslandAreaData? SmallIslandArea { get; set; }
     public BigIslandAreaData? BigIslandArea { get; set; }
 }
 
 /// <summary>小岛区域（收起态）摘要。</summary>
-public sealed class SmallIslandAreaData
+internal sealed class SmallIslandAreaData
 {
     public string? PrimaryText { get; set; }
     public string? SecondaryText { get; set; }
@@ -292,7 +292,7 @@ public sealed class SmallIslandAreaData
 }
 
 /// <summary>大岛区域（摘要态 A/B 区）承载。</summary>
-public sealed class BigIslandAreaData
+internal sealed class BigIslandAreaData
 {
     public string? PrimaryText { get; set; }
     public string? SecondaryText { get; set; }
@@ -305,7 +305,7 @@ public sealed class BigIslandAreaData
 }
 
 /// <summary>A区（左侧 imageTextInfoLeft）组件。</summary>
-public abstract class AComponentData
+internal abstract class AComponentData
 {
     public int Type { get; protected set; }
     public string? Title { get; set; }
@@ -316,25 +316,25 @@ public abstract class AComponentData
 }
 
 /// <summary>A区：图文组件1。</summary>
-public sealed class AImageText1Data : AComponentData
+internal sealed class AImageText1Data : AComponentData
 {
     public AImageText1Data() => Type = 1;
 }
 
 /// <summary>A区：图文组件5（静态图标）。</summary>
-public sealed class AImageText5Data : AComponentData
+internal sealed class AImageText5Data : AComponentData
 {
     public AImageText5Data() => Type = 5;
 }
 
 /// <summary>B区（右侧 imageTextInfoRight 及其它组件）接口。</summary>
-public abstract class BComponentData
+internal abstract class BComponentData
 {
     public string Kind { get; set; } = "empty";
 }
 
 /// <summary>B区：图文组件2/3/6 与纯文本组件。</summary>
-public sealed class BImageTextData : BComponentData
+internal sealed class BImageTextData : BComponentData
 {
     public string? FrontTitle { get; set; }
     public string? Title { get; set; }
@@ -345,7 +345,7 @@ public sealed class BImageTextData : BComponentData
 }
 
 /// <summary>B区：定宽/等宽数字文本（digit 或计时器）。</summary>
-public sealed class BDigitInfoData : BComponentData
+internal sealed class BDigitInfoData : BComponentData
 {
     public string? Digit { get; set; }
     public TimerInfoData? Timer { get; set; }
@@ -354,7 +354,7 @@ public sealed class BDigitInfoData : BComponentData
 }
 
 /// <summary>B区：进度文本（进度圆环 + 文本）。</summary>
-public sealed class BProgressTextInfoData : BComponentData
+internal sealed class BProgressTextInfoData : BComponentData
 {
     public string? FrontTitle { get; set; }
     public string? Title { get; set; }
@@ -369,14 +369,14 @@ public sealed class BProgressTextInfoData : BComponentData
 }
 
 /// <summary>B区：图片组件。</summary>
-public sealed class BPicInfoData : BComponentData
+internal sealed class BPicInfoData : BComponentData
 {
     public string PicKey { get; set; } = string.Empty;
     public int Type { get; set; } = 1;
 }
 
 /// <summary>B区：空占位。</summary>
-public sealed class BEmptyData : BComponentData
+internal sealed class BEmptyData : BComponentData
 {
     public BEmptyData() => Kind = "empty";
 }

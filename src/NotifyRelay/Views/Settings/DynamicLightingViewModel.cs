@@ -2,7 +2,6 @@ using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.ViewModels;
 using NotifyRelay.Worker.Contracts;
-using NotifyRelay.Worker.Services;
 using Windows.UI;
 
 namespace NotifyRelay.Views.Settings;

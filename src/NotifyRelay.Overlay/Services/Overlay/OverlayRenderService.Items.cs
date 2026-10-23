@@ -8,8 +8,8 @@ public partial class OverlayRenderService
     /// 提交一条弹幕。sourceKey 非空时，同键弹幕仍在屏或仍在待发队列则改写其内容，否则新增条目；
     /// sourceKey 为空时每次新增。
     /// </summary>
-    public void ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName,
-        string? sourceKey = null)
+    void IOverlayDataSink.ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName,
+        string? sourceKey)
     {
         var text = string.IsNullOrEmpty(appName) ? $"{title} - {body}" : $"{appName}: {title} - {body}";
         // 展平换行，保证单行滚动
@@ -37,7 +37,7 @@ public partial class OverlayRenderService
         });
     }
 
-    public void ShowMediaCard(string deviceId, string deviceName, string title, string artist, byte[]? coverPng, bool isPlaying)
+    void IOverlayDataSink.ShowMediaCard(string deviceId, string deviceName, string title, string artist, byte[]? coverPng, bool isPlaying)
     {
         // 有界等待：渲染线程异常持锁超时则跳过本次更新，避免业务线程无限阻塞拖死应用
         if (!Monitor.TryEnter(_lock, 2000))
@@ -113,7 +113,7 @@ public partial class OverlayRenderService
         }
     }
 
-    public void RemoveMediaCard(string deviceId)
+    void IOverlayDataSink.RemoveMediaCard(string deviceId)
     {
         if (!Monitor.TryEnter(_lock, 2000))
         {
@@ -136,7 +136,7 @@ public partial class OverlayRenderService
         }
     }
 
-    public void ShowSuperIsland(string sourceId, string deviceName, SuperIslandState state)
+    void IOverlayDataSink.ShowSuperIsland(string sourceId, string deviceName, SuperIslandState state)
     {
         if (!Monitor.TryEnter(_lock, 2000))
         {
@@ -215,7 +215,7 @@ public partial class OverlayRenderService
         }
     }
 
-    public void RemoveSuperIsland(string sourceId)
+    void IOverlayDataSink.RemoveSuperIsland(string sourceId)
     {
         if (!Monitor.TryEnter(_lock, 2000))
         {
@@ -238,7 +238,7 @@ public partial class OverlayRenderService
         }
     }
 
-    public void UpdateStyle(DanmakuStyleSettings settings)
+    void IOverlayDataSink.UpdateStyle(DanmakuStyleSettings settings)
     {
         if (!Monitor.TryEnter(_lock, 2000))
         {

@@ -6,7 +6,7 @@ namespace NotifyRelay.Models.Render;
 /// SuperIslandParamV2Parser 的模板文本/图片域解析部分（baseInfo / chatInfo / highlightInfo /
 /// hintInfo / picInfo / coverInfo / bgInfo / iconTextInfo / animTextInfo / textButton）。
 /// </summary>
-public static partial class SuperIslandParamV2Parser
+internal static partial class SuperIslandParamV2Parser
 {
     // ---------- templates 解析 ----------
 
