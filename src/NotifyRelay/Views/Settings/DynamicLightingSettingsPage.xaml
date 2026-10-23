@@ -7,7 +7,7 @@
     xmlns:items="using:NotifyRelay.Data.Items"
     xmlns:local="using:NotifyRelay.Views.Settings"
     xmlns:converters="using:NotifyRelay.Converters"
-    xmlns:worker="using:NotifyRelay.Worker.Services"
+    xmlns:worker="using:NotifyRelay.Worker.Contracts"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     xmlns:wuc="using:CommunityToolkit.WinUI.Controls"
     mc:Ignorable="d">

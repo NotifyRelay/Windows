@@ -258,7 +258,7 @@ public class ProtocolRouter
 
             if (overlayEnabled)
             {
-                var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                var overlay = Ioc.Default.GetRequiredService<IOverlayDataSink>();
                 if (isEnd)
                 {
                     overlay.RemoveSuperIsland(sourceId);

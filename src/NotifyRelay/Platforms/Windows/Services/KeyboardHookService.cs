@@ -3,14 +3,13 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Data.Models.Actions;
-using NotifyRelay.Services.Overlay;
 
 namespace NotifyRelay.Platforms.Windows.Services;
 
 /// <summary>
 /// 键盘钩子服务：低级键盘钩子捕获按键事件，支持快捷键映射和按键状态追踪。
 /// </summary>
-public sealed class KeyboardHookService : IKeyboardStateProvider, IDisposable
+public sealed class KeyboardHookService : IDisposable
 {
     private readonly ILogger<KeyboardHookService> _logger;
     private readonly IGeneralSettingsService _settings;
@@ -292,6 +291,16 @@ public class KeyStateChangedEventArgs : EventArgs
     public int Key { get; set; }
     public bool IsPressed { get; set; }
     public IReadOnlyDictionary<int, bool> AllStates { get; set; } = new Dictionary<int, bool>();
+}
+
+/// <summary>快捷键映射触发事件参数。</summary>
+public class KeyMappingDisplayEventArgs : EventArgs
+{
+    /// <summary>映射配置中的显示文本。</summary>
+    public string DisplayText { get; set; } = string.Empty;
+
+    /// <summary>映射的目标键码。</summary>
+    public int TargetKey { get; set; }
 }
 
 /// <summary>快捷键映射配置。</summary>

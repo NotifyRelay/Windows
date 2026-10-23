@@ -4,7 +4,7 @@ namespace NotifyRelay.ViewModels.Settings;
 
 /// <summary>
 /// 覆盖层设置页共用的目标屏选项构建器。
-/// 统一「PRIMARY + GetScreenList() 枚举 + 回显选中」三段逻辑，
+/// 统一「PRIMARY + 显示器枚举 + 回显选中」三段逻辑，
 /// 替代时钟 / 心率 / 罗技电池 / DeepSeek 余额 4 份逐字重复的副本。
 /// </summary>
 internal static class OverlayScreenOptions
@@ -16,11 +16,11 @@ internal static class OverlayScreenOptions
     /// 构建目标屏下拉选项并回显已保存的选中项。
     /// 枚举失败时仅保留主显示器选项（与各页原实现一致）。
     /// </summary>
-    /// <param name="renderService">覆盖层渲染服务；为 null 时仅返回主显示器选项。</param>
+    /// <param name="screenCatalog">显示器枚举契约；为 null 时仅返回主显示器选项。</param>
     /// <param name="savedId">已保存的目标屏 Id。</param>
     /// <returns>选项列表与选中项。</returns>
     public static (List<ScreenOption> Screens, ScreenOption Selected) Build(
-        OverlayRenderService? renderService, string? savedId)
+        IScreenCatalog? screenCatalog, string? savedId)
     {
         var screens = new List<ScreenOption>
         {
@@ -29,16 +29,16 @@ internal static class OverlayScreenOptions
 
         try
         {
-            var list = renderService?.GetScreenList();
+            var list = screenCatalog?.GetScreens();
             if (list != null)
             {
                 int index = 1;
-                foreach (var (deviceName, isPrimary) in list)
+                foreach (var screen in list)
                 {
                     screens.Add(new ScreenOption
                     {
-                        Id = deviceName,
-                        DisplayName = $"显示器 {index}{(isPrimary ? " (主)" : "")} · {deviceName}"
+                        Id = screen.DeviceName,
+                        DisplayName = $"显示器 {index}{(screen.IsPrimary ? " (主)" : "")} · {screen.DeviceName}"
                     });
                     index++;
                 }
@@ -57,9 +57,9 @@ internal static class OverlayScreenOptions
 
     /// <summary>就地构建：清空并填充传入集合，同时返回选中项（供 ViewModel 字段赋值）。</summary>
     public static ScreenOption BuildInto(List<ScreenOption> target,
-        OverlayRenderService? renderService, string? savedId)
+        IScreenCatalog? screenCatalog, string? savedId)
     {
-        var (screens, selected) = Build(renderService, savedId);
+        var (screens, selected) = Build(screenCatalog, savedId);
         target.Clear();
         target.AddRange(screens);
         return selected;

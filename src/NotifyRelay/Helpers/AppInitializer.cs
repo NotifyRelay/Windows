@@ -168,7 +168,7 @@ internal static class AppInitializer
         {
             try
             {
-                var lightingService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.DynamicLightingService>();
+                var lightingService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Contracts.IDynamicLightingTool>();
                 await AppLifecycleHelper.RunOnUiThreadAsync(lightingService.Initialize);
                 logger.LogInformation("动态光效服务已按设置自动启动");
             }
@@ -182,7 +182,7 @@ internal static class AppInitializer
         {
             try
             {
-                var brightnessService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Services.MonitorBrightnessService>();
+                var brightnessService = Ioc.Default.GetRequiredService<NotifyRelay.Worker.Contracts.IMonitorBrightnessTool>();
                 brightnessService.StartSync();
                 logger.LogInformation("显示器亮度同步服务已按设置自动启动");
             }

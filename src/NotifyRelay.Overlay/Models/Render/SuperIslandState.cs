@@ -27,7 +27,7 @@ public class SuperIslandState
     /// <summary>
     /// 完整解析后的 param_v2 结构化模型（Android superislandui model 层移植）。
     /// </summary>
-    public ParamV2? ParamV2 { get; set; }
+    internal ParamV2? ParamV2 { get; set; }
 
     /// <summary>
     /// 业务标识（如 miui_flashlight 强制仅摘要、media 按媒体生命周期处理）。

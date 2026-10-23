@@ -1,3 +1,4 @@
+using NotifyRelay.Models.Render;
 using NotifyRelay.Services.Overlay.UI;
 using NotifyRelay.Services.Overlay.UI.Elements;
 using Vortice.Direct2D1;
@@ -54,49 +55,49 @@ public partial class OverlayRenderService
     // ===== public 转发方法（签名与语义与原 partial 完全一致） =====
 
     /// <summary>更新时间浮窗配置（启用、目标屏、位置百分比、颜色、描边、缩放、格式）。</summary>
-    public void SetClockConfig(bool enabled, string targetScreen, float xPct, float yPct,
+    void IOverlayDataSink.SetClockConfig(bool enabled, string targetScreen, float xPct, float yPct,
         string colorHex, float outlineWidth, float scale, bool showSeconds, bool use24Hour)
         => _clockElement!.SetConfig(enabled, targetScreen, xPct, yPct, colorHex, outlineWidth, scale,
             showSeconds, use24Hour);
 
     /// <summary>更新心率覆盖层配置（启用、样式组合、目标屏、位置百分比、颜色）。</summary>
-    public void SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct,
+    void IOverlayDataSink.SetHeartRateConfig(bool enabled, int styleFlags, string targetScreen, float xPct, float yPct,
         string colorHex, float outlineWidth, float scale, bool alertEnabled, int lowAlert, int highAlert,
-        int spikeDelta, bool hideWhenDisconnected = true)
+        int spikeDelta, bool hideWhenDisconnected)
         => _heartRateElement!.SetConfig(enabled, styleFlags, targetScreen, xPct, yPct, colorHex, outlineWidth,
             scale, alertEnabled, lowAlert, highAlert, spikeDelta, hideWhenDisconnected);
 
     /// <summary>推送最新心率值（BLE 通知回调线程调用）。</summary>
-    public void UpdateHeartRate(int bpm) => _heartRateElement!.UpdateHeartRate(bpm);
+    void IOverlayDataSink.UpdateHeartRate(int bpm) => _heartRateElement!.UpdateHeartRate(bpm);
 
     /// <summary>设置心率设备连接状态；断开时清空当前值与历史。</summary>
-    public void SetHeartRateConnected(bool connected) => _heartRateElement!.SetConnected(connected);
+    void IOverlayDataSink.SetHeartRateConnected(bool connected) => _heartRateElement!.SetConnected(connected);
 
     /// <summary>清空心率显示数据。</summary>
-    public void ClearHeartRate() => _heartRateElement!.Clear();
+    void IOverlayDataSink.ClearHeartRate() => _heartRateElement!.Clear();
 
-    /// <summary>注入罗技电池数据提供者（DI 启动后调用）。</summary>
-    public void SetLogiBatteryProvider(ILogiBatteryProvider? provider)
-        => _logiBatteryElement!.SetProvider(provider);
+    /// <summary>推送罗技电池设备快照（宿主调用）；空集合表示无设备。</summary>
+    void IOverlayDataSink.ApplyLogiBatteryDevices(IReadOnlyList<LogiBatteryDeviceInfo> devices)
+        => _logiBatteryElement!.ApplyDevices(devices);
 
-    /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
-    public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
-        => _keyboardElement!.SetProvider(provider);
+    /// <summary>推送键盘状态快照（宿主调用）。</summary>
+    void IOverlayDataSink.ApplyKeyboardState(KeyboardStateSnapshot snapshot)
+        => _keyboardElement!.ApplySnapshot(snapshot);
+
+    /// <summary>推送快捷键映射提示文本（宿主调用）。</summary>
+    void IOverlayDataSink.ShowKeyMappingHint(string text)
+        => _keyboardElement!.ShowHint(text);
 
     /// <summary>更新 DeepSeek 余额叠加层配置（启用、目标屏、位置百分比、缩放）。</summary>
-    public void SetDeepSeekBalanceConfig(bool enabled, string targetScreen, float xPct, float yPct, float scale)
+    void IOverlayDataSink.SetDeepSeekBalanceConfig(bool enabled, string targetScreen, float xPct, float yPct, float scale)
         => _deepSeekBalanceElement!.SetConfig(enabled, targetScreen, xPct, yPct, scale);
 
     /// <summary>
     /// 推送最新余额与相对上一条记录的变化量（余额服务线程调用）。
     /// balance 传 null 表示暂无数据（如未配置 Token / 查询失败且无历史）。
     /// </summary>
-    public void UpdateDeepSeekBalance(double? balance, double change)
+    void IOverlayDataSink.UpdateDeepSeekBalance(double? balance, double change)
         => _deepSeekBalanceElement!.Update(balance, change);
-
-    /// <summary>获取当前显示器列表（DeviceName + 是否主屏），供设置页屏幕下拉使用。</summary>
-    public IReadOnlyList<(string DeviceName, bool IsPrimary)> GetScreenList()
-        => EnumerateScreens().ConvertAll(s => (s.DeviceName, s.IsPrimary));
 
     // ===== 元素与声明式 UI 的渲染协调 =====
 

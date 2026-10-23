@@ -47,21 +47,4 @@ internal static class OverlayElementCore
     /// <summary>解析元素整体缩放系数（各元素量程不同，上下限由调用方传入）。</summary>
     public static float ResolveScale(float rawScale, float min, float max)
         => Math.Clamp(rawScale, min, max);
-
-    /// <summary>
-    /// 替换元素的数据源（Provider）并同步事件订阅：先退订旧的，再订阅新的。
-    /// 抽取了键盘 / 罗技电池各自重复的"退订—赋值—订阅"模板，后续新增元素直接复用。
-    /// </summary>
-    /// <typeparam name="TProvider">数据源类型。</typeparam>
-    /// <param name="current">当前数据源字段（以 ref 传入，方法内完成赋值）。</param>
-    /// <param name="next">新的数据源，传 null 表示清空。</param>
-    /// <param name="subscribe">订阅回调。</param>
-    /// <param name="unsubscribe">退订回调。</param>
-    public static void ReplaceProvider<TProvider>(ref TProvider? current, TProvider? next,
-        Action<TProvider> subscribe, Action<TProvider> unsubscribe) where TProvider : class
-    {
-        if (current != null) unsubscribe(current);
-        current = next;
-        if (next != null) subscribe(next);
-    }
 }

@@ -2,17 +2,11 @@ using System.Diagnostics;
 using System.Management;
 using Microsoft.Extensions.Logging;
 using NotifyRelay.Worker.Configuration;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
-public class MonitorInfo
-{
-    public string Id { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public string DeviceName { get; set; } = string.Empty;
-}
-
-public class MonitorBrightnessService
+public class MonitorBrightnessService : IMonitorBrightnessTool
 {
     private readonly ILogger _logger;
     private readonly WorkerConfiguration _config;
@@ -20,7 +14,7 @@ public class MonitorBrightnessService
     private bool _isRunning;
     private List<MonitorInfo> _availableMonitors = [];
 
-    public event Action? StatusChanged;
+    public event EventHandler? StatusChanged;
 
     public bool IsRunning => _isRunning;
 
@@ -57,7 +51,7 @@ public class MonitorBrightnessService
 
             _isRunning = true;
             _logger.LogInformation("Monitor brightness sync started");
-            StatusChanged?.Invoke();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -74,7 +68,7 @@ public class MonitorBrightnessService
             StopBrightnessWatcher();
             _isRunning = false;
             _logger.LogInformation("Monitor brightness sync stopped");
-            StatusChanged?.Invoke();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {

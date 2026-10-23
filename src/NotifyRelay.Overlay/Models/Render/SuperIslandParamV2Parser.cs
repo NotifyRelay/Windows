@@ -6,12 +6,12 @@ namespace NotifyRelay.Models.Render;
 /// 解析超级岛 param_v2 JSON，提取结构化模型（ParamV2）及简化状态字段。
 /// 从 Android superislandui 的 ParamV2Renderer / AParser / BParser / ParamIslandData 移植。
 /// </summary>
-public static partial class SuperIslandParamV2Parser
+internal static partial class SuperIslandParamV2Parser
 {
     /// <summary>
     /// 解析 param_v2 JSON 为完整结构化模型；解析失败返回 null。
     /// </summary>
-    public static ParamV2? ParseParamV2(string? paramV2Raw)
+    internal static ParamV2? ParseParamV2(string? paramV2Raw)
     {
         if (string.IsNullOrWhiteSpace(paramV2Raw)) return null;
 
@@ -68,7 +68,7 @@ public static partial class SuperIslandParamV2Parser
     /// <summary>
     /// 从 param_v2_raw JSON 中解析并填充 SuperIslandState（保留原有简化行为）。
     /// </summary>
-    public static void ApplyToState(SuperIslandState state, string? paramV2Raw)
+    internal static void ApplyToState(SuperIslandState state, string? paramV2Raw)
     {
         if (string.IsNullOrWhiteSpace(paramV2Raw)) return;
 

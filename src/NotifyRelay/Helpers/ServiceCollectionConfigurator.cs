@@ -96,19 +96,25 @@ internal static class ServiceCollectionConfigurator
         .AddSingleton<NotifyRelay.Worker.Services.DeepSeekBalanceService>()
         .AddSingleton<NotifyRelay.Worker.Services.MonitorBrightnessService>()
         .AddSingleton<NotifyRelay.Worker.Services.DynamicLightingService>()
+        .AddSingleton<NotifyRelay.Worker.Contracts.IDeepSeekBalanceTool>(sp => sp.GetRequiredService<NotifyRelay.Worker.Services.DeepSeekBalanceService>())
+        .AddSingleton<NotifyRelay.Worker.Contracts.IMonitorBrightnessTool>(sp => sp.GetRequiredService<NotifyRelay.Worker.Services.MonitorBrightnessService>())
+        .AddSingleton<NotifyRelay.Worker.Contracts.IDynamicLightingTool>(sp => sp.GetRequiredService<NotifyRelay.Worker.Services.DynamicLightingService>())
 
         // Audio Relay Service
         .AddSingleton<DeviceCtrl.AudioRelay.AudioRelayService>()
 
         // Overlay Render Service
         .AddSingleton<OverlayRenderService>()
+        .AddSingleton<IOverlayDataSink>(sp => sp.GetRequiredService<OverlayRenderService>())
+        .AddSingleton<IScreenCatalog, OverlayScreenCatalog>()
 
-        // 叠加层功能：登记后由 OverlayRenderService 主初始化按各自开关自动引导，
+        // 叠加层功能：登记后由 OverlayFeatureHost 按各自开关自动引导，
         // 新增功能只需在此追加一行登记，无需改动启动流程
-        .AddSingleton<IOverlayFeature, KeyboardOverlayFeature>()
-        .AddSingleton<IOverlayFeature, LogiBatteryOverlayFeature>()
-        .AddSingleton<IOverlayFeature, HeartRateOverlayFeature>()
-        .AddSingleton<IOverlayFeature, DeepSeekBalanceOverlayFeature>()
+        .AddSingleton<IOverlayHostFeature, KeyboardOverlayFeature>()
+        .AddSingleton<IOverlayHostFeature, LogiBatteryOverlayFeature>()
+        .AddSingleton<IOverlayHostFeature, HeartRateOverlayFeature>()
+        .AddSingleton<IOverlayHostFeature, DeepSeekBalanceOverlayFeature>()
+        .AddSingleton<OverlayFeatureHost>()
 
         // Heart Rate BLE Service
         .AddSingleton<NotifyRelay.Services.HeartRate.HeartRateBleService>()
@@ -116,7 +122,7 @@ internal static class ServiceCollectionConfigurator
 
         // 罗技电池（LogiBattery）Provider 和 ViewModel
         .AddSingleton<LogiBatteryProvider>()
-        .AddSingleton<ILogiBatteryProvider>(sp => sp.GetRequiredService<LogiBatteryProvider>())
+        .AddSingleton<ILogiBatteryDeviceSource>(sp => sp.GetRequiredService<LogiBatteryProvider>())
         .AddSingleton<ViewModels.Settings.LogiBatteryViewModel>()
 
         // 时间浮窗（Clock）ViewModel

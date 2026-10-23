@@ -11,6 +11,9 @@ public static partial class NotifyRelayCore
     public static extern IntPtr nrc_app_sync_prepare_icon_request(IntPtr ctx, IntPtr packagesJson, IntPtr installedJson, IntPtr cachedJson, IntPtr appDeviceJson, IntPtr sourceDeviceUuid, long nowMs);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
+    public static extern IntPtr nrc_app_sync_request_icons(IntPtr ctx, IntPtr packagesJson, IntPtr installedJson, IntPtr cachedJson, IntPtr appDeviceJson, IntPtr sourceDeviceUuid, long nowMs);
+
+    [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
     public static extern void nrc_app_sync_clear_icon_pending(IntPtr ctx, IntPtr packagesJson);
 
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
@@ -29,6 +32,16 @@ public static partial class NotifyRelayCore
             var pk = StringToPtr(packagesJson); var in_ = StringToPtr(installedJson); var ca = StringToPtr(cachedJson);
             var ad = StringToPtr(appDeviceJson); var su = StringToPtr(sourceDeviceUuid);
             var result = NotifyRelayCore.nrc_app_sync_prepare_icon_request(ctx, pk, in_, ca, ad, su, nowMs);
+            Marshal.FreeHGlobal(pk); Marshal.FreeHGlobal(in_); Marshal.FreeHGlobal(ca); Marshal.FreeHGlobal(ad); Marshal.FreeHGlobal(su);
+            return PtrToStringAndFree(result);
+        }
+
+        /// <summary>图标请求聚合入口：先解除同批包名的旧登记，再过滤并构造报文</summary>
+        public static string? AppSyncRequestIcons(IntPtr ctx, string packagesJson, string installedJson, string cachedJson, string appDeviceJson, string sourceDeviceUuid, long nowMs)
+        {
+            var pk = StringToPtr(packagesJson); var in_ = StringToPtr(installedJson); var ca = StringToPtr(cachedJson);
+            var ad = StringToPtr(appDeviceJson); var su = StringToPtr(sourceDeviceUuid);
+            var result = NotifyRelayCore.nrc_app_sync_request_icons(ctx, pk, in_, ca, ad, su, nowMs);
             Marshal.FreeHGlobal(pk); Marshal.FreeHGlobal(in_); Marshal.FreeHGlobal(ca); Marshal.FreeHGlobal(ad); Marshal.FreeHGlobal(su);
             return PtrToStringAndFree(result);
         }

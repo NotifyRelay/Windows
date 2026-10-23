@@ -7,7 +7,7 @@ namespace NotifyRelay.Native;
 /// 所有函数 CallingConvention 均为 Cdecl，与 Rust extern "C" 对应。
 /// FFI 文档：NotifyRelay.Overlay/logi-battery/docs/ffi.md
 /// </summary>
-public static class LogiBatteryNative
+internal static class LogiBatteryNative
 {
     private const string DllName = "logi_battery";
 
@@ -17,34 +17,34 @@ public static class LogiBatteryNative
     /// 失败：返回负数（-1 空指针 / -2 枚举失败），通过 lb_last_error 查看错误信息。
     /// </summary>
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int lb_enumerate_devices(out LbDeviceList outList);
+    internal static extern int lb_enumerate_devices(out LbDeviceList outList);
 
     /// <summary>
     /// 重新读取指定下标的设备电量（每次都会重新探测，耗时较长，请勿在 UI 线程调用）。
     /// 返回 0=成功；-1=参数无效；-2=枚举失败；-3=设备无电量数据；-4=下标越界。
     /// </summary>
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern int lb_read_battery(int index, out LbBatteryInfo outInfo);
+    internal static extern int lb_read_battery(int index, out LbBatteryInfo outInfo);
 
     /// <summary>
     /// 释放 lb_enumerate_devices 返回的设备列表（Rust 侧分配的堆内存）。
     /// </summary>
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern void lb_free_devices(LbDeviceList list);
+    internal static extern void lb_free_devices(LbDeviceList list);
 
     /// <summary>
     /// 返回最后一次调用的错误信息（NUL 结尾 UTF-8，线程局部存储）。
     /// 指针在下次调用任何 lb_* 函数前有效，无需释放。
     /// </summary>
     [DllImport(DllName, CallingConvention = CallingConvention.Cdecl)]
-    public static extern IntPtr lb_last_error();
+    internal static extern IntPtr lb_last_error();
 }
 
 /// <summary>
 /// C 兼容设备信息结构（含电量快照）。与 Rust LbDeviceInfo 内存布局一致。
 /// </summary>
 [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi, Pack = 1)]
-public struct LbDeviceInfo
+internal struct LbDeviceInfo
 {
     public ushort vendor_id;
     public ushort product_id;
@@ -65,7 +65,7 @@ public struct LbDeviceInfo
 /// C 兼容设备列表结构。
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
-public struct LbDeviceList
+internal struct LbDeviceList
 {
     public IntPtr devices; // 指向 LbDeviceInfo 数组（Rust 堆分配）
     public int count;
@@ -75,7 +75,7 @@ public struct LbDeviceList
 /// C 兼容电池信息结构（lb_read_battery 输出）。
 /// </summary>
 [StructLayout(LayoutKind.Sequential, Pack = 1)]
-public struct LbBatteryInfo
+internal struct LbBatteryInfo
 {
     public byte percentage;
     public byte level;
@@ -85,7 +85,7 @@ public struct LbBatteryInfo
 /// <summary>
 /// lb_battery_level 枚举。
 /// </summary>
-public enum LbBatteryLevel : byte
+internal enum LbBatteryLevel : byte
 {
     Critical = 0,
     Low = 1,
@@ -99,7 +99,7 @@ public enum LbBatteryLevel : byte
 /// - Charging / ChargingSlow → isCharging=true
 /// - Full / Discharging / Error / Unknown → isCharging=false
 /// </summary>
-public enum LbBatteryStatus : byte
+internal enum LbBatteryStatus : byte
 {
     Discharging = 0,
     Charging = 1,

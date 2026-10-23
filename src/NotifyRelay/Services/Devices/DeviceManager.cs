@@ -426,8 +426,8 @@ public partial class DeviceManager(
                     {
                         try
                         {
-                            var decrypted = NativeCore.DecryptLocalState(localDevice.StateJson, localDevice.DeviceId);
-                            if (decrypted != null && NativeCore.ImportState(decrypted) == 0)
+                            // 聚合入口：解密与导入由 core 单次完成
+                            if (NativeCore.DeserializeLocalState(localDevice.StateJson, localDevice.DeviceId, encrypted: 1))
                             {
                                 rustPubKey = NativeCore.GetPublicKey();
                                 var cachedPubKey = Encoding.UTF8.GetString(localDevice.PublicKey ?? []);

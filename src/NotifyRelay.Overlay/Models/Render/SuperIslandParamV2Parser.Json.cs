@@ -5,7 +5,7 @@ namespace NotifyRelay.Models.Render;
 /// <summary>
 /// SuperIslandParamV2Parser 的 JsonElement 便捷访问与通用文本提取部分。
 /// </summary>
-public static partial class SuperIslandParamV2Parser
+internal static partial class SuperIslandParamV2Parser
 {
     // ---------- 通用提取 ----------
 

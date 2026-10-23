@@ -162,12 +162,12 @@ public static class AppLifecycleHelper
         // 本地通知监听后台启动
         _ = AppInitializer.StartLocalNotificationListenerAsync(logger);
 
-        // 启动叠加层渲染引擎
+        // 启动叠加层渲染引擎并引导叠加层功能
         try
         {
-            var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
-            overlay.Start();
-            logger.LogInformation("Overlay渲染引擎启动成功");
+            var overlayFeatureHost = Ioc.Default.GetRequiredService<OverlayFeatureHost>();
+            overlayFeatureHost.StartAll();
+            logger.LogInformation("Overlay渲染引擎与叠加层功能启动成功");
         }
         catch (Exception ex)
         {

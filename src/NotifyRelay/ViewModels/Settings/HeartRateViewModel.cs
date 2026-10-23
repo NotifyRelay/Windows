@@ -21,7 +21,8 @@ public sealed class ScreenOption
 public class HeartRateViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
-    private readonly OverlayRenderService? _renderService;
+    private readonly IOverlayDataSink? _sink;
+    private readonly IScreenCatalog? _screenCatalog;
     private readonly HeartRateBleService _bleService;
 
     public ObservableCollection<HeartRateDeviceInfo> Devices { get; } = [];
@@ -202,7 +203,8 @@ public class HeartRateViewModel : ObservableViewModelBase
     public HeartRateViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _renderService = Ioc.Default.GetService<OverlayRenderService>();
+        _sink = Ioc.Default.GetService<IOverlayDataSink>();
+        _screenCatalog = Ioc.Default.GetService<IScreenCatalog>();
         _bleService = Ioc.Default.GetRequiredService<HeartRateBleService>();
         Dispatcher = DispatcherQueue.GetForCurrentThread();
 
@@ -218,7 +220,7 @@ public class HeartRateViewModel : ObservableViewModelBase
 
     private void BuildScreenOptions()
     {
-        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.HeartRateTargetScreen);
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _screenCatalog, _settings.HeartRateTargetScreen);
     }
 
     // ===== 命令 =====
@@ -255,7 +257,7 @@ public class HeartRateViewModel : ObservableViewModelBase
     private void OnBleStateChanged(HeartRateConnectionState state)
     {
         // 渲染层直接更新（线程安全）
-        _renderService?.SetHeartRateConnected(state == HeartRateConnectionState.Connected);
+        _sink?.SetHeartRateConnected(state == HeartRateConnectionState.Connected);
         RunOnUi(() =>
         {
             State = state;
@@ -267,14 +269,14 @@ public class HeartRateViewModel : ObservableViewModelBase
     private void OnHeartRateReceived(int bpm)
     {
         // 渲染层直接更新（线程安全）
-        _renderService?.UpdateHeartRate(bpm);
+        _sink?.UpdateHeartRate(bpm);
         RunOnUi(() => CurrentBpm = bpm);
     }
 
     /// <summary>把当前显示配置推送到渲染服务。</summary>
     private void PushConfig()
     {
-        _renderService?.SetHeartRateConfig(
+        _sink?.SetHeartRateConfig(
             _settings.HeartRateOverlayEnabled,
             _settings.HeartRateStyle,
             _settings.HeartRateTargetScreen,

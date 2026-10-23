@@ -1,7 +1,7 @@
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
-using NotifyRelay.Worker.Services;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.ViewModels.Settings;
 
@@ -13,14 +13,16 @@ namespace NotifyRelay.ViewModels.Settings;
 public class DeepSeekBalanceViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly DeepSeekBalanceService _deepSeekService;
-    private readonly OverlayRenderService? _renderService;
+    private readonly IDeepSeekBalanceTool _deepSeekService;
+    private readonly IOverlayDataSink? _sink;
+    private readonly IScreenCatalog? _screenCatalog;
 
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _deepSeekService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
-        _renderService = Ioc.Default.GetService<OverlayRenderService>();
+        _deepSeekService = Ioc.Default.GetRequiredService<IDeepSeekBalanceTool>();
+        _sink = Ioc.Default.GetService<IOverlayDataSink>();
+        _screenCatalog = Ioc.Default.GetService<IScreenCatalog>();
         Dispatcher = DispatcherQueue.GetForCurrentThread();
 
         BuildScreenOptions();
@@ -165,7 +167,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
     private void BuildScreenOptions()
     {
         _selectedScreen = OverlayScreenOptions.BuildInto(
-            Screens, _renderService, _generalSettingsService.DeepSeekBalanceTargetScreen);
+            Screens, _screenCatalog, _generalSettingsService.DeepSeekBalanceTargetScreen);
     }
 
     // ===== 操作 =====
@@ -239,7 +241,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
         else StopPolling();
     }
 
-    private void OnServiceStatusChanged()
+    private void OnServiceStatusChanged(object? sender, EventArgs e)
     {
         RunOnUi(() =>
         {
@@ -249,25 +251,21 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
         });
     }
 
-    private void OnServiceBalanceUpdated(double balance) => SyncHistoryFromService();
+    private void OnServiceBalanceUpdated(object? sender, BalanceUpdatedEventArgs e) => SyncHistoryFromService();
 
     /// <summary>把服务端历史快照同步到 UI 集合（整体替换，避免增量错位）。</summary>
     private void SyncHistoryFromService()
     {
-        List<BalanceHistoryItem> snapshot;
-        lock (_deepSeekService.BalanceHistory)
-        {
-            snapshot = _deepSeekService.BalanceHistory
-                .Select(x => new BalanceHistoryItem
-                {
-                    Time = x.Time,
-                    Balance = x.Balance,
-                    Change = x.Change,
-                    ChangeType = x.ChangeType,
-                    MergeCount = x.MergeCount
-                })
-                .ToList();
-        }
+        var snapshot = _deepSeekService.GetHistorySnapshot()
+            .Select(x => new BalanceHistoryItem
+            {
+                Time = x.Time,
+                Balance = x.Balance,
+                Change = x.Change,
+                ChangeType = x.ChangeType,
+                MergeCount = x.MergeCount
+            })
+            .ToList();
 
         RunOnUi(() =>
         {
@@ -290,7 +288,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
     /// <summary>把当前显示配置推送到覆盖层渲染服务。</summary>
     public void PushConfig()
     {
-        _renderService?.SetDeepSeekBalanceConfig(
+        _sink?.SetDeepSeekBalanceConfig(
             _generalSettingsService.EnableDeepSeekBalanceMonitor,
             _generalSettingsService.DeepSeekBalanceTargetScreen,
             _generalSettingsService.DeepSeekBalanceXPercent,

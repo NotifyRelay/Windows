@@ -19,6 +19,11 @@ public static partial class NativeCore
         return NotifyRelayCore.Safe.AppSyncPrepareIconRequest(_ctx, packagesJson, installedJson, cachedJson, appDeviceJson, sourceDeviceUuid, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
     }
 
+    public static string? AppSyncRequestIcons(string packagesJson, string installedJson, string cachedJson, string appDeviceJson, string sourceDeviceUuid)
+    {
+        return NotifyRelayCore.Safe.AppSyncRequestIcons(_ctx, packagesJson, installedJson, cachedJson, appDeviceJson, sourceDeviceUuid, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+    }
+
     public static string? AppSyncParseIconResponse(string payloadJson)
     {
         return NotifyRelayCore.Safe.AppSyncParseIconResponse(payloadJson);

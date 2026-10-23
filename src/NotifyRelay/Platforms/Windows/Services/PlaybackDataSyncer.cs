@@ -73,7 +73,7 @@ public class PlaybackDataSyncer(
         {
             try
             {
-                var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                var overlay = Ioc.Default.GetRequiredService<IOverlayDataSink>();
                 overlay.RemoveMediaCard(appUserModelId ?? "local");
                 logger.LogDebug("HandleSessionRemoved: 移除媒体卡片 source={Source}", appUserModelId);
             }
@@ -226,7 +226,7 @@ public class PlaybackDataSyncer(
                         {
                             coverBytes = ImageHelper.FromBase64(thumbnail);
                         }
-                        var overlay = Ioc.Default.GetRequiredService<OverlayRenderService>();
+                        var overlay = Ioc.Default.GetRequiredService<IOverlayDataSink>();
                         logger.LogDebug("SendPlaybackData: 显示媒体卡片 source={Source}, title={Title}", source, trackTitle);
                         overlay.ShowMediaCard(source ?? "local", "本机", trackTitle ?? "", artist ?? "", coverBytes, isPlaying);
                     }

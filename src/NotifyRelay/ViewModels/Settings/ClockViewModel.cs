@@ -11,7 +11,8 @@ namespace NotifyRelay.ViewModels.Settings;
 public class ClockViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
-    private readonly OverlayRenderService? _renderService;
+    private readonly IOverlayDataSink? _sink;
+    private readonly IScreenCatalog? _screenCatalog;
 
     public List<ScreenOption> Screens { get; } = [];
 
@@ -32,13 +33,14 @@ public class ClockViewModel : ObservableViewModelBase
     public ClockViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _renderService = Ioc.Default.GetService<OverlayRenderService>();
+        _sink = Ioc.Default.GetService<IOverlayDataSink>();
+        _screenCatalog = Ioc.Default.GetService<IScreenCatalog>();
         BuildScreenOptions();
     }
 
     private void BuildScreenOptions()
     {
-        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _renderService, _settings.ClockTargetScreen);
+        _selectedScreen = OverlayScreenOptions.BuildInto(Screens, _screenCatalog, _settings.ClockTargetScreen);
     }
 
     // ===== 显示设置（持久化 + 推送渲染层） =====
@@ -98,7 +100,7 @@ public class ClockViewModel : ObservableViewModelBase
     /// <summary>把当前显示配置推送到渲染服务。</summary>
     private void PushConfig()
     {
-        _renderService?.SetClockConfig(
+        _sink?.SetClockConfig(
             _settings.ClockOverlayEnabled,
             _settings.ClockTargetScreen,
             _settings.ClockXPercent,
