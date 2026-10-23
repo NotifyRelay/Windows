@@ -17,4 +17,17 @@ public static class DialogHelper
         };
         await dialog.ShowAsync();
     }
+
+    /// <summary>显示一个仅含关闭按钮的标题 + 内容提示。</summary>
+    public static async Task ShowInfoAsync(XamlRoot root, string title, string content)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            CloseButtonText = "OK",
+            XamlRoot = root
+        };
+        await dialog.ShowAsync();
+    }
 }

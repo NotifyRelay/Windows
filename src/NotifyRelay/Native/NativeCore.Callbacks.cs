@@ -159,8 +159,7 @@ public static partial class NativeCore
                         if (ns == null) return;
                         _ = ns.HandlePairingResultAsync(uuid, intValue, extra ?? "");
                     }
-                    break;
-                case "HEARTBEAT_TCP":
+                    break;                case "HEARTBEAT_TCP":
                     // 运行时状态（名称/电量/在线/IP/类型）全部由 Rust core 的 DeviceRegistry 维护，
                     // 平台端不再镜像：此处仅触发一次快照刷新（HeartbeatProcessor 内部按最小间隔节流）。
                     HeartbeatProcessor?.NotifyDeviceListChanged();

@@ -21,7 +21,6 @@ using NotifyRelay.Platforms.Windows.Services.Notifications;
 public class WindowsNotificationHandler(ILogger logger, IDeviceManager deviceManager, ILocalNotificationListenerService localListener) : IPlatformNotificationHandler
 {
     private readonly ConcurrentDictionary<string, DateTime> _pendingQueue = new();
-    private readonly ConcurrentDictionary<string, DateTime> _contentCache = new();
 
     private readonly RemoteNotificationBuilder _remoteBuilder = new(logger, localListener);
     private readonly TransferNotificationBuilder _transferBuilder = new(logger);
@@ -29,7 +28,7 @@ public class WindowsNotificationHandler(ILogger logger, IDeviceManager deviceMan
     /// <inheritdoc />
     public async Task ShowRemoteNotification(string payload, string deviceId)
     {
-        await _remoteBuilder.ShowRemoteNotification(payload, deviceId, _pendingQueue, _contentCache);
+        await _remoteBuilder.ShowRemoteNotification(payload, deviceId, _pendingQueue);
     }
 
     public async void ShowFileTransferNotification(string subtitle, string fileName, string transferId, uint notificationSequence, double? progress = null)

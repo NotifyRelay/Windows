@@ -17,11 +17,6 @@ public static partial class NativeCore
 
     // ======== New function wrappers ========
 
-    public static string? ComputeDedupKey(string deviceUuid, string data)
-    {
-        return NotifyRelayCore.Safe.ComputeDedupKey(deviceUuid, data);
-    }
-
     public static int ImportState(string json)
     {
         return NotifyRelayCore.Safe.ImportState(_ctx, json);

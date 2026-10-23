@@ -78,20 +78,20 @@ public class ProtocolSender : IProtocolSender
                 return;
             }
 
-            // Rust core 统一使用带 DATA_ 前缀的帧类型标识，接收端（core 归一化表）只识别 DATA_*。
-            // 业务报文 type 可能不带前缀（如 ICON_REQUEST/APP_LIST_REQUEST），
-            // 发送前统一规范化为 DATA_*，否则对端 core 会归一化为 UNKNOWN 导致消息被平台丢弃。
-            // 注意：此规范化曾于 57c0799 随 QUIC V2 回退被误撤销，导致 PC 端应用列表/图标同步失效。
-            if (!string.IsNullOrEmpty(header) && !header.StartsWith("DATA_", StringComparison.Ordinal))
+            // header 规范化、去重键推导与发送去重（仅通知类）均在 Rust core 的入队入口内部完成（IP 同样由 Rust 管理）。
+            var result = NativeCore.EnqueueMessage(device.Id, header, plaintext);
+            if (result == 1)
             {
-                header = "DATA_" + header;
+                _logger.LogDebug("消息已入发送队列：header={header}, deviceId={deviceId}", header, device.Id);
             }
-
-            // 使用 Rust core 发送队列加密发送（IP 由 Rust 内部管理）
-            var dedupKey = NativeCore.ComputeDedupKey(device.Id, plaintext);
-            NativeCore.EnqueueMessage(device.Id, header, plaintext, dedupKey);
-
-            _logger.LogDebug("消息已入发送队列：header={header}, deviceId={deviceId}", header, device.Id);
+            else if (result == 0)
+            {
+                _logger.LogDebug("命中去重，未入队：header={header}, deviceId={deviceId}", header, device.Id);
+            }
+            else
+            {
+                _logger.LogWarning("入队失败（参数无效或队列未初始化）：header={header}, deviceId={deviceId}", header, device.Id);
+            }
         }
         catch (Exception ex)
         {

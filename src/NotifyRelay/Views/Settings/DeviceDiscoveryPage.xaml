@@ -48,6 +48,10 @@
                             <wuc:SettingsCard.HeaderIcon>
                                 <FontIcon Glyph="&#xE8EA;" />
                             </wuc:SettingsCard.HeaderIcon>
+                            <Button
+                                Click="PairDevice_Click"
+                                Content="配对"
+                                Tag="{x:Bind}" />
                         </wuc:SettingsCard>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>

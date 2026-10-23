@@ -278,13 +278,22 @@ public class NetworkService(
     /// <summary>
     /// 处理 PAIRING_RESP：PC 作为发起端时收到接收端回传的加密配对码。
     /// 协议格式：PAIRING_RESP:<uuid_R>:<tmpPub_R>:<ltPub_R>:<encryptedCode>:<ip>:<battery>:<deviceType>
-    /// 注意：当前 PC 通常作为接收端，此方法主要用于未来扩展或 PC-PC 配对。
+    ///
+    /// 发起端场景由 core 在 <c>nrc_send_pairing_init</c> 内部同步完成 SPAKE2 与密钥建立，
+    /// 该回调仅作为同一次流程的旁路上抛；此处不得回 REJECT（否则会打断正在进行的发起流程）。
+    /// 仅当本机没有该目标的发起等待器（即非预期报文）时才回 REJECT。
     /// </summary>
     public async Task HandlePairingRespAsync(string remoteUuid, string spake2Pub, string ltPub, string ip, int battery, string deviceType)
     {
         try
         {
-            logger.LogWarning("收到 PAIRING_RESP，但 PC 当前不作为配对发起端。忽略: {uuid}", remoteUuid);
+            var initiator = Ioc.Default.GetService<PairingInitiator>();
+            if (initiator != null && initiator.HasPending(remoteUuid))
+            {
+                logger.LogDebug("收到本机发起流程的 PAIRING_RESP（core 已处理）: {uuid}", remoteUuid);
+                return;
+            }
+            logger.LogWarning("收到非预期的 PAIRING_RESP，回 REJECT: {uuid}", remoteUuid);
             NativeCore.SendReject(remoteUuid);
         }
         catch (Exception ex)
@@ -408,6 +417,9 @@ public class NetworkService(
     {
         try
         {
+            // 本机作为发起端时，结果在此闭环到 PairingInitiator 的等待器
+            Ioc.Default.GetService<PairingInitiator>()?.Complete(remoteUuid, success == 1, errorMsg);
+
             if (success == 1)
             {
                 logger.LogInformation($"配对成功: {remoteUuid}");
