@@ -26,4 +26,15 @@ public static partial class NativeCore
     {
         return NotifyRelayCore.Safe.DecryptLocalState(_ctx, encryptedB64, deviceUuid);
     }
+
+    public static string? SerializeLocalState(string deviceUuid, int encrypt)
+    {
+        return NotifyRelayCore.Safe.SerializeLocalState(_ctx, deviceUuid, encrypt);
+    }
+
+    /// <summary>本地状态反序列化聚合入口，返回 true 表示解密与导入均成功</summary>
+    public static bool DeserializeLocalState(string payload, string deviceUuid, int encrypted)
+    {
+        return NotifyRelayCore.Safe.DeserializeLocalState(_ctx, payload, deviceUuid, encrypted);
+    }
 }

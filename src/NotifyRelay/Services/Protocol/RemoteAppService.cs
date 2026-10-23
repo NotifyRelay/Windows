@@ -80,8 +80,9 @@ public class RemoteAppService(
     {
         logger.LogInformation("开始发送图标请求：deviceId={deviceId}, packageCount={packageCount}", deviceId, packageNames.Count);
 
-        // Rust 内部完成 pending 过滤与报文构造；PC 侧本机已安装/缓存过滤由调用方完成
-        var requestJson = NativeCore.AppSyncPrepareIconRequest(
+        // 聚合入口：Rust 内部先解除同批包名的旧登记，再完成 pending 过滤与报文构造；
+        // PC 侧本机已安装/缓存过滤由调用方完成
+        var requestJson = NativeCore.AppSyncRequestIcons(
             JsonSerializer.Serialize(packageNames),
             "[]",
             "[]",
