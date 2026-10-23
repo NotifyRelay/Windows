@@ -1,5 +1,6 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Utils;
+using NotifyRelay.Worker.Contracts;
 using NotifyRelay.Worker.Services;
 
 namespace NotifyRelay.Views.Settings;
@@ -127,7 +128,7 @@ public sealed partial class MonitorBrightnessSettingsPage : Page
 public class MonitorBrightnessViewModel
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly MonitorBrightnessService _brightnessService;
+    private readonly IMonitorBrightnessTool _brightnessService;
 
     public event EventHandler? SyncStatusChanged;
 
@@ -164,8 +165,8 @@ public class MonitorBrightnessViewModel
     public MonitorBrightnessViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _brightnessService = Ioc.Default.GetRequiredService<MonitorBrightnessService>();
-        _brightnessService.StatusChanged += () =>
+        _brightnessService = Ioc.Default.GetRequiredService<IMonitorBrightnessTool>();
+        _brightnessService.StatusChanged += (_, _) =>
         {
             _isSyncEnabled = _brightnessService.IsRunning;
             SyncStatusChanged?.Invoke(this, EventArgs.Empty);

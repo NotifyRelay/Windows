@@ -10,7 +10,7 @@ using static NotifyRelay.Services.Overlay.Win32;
 
 namespace NotifyRelay.Services.Overlay;
 
-public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdogHost
+public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdogHost, IOverlayDataSink
 {
     private readonly ILogger<OverlayRenderService> _logger;
     private readonly IOverlaySettings _settings;
@@ -26,9 +26,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private readonly OverlayTopmostMonitor _topmostMonitor;
     private readonly OverlayWatchdog _watchdog;
     private readonly DeferredDisposer _disposer;
-
-    // 叠加层功能自动引导器（功能由 DI 注入，主项目只登记实现，此处按开关自动启停）
-    private readonly OverlayFeatureStartup _featureStartup;
 
     private Thread? _renderThread;
     private volatile int _runningFlag;   // 0=未启动/已停止, 1=运行中（原子争用启动所有权，供看门狗/并发调用安全）
@@ -52,8 +49,7 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private volatile bool _displayDirty;
     private readonly Random _rand = new();
 
-    public OverlayRenderService(ILogger<OverlayRenderService> logger, IOverlaySettings settings,
-        IEnumerable<IOverlayFeature>? features = null)
+    public OverlayRenderService(ILogger<OverlayRenderService> logger, IOverlaySettings settings)
     {
         _logger = logger;
         _settings = settings;
@@ -61,7 +57,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         _dwFactory = DWrite.DWriteCreateFactory<IDWriteFactory>();
         _wicFactory = new IWICImagingFactory();
 
-        _featureStartup = new OverlayFeatureStartup(features, logger);
         _windowManager = new OverlayWindowManager(_d2dFactory, logger);
         _controlWindow = new OverlayControlWindow(
             // 显示模式切换：置脏以触发几何同步（重断言 TOPMOST 由控制窗口内部预约）
@@ -85,9 +80,12 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         public string? SourceKey;
     }
 
+    /// <summary>每次启动完成后触发（含看门狗重启），供宿主重推数据快照。</summary>
+    public event EventHandler? Started;
+
     /// <summary>
-    /// 叠加层模块主初始化：载入设置、自动引导各叠加层功能、启动渲染线程与看门狗。
-    /// 调用方只需调用本方法，无需再逐条注册/启动键盘、电池、心率等功能。
+    /// 叠加层模块主初始化：载入设置、启动渲染线程与看门狗。
+    /// 数据由宿主经 <see cref="IOverlayDataSink"/> 推送。
     /// </summary>
     public void Start()
     {
@@ -99,13 +97,12 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         LoadInitialStyle();
         // 4 个 LoadInitialXxxConfig 收敛为元素统一的 LoadSettings
         LoadInitialElementSettings();
-        // 自动引导：按各自开关绑定并启动所有已登记的叠加层功能
-        _featureStartup.Initialize(this);
         _watchdog.UpdateHeartbeat();
         _renderThread = new Thread(RenderLoop) { IsBackground = true, Name = "D2D-Overlay" };
         _renderThread.SetApartmentState(ApartmentState.STA);
         _renderThread.Start();
         _watchdog.EnsureStarted();
+        Started?.Invoke(this, EventArgs.Empty);
     }
 
     /// <summary>从已保存的设置构建初始样式并写入 _currentStyle / _maxFps。</summary>
@@ -158,7 +155,6 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         Interlocked.Exchange(ref _runningFlag, 0);
         _watchdog.Stop();
         _renderThread?.Join(2000);
-        _featureStartup.Shutdown();
         CleanupOverlays();
     }
 

@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.ViewModels;
+using NotifyRelay.Worker.Contracts;
 using NotifyRelay.Worker.Services;
 using Windows.UI;
 
@@ -8,7 +9,7 @@ namespace NotifyRelay.Views.Settings;
 
 public class DynamicLightingViewModel : ObservableViewModelBase
 {
-    private readonly DynamicLightingService _lightingService;
+    private readonly IDynamicLightingTool _lightingService;
     private readonly IGeneralSettingsService _settingsService;
     private readonly DispatcherQueue _dispatcher;
 
@@ -160,7 +161,7 @@ public class DynamicLightingViewModel : ObservableViewModelBase
 
     public DynamicLightingViewModel()
     {
-        _lightingService = Ioc.Default.GetRequiredService<DynamicLightingService>();
+        _lightingService = Ioc.Default.GetRequiredService<IDynamicLightingTool>();
         _settingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
         _dispatcher = App.MainWindow.DispatcherQueue;
 
@@ -217,25 +218,27 @@ public class DynamicLightingViewModel : ObservableViewModelBase
         }
     }
 
-    private void OnDevicesChanged()
+    private void OnDevicesChanged(object? sender, EventArgs e)
     {
         FetchDevices();
     }
 
-    private void OnColorChanged(Color e)
+    private void OnColorChanged(object? sender, WorkerColor e)
     {
+        var color = Color.FromArgb(e.A, e.R, e.G, e.B);
         // ColorChanged 可能在后台线程（如屏幕捕获）触发，封送到 UI 线程以避免跨线程访问 XAML/WinRT 对象
         _dispatcher.TryEnqueue(() =>
         {
-            CurrentColor = e;
-            _settingsService.DynamicLightingColor = e.ToString();
+            CurrentColor = color;
+            _settingsService.DynamicLightingColor = color.ToString();
         });
     }
 
-    private void OnCapturedColorChanged(Color e)
+    private void OnCapturedColorChanged(object? sender, WorkerColor e)
     {
+        var color = Color.FromArgb(e.A, e.R, e.G, e.B);
         // 捕获线程触发，必须封送到 UI 线程，否则绑定更新访问 Application.Resources 会抛 RPC_E_WRONG_THREAD
-        _dispatcher.TryEnqueue(() => CurrentCapturedColor = e);
+        _dispatcher.TryEnqueue(() => CurrentCapturedColor = color);
     }
 
     private void FetchDevices()
@@ -269,7 +272,7 @@ public class DynamicLightingViewModel : ObservableViewModelBase
                 _settingsService.DynamicLightingEffect = "Rainbow";
                 break;
             case 2:
-                _lightingService.StartBlinkEffect(_currentColor);
+                _lightingService.StartBlinkEffect(new WorkerColor(_currentColor.A, _currentColor.R, _currentColor.G, _currentColor.B));
                 _settingsService.DynamicLightingEffect = "Blink";
                 break;
         }

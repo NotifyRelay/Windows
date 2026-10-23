@@ -7,7 +7,7 @@ namespace NotifyRelay.Services.Overlay.UI.Elements;
 /// <summary>
 /// 键盘按键元素：左上角按键框（每行最多 10 个自动换行）+ 映射触发提示（超时淡出）。
 /// 提示淡出走 <see cref="OpacityBox"/> 的逐帧不透明度提供者，不触发重组。
-/// 键盘状态与设置均直读 Provider / Settings（与旧实现一致）。
+/// 键盘状态来自推送快照，设置直读 Settings。
 /// </summary>
 internal sealed class KeyboardElement : IOverlayElement
 {
@@ -57,7 +57,8 @@ internal sealed class KeyboardElement : IOverlayElement
 
     private readonly ElementContext _ctx;
 
-    private IKeyboardStateProvider? _provider;
+    // 推送快照（_ctx.StateLock 保护）
+    private KeyboardStateSnapshot _snapshot = KeyboardStateSnapshot.Empty;
 
     // 映射提示（_lock 保护）
     private string? _hintText;
@@ -69,36 +70,40 @@ internal sealed class KeyboardElement : IOverlayElement
 
     public void LoadSettings(IOverlaySettings settings) { }
 
-    /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
-    public void SetProvider(IKeyboardStateProvider? provider)
-        // 退订旧 Provider、订阅新 Provider 走共用模板（与罗技电池等元素一致）
-        => OverlayElementCore.ReplaceProvider(ref _provider, provider,
-            p => p.MappingTriggered += OnMappingTriggered,
-            p => p.MappingTriggered -= OnMappingTriggered);
+    /// <summary>更新键盘状态快照（宿主推送，钩子线程调用）。</summary>
+    public void ApplySnapshot(KeyboardStateSnapshot snapshot)
+        => _ctx.WithLock(() => _snapshot = snapshot,
+            "覆盖层数据锁获取超时，跳过键盘状态更新");
 
-    /// <summary>快捷键映射触发回调：记录提示文本与时间戳（钩子线程调用）。</summary>
-    private void OnMappingTriggered(object? sender, KeyMappingDisplayEventArgs e)
+    /// <summary>记录快捷键映射提示文本与时间戳（宿主推送，钩子线程调用）。</summary>
+    public void ShowHint(string text)
     {
-        if (string.IsNullOrEmpty(e.DisplayText)) return;
+        if (string.IsNullOrEmpty(text)) return;
         _ctx.WithLock(() =>
         {
-            _hintText = e.DisplayText;
+            _hintText = text;
             _hintTick = Stopwatch.GetTimestamp();
         }, string.Empty);
     }
+
+    /// <summary>读取当前快照；拿不到锁时返回空快照。</summary>
+    private KeyboardStateSnapshot ReadSnapshot()
+        => _ctx.WithLock(() => _snapshot, KeyboardStateSnapshot.Empty);
 
     public bool IsActive() => IsKeyboardActive() || HasHint();
 
     /// <summary>键盘叠加层是否处于活跃状态：普通按键按下，或任一切换键处于需提示的状态。</summary>
     private bool IsKeyboardActive()
     {
-        if (!_ctx.Settings.KeyboardOverlayEnabled || _provider == null) return false;
-        if (_provider.GetPressedKeys().Any()) return true;
-        return ToggleKeyNames.Any(kv =>
+        if (!_ctx.Settings.KeyboardOverlayEnabled) return false;
+        var snapshot = ReadSnapshot();
+        if (snapshot.PressedKeys.Length > 0) return true;
+        foreach (var kv in ToggleKeyNames)
         {
-            bool toggled = _provider.IsKeyToggled(kv.Key);
-            return ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
-        });
+            bool toggled = snapshot.IsToggled(kv.Key);
+            if (ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled) return true;
+        }
+        return false;
     }
 
     /// <summary>是否存在未超时的映射提示。</summary>
@@ -139,9 +144,10 @@ internal sealed class KeyboardElement : IOverlayElement
     private List<string> SnapshotKeys()
     {
         var keys = new List<string>();
-        if (!_ctx.Settings.KeyboardOverlayEnabled || _provider == null) return keys;
+        if (!_ctx.Settings.KeyboardOverlayEnabled) return keys;
+        var snapshot = ReadSnapshot();
 
-        foreach (var k in _provider.GetPressedKeys())
+        foreach (var k in snapshot.PressedKeys)
         {
             if ((!TrackedKeys.Contains(k) && !KeyNames.ContainsKey(k)) || ToggleKeyNames.ContainsKey(k))
                 continue;
@@ -152,7 +158,7 @@ internal sealed class KeyboardElement : IOverlayElement
         // 切换键：常态开启的键（如 Num Lock）仅在关闭时显示，其余键在开启时显示
         foreach (var kv in ToggleKeyNames)
         {
-            bool toggled = _provider.IsKeyToggled(kv.Key);
+            bool toggled = snapshot.IsToggled(kv.Key);
             bool show = ReverseToggleKeys.Contains(kv.Key) ? !toggled : toggled;
             if (!show) continue;
             // 反转键显示「关闭」文案（如 NumLk关），其余显示「开启」文案

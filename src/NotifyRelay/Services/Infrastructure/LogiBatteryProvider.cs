@@ -6,17 +6,16 @@ using Microsoft.Extensions.Logging;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Models.Render;
 using NotifyRelay.Native;
-using NotifyRelay.Services.Overlay;
 using OverlayLogiDevice = NotifyRelay.Models.Render.LogiBatteryDeviceInfo;
 
 namespace NotifyRelay.Services.Infrastructure;
 
 /// <summary>
-/// 主项目实现的 ILogiBatteryProvider。
-/// 负责：调用 Loader 加载 DLL → 轮询/调用 lb_enumerate_devices → 转换为 Overlay 消费模型 LogiBatteryDeviceInfo → 派发 DevicesUpdated 事件。
+/// 罗技电池设备数据源。
+/// 负责：调用 Loader 加载 DLL → 轮询/调用 lb_enumerate_devices → 转换为叠加层消费模型 LogiBatteryDeviceInfo → 派发 DevicesUpdated 事件。
 /// lb_enumerate_devices 每次调用会阻塞（内部启动 tokio runtime），因此放在后台线程轮询。
 /// </summary>
-public sealed class LogiBatteryProvider : ILogiBatteryProvider, IDisposable
+public sealed class LogiBatteryProvider : IDisposable
 {
     private readonly ILogger<LogiBatteryProvider> _logger;
     private readonly IGeneralSettingsService _settings;

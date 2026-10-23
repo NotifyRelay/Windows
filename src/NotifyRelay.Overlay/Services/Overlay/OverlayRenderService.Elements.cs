@@ -1,3 +1,4 @@
+using NotifyRelay.Models.Render;
 using NotifyRelay.Services.Overlay.UI;
 using NotifyRelay.Services.Overlay.UI.Elements;
 using Vortice.Direct2D1;
@@ -75,13 +76,17 @@ public partial class OverlayRenderService
     /// <summary>清空心率显示数据。</summary>
     public void ClearHeartRate() => _heartRateElement!.Clear();
 
-    /// <summary>注入罗技电池数据提供者（DI 启动后调用）。</summary>
-    public void SetLogiBatteryProvider(ILogiBatteryProvider? provider)
-        => _logiBatteryElement!.SetProvider(provider);
+    /// <summary>推送罗技电池设备快照（宿主调用）；空集合表示无设备。</summary>
+    public void ApplyLogiBatteryDevices(IReadOnlyList<LogiBatteryDeviceInfo> devices)
+        => _logiBatteryElement!.ApplyDevices(devices);
 
-    /// <summary>设置键盘状态查询服务（由 DI 注入后调用）。</summary>
-    public void SetKeyboardStateProvider(IKeyboardStateProvider? provider)
-        => _keyboardElement!.SetProvider(provider);
+    /// <summary>推送键盘状态快照（宿主调用）。</summary>
+    public void ApplyKeyboardState(KeyboardStateSnapshot snapshot)
+        => _keyboardElement!.ApplySnapshot(snapshot);
+
+    /// <summary>推送快捷键映射提示文本（宿主调用）。</summary>
+    public void ShowKeyMappingHint(string text)
+        => _keyboardElement!.ShowHint(text);
 
     /// <summary>更新 DeepSeek 余额叠加层配置（启用、目标屏、位置百分比、缩放）。</summary>
     public void SetDeepSeekBalanceConfig(bool enabled, string targetScreen, float xPct, float yPct, float scale)

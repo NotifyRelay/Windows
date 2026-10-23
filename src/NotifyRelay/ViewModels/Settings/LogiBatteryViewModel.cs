@@ -18,7 +18,7 @@ namespace NotifyRelay.ViewModels.Settings;
 public class LogiBatteryViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _settings;
-    private readonly ILogiBatteryProvider? _provider;
+    private readonly LogiBatteryProvider? _provider;
     private readonly OverlayRenderService? _renderService;
 
     public ObservableCollection<LogiBatteryDeviceInfo> Devices { get; } = [];
@@ -86,7 +86,7 @@ public class LogiBatteryViewModel : ObservableViewModelBase
     public LogiBatteryViewModel()
     {
         _settings = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _provider = Ioc.Default.GetService<ILogiBatteryProvider>();
+        _provider = Ioc.Default.GetService<LogiBatteryProvider>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
         Dispatcher = DispatcherQueue.GetForCurrentThread();
 

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using NotifyRelay.Worker.Configuration;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
@@ -13,7 +14,7 @@ public class BalanceHistoryItem
     public int MergeCount { get; set; } = 1;
 }
 
-public class DeepSeekBalanceService
+public class DeepSeekBalanceService : IDeepSeekBalanceTool
 {
     private readonly ILogger _logger;
     private readonly IDeepSeekBalanceSettings _settings;
@@ -22,12 +23,21 @@ public class DeepSeekBalanceService
     private bool _isPolling;
     private const int MaxHistoryItems = 500;
 
-    public event Action<double>? BalanceUpdated;
-    public event Action? StatusChanged;
+    public event EventHandler<BalanceUpdatedEventArgs>? BalanceUpdated;
+    public event EventHandler? StatusChanged;
 
     public bool IsPolling => _isPolling;
     public double CurrentBalance { get; private set; }
     public List<BalanceHistoryItem> BalanceHistory { get; } = [];
+
+    /// <summary>余额历史快照（时间升序）。</summary>
+    public List<BalanceHistoryItem> GetHistorySnapshot()
+    {
+        lock (BalanceHistory)
+        {
+            return BalanceHistory.ToList();
+        }
+    }
 
     public DeepSeekBalanceService(ILogger logger, IDeepSeekBalanceSettings settings)
     {
@@ -72,7 +82,7 @@ public class DeepSeekBalanceService
                                     Balance = balance.Value
                                 };
                                 AddHistoryItem(item);
-                                BalanceUpdated?.Invoke(balance.Value);
+                                BalanceUpdated?.Invoke(this, new BalanceUpdatedEventArgs(balance.Value));
                             }
                         }
                         catch (Exception ex)
@@ -88,7 +98,7 @@ public class DeepSeekBalanceService
                 }
             });
 
-            StatusChanged?.Invoke();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -108,7 +118,7 @@ public class DeepSeekBalanceService
             _pollingCts = null;
             _isPolling = false;
             _logger.LogInformation("DeepSeek balance polling stopped");
-            StatusChanged?.Invoke();
+            StatusChanged?.Invoke(this, EventArgs.Empty);
         }
         catch (Exception ex)
         {
@@ -294,7 +304,7 @@ public class DeepSeekBalanceService
                 // 历史为异步加载，加载完成即广播一次状态变化，
                 // 使已订阅的展示方（如叠加层余额卡片）能立刻拿到恢复的历史余额，
                 // 不必等待第一次轮询（可能长达一天）或轮询失败时才刷新。
-                StatusChanged?.Invoke();
+                StatusChanged?.Invoke(this, EventArgs.Empty);
             }
         }
         catch (Exception ex)

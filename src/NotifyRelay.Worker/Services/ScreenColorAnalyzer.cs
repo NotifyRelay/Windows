@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
-using Windows.UI;
 using Microsoft.Extensions.Logging;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
@@ -17,9 +17,9 @@ public sealed class ScreenColorAnalyzer : IDisposable
     private const int CaptureWidth = 160;
     private const int CaptureHeight = 90;
 
-    private Color _currentCapturedColor = new() { A = 255, R = 0, G = 0, B = 0 };
+    private WorkerColor _currentCapturedColor = WorkerColor.Black;
 
-    public event EventHandler<Color>? ColorChanged;
+    public event EventHandler<WorkerColor>? ColorChanged;
 
     public bool IsCapturing => _captureThread?.IsAlive ?? false;
 
@@ -38,7 +38,7 @@ public sealed class ScreenColorAnalyzer : IDisposable
         }
     }
 
-    public Color CurrentCapturedColor => _currentCapturedColor;
+    public WorkerColor CurrentCapturedColor => _currentCapturedColor;
 
     public ScreenColorAnalyzer(ILogger? logger = null)
     {
@@ -118,7 +118,7 @@ public sealed class ScreenColorAnalyzer : IDisposable
 
         public GdiCaptureBuffer(ILogger? logger) => _logger = logger;
 
-        public bool Capture(int screenWidth, int screenHeight, out Color color)
+        public bool Capture(int screenWidth, int screenHeight, out WorkerColor color)
         {
             color = default;
             var hdcScreen = GetDC(IntPtr.Zero);
@@ -169,10 +169,10 @@ public sealed class ScreenColorAnalyzer : IDisposable
             finally { ReleaseDC(IntPtr.Zero, hdcScreen); }
         }
 
-        private static Color CalculatePredominantColor(byte[] pixels)
+        private static WorkerColor CalculatePredominantColor(byte[] pixels)
         {
             int count = pixels.Length / 4;
-            if (count == 0) return new Color { A = 255, R = 0, G = 0, B = 0 };
+            if (count == 0) return WorkerColor.Black;
 
             const int bins = 8;
             const int valuesPerBin = 32;
@@ -228,13 +228,11 @@ public sealed class ScreenColorAnalyzer : IDisposable
             byte topGbyte = topGCount > 0 ? (byte)Math.Min(topG / topGCount * valuesPerBin, 255) : (byte)0;
             byte topBbyte = topBCount > 0 ? (byte)Math.Min(topB / topBCount * valuesPerBin, 255) : (byte)0;
 
-            return new Color
-            {
-                A = 255,
-                R = (byte)((1 - alpha) * topRbyte + alpha * avgRbyte),
-                G = (byte)((1 - alpha) * topGbyte + alpha * avgGbyte),
-                B = (byte)((1 - alpha) * topBbyte + alpha * avgBbyte)
-            };
+            return new WorkerColor(
+                255,
+                (byte)((1 - alpha) * topRbyte + alpha * avgRbyte),
+                (byte)((1 - alpha) * topGbyte + alpha * avgGbyte),
+                (byte)((1 - alpha) * topBbyte + alpha * avgBbyte));
         }
 
         public void Dispose()

@@ -4,6 +4,7 @@ using Windows.Devices.Lights.Effects;
 using Windows.UI;
 using Microsoft.Extensions.Logging;
 using NotifyRelay.Worker.Configuration;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Worker.Services;
 
@@ -16,7 +17,7 @@ public class LampArrayDeviceDto
     public string Kind { get; set; } = string.Empty;
 }
 
-public class DynamicLightingService
+public class DynamicLightingService : IDynamicLightingTool
 {
     private readonly ILogger _logger;
     private readonly WorkerConfiguration _config;
@@ -28,18 +29,18 @@ public class DynamicLightingService
     private double _brightness = 1.0;
     private Color _currentColor = new() { A = 255, R = 255, G = 255, B = 255 };
     private Color _manualColor;
-    private Color _lastCapturedColor;
-    private readonly Queue<Color> _colorWindow = new(5);
+    private WorkerColor _lastCapturedColor;
+    private readonly Queue<WorkerColor> _colorWindow = new(5);
     private const int ColorWindowSize = 5;
     private readonly object _autoRgbLock = new();
     private ScreenColorAnalyzer? _screenColorAnalyzer;
 
-    public event Action<Color>? ColorChanged;
-    public event Action<Color>? CapturedColorChanged;
-    public event Action? DevicesChanged;
+    public event EventHandler<WorkerColor>? ColorChanged;
+    public event EventHandler<WorkerColor>? CapturedColorChanged;
+    public event EventHandler? DevicesChanged;
 
     public bool IsAutoRGBEnabled => _isAutoRGBEnabled;
-    public Color CurrentColor => _currentColor;
+    public WorkerColor CurrentColor => ToWorkerColor(_currentColor);
 
     public double Brightness
     {
@@ -117,7 +118,7 @@ public class DynamicLightingService
             _manualColor = color;
             if (!_isAutoRGBEnabled)
             {
-                ApplyColorToDevices(color);
+                ApplyColorCore(color);
                 NotifyColorChanged(color);
             }
         }
@@ -207,7 +208,10 @@ public class DynamicLightingService
         NotifyDevicesChanged();
     }
 
-    public void ApplyColorToDevices(Color color)
+    /// <summary>把颜色下发到所有可用设备。</summary>
+    public void ApplyColorToDevices(WorkerColor color) => ApplyColorCore(ToWindowsColor(color));
+
+    private void ApplyColorCore(Color color)
     {
         lock (_devicesLock)
         {
@@ -224,7 +228,7 @@ public class DynamicLightingService
 
     public void TurnOffAllDevices()
     {
-        ApplyColorToDevices(new Color { A = 255, R = 0, G = 0, B = 0 });
+        ApplyColorCore(new Color { A = 255, R = 0, G = 0, B = 0 });
     }
 
     public void UpdateBrightnessOnDevices()
@@ -279,10 +283,11 @@ public class DynamicLightingService
         _logger.LogInformation("Rainbow effect started");
     }
 
-    public void StartBlinkEffect(Color color)
+    public void StartBlinkEffect(WorkerColor color)
     {
         StopAllEffects();
         var playlists = new List<LampArrayEffectPlaylist>();
+        var blinkColor = ToWindowsColor(color);
 
         lock (_devicesLock)
         {
@@ -294,7 +299,7 @@ public class DynamicLightingService
                 int[] indices = Enumerable.Range(0, device.LampCount).ToArray();
                 playlist.Append(new LampArrayBlinkEffect(device.LampArray, indices)
                 {
-                    Color = color,
+                    Color = blinkColor,
                     AttackDuration = TimeSpan.FromMilliseconds(300),
                     SustainDuration = TimeSpan.FromMilliseconds(500),
                     DecayDuration = TimeSpan.FromMilliseconds(800),
@@ -398,12 +403,12 @@ public class DynamicLightingService
         if (!restoreManualColor)
             return;
 
-        ApplyColorToDevices(_manualColor);
+        ApplyColorCore(_manualColor);
         _currentColor = _manualColor;
         NotifyColorChanged(_manualColor);
     }
 
-    private void ScreenColorAnalyzer_ColorChanged(object? sender, Color color)
+    private void ScreenColorAnalyzer_ColorChanged(object? sender, WorkerColor color)
     {
         _colorWindow.Enqueue(color);
         if (_colorWindow.Count > ColorWindowSize)
@@ -414,13 +419,11 @@ public class DynamicLightingService
         {
             totalR += c.R; totalG += c.G; totalB += c.B;
         }
-        var avgColor = new Color
-        {
-            A = 255,
-            R = (byte)(totalR / _colorWindow.Count),
-            G = (byte)(totalG / _colorWindow.Count),
-            B = (byte)(totalB / _colorWindow.Count)
-        };
+        var avgColor = new WorkerColor(
+            255,
+            (byte)(totalR / _colorWindow.Count),
+            (byte)(totalG / _colorWindow.Count),
+            (byte)(totalB / _colorWindow.Count));
 
         if (avgColor.R == _lastCapturedColor.R &&
             avgColor.G == _lastCapturedColor.G &&
@@ -432,10 +435,10 @@ public class DynamicLightingService
         NotifyCapturedColorChanged(avgColor);
     }
 
-    public void HandleAutoRGBColor(Color color)
+    public void HandleAutoRGBColor(WorkerColor color)
     {
         if (_isAutoRGBEnabled)
-            ApplyColorToDevices(color);
+            ApplyColorCore(ToWindowsColor(color));
     }
 
     public List<LampArrayDeviceDto> GetDevices()
@@ -455,16 +458,26 @@ public class DynamicLightingService
 
     private void NotifyColorChanged(Color color)
     {
-        ColorChanged?.Invoke(color);
+        ColorChanged?.Invoke(this, ToWorkerColor(color));
     }
 
-    private void NotifyCapturedColorChanged(Color color)
+    private void NotifyCapturedColorChanged(WorkerColor color)
     {
-        CapturedColorChanged?.Invoke(color);
+        CapturedColorChanged?.Invoke(this, color);
     }
 
     private void NotifyDevicesChanged()
     {
-        DevicesChanged?.Invoke();
+        DevicesChanged?.Invoke(this, EventArgs.Empty);
     }
+
+    private static WorkerColor ToWorkerColor(Color color) => new(color.A, color.R, color.G, color.B);
+
+    private static Color ToWindowsColor(WorkerColor color) => new()
+    {
+        A = color.A,
+        R = color.R,
+        G = color.G,
+        B = color.B
+    };
 }

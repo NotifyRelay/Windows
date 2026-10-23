@@ -9,7 +9,7 @@ namespace NotifyRelay.Services.Overlay.UI.Elements;
 
 /// <summary>
 /// 罗技电池元素：单列纵向卡片 = 电池图标（Segoe MDL2 Assets） + 设备名（过长省略号截断）。
-/// 维持「绘制时直读设置」的现状（<see cref="IOverlaySettings.LogiBattery*"/>），避免改动刷新时机。
+/// 设备数据来自推送快照，设置维持「绘制时直读」的现状（<see cref="IOverlaySettings.LogiBattery*"/>）。
 /// </summary>
 internal sealed class LogiBatteryElement : IOverlayElement
 {
@@ -25,8 +25,7 @@ internal sealed class LogiBatteryElement : IOverlayElement
 
     private readonly ElementContext _ctx;
 
-    // Provider 与设备快照（_lock 保护）
-    private ILogiBatteryProvider? _provider;
+    // 推送的设备快照（_ctx.StateLock 保护）
     private List<LogiBatteryDeviceInfo> _devices = [];
 
     public LogiBatteryElement(ElementContext ctx) => _ctx = ctx;
@@ -36,22 +35,10 @@ internal sealed class LogiBatteryElement : IOverlayElement
     /// <summary>罗技电池无初始配置加载项（设置项在绘制时直读）。</summary>
     public void LoadSettings(IOverlaySettings settings) { }
 
-    /// <summary>注入罗技电池数据提供者（DI 启动后调用）。</summary>
-    public void SetProvider(ILogiBatteryProvider? provider)
-        => _ctx.WithLock(() =>
-        {
-            // 退订旧 Provider、订阅新 Provider 走共用模板（与键盘等元素一致）
-            OverlayElementCore.ReplaceProvider(ref _provider, provider,
-                p => p.DevicesUpdated += OnDevicesUpdated,
-                p => p.DevicesUpdated -= OnDevicesUpdated);
-            _devices = provider != null ? provider.GetDevices().ToList() : [];
-        }, "覆盖层数据锁获取超时，跳过罗技电池 Provider 替换");
-
-    private void OnDevicesUpdated(object? sender, EventArgs e)
-        => _ctx.WithLock(() =>
-        {
-            if (_provider != null) _devices = _provider.GetDevices().ToList();
-        }, string.Empty);
+    /// <summary>更新罗技电池设备快照（宿主推送）；空集合表示无设备。</summary>
+    public void ApplyDevices(IReadOnlyList<LogiBatteryDeviceInfo> devices)
+        => _ctx.WithLock(() => _devices = devices as List<LogiBatteryDeviceInfo> ?? devices.ToList(),
+            "覆盖层数据锁获取超时，跳过罗技电池设备更新");
 
     public bool IsActive()
     {
@@ -63,11 +50,11 @@ internal sealed class LogiBatteryElement : IOverlayElement
         return false;
     }
 
-    /// <summary>开关启用 + Provider 已注入 + 存在可绘制设备。</summary>
+    /// <summary>开关启用 + 存在可绘制设备。</summary>
     private bool HasContent()
     {
         var s = _ctx.Settings;
-        if (!s.LogiBatteryEnabled || _provider == null) return false;
+        if (!s.LogiBatteryEnabled) return false;
         lock (_ctx.StateLock)
         {
             foreach (var d in _devices)

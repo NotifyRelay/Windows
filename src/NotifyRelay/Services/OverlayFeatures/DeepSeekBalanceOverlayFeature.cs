@@ -1,21 +1,21 @@
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
-using NotifyRelay.Worker.Services;
+using NotifyRelay.Worker.Contracts;
 
 namespace NotifyRelay.Services.OverlayFeatures;
 
 /// <summary>
 /// DeepSeek 余额叠加层功能：把余额服务的数据桥接到叠加层，
 /// 并在开关开启时启动后台轮询（开关语义：开 = 轮询 + 叠加层显示）。
-/// 登记到容器后由叠加层模块主初始化自动引导，无需在启动流程中手写。
+/// 登记到容器后由 OverlayFeatureHost 统一引导，无需在启动流程中手写。
 /// </summary>
-public sealed class DeepSeekBalanceOverlayFeature : IOverlayFeature
+public sealed class DeepSeekBalanceOverlayFeature : IOverlayHostFeature
 {
-    private readonly DeepSeekBalanceService _balanceService;
+    private readonly IDeepSeekBalanceTool _balanceService;
     private readonly IGeneralSettingsService _settings;
-    private OverlayRenderService? _renderService;
+    private IOverlayDataSink? _sink;
 
-    public DeepSeekBalanceOverlayFeature(DeepSeekBalanceService balanceService, IGeneralSettingsService settings)
+    public DeepSeekBalanceOverlayFeature(IDeepSeekBalanceTool balanceService, IGeneralSettingsService settings)
     {
         _balanceService = balanceService;
         _settings = settings;
@@ -29,9 +29,9 @@ public sealed class DeepSeekBalanceOverlayFeature : IOverlayFeature
     /// 把余额数据推送到叠加层，并订阅后续更新；同时推送已保存的显示配置。
     /// 幂等：看门狗重启叠加层会再次调用本方法，先退订再订阅，避免事件重复挂钩。
     /// </summary>
-    public void Bind(OverlayRenderService renderService)
+    public void Attach(IOverlayDataSink sink)
     {
-        _renderService = renderService;
+        _sink = sink;
         PushConfig();
         PushCurrentBalance();
 
@@ -45,14 +45,14 @@ public sealed class DeepSeekBalanceOverlayFeature : IOverlayFeature
 
     public void Stop() => _balanceService.StopPolling();
 
-    private void OnBalanceUpdated(double balance) => PushCurrentBalance();
+    private void OnBalanceUpdated(object? sender, BalanceUpdatedEventArgs e) => PushCurrentBalance();
 
-    private void OnStatusChanged() => PushCurrentBalance();
+    private void OnStatusChanged(object? sender, EventArgs e) => PushCurrentBalance();
 
     /// <summary>把设置中的显示配置（开关/目标屏/位置/缩放）推送到渲染层。</summary>
     private void PushConfig()
     {
-        _renderService?.SetDeepSeekBalanceConfig(
+        _sink?.SetDeepSeekBalanceConfig(
             _settings.EnableDeepSeekBalanceMonitor,
             _settings.DeepSeekBalanceTargetScreen,
             _settings.DeepSeekBalanceXPercent,
@@ -66,17 +66,10 @@ public sealed class DeepSeekBalanceOverlayFeature : IOverlayFeature
     /// </summary>
     private void PushCurrentBalance()
     {
-        if (_renderService == null) return;
+        if (_sink == null) return;
 
-        double? balance;
-        double change;
-        lock (_balanceService.BalanceHistory)
-        {
-            var last = _balanceService.BalanceHistory.LastOrDefault();
-            balance = last?.Balance;
-            change = last?.Change ?? 0;
-        }
-
-        _renderService.UpdateDeepSeekBalance(balance, change);
+        var snapshot = _balanceService.GetHistorySnapshot();
+        var last = snapshot.Count > 0 ? snapshot[^1] : null;
+        _sink.UpdateDeepSeekBalance(last?.Balance, last?.Change ?? 0);
     }
 }

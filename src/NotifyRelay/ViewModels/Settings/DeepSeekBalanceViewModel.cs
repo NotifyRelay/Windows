@@ -1,6 +1,7 @@
 using Microsoft.UI.Dispatching;
 using NotifyRelay.Data.Contracts;
 using NotifyRelay.Services.Overlay;
+using NotifyRelay.Worker.Contracts;
 using NotifyRelay.Worker.Services;
 
 namespace NotifyRelay.ViewModels.Settings;
@@ -13,13 +14,13 @@ namespace NotifyRelay.ViewModels.Settings;
 public class DeepSeekBalanceViewModel : ObservableViewModelBase
 {
     private readonly IGeneralSettingsService _generalSettingsService;
-    private readonly DeepSeekBalanceService _deepSeekService;
+    private readonly IDeepSeekBalanceTool _deepSeekService;
     private readonly OverlayRenderService? _renderService;
 
     public DeepSeekBalanceViewModel()
     {
         _generalSettingsService = Ioc.Default.GetRequiredService<IGeneralSettingsService>();
-        _deepSeekService = Ioc.Default.GetRequiredService<DeepSeekBalanceService>();
+        _deepSeekService = Ioc.Default.GetRequiredService<IDeepSeekBalanceTool>();
         _renderService = Ioc.Default.GetService<OverlayRenderService>();
         Dispatcher = DispatcherQueue.GetForCurrentThread();
 
@@ -239,7 +240,7 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
         else StopPolling();
     }
 
-    private void OnServiceStatusChanged()
+    private void OnServiceStatusChanged(object? sender, EventArgs e)
     {
         RunOnUi(() =>
         {
@@ -249,25 +250,21 @@ public class DeepSeekBalanceViewModel : ObservableViewModelBase
         });
     }
 
-    private void OnServiceBalanceUpdated(double balance) => SyncHistoryFromService();
+    private void OnServiceBalanceUpdated(object? sender, BalanceUpdatedEventArgs e) => SyncHistoryFromService();
 
     /// <summary>把服务端历史快照同步到 UI 集合（整体替换，避免增量错位）。</summary>
     private void SyncHistoryFromService()
     {
-        List<BalanceHistoryItem> snapshot;
-        lock (_deepSeekService.BalanceHistory)
-        {
-            snapshot = _deepSeekService.BalanceHistory
-                .Select(x => new BalanceHistoryItem
-                {
-                    Time = x.Time,
-                    Balance = x.Balance,
-                    Change = x.Change,
-                    ChangeType = x.ChangeType,
-                    MergeCount = x.MergeCount
-                })
-                .ToList();
-        }
+        var snapshot = _deepSeekService.GetHistorySnapshot()
+            .Select(x => new BalanceHistoryItem
+            {
+                Time = x.Time,
+                Balance = x.Balance,
+                Change = x.Change,
+                ChangeType = x.ChangeType,
+                MergeCount = x.MergeCount
+            })
+            .ToList();
 
         RunOnUi(() =>
         {
