@@ -40,6 +40,9 @@ public class DanmakuItem : OverlayItem
     public string? AppName { get; set; }
     public string DeviceName { get; set; } = string.Empty;
 
+    /// <summary>稳定来源键；为空表示一次性弹幕。</summary>
+    public string? SourceKey { get; set; }
+
     public DanmakuItem()
     {
         Type = DanmakuType.Notification;

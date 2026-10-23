@@ -4,7 +4,12 @@ namespace NotifyRelay.Services.Overlay;
 
 public partial class OverlayRenderService
 {
-    public void ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName)
+    /// <summary>
+    /// 提交一条弹幕。sourceKey 非空时，同键弹幕仍在屏或仍在待发队列则改写其内容，否则新增条目；
+    /// sourceKey 为空时每次新增。
+    /// </summary>
+    public void ShowDanmaku(string appName, string title, string body, byte[]? iconPng, string deviceName,
+        string? sourceKey = null)
     {
         var text = string.IsNullOrEmpty(appName) ? $"{title} - {body}" : $"{appName}: {title} - {body}";
         // 展平换行，保证单行滚动
@@ -27,7 +32,8 @@ public partial class OverlayRenderService
         {
             Text = text,
             IconPng = iconPng,
-            Settings = style
+            Settings = style,
+            SourceKey = sourceKey
         });
     }
 

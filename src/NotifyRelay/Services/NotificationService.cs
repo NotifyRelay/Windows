@@ -294,7 +294,8 @@ public class NotificationService(
                                 // Priority chain: Overlay → Gamebar TCP → System notification
                                 if (overlayEnabled)
                                 {
-                                    overlayRender.ShowDanmaku(appName ?? "", title ?? "", text ?? string.Empty, iconBytes, device.Name);
+                                    // 传入通知稳定键，同键更新由覆盖层合并
+                                    overlayRender.ShowDanmaku(appName ?? "", title ?? "", text ?? string.Empty, iconBytes, device.Name, notificationKey);
                                 }
 
                                 if (forceGamebar || !overlayEnabled)

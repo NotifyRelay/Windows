@@ -81,6 +81,8 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
         public string Text = string.Empty;
         public byte[]? IconPng;
         public DanmakuStyleSettings Settings = new();
+        /// <summary>稳定来源键；为空表示一次性弹幕。</summary>
+        public string? SourceKey;
     }
 
     /// <summary>
@@ -409,6 +411,9 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
             var item = o.Items[i];
             double elapsed = (now - item.StartTime) / freq;
             double x = item.SpawnX - elapsed * item.Settings.PixelsPerSecond;
+            // 在屏条目的内容被更新后布局为空，按当前滚动位置重建绘制资源
+            if (item.TextLayout == null)
+                EnsureDanmakuResources(item, rt);
             if (x < -item.TotalWidth - 50)
             {
                 item.Dispose();
@@ -446,21 +451,63 @@ public sealed partial class OverlayRenderService : IDisposable, IOverlayWatchdog
     private readonly Dictionary<ScreenOverlay, string?> _lastClockTextByOverlay = [];
     private readonly Dictionary<ScreenOverlay, UI.OverlayUiRoot?> _lastClockRootByOverlay = [];
 
+    /// <summary>
+    /// 渲染线程分发弹幕请求。带稳定键的请求先更新本屏同键弹幕（在屏条目或待发条目），
+    /// 无同键条目时新增；无键请求每次新增。
+    /// </summary>
     private void DispatchRequests()
     {
         while (_requests.TryDequeue(out var req))
         {
             foreach (var o in SelectTargets(req.Settings.DisplayScreenMode))
             {
+                if (req.SourceKey != null && TryUpdateDanmaku(o, req)) continue;
+
                 var item = new DanmakuItem
                 {
                     Text = req.Text,
                     IconPng = req.IconPng,
-                    Settings = req.Settings
+                    Settings = req.Settings,
+                    SourceKey = req.SourceKey
                 };
                 o.Pending.Enqueue(item);
             }
         }
+    }
+
+    /// <summary>用请求内容更新本屏同键弹幕，命中返回 true。待发条目保持原队列位置。</summary>
+    private bool TryUpdateDanmaku(ScreenOverlay overlay, DanmakuRequest req)
+    {
+        var key = req.SourceKey;
+        if (key == null) return false;
+
+        foreach (var item in overlay.Items)
+        {
+            if (!item.Active || item.SourceKey != key) continue;
+            ApplyDanmakuContent(item, req);
+            return true;
+        }
+
+        foreach (var item in overlay.Pending)
+        {
+            if (item.SourceKey != key) continue;
+            ApplyDanmakuContent(item, req);
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>替换弹幕内容，并置空绘制资源等待渲染线程重建；旧资源延迟释放。</summary>
+    private void ApplyDanmakuContent(DanmakuItem item, DanmakuRequest req)
+    {
+        item.Text = req.Text;
+        item.IconPng = req.IconPng;
+        item.Settings = req.Settings;
+        DeferDispose(item.TextLayout);
+        item.TextLayout = null;
+        DeferDispose(item.IconBitmap);
+        item.IconBitmap = null;
     }
 
     private List<ScreenOverlay> SelectTargets(int mode)
